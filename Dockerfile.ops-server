@@ -1,0 +1,22 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install dependencies (includes devDependencies for the build)
+COPY vrs-ops-server/package*.json ./
+RUN npm install
+
+# Copy source and build TypeScript
+COPY vrs-ops-server/tsconfig.json ./
+COPY vrs-ops-server/src/ ./src/
+RUN npm run build
+
+# Remove devDependencies after build
+RUN npm prune --omit=dev
+
+# Create data directory for persisted state
+RUN mkdir -p /app/data
+
+EXPOSE 3003
+
+CMD ["node", "dist/index.js"]

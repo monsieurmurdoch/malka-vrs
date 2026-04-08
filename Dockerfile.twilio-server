@@ -1,0 +1,12 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+COPY twilio-voice-server/package*.json ./
+RUN npm install --omit=dev
+
+COPY twilio-voice-server/ .
+
+EXPOSE 3002
+
+CMD ["node", "server.js"]
