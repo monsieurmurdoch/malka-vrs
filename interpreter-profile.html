@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MalkaVRI - Interpreter Profile</title>
+    <link rel="stylesheet" href="css/all.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f1724 0%, #1a2332 50%, #252f3f 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        /* Header */
+        .profile-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 32px;
+            background: rgba(0,0,0,0.3);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .profile-header-left {
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+        }
+
+        .profile-header-logo {
+            max-width: 120px;
+            height: auto;
+        }
+
+        .profile-header-title {
+            font-size: 20px;
+            font-weight: 300;
+            opacity: 0.8;
+        }
+
+        .profile-header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .profile-user-name {
+            font-size: 14px;
+            opacity: 0.7;
+        }
+
+        .sign-out-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px;
+            color: #fff;
+            cursor: pointer;
+            padding: 8px 20px;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .sign-out-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        /* Stats bar */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            max-width: 1100px;
+            margin: 24px auto;
+            padding: 0 24px;
+        }
+
+        .stat-card {
+            background: rgba(255,255,255,0.06);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #7eb8da;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.5;
+        }
+
+        /* Main grid */
+        .profile-main {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 24px 32px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        /* Card */
+        .card {
+            background: rgba(255,255,255,0.06);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: rgba(255,255,255,0.9);
+        }
+
+        /* Schedule */
+        .schedule-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+            margin-bottom: 16px;
+        }
+
+        .schedule-day {
+            text-align: center;
+            font-size: 11px;
+            opacity: 0.5;
+            padding: 4px 0;
+            text-transform: uppercase;
+        }
+
+        .schedule-cell {
+            text-align: center;
+            padding: 8px 4px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            background: rgba(255,255,255,0.04);
+        }
+
+        .schedule-cell.has-hours {
+            background: rgba(126,184,218,0.15);
+            color: #7eb8da;
+        }
+
+        .schedule-cell.today {
+            border: 1px solid rgba(126,184,218,0.3);
+        }
+
+        .shift-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-size: 14px;
+        }
+
+        .shift-item:last-child {
+            border-bottom: none;
+        }
+
+        .shift-date {
+            opacity: 0.6;
+        }
+
+        .shift-hours {
+            color: #7eb8da;
+            font-weight: 500;
+        }
+
+        .shift-status {
+            font-size: 12px;
+            opacity: 0.5;
+        }
+
+        /* Earnings */
+        .earnings-total {
+            font-size: 36px;
+            font-weight: 700;
+            color: #c9d6df;
+            margin: 8px 0 4px;
+        }
+
+        .earnings-period {
+            font-size: 13px;
+            opacity: 0.5;
+            margin-bottom: 20px;
+        }
+
+        .earnings-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-size: 14px;
+        }
+
+        .earnings-item:last-child {
+            border-bottom: none;
+        }
+
+        .earnings-range {
+            opacity: 0.6;
+        }
+
+        .earnings-amount {
+            color: #c9d6df;
+            font-weight: 500;
+        }
+
+        /* Join Queue button */
+        .join-queue-section {
+            grid-column: 1 / -1;
+        }
+
+        .join-queue-btn {
+            width: 100%;
+            padding: 18px;
+            background: #7eb8da;
+            border: none;
+            border-radius: 12px;
+            color: #0f1724;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+        }
+
+        .join-queue-btn:hover {
+            background: #6aabc9;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 20px rgba(126,184,218,0.35);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 32px 16px;
+            opacity: 0.4;
+            font-size: 14px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            opacity: 0.5;
+        }
+
+        .auth-redirect {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .auth-redirect p { opacity: 0.7; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .stats-bar {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .profile-main {
+                grid-template-columns: 1fr;
+                padding: 0 16px 24px;
+            }
+
+            .profile-header {
+                padding: 12px 16px;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .profile-header-title {
+                display: none;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stats-bar {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .stat-value {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+    <script>
+    (function() {
+        const API_BASE = (function() {
+            if (typeof config !== 'undefined' && config.vrs && config.vrs.queueServiceUrl) {
+                return config.vrs.queueServiceUrl.replace(/^ws/, 'http').replace(/\/ws$/, '');
+            }
+            return 'http://localhost:3001';
+        })();
+
+        function getToken() {
+            try {
+                const stored = JSON.parse(sessionStorage.getItem('vrs_auth_token') || '{}');
+                return stored.token || null;
+            } catch(e) { return null; }
+        }
+
+        function getUser() {
+            try {
+                return JSON.parse(sessionStorage.getItem('vrs_user_info') || 'null');
+            } catch(e) { return null; }
+        }
+
+        function authHeaders() {
+            const token = getToken();
+            return token ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+        }
+
+        async function apiFetch(path, options = {}) {
+            const res = await fetch(API_BASE + path, { ...options, headers: { ...authHeaders(), ...(options.headers || {}) } });
+            if (res.status === 401 || res.status === 403) {
+                sessionStorage.clear();
+                window.location.href = '/';
+                return null;
+            }
+            return res.json();
+        }
+
+        // State
+        let state = {
+            profile: null,
+            stats: null,
+            shifts: [],
+            earnings: [],
+            calls: []
+        };
+
+        function formatDate(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+
+        function formatCurrency(amount) {
+            return '$' + Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function render() {
+            const user = getUser();
+            if (!user || user.role !== 'interpreter') {
+                document.getElementById('app').innerHTML = '<div class="auth-redirect"><p>Redirecting to sign in...</p></div>';
+                setTimeout(() => { window.location.href = '/'; }, 1000);
+                return;
+            }
+
+            const stats = state.stats || { totalCalls: 0, totalMinutes: 0, avgDuration: 0, totalEarnings: 0 };
+            const totalHours = (stats.totalMinutes / 60).toFixed(1);
+
+            // Build schedule grid for current week
+            const today = new Date();
+            const dayOfWeek = today.getDay();
+            const monday = new Date(today);
+            monday.setDate(today.getDate() - ((dayOfWeek + 6) % 7));
+
+            const dayLabels = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+            const shiftMap = {};
+            (state.shifts || []).forEach(s => {
+                shiftMap[s.date] = s;
+            });
+
+            let scheduleHTML = '<div class="schedule-grid">';
+            dayLabels.forEach(d => {
+                scheduleHTML += `<div class="schedule-day">${d}</div>`;
+            });
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(monday);
+                d.setDate(monday.getDate() + i);
+                const dateStr = d.toISOString().split('T')[0];
+                const shift = shiftMap[dateStr];
+                const isToday = dateStr === today.toISOString().split('T')[0];
+                const hours = shift ? Math.round((shift.total_minutes || 0) / 60 * 10) / 10 : '';
+                scheduleHTML += `<div class="schedule-cell ${shift ? 'has-hours' : ''} ${isToday ? 'today' : ''}">${hours || (shift ? 'scheduled' : '-')}</div>`;
+            }
+            scheduleHTML += '</div>';
+
+            // Recent shifts
+            const recentShifts = (state.shifts || []).slice(0, 5);
+            let shiftsHTML = '';
+            recentShifts.forEach(s => {
+                shiftsHTML += `
+                    <div class="shift-item">
+                        <span class="shift-date">${formatDate(s.date)}</span>
+                        <span class="shift-hours">${s.total_minutes ? Math.round(s.total_minutes / 60 * 10) / 10 + 'h' : s.start_time || 'scheduled'}</span>
+                        <span class="shift-status">${s.status || ''}</span>
+                    </div>
+                `;
+            });
+
+            // Earnings
+            const earnings = state.earnings || [];
+            let earningsHTML = '';
+            earnings.forEach(e => {
+                earningsHTML += `
+                    <div class="earnings-item">
+                        <span class="earnings-range">${e.period_start} — ${e.period_end}</span>
+                        <span class="earnings-amount">${formatCurrency(e.net_earnings || e.total_earnings)}</span>
+                    </div>
+                `;
+            });
+
+            document.getElementById('app').innerHTML = `
+                <div class="profile-header">
+                    <div class="profile-header-left">
+                        <img src="images/malka-logo-white.png" alt="MalkaVRI" class="profile-header-logo">
+                        <span class="profile-header-title">Interpreter Profile</span>
+                    </div>
+                    <div class="profile-header-right">
+                        <span class="profile-user-name">${user.name || user.email || ''}</span>
+                        <button class="sign-out-btn" onclick="window.__signOut()">Sign Out</button>
+                    </div>
+                </div>
+
+                <!-- Stats bar -->
+                <div class="stats-bar">
+                    <div class="stat-card">
+                        <div class="stat-value">${totalHours}</div>
+                        <div class="stat-label">Hours This Month</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${formatCurrency(stats.totalEarnings)}</div>
+                        <div class="stat-label">Earned This Month</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${stats.totalCalls}</div>
+                        <div class="stat-label">Calls This Month</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${Math.round(stats.avgDuration)}</div>
+                        <div class="stat-label">Avg Duration (min)</div>
+                    </div>
+                </div>
+
+                <!-- Schedule + Earnings -->
+                <div class="profile-main">
+                    <div class="card">
+                        <div class="card-title">Schedule</div>
+                        ${scheduleHTML}
+                        ${recentShifts.length > 0 ? `
+                            <div style="margin-top:12px">
+                                ${shiftsHTML}
+                            </div>
+                        ` : '<div class="empty-state">No shifts scheduled</div>'}
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">Earnings</div>
+                        <div class="earnings-total">${formatCurrency(stats.totalEarnings)}</div>
+                        <div class="earnings-period">Net earnings this month</div>
+                        ${earnings.length > 0 ? earningsHTML : '<div class="empty-state">No earnings records yet</div>'}
+                    </div>
+
+                    <!-- Join Queue -->
+                    <div class="join-queue-section">
+                        <button class="join-queue-btn" onclick="window.__joinQueue()">
+                            Join Queue — Go Available
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Actions
+        window.__signOut = function() {
+            sessionStorage.clear();
+            window.location.href = '/';
+        };
+
+        window.__joinQueue = function() {
+            const roomName = 'interpreter-' + Math.random().toString(36).substr(2, 9);
+            sessionStorage.setItem('vrs_user_role', 'interpreter');
+            window.location.href = '/' + roomName + '?role=interpreter';
+        };
+
+        // Data loading
+        async function loadProfile() {
+            const data = await apiFetch('/api/interpreter/profile');
+            if (data) state.profile = data;
+        }
+
+        async function loadStats() {
+            const data = await apiFetch('/api/interpreter/stats');
+            if (data) state.stats = data;
+        }
+
+        async function loadShifts() {
+            const data = await apiFetch('/api/interpreter/shifts');
+            if (data && data.shifts) state.shifts = data.shifts;
+        }
+
+        async function loadEarnings() {
+            const data = await apiFetch('/api/interpreter/earnings');
+            if (data && data.earnings) state.earnings = data.earnings;
+        }
+
+        async function loadCallHistory() {
+            const data = await apiFetch('/api/interpreter/call-history?limit=10');
+            if (data && data.calls) state.calls = data.calls;
+        }
+
+        // Init
+        async function init() {
+            const user = getUser();
+            const token = getToken();
+            if (!user || !token || user.role !== 'interpreter') {
+                document.getElementById('app').innerHTML = '<div class="auth-redirect"><p>Redirecting...</p></div>';
+                setTimeout(() => { window.location.href = '/'; }, 500);
+                return;
+            }
+
+            render();
+            await Promise.all([loadProfile(), loadStats(), loadShifts(), loadEarnings(), loadCallHistory()]);
+            render();
+        }
+
+        init();
+    })();
+    </script>
+    <script src="config.js"></script>
+</body>
+</html>

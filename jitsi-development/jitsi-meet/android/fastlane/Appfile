@@ -1,0 +1,2 @@
+json_key_file("")  # Path to Google Play Console service account JSON file (update this path)
+package_name("com.malka.vrs.meet")  # Your Android package name

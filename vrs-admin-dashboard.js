@@ -1,0 +1,1129 @@
+/**
+ * VRS Admin Dashboard JavaScript
+ * Connects to the VRS backend API and WebSocket server
+ */
+
+// API Configuration
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:3001/api'
+    : `/api`;
+const OPS_API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:3003/api'
+    : `${window.location.protocol}//${window.location.hostname}:3003/api`;
+const AUTH_API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:3003/api/auth'
+    : `${window.location.protocol}//${window.location.hostname}:3003/api/auth`;
+const WS_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'ws://localhost:3001/ws'
+    : `ws://${window.location.host}/ws`;
+
+// State
+let authToken = localStorage.getItem('vrs_admin_token');
+let ws = null;
+let refreshInterval = null;
+let currentAdminRole = localStorage.getItem('vrs_admin_role') || 'admin';
+
+// ============================================
+// INITIALIZATION
+// ============================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
+    setupNavigation();
+    setupEventListeners();
+    loadInitialData();
+});
+
+function checkAuth() {
+    if (!authToken && !window.location.pathname.endsWith('vrs-admin.html')) {
+        window.location.href = 'vrs-admin.html';
+    }
+}
+
+function setupNavigation() {
+    // Hash-based navigation
+    const handleHash = () => {
+        const hash = window.location.hash.slice(1) || 'dashboard';
+
+        // Update nav tabs
+        document.querySelectorAll('.nav-tab').forEach(tab => {
+            tab.classList.toggle('active', tab.dataset.tab === hash);
+        });
+
+        // Update tab content
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.toggle('active', content.id === `${hash}-tab`);
+        });
+
+        // Load data for the active tab
+        loadTabData(hash);
+    };
+
+    window.addEventListener('hashchange', handleHash);
+    handleHash();
+}
+
+function setupEventListeners() {
+    // Refresh button
+    document.getElementById('refreshBtn')?.addEventListener('click', refreshCurrentTab);
+
+    // Logout button
+    document.getElementById('logoutBtn')?.addEventListener('click', logout);
+
+    // Language toggle
+    document.getElementById('langToggle')?.addEventListener('click', toggleLanguage);
+
+    // Add interpreter button
+    document.getElementById('addInterpreterBtn')?.addEventListener('click', showAddInterpreterModal);
+    document.getElementById('addAccountBtn')?.addEventListener('click', showAddAccountModal);
+
+    // Filter changes
+    document.getElementById('interpreterStatusFilter')?.addEventListener('change', filterInterpreters);
+    document.getElementById('interpreterSearch')?.addEventListener('input', debounce(filterInterpreters, 300));
+
+    // Queue pause button
+    document.getElementById('pauseQueueBtn')?.addEventListener('click', toggleQueue);
+}
+
+function loadInitialData() {
+    updateCurrentUserDisplay();
+    validateOpsSession();
+    loadDashboardStats();
+    loadMonitoringSummary();
+    connectWebSocket();
+
+    // Auto-refresh every 30 seconds
+    refreshInterval = setInterval(refreshCurrentTab, 30000);
+}
+
+async function validateOpsSession() {
+    if (!authToken) {
+        return;
+    }
+
+    try {
+        const session = await fetch(`${AUTH_API_BASE}/validate`, {
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+
+        if (!session.ok) {
+            logout();
+            return;
+        }
+
+        const data = await session.json();
+        localStorage.setItem('vrs_admin_name', data.user.name);
+        localStorage.setItem('vrs_admin_email', data.user.email || '');
+        localStorage.setItem('vrs_admin_role', data.user.role);
+        updateCurrentUserDisplay();
+    } catch (error) {
+        console.error('[Auth] Validation failed:', error);
+    }
+}
+
+function loadTabData(tab) {
+    switch (tab) {
+        case 'dashboard':
+            loadDashboardStats();
+            loadMonitoringSummary();
+            break;
+        case 'interpreters':
+            loadInterpreters();
+            break;
+        case 'accounts':
+            loadAccounts();
+            break;
+        case 'clients':
+            loadClients();
+            break;
+        case 'queue':
+            loadLiveQueue();
+            break;
+        case 'activity':
+            loadActivityFeed();
+            break;
+    }
+}
+
+function refreshCurrentTab() {
+    const hash = window.location.hash.slice(1) || 'dashboard';
+    loadTabData(hash);
+}
+
+// ============================================
+// API CALLS
+// ============================================
+
+async function apiCall(endpoint, options = {}) {
+    const headers = {
+        'Content-Type': 'application/json'
+    };
+
+    if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers
+    });
+
+    if (response.status === 401) {
+        logout();
+        throw new Error('Unauthorized');
+    }
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Request failed');
+    }
+
+    return response.json();
+}
+
+async function opsApiCall(endpoint, options = {}) {
+    const headers = {
+        'Content-Type': 'application/json'
+    };
+
+    if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(`${OPS_API_BASE}${endpoint}`, {
+        ...options,
+        headers
+    });
+
+    if (response.status === 401 || response.status === 403) {
+        if (response.status === 401) {
+            logout();
+        }
+
+        const error = await response.json().catch(() => ({ error: 'Unauthorized' }));
+        throw new Error(error.error || 'Unauthorized');
+    }
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Request failed' }));
+        throw new Error(error.error || 'Request failed');
+    }
+
+    return response.json();
+}
+
+async function login(username, password) {
+    const response = await fetch(`${AUTH_API_BASE}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: username, password })
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Login failed');
+    }
+
+    const data = await response.json();
+    authToken = data.token;
+    localStorage.setItem('vrs_admin_token', authToken);
+    localStorage.setItem('vrs_admin_name', data.user.name);
+    localStorage.setItem('vrs_admin_email', data.user.email);
+    localStorage.setItem('vrs_admin_role', data.user.role);
+    currentAdminRole = data.user.role;
+
+    return data;
+}
+
+function logout() {
+    authToken = null;
+    currentAdminRole = 'admin';
+    localStorage.removeItem('vrs_admin_token');
+    localStorage.removeItem('vrs_admin_remember');
+    localStorage.removeItem('vrs_admin_name');
+    localStorage.removeItem('vrs_admin_email');
+    localStorage.removeItem('vrs_admin_role');
+
+    if (ws) {
+        ws.close();
+    }
+
+    window.location.href = 'vrs-admin.html';
+}
+
+function updateCurrentUserDisplay() {
+    const name = localStorage.getItem('vrs_admin_name') || 'Admin';
+    const role = localStorage.getItem('vrs_admin_role') || currentAdminRole || 'admin';
+    currentAdminRole = role;
+
+    const nameEl = document.querySelector('.user-name');
+    const roleEl = document.querySelector('.user-role');
+    const avatarEl = document.querySelector('.user-avatar');
+    const accountsTab = document.querySelector('[data-tab="accounts"]');
+    const addAccountBtn = document.getElementById('addAccountBtn');
+
+    if (nameEl) {
+        nameEl.textContent = name;
+    }
+
+    if (roleEl) {
+        roleEl.textContent = role === 'superadmin' ? 'Superadmin' : 'Administrator';
+    }
+
+    if (avatarEl) {
+        avatarEl.textContent = name.charAt(0).toUpperCase();
+    }
+
+    if (accountsTab) {
+        accountsTab.style.display = role === 'superadmin' ? 'inline-flex' : 'none';
+    }
+
+    if (addAccountBtn) {
+        addAccountBtn.style.display = role === 'superadmin' ? 'inline-flex' : 'none';
+    }
+}
+
+// ============================================
+// WEBSOCKET CONNECTION
+// ============================================
+
+function connectWebSocket() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        return;
+    }
+
+    ws = new WebSocket(`${WS_URL}?token=${authToken}`);
+
+    ws.onopen = () => {
+        console.log('[WebSocket] Connected');
+
+        // Authenticate and subscribe to admin updates
+        ws.send(JSON.stringify({
+            type: 'auth',
+            role: 'admin',
+            token: authToken
+        }));
+
+        ws.send(JSON.stringify({
+            type: 'admin_subscribe'
+        }));
+    };
+
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        handleWebSocketMessage(data);
+    };
+
+    ws.onclose = () => {
+        console.log('[WebSocket] Disconnected');
+        // Attempt to reconnect after 5 seconds
+        if (authToken) {
+            setTimeout(connectWebSocket, 5000);
+        }
+    };
+
+    ws.onerror = (error) => {
+        console.error('[WebSocket] Error:', error);
+    };
+}
+
+function handleWebSocketMessage(data) {
+    switch (data.type) {
+        case 'dashboard_data':
+            updateDashboardStats(data.data);
+            break;
+        case 'interpreters_list':
+            updateInterpretersList(data.data);
+            break;
+        case 'queue_update':
+            updateQueueDisplay(data.data);
+            break;
+        case 'interpreter_connected':
+        case 'interpreter_disconnected':
+        case 'interpreter_status_changed':
+            // Refresh interpreters list
+            if (window.location.hash.includes('interpreters')) {
+                loadInterpreters();
+            }
+            break;
+        case 'queue_request_added':
+        case 'queue_match_complete':
+            // Refresh queue
+            if (window.location.hash.includes('queue')) {
+                loadLiveQueue();
+            }
+            break;
+        case 'ops_audit':
+        case 'activity_logged':
+            // Refresh activity feed
+            if (window.location.hash.includes('activity')) {
+                loadActivityFeed();
+            }
+            break;
+        case 'ping':
+            ws.send(JSON.stringify({ type: 'pong' }));
+            break;
+    }
+}
+
+// ============================================
+// DASHBOARD
+// ============================================
+
+async function loadDashboardStats() {
+    try {
+        const stats = await apiCall('/admin/stats');
+        updateDashboardStats(stats);
+    } catch (error) {
+        console.error('[Dashboard] Error:', error);
+    }
+}
+
+async function loadMonitoringSummary() {
+    try {
+        const summary = await opsApiCall('/admin/monitoring/summary');
+        renderMonitoringSummary(summary);
+    } catch (error) {
+        console.error('[Monitoring] Error:', error);
+    }
+}
+
+function updateDashboardStats(stats) {
+    // Update stat cards
+    updateStat('totalClients', stats.clients?.total || 0);
+    updateStat('totalInterpreters', stats.interpreters?.total || 0);
+    updateStat('queueCount', stats.queue?.count || 0);
+    updateStat('activeCalls', stats.calls?.active || 0);
+
+    // Update subtexts
+    const interpretersOnline = document.getElementById('interpretersOnline');
+    if (interpretersOnline) {
+        interpretersOnline.textContent = `${stats.interpreters?.online || 0} online now`;
+    }
+
+    const avgWaitTime = document.getElementById('avgWaitTime');
+    if (avgWaitTime) {
+        const minutes = Math.round(stats.queue?.avg_wait_minutes || 0);
+        avgWaitTime.textContent = `Avg wait: ${minutes} min`;
+    }
+
+    // Update queue trend
+    const queueTrend = document.getElementById('queueTrend');
+    if (queueTrend && stats.growth) {
+        const growth = calculateGrowth(stats.growth.this_week, stats.growth.last_week);
+        queueTrend.textContent = growth;
+        queueTrend.className = `stat-trend ${growth.startsWith('+') ? 'up' : 'down'}`;
+    }
+
+    // Update active interpreters table
+    loadActiveInterpreters();
+
+    // Update queue preview
+    renderQueuePreview();
+}
+
+function renderMonitoringSummary(summary) {
+    const monitoringBody = document.getElementById('monitoringSummaryBody');
+    const authBody = document.getElementById('authSummaryBody');
+
+    if (monitoringBody) {
+        const services = [
+            { name: 'Auth Service', status: summary.services?.auth || 'unknown', detail: `Uptime: ${Math.round(summary.uptime || 0)}s` },
+            { name: 'Ops WebSocket', status: 'healthy', detail: `${summary.services?.opsWebSocketClients || 0} clients connected` },
+            { name: 'Queue API', status: summary.services?.queueApi || 'external', detail: `${summary.queue?.pendingRequests || 0} requests waiting` },
+            { name: 'State Store', status: 'healthy', detail: summary.services?.storageFile || 'n/a' }
+        ];
+
+        monitoringBody.innerHTML = services.map(service => `
+            <tr>
+                <td>${service.name}</td>
+                <td><span class="status-badge ${service.status === 'healthy' ? 'status-online' : 'status-busy'}"><span class="status-dot"></span>${service.status}</span></td>
+                <td style="color: var(--text-secondary);">${service.detail}</td>
+            </tr>
+        `).join('');
+    }
+
+    if (authBody) {
+        const authRows = [
+            [ 'Active Accounts', summary.auth?.activeAccounts || 0 ],
+            [ 'Recent Failed Attempts', summary.auth?.recentFailedAttempts || 0 ],
+            [ 'Locked-Out Buckets', summary.auth?.lockedOutBuckets || 0 ],
+            [ 'Bootstrap Superadmin', summary.auth?.bootstrapSuperadminEnabled ? 'Enabled' : 'Disabled' ]
+        ];
+
+        authBody.innerHTML = authRows.map(([ label, value ]) => `
+            <tr>
+                <td>${label}</td>
+                <td style="font-weight: 600;">${value}</td>
+            </tr>
+        `).join('');
+    }
+}
+
+function updateStat(elementId, value) {
+    const el = document.getElementById(elementId);
+    if (el) {
+        el.textContent = value;
+    }
+}
+
+function calculateGrowth(thisWeek, lastWeek) {
+    if (!lastWeek || lastWeek === 0) return '-';
+    const growth = ((thisWeek - lastWeek) / lastWeek * 100).toFixed(0);
+    return `${growth > 0 ? '+' : ''}${growth}%`;
+}
+
+async function loadActiveInterpreters() {
+    try {
+        const interpreters = await apiCall('/admin/interpreters');
+        const active = interpreters.filter(i => i.connected && i.currentStatus !== 'offline');
+
+        renderActiveInterpretersTable(active.slice(0, 5));
+    } catch (error) {
+        console.error('[Active Interpreters] Error:', error);
+    }
+}
+
+function renderActiveInterpretersTable(interpreters) {
+    const tbody = document.getElementById('activeInterpretersList');
+    if (!tbody) return;
+
+    if (interpreters.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    No interpreters currently online
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = interpreters.map(interp => {
+        const statusClass = interp.currentStatus === 'online' ? 'status-online' :
+                           interp.currentStatus === 'busy' ? 'status-busy' : 'status-in-call';
+        const statusText = interp.currentStatus === 'online' ? 'Available' :
+                          interp.currentStatus === 'busy' ? 'Busy' : 'In Call';
+
+        return `
+            <tr>
+                <td>
+                    <div style="font-weight: 500;">${interp.name}</div>
+                    <div style="font-size: 12px; color: var(--text-muted);">${Array.isArray(interp.languages) ? interp.languages.join(', ') : 'ASL'}</div>
+                </td>
+                <td>
+                    <span class="status-badge ${statusClass}">
+                        <span class="status-dot"></span>
+                        ${statusText}
+                    </span>
+                </td>
+                <td>—</td>
+                <td>${interp.calls_today || 0} calls</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function renderQueuePreview() {
+    try {
+        const queue = await apiCall('/admin/queue');
+        const container = document.getElementById('queuePreview');
+        if (!container) return;
+
+        if (queue.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">✅</div>
+                    <p>No one in queue right now!</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = queue.slice(0, 5).map(item => `
+            <div class="queue-item">
+                <div class="queue-position">${item.position}</div>
+                <div class="queue-info">
+                    <div class="queue-client">${item.client_name}</div>
+                    <div class="queue-details">
+                        <span>🌐 ${item.language}</span>
+                        <span>📍 ${item.room_name}</span>
+                    </div>
+                    <div class="queue-wait-time">⏱️ ${item.wait_time}</div>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('[Queue Preview] Error:', error);
+    }
+}
+
+// ============================================
+// INTERPRETERS
+// ============================================
+
+let allInterpreters = [];
+
+async function loadInterpreters() {
+    try {
+        allInterpreters = await apiCall('/admin/interpreters');
+        renderInterpretersTable(allInterpreters);
+    } catch (error) {
+        console.error('[Interpreters] Error:', error);
+    }
+}
+
+function renderInterpretersTable(interpreters) {
+    const tbody = document.getElementById('interpretersTableBody');
+    if (!tbody) return;
+
+    if (interpreters.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    No interpreters found
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = interpreters.map(interp => {
+        const statusClass = interp.connected && interp.currentStatus === 'online' ? 'status-online' :
+                           interp.connected && interp.currentStatus === 'busy' ? 'status-busy' :
+                           interp.connected && interp.currentStatus === 'in-call' ? 'status-in-call' : 'status-offline';
+        const statusText = !interp.connected ? 'Offline' :
+                          interp.currentStatus === 'online' ? 'Available' :
+                          interp.currentStatus === 'busy' ? 'Busy' :
+                          interp.currentStatus === 'in-call' ? 'In Call' : 'Offline';
+
+        return `
+            <tr>
+                <td><div style="font-weight: 500;">${interp.name}</div></td>
+                <td style="color: var(--text-secondary);">${interp.email}</td>
+                <td>${Array.isArray(interp.languages) ? interp.languages.join(', ') : interp.languages}</td>
+                <td>
+                    <span class="status-badge ${statusClass}">
+                        <span class="status-dot"></span>
+                        ${statusText}
+                    </span>
+                </td>
+                <td>${interp.calls_today || 0}</td>
+                <td>${interp.minutes_week || 0}</td>
+                <td>${formatLastActive(interp)}</td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="editInterpreter('${interp.id}')">Edit</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function formatLastActive(interp) {
+    if (!interp.connected) {
+        if (interp.last_active) {
+            const date = new Date(interp.last_active);
+            const now = new Date();
+            const hours = Math.floor((now - date) / (1000 * 60 * 60));
+            if (hours < 1) return '< 1 hour ago';
+            if (hours < 24) return `${hours}h ago`;
+            return `${Math.floor(hours / 24)}d ago`;
+        }
+        return 'Unknown';
+    }
+    return 'Now';
+}
+
+async function filterInterpreters() {
+    const statusFilter = document.getElementById('interpreterStatusFilter')?.value;
+    const searchTerm = document.getElementById('interpreterSearch')?.value.toLowerCase();
+
+    let filtered = [...allInterpreters];
+
+    if (statusFilter && statusFilter !== 'all') {
+        filtered = filtered.filter(interp => {
+            if (statusFilter === 'online') return interp.connected && interp.currentStatus === 'online';
+            if (statusFilter === 'busy') return interp.connected && interp.currentStatus === 'busy';
+            if (statusFilter === 'offline') return !interp.connected || interp.currentStatus === 'offline';
+            return true;
+        });
+    }
+
+    if (searchTerm) {
+        filtered = filtered.filter(interp =>
+            interp.name.toLowerCase().includes(searchTerm) ||
+            interp.email.toLowerCase().includes(searchTerm)
+        );
+    }
+
+    renderInterpretersTable(filtered);
+}
+
+function showAddInterpreterModal() {
+    if (currentAdminRole !== 'superadmin') {
+        alert('Only the superadmin account can create interpreter accounts.');
+        return;
+    }
+
+    const name = prompt('Interpreter Name:');
+    if (!name) return;
+
+    const email = prompt('Email (optional):', '');
+    const username = prompt('Username (optional if email is supplied):', email ? email.split('@')[0] : '');
+    if (!email && !username) return;
+
+    const languages = prompt('Languages (comma-separated, e.g., ASL, BSL):', 'ASL');
+
+    createInterpreter(name, email, languages.split(',').map(l => l.trim()), username);
+}
+
+async function createInterpreter(name, email, languages, username) {
+    try {
+        await opsApiCall('/admin/accounts', {
+            method: 'POST',
+            body: JSON.stringify({
+                email,
+                languages,
+                name,
+                password: 'interpreter123!',
+                role: 'interpreter',
+                username
+            })
+        });
+
+        await apiCall('/admin/interpreters', {
+            method: 'POST',
+            body: JSON.stringify({ name, email, languages, password: 'interpreter123!' })
+        });
+
+        alert(`Interpreter created successfully.\n${username ? `username: ${username}\n` : ''}${email ? `email: ${email}\n` : ''}password: interpreter123!`);
+        loadInterpreters();
+        loadAccounts();
+        loadMonitoringSummary();
+    } catch (error) {
+        alert('Failed to create interpreter: ' + error.message);
+    }
+}
+
+// ============================================
+// ACCOUNTS
+// ============================================
+
+async function loadAccounts() {
+    if (currentAdminRole !== 'superadmin') {
+        renderAccountsTable([]);
+        return;
+    }
+
+    try {
+        const accounts = await opsApiCall('/admin/accounts');
+        renderAccountsTable(accounts);
+    } catch (error) {
+        console.error('[Accounts] Error:', error);
+    }
+}
+
+function renderAccountsTable(accounts) {
+    const tbody = document.getElementById('accountsTableBody');
+    if (!tbody) {
+        return;
+    }
+
+    if (!accounts.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    ${currentAdminRole === 'superadmin' ? 'No managed accounts found yet' : 'Superadmin access required'}
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = accounts.map(account => `
+        <tr>
+            <td><div style="font-weight: 500;">${account.name}</div></td>
+            <td>${account.role}</td>
+            <td>${account.username || '—'}</td>
+            <td style="color: var(--text-secondary);">${account.email || '—'}</td>
+            <td>${Array.isArray(account.languages) && account.languages.length ? account.languages.join(', ') : '—'}</td>
+            <td>${account.lastLoginAt ? formatDateTime(account.lastLoginAt) : 'Never'}</td>
+            <td>
+                <span class="status-badge ${account.active ? 'status-online' : 'status-offline'}">
+                    <span class="status-dot"></span>
+                    ${account.active ? 'Active' : 'Disabled'}
+                </span>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function showAddAccountModal() {
+    if (currentAdminRole !== 'superadmin') {
+        alert('Only the superadmin account can create new accounts.');
+        return;
+    }
+
+    const role = prompt('Account role (superadmin, admin, interpreter):', 'interpreter');
+    if (!role) {
+        return;
+    }
+
+    const name = prompt('Account name:');
+    if (!name) {
+        return;
+    }
+
+    const username = prompt('Username (optional if email is supplied):', '');
+    const email = prompt('Email (optional):', '');
+    const password = prompt('Temporary password:', role === 'interpreter' ? 'interpreter123!' : 'admin123!');
+
+    if (!password) {
+        return;
+    }
+
+    const languages = role === 'interpreter'
+        ? prompt('Languages (comma-separated):', 'ASL, English')
+        : '';
+
+    createAccount({
+        email,
+        languages: languages ? languages.split(',').map(language => language.trim()).filter(Boolean) : [],
+        name,
+        password,
+        role: role.trim().toLowerCase(),
+        username
+    });
+}
+
+async function createAccount(payload) {
+    try {
+        const response = await opsApiCall('/admin/accounts', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+
+        const credentialParts = [];
+        if (payload.username) {
+            credentialParts.push(`username: ${payload.username}`);
+        }
+        if (payload.email) {
+            credentialParts.push(`email: ${payload.email}`);
+        }
+        credentialParts.push(`password: ${payload.password}`);
+
+        alert(`Account created successfully.\n${credentialParts.join('\n')}`);
+        loadAccounts();
+        loadMonitoringSummary();
+    } catch (error) {
+        alert(`Failed to create account: ${error.message}`);
+    }
+}
+
+// ============================================
+// CLIENTS
+// ============================================
+
+async function loadClients() {
+    try {
+        const clients = await apiCall('/admin/clients');
+        renderClientsTable(clients);
+    } catch (error) {
+        console.error('[Clients] Error:', error);
+    }
+}
+
+function renderClientsTable(clients) {
+    const tbody = document.getElementById('clientsTableBody');
+    if (!tbody) return;
+
+    if (clients.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    No clients found
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = clients.map(client => `
+        <tr>
+            <td><div style="font-weight: 500;">${client.name}</div></td>
+            <td style="color: var(--text-secondary);">${client.email}</td>
+            <td>${client.organization || 'Personal'}</td>
+            <td>${client.total_calls || 0}</td>
+            <td>${client.last_call || 'Never'}</td>
+            <td>${formatDate(client.created_at)}</td>
+            <td>
+                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">View</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function formatDate(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+// ============================================
+// LIVE QUEUE
+// ============================================
+
+async function loadLiveQueue() {
+    try {
+        const queue = await apiCall('/admin/queue');
+        renderLiveQueue(queue);
+    } catch (error) {
+        console.error('[Queue] Error:', error);
+    }
+}
+
+function renderLiveQueue(queue) {
+    const container = document.getElementById('liveQueueList');
+    if (!container) return;
+
+    if (queue.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">✅</div>
+                <p>No one in queue right now!</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = queue.map(item => `
+        <div class="queue-item">
+            <div class="queue-position">${item.position}</div>
+            <div class="queue-info">
+                <div class="queue-client">${item.client_name}</div>
+                <div class="queue-details">
+                    <span>🌐 ${item.language}</span>
+                    <span>📍 ${item.room_name}</span>
+                    <span>🕐 ${item.wait_time}</span>
+                </div>
+            </div>
+            <div class="queue-actions">
+                <button class="btn btn-secondary" onclick="removeFromQueue('${item.id}')">Remove</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function toggleQueue() {
+    const btn = document.getElementById('pauseQueueBtn');
+    const isPausing = btn?.textContent.includes('Pause');
+
+    try {
+        await apiCall(`/admin/queue/${isPausing ? 'resume' : 'pause'}`, {
+            method: 'POST'
+        });
+
+        btn.textContent = isPausing ? '⏸ Pause Queue' : '▶️ Resume Queue';
+        loadLiveQueue();
+    } catch (error) {
+        alert('Failed to toggle queue: ' + error.message);
+    }
+}
+
+async function removeFromQueue(requestId) {
+    if (!confirm('Remove this request from the queue?')) return;
+
+    try {
+        await apiCall(`/admin/queue/${requestId}`, {
+            method: 'DELETE'
+        });
+        loadLiveQueue();
+    } catch (error) {
+        alert('Failed to remove: ' + error.message);
+    }
+}
+
+// ============================================
+// ACTIVITY
+// ============================================
+
+async function loadActivityFeed() {
+    try {
+        const [ queueActivity, opsAudit ] = await Promise.all([
+            apiCall('/admin/activity?limit=50').catch(() => []),
+            opsApiCall('/admin/audit?limit=50').catch(() => [])
+        ]);
+
+        const mergedActivity = [
+            ...queueActivity,
+            ...opsAudit.map(item => ({
+                created_at: item.timestamp,
+                data: item.details,
+                description: item.event.replace(/_/g, ' '),
+                type: item.event
+            }))
+        ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+        renderActivityFeed(mergedActivity.slice(0, 100));
+    } catch (error) {
+        console.error('[Activity] Error:', error);
+    }
+}
+
+function renderActivityFeed(activity) {
+    const container = document.getElementById('activityFeed');
+    if (!container) return;
+
+    const iconBg = {
+        'admin_login': 'rgba(138, 98, 206, 0.15)',
+        'admin_logout': 'rgba(138, 98, 206, 0.15)',
+        'interpreter_created': 'rgba(40, 167, 69, 0.15)',
+        'interpreter_updated': 'rgba(74, 158, 255, 0.15)',
+        'interpreter_online': 'rgba(40, 167, 69, 0.15)',
+        'interpreter_offline': 'rgba(108, 117, 125, 0.15)',
+        'interpreter_status_change': 'rgba(255, 193, 7, 0.15)',
+        'client_connected': 'rgba(74, 158, 255, 0.15)',
+        'client_disconnected': 'rgba(108, 117, 125, 0.15)',
+        'client_created': 'rgba(138, 98, 206, 0.15)',
+        'queue_request_added': 'rgba(255, 107, 53, 0.15)',
+        'queue_request_cancelled': 'rgba(220, 53, 69, 0.15)',
+        'queue_match_complete': 'rgba(40, 167, 69, 0.15)',
+        'queue_paused': 'rgba(255, 193, 7, 0.15)',
+        'queue_resumed': 'rgba(40, 167, 69, 0.15)',
+        'call_started': 'rgba(74, 158, 255, 0.15)',
+        'call_ended': 'rgba(108, 117, 125, 0.15)',
+    };
+
+    const icons = {
+        'admin_login': '🔐',
+        'admin_logout': '🚪',
+        'interpreter_created': '➕',
+        'interpreter_updated': '✏️',
+        'interpreter_online': '🟢',
+        'interpreter_offline': '⚫',
+        'interpreter_status_change': '🔄',
+        'client_connected': '👤',
+        'client_disconnected': '📴',
+        'client_created': '👥',
+        'queue_request_added': '⏳',
+        'queue_request_cancelled': '❌',
+        'queue_match_complete': '✅',
+        'queue_paused': '⏸️',
+        'queue_resumed': '▶️',
+        'call_started': '📞',
+        'call_ended': '📵',
+        'account_created': '🛡️',
+        'login_failed': '⚠️',
+        'login_success': '✅',
+        'login_rate_limited': '⛔',
+    };
+
+    container.innerHTML = activity.map(item => `
+        <div class="activity-item">
+            <div class="activity-icon" style="background: ${iconBg[item.type] || 'rgba(255, 255, 255, 0.1)'}">
+                ${icons[item.type] || '📌'}
+            </div>
+            <div class="activity-content">
+                <div class="activity-title">${item.description || item.type}</div>
+                <div style="color: var(--text-secondary); font-size: 13px;">
+                    ${formatActivityDescription(item)}
+                </div>
+                <div class="activity-time">${formatTimeAgo(item.created_at)}</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function formatActivityDescription(item) {
+    if (item.data) {
+        try {
+            const data = typeof item.data === 'string' ? JSON.parse(item.data) : item.data;
+
+            if (item.type === 'interpreter_status_change') {
+                return `${data.interpreterName} changed status to ${data.status}`;
+            }
+            if (item.type === 'queue_match_complete') {
+                return `${data.interpreterName} matched with ${data.clientName}`;
+            }
+            if (item.type === 'queue_request_added') {
+                return `${data.clientName} joined the queue`;
+            }
+            if (item.type === 'interpreter_online') {
+                return `${data.interpreterName} is now online`;
+            }
+            if (item.type === 'call_started') {
+                return `Call started in room ${data.roomName}`;
+            }
+            if (item.type === 'account_created') {
+                return `${data.createdRole} account created by ${data.actorRole}`;
+            }
+            if (item.type === 'login_failed') {
+                return `${data.identifier || 'unknown'} failed to authenticate`;
+            }
+            if (item.type === 'login_success') {
+                return `${data.identifier || data.username || 'unknown'} signed in`;
+            }
+        } catch (e) {}
+    }
+
+    return '';
+}
+
+function formatTimeAgo(dateStr) {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const seconds = Math.floor((now - date) / 1000);
+
+    if (seconds < 60) return 'Just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+}
+
+function formatDateTime(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleString('en-US', {
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        month: 'short'
+    });
+}
+
+// ============================================
+// UTILITIES
+// ============================================
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+let currentLang = 'en';
+function toggleLanguage() {
+    currentLang = currentLang === 'en' ? 'ar' : 'en';
+    const btn = document.getElementById('langToggle');
+    btn.textContent = currentLang === 'en' ? '🇺🇸 EN' : '🇸🇦 AR';
+    document.documentElement.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+}
+
+// Make functions available globally
+window.login = login;
+window.logout = logout;
+window.removeFromQueue = removeFromQueue;
+window.loadInterpreters = loadInterpreters;
+window.loadClients = loadClients;
+window.loadLiveQueue = loadLiveQueue;
+window.loadActivityFeed = loadActivityFeed;
+window.loadAccounts = loadAccounts;

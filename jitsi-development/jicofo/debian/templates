@@ -1,0 +1,9 @@
+Template: jitsi-videobridge/jvb-hostname
+Type: string
+_Description: Hostname:
+ The jicofo package needs the DNS hostname of your instance.
+
+Template: jicofo/jicofo-authpassword
+Type: password
+_Description: Jicofo user password:
+ The secret used to connect to xmpp server as jicofo user.

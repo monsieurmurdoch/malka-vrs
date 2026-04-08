@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <style>
+      .malka-bg { fill: #0D1A38; }
+      .malka-text { fill: #FFFFFF; }
+    </style>
+  </defs>
+  <rect class="malka-bg" width="32" height="32" rx="4"/>
+  <text x="16" y="22" text-anchor="middle" class="malka-text" font-family="Arial, sans-serif" font-size="18" font-weight="bold">M</text>
+</svg>

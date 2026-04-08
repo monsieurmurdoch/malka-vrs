@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MalkaVRI - Client Profile</title>
+    <link rel="stylesheet" href="css/all.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a4d6e 0%, #2d5a3d 50%, #4a3b2a 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        /* Header */
+        .profile-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 32px;
+            background: rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .profile-header-left {
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+        }
+
+        .profile-header-logo {
+            max-width: 120px;
+            height: auto;
+        }
+
+        .profile-header-title {
+            font-size: 20px;
+            font-weight: 300;
+            opacity: 0.8;
+        }
+
+        .profile-header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .profile-user-name {
+            font-size: 14px;
+            opacity: 0.7;
+        }
+
+        .sign-out-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px;
+            color: #fff;
+            cursor: pointer;
+            padding: 8px 20px;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .sign-out-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        /* Main grid */
+        .profile-main {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 32px 24px;
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 24px;
+        }
+
+        /* Card base */
+        .card {
+            background: rgba(255,255,255,0.08);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: rgba(255,255,255,0.9);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* VRS Number card */
+        .vrs-number {
+            font-size: 28px;
+            font-weight: 700;
+            color: #4caf50;
+            margin: 8px 0 16px;
+            letter-spacing: 1px;
+        }
+
+        .vrs-number-label {
+            font-size: 12px;
+            opacity: 0.5;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .start-call-btn {
+            width: 100%;
+            padding: 14px;
+            background: #4caf50;
+            border: none;
+            border-radius: 10px;
+            color: #fff;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .start-call-btn:hover {
+            background: #43a047;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(76,175,80,0.35);
+        }
+
+        /* Call history */
+        .call-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .call-item:last-child {
+            border-bottom: none;
+        }
+
+        .call-date {
+            font-size: 14px;
+            opacity: 0.6;
+        }
+
+        .call-duration {
+            font-size: 14px;
+            font-weight: 500;
+            color: #4caf50;
+        }
+
+        .call-interpreter {
+            font-size: 12px;
+            opacity: 0.4;
+            margin-top: 2px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 32px 16px;
+            opacity: 0.4;
+            font-size: 14px;
+        }
+
+        /* Speed dial */
+        .speed-dial-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .speed-dial-card {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .speed-dial-card:hover {
+            background: rgba(255,255,255,0.12);
+            border-color: #4caf50;
+        }
+
+        .speed-dial-name {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .speed-dial-number {
+            font-size: 13px;
+            opacity: 0.6;
+            font-family: monospace;
+        }
+
+        .speed-dial-actions {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            display: flex;
+            gap: 4px;
+        }
+
+        .speed-dial-actions button {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            border-radius: 4px;
+            color: #fff;
+            cursor: pointer;
+            font-size: 11px;
+            padding: 3px 7px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .speed-dial-card:hover .speed-dial-actions button {
+            opacity: 0.7;
+        }
+
+        .speed-dial-actions button:hover {
+            opacity: 1 !important;
+            background: rgba(255,255,255,0.2);
+        }
+
+        .add-speed-dial-btn {
+            width: 100%;
+            padding: 10px;
+            background: rgba(255,255,255,0.05);
+            border: 1px dashed rgba(255,255,255,0.2);
+            border-radius: 8px;
+            color: rgba(255,255,255,0.5);
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .add-speed-dial-btn:hover {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            border-color: #4caf50;
+        }
+
+        /* Inline form */
+        .inline-form {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .inline-form input {
+            width: 100%;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 6px;
+            color: #fff;
+            padding: 10px 12px;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .inline-form input::placeholder {
+            color: rgba(255,255,255,0.3);
+        }
+
+        .inline-form input:focus {
+            outline: none;
+            border-color: #4caf50;
+        }
+
+        .inline-form-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .inline-form-actions button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .btn-save {
+            background: #4caf50;
+            color: #fff;
+        }
+
+        .btn-cancel {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            opacity: 0.5;
+        }
+
+        /* Auth redirect */
+        .auth-redirect {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .auth-redirect p {
+            opacity: 0.7;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .profile-main {
+                grid-template-columns: 1fr;
+                padding: 16px;
+            }
+
+            .profile-header {
+                padding: 12px 16px;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .profile-header-title {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+    <script>
+    (function() {
+        const API_BASE = (function() {
+            if (typeof config !== 'undefined' && config.vrs && config.vrs.queueServiceUrl) {
+                return config.vrs.queueServiceUrl.replace(/^ws/, 'http').replace(/\/ws$/, '');
+            }
+            return 'http://localhost:3001';
+        })();
+
+        function getToken() {
+            try {
+                const stored = JSON.parse(sessionStorage.getItem('vrs_auth_token') || '{}');
+                return stored.token || null;
+            } catch(e) { return null; }
+        }
+
+        function getUser() {
+            try {
+                return JSON.parse(sessionStorage.getItem('vrs_user_info') || 'null');
+            } catch(e) { return null; }
+        }
+
+        function authHeaders() {
+            const token = getToken();
+            return token ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+        }
+
+        async function apiFetch(path, options = {}) {
+            const res = await fetch(API_BASE + path, { ...options, headers: { ...authHeaders(), ...(options.headers || {}) } });
+            if (res.status === 401 || res.status === 403) {
+                sessionStorage.clear();
+                window.location.href = '/';
+                return null;
+            }
+            return res.json();
+        }
+
+        // State
+        let state = {
+            profile: null,
+            calls: [],
+            speedDial: [],
+            showAddForm: false,
+            editEntry: null,
+            newName: '',
+            newPhone: '',
+            newCategory: 'personal'
+        };
+
+        function formatDate(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                + ', ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        }
+
+        function render() {
+            const user = getUser();
+            if (!user || user.role !== 'client') {
+                document.getElementById('app').innerHTML = '<div class="auth-redirect"><p>Redirecting to sign in...</p></div>';
+                setTimeout(() => { window.location.href = '/'; }, 1000);
+                return;
+            }
+
+            const profile = state.profile;
+            const calls = state.calls;
+            const speedDial = state.speedDial;
+
+            document.getElementById('app').innerHTML = `
+                <div class="profile-header">
+                    <div class="profile-header-left">
+                        <img src="images/malka-logo-white.png" alt="MalkaVRI" class="profile-header-logo">
+                        <span class="profile-header-title">Client Profile</span>
+                    </div>
+                    <div class="profile-header-right">
+                        <span class="profile-user-name">${user.name || user.email || ''}</span>
+                        <button class="sign-out-btn" onclick="window.__signOut()">Sign Out</button>
+                    </div>
+                </div>
+
+                <div class="profile-main">
+                    <!-- Left column: VRS number + Start Call -->
+                    <div>
+                        <div class="card" style="margin-bottom:24px">
+                            <div class="card-title">Your VRS Number</div>
+                            <div class="vrs-number">${profile?.primaryPhone || 'Not assigned'}</div>
+                            <div class="vrs-number-label">Personal Video Relay Number</div>
+                            <button class="start-call-btn" onclick="window.__startCall()" style="margin-top:16px">
+                                Start Instant Room
+                            </button>
+                        </div>
+
+                        <!-- Speed Dial -->
+                        <div class="card">
+                            <div class="card-title">Speed Dial</div>
+
+                            ${state.showAddForm || state.editEntry ? `
+                                <div class="inline-form">
+                                    <input type="text" placeholder="Contact name" value="${state.editEntry ? state.editEntry.name : state.newName}" onchange="window.__formField('name', this.value)">
+                                    <input type="tel" placeholder="Phone number" value="${state.editEntry ? state.editEntry.phone_number : state.newPhone}" onchange="window.__formField('phone', this.value)">
+                                    <div class="inline-form-actions">
+                                        <button class="btn-save" onclick="window.__saveSpeedDial()">
+                                            ${state.editEntry ? 'Update' : 'Save'}
+                                        </button>
+                                        <button class="btn-cancel" onclick="window.__cancelForm()">Cancel</button>
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            ${speedDial.length > 0 ? `
+                                <div class="speed-dial-grid">
+                                    ${speedDial.map(entry => `
+                                        <div class="speed-dial-card" onclick="window.__callContact('${entry.phone_number}')">
+                                            <div class="speed-dial-actions">
+                                                <button onclick="event.stopPropagation(); window.__editEntry('${entry.id}')">Edit</button>
+                                                <button onclick="event.stopPropagation(); window.__deleteEntry('${entry.id}')">Del</button>
+                                            </div>
+                                            <div class="speed-dial-name">${entry.name}</div>
+                                            <div class="speed-dial-number">${entry.phone_number}</div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            ` : `
+                                <div class="empty-state">No speed dial contacts yet</div>
+                            `}
+
+                            ${!state.showAddForm && !state.editEntry ? `
+                                <button class="add-speed-dial-btn" onclick="window.__showAddForm()">+ Add Contact</button>
+                            ` : ''}
+                        </div>
+                    </div>
+
+                    <!-- Right column: Call History -->
+                    <div>
+                        <div class="card">
+                            <div class="card-title">Call History</div>
+                            ${calls.length > 0 ? calls.map(call => `
+                                <div class="call-item">
+                                    <div>
+                                        <div class="call-date">${formatDate(call.started_at)}</div>
+                                        <div class="call-interpreter">${call.interpreter_name ? 'Interpreter: ' + call.interpreter_name : ''}</div>
+                                    </div>
+                                    <div class="call-duration">${call.duration_minutes ? call.duration_minutes + ' min' : 'In progress'}</div>
+                                </div>
+                            `).join('') : '<div class="empty-state">No calls yet. Start your first call!</div>'}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Actions
+        window.__signOut = function() {
+            sessionStorage.clear();
+            window.location.href = '/';
+        };
+
+        window.__startCall = function() {
+            const roomName = 'vrs-' + Math.random().toString(36).substr(2, 9);
+            sessionStorage.setItem('vrs_user_role', 'client');
+            window.location.href = '/' + roomName + '?role=client';
+        };
+
+        window.__callContact = function(phoneNumber) {
+            const roomName = 'vrs-' + Math.random().toString(36).substr(2, 9);
+            sessionStorage.setItem('vrs_user_role', 'client');
+            sessionStorage.setItem('vrs_dial_number', phoneNumber);
+            window.location.href = '/' + roomName + '?role=client&dial=' + encodeURIComponent(phoneNumber);
+        };
+
+        window.__showAddForm = function() {
+            state.showAddForm = true;
+            state.editEntry = null;
+            state.newName = '';
+            state.newPhone = '';
+            render();
+        };
+
+        window.__cancelForm = function() {
+            state.showAddForm = false;
+            state.editEntry = null;
+            render();
+        };
+
+        window.__formField = function(field, value) {
+            if (field === 'name') state.newName = value;
+            if (field === 'phone') state.newPhone = value;
+        };
+
+        window.__saveSpeedDial = async function() {
+            const entry = state.editEntry;
+            const name = entry ? (state.newName || entry.name) : state.newName;
+            const phone = entry ? (state.newPhone || entry.phone_number) : state.newPhone;
+
+            if (!name || !phone) return;
+
+            if (entry) {
+                await apiFetch('/api/client/speed-dial/' + entry.id, {
+                    method: 'PUT',
+                    body: JSON.stringify({ name, phoneNumber: phone })
+                });
+            } else {
+                await apiFetch('/api/client/speed-dial', {
+                    method: 'POST',
+                    body: JSON.stringify({ name, phoneNumber: phone, category: 'personal' })
+                });
+            }
+
+            state.showAddForm = false;
+            state.editEntry = null;
+            await loadSpeedDial();
+            render();
+        };
+
+        window.__editEntry = function(id) {
+            const entry = state.speedDial.find(e => e.id === id);
+            if (entry) {
+                state.editEntry = entry;
+                state.showAddForm = false;
+                state.newName = entry.name;
+                state.newPhone = entry.phone_number;
+                render();
+            }
+        };
+
+        window.__deleteEntry = async function(id) {
+            await apiFetch('/api/client/speed-dial/' + id, { method: 'DELETE' });
+            await loadSpeedDial();
+            render();
+        };
+
+        // Data loading
+        async function loadProfile() {
+            const data = await apiFetch('/api/client/profile');
+            if (data) state.profile = data;
+        }
+
+        async function loadCallHistory() {
+            const data = await apiFetch('/api/client/call-history?limit=20');
+            if (data && data.calls) state.calls = data.calls;
+        }
+
+        async function loadSpeedDial() {
+            const data = await apiFetch('/api/client/speed-dial');
+            if (data && data.entries) state.speedDial = data.entries;
+        }
+
+        // Init
+        async function init() {
+            const user = getUser();
+            const token = getToken();
+            if (!user || !token || user.role !== 'client') {
+                document.getElementById('app').innerHTML = '<div class="auth-redirect"><p>Redirecting...</p></div>';
+                setTimeout(() => { window.location.href = '/'; }, 500);
+                return;
+            }
+
+            render();
+            await Promise.all([loadProfile(), loadCallHistory(), loadSpeedDial()]);
+            render();
+        }
+
+        init();
+    })();
+    </script>
+    <script src="config.js"></script>
+</body>
+</html>

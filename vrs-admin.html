@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MalkaVRS - Admin Login</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a2332 0%, #2d3748 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 48px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .logo h1 {
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .logo p {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        .form-group label {
+            display: block;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 14px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: #ffffff;
+            font-size: 15px;
+            transition: all 0.2s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #4a9eff;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .form-group input::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #4a9eff 0%, #357abd 100%);
+            border: none;
+            border-radius: 12px;
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(74, 158, 255, 0.3);
+        }
+
+        .login-btn:active {
+            transform: translateY(0);
+        }
+
+        .error-message {
+            background: rgba(220, 53, 69, 0.2);
+            border: 1px solid rgba(220, 53, 69, 0.5);
+            color: #ff6b6b;
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .error-message.visible {
+            display: block;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 24px;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 12px;
+        }
+
+        .footer a {
+            color: #4a9eff;
+            text-decoration: none;
+        }
+
+        .password-toggle {
+            position: relative;
+        }
+
+        .password-toggle input {
+            padding-right: 45px;
+        }
+
+        .toggle-btn {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.5);
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .toggle-btn:hover {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .remember-me {
+            display: flex;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .remember-me input[type="checkbox"] {
+            width: auto;
+            margin-right: 8px;
+            cursor: pointer;
+        }
+
+        .remember-me label {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 13px;
+            cursor: pointer;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <h1>MalkaVRS Admin</h1>
+            <p>Video Relay Service Management</p>
+        </div>
+
+        <div class="error-message" id="errorMessage"></div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="username">Admin Email or Username</label>
+                <input
+                    type="text"
+                    id="username"
+                    name="username"
+                    placeholder="Enter your email or username"
+                    required
+                    autocomplete="username"
+                >
+            </div>
+
+            <div class="form-group password-toggle">
+                <label for="password">Password</label>
+                <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    placeholder="Enter your password"
+                    required
+                    autocomplete="current-password"
+                >
+                <button type="button" class="toggle-btn" id="togglePassword">👁</button>
+            </div>
+
+            <div class="remember-me">
+                <input type="checkbox" id="remember">
+                <label for="remember">Remember me</label>
+            </div>
+
+            <button type="submit" class="login-btn">Sign In</button>
+        </form>
+
+        <div class="footer">
+            <a href="vrs-welcome.html">← Back to VRS Home</a>
+        </div>
+    </div>
+
+    <script>
+        const AUTH_API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:3003/api/auth'
+            : `${window.location.protocol}//${window.location.hostname}:3003/api/auth`;
+
+        const loginForm = document.getElementById('loginForm');
+        const errorMessage = document.getElementById('errorMessage');
+        const togglePassword = document.getElementById('togglePassword');
+        const passwordInput = document.getElementById('password');
+
+        // Toggle password visibility
+        togglePassword.addEventListener('click', () => {
+            const type = passwordInput.type === 'password' ? 'text' : 'password';
+            passwordInput.type = type;
+            togglePassword.textContent = type === 'password' ? '👁' : '🙈';
+        });
+
+        // Handle login
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const identifier = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const remember = document.getElementById('remember').checked;
+
+            if (!identifier || !password) {
+                showError('Please enter both username/email and password');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${AUTH_API_BASE}/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ identifier, password })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+
+                    // Store auth token
+                    localStorage.setItem('vrs_admin_token', data.token);
+                    localStorage.setItem('vrs_admin_name', data.user.name);
+                    localStorage.setItem('vrs_admin_email', data.user.email);
+                    localStorage.setItem('vrs_admin_role', data.user.role);
+
+                    if (remember) {
+                        localStorage.setItem('vrs_admin_remember', 'true');
+                    }
+
+                    // Redirect to dashboard
+                    window.location.href = 'vrs-admin-dashboard.html';
+                } else {
+                    const error = await response.json();
+                    showError(error.error || 'Invalid username or password');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showError('Connection error. Please try again.');
+            }
+        });
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.add('visible');
+            setTimeout(() => {
+                errorMessage.classList.remove('visible');
+            }, 5000);
+        }
+
+        // Check if already logged in
+        const token = localStorage.getItem('vrs_admin_token');
+        if (token) {
+            // Verify token is valid
+            fetch(`${AUTH_API_BASE}/validate`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            }).then(response => {
+                if (response.ok) {
+                    window.location.href = 'vrs-admin-dashboard.html';
+                } else {
+                    // Token invalid, remove it
+                    localStorage.removeItem('vrs_admin_token');
+                    localStorage.removeItem('vrs_admin_email');
+                    localStorage.removeItem('vrs_admin_role');
+                }
+            }).catch(() => {
+                localStorage.removeItem('vrs_admin_token');
+                localStorage.removeItem('vrs_admin_email');
+                localStorage.removeItem('vrs_admin_role');
+            });
+        }
+    </script>
+</body>
+</html>

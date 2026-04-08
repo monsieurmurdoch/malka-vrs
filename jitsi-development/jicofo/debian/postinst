@@ -1,0 +1,167 @@
+#!/bin/bash
+# postinst script for jicofo
+
+set -e
+
+case "$1" in
+    configure)
+
+        CONFIG="/etc/jitsi/jicofo/config"
+
+        # we don't want to regenerate config on upgrade
+        OLDCONFIG="false"
+        if [ -f $CONFIG ]; then
+            . $CONFIG
+            if [ -n "$JICOFO_HOSTNAME" ] \
+                && [ -n "$JICOFO_AUTH_DOMAIN" ] && [ -n "$JICOFO_AUTH_USER" ] && [ -n "$JICOFO_AUTH_PASSWORD" ]; then
+                OLDCONFIG="true"
+            fi
+        fi
+
+        # debconf hostname question
+        . /usr/share/debconf/confmodule
+
+        # try to get host from jitsi-videobridge
+        db_get jitsi-videobridge/jvb-hostname
+        if [ -z "$RET" ] ; then
+            # server hostname
+            db_set jitsi-videobridge/jvb-hostname "localhost"
+            db_input critical jitsi-videobridge/jvb-hostname || true
+            db_go
+        fi
+        JVB_HOSTNAME=$(echo "$RET" | xargs echo -n)
+
+        # generate config on new install
+        if [ "$OLDCONFIG" = "false" ] || [ "$JVB_HOSTNAME" != "$JICOFO_HOSTNAME" ]; then
+
+            JICOFO_HOSTNAME="$JVB_HOSTNAME"
+
+            JICOFO_AUTH_DOMAIN="auth.$JICOFO_HOSTNAME"
+            JICOFO_AUTH_USER="focus"
+            db_get jicofo/jicofo-authpassword
+            if [ -z "$RET" ] ; then
+                RET=`cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 16`
+            fi
+            JICOFO_AUTH_PASSWORD="$RET"
+
+            # This re-creates $CONFIG. If previous values existed, they will be set in jicofo.conf below.
+            echo '# adds java system props that are passed to jicofo (default are for home and logging config file)' > $CONFIG
+            echo "JAVA_SYS_PROPS=\"-Dnet.java.sip.communicator.SC_HOME_DIR_LOCATION=/etc/jitsi\
+ -Dnet.java.sip.communicator.SC_HOME_DIR_NAME=jicofo\
+ -Dnet.java.sip.communicator.SC_LOG_DIR_LOCATION=/var/log/jitsi\
+ -Djava.util.logging.config.file=/etc/jitsi/jicofo/logging.properties\"" >> $CONFIG
+
+        fi
+
+        # Store values, so we can use it if we are configuring other packages on the same machine
+        # we are currently doing this on every upgrade in order to be able to successfully upgrade
+        # from old packages, otherwise we can do it only on new configuration or reconfiguration
+        db_set jicofo/jicofo-authpassword "$JICOFO_AUTH_PASSWORD"
+
+        # and we're done with debconf
+        db_stop
+
+        OLD_JITSI_CONFIG="/etc/jitsi/jicofo/sip-communicator.properties"
+        HOCON_CONFIG="/etc/jitsi/jicofo/jicofo.conf"
+
+        if [ ! -f $HOCON_CONFIG ]; then
+            echo "Generating an empty jicofo.conf file"
+            echo "# Jicofo HOCON configuration. See reference.conf in /usr/share/jicofo/jicofo.jar for
+#available options, syntax, and default values.
+jicofo {
+}" >> $HOCON_CONFIG
+        fi
+
+        # Make sure the client-proxy is set correctly.
+        hocon -f $HOCON_CONFIG set jicofo.xmpp.client.client-proxy "\"focus.$JVB_HOSTNAME\""
+
+        # Set the client XMPP config in jicofo.conf. The values were either read from an existing
+        # /etc/jitsi/jicofo/config or generated above.
+        if ! hocon -f $HOCON_CONFIG get "jicofo.xmpp.client.xmpp-domain" > /dev/null 2>&1 ;then
+            hocon -f $HOCON_CONFIG set "jicofo.xmpp.client.xmpp-domain" "\"$JICOFO_HOSTNAME\""
+        fi
+        if ! hocon -f $HOCON_CONFIG get "jicofo.xmpp.client.domain" > /dev/null 2>&1 ;then
+            hocon -f $HOCON_CONFIG set "jicofo.xmpp.client.domain" "\"$JICOFO_AUTH_DOMAIN\""
+        fi
+        if ! hocon -f $HOCON_CONFIG get "jicofo.xmpp.client.username" > /dev/null 2>&1 ;then
+            hocon -f $HOCON_CONFIG set "jicofo.xmpp.client.username" "\"$JICOFO_AUTH_USER\""
+        fi
+        if ! hocon -f $HOCON_CONFIG get "jicofo.xmpp.client.password" > /dev/null 2>&1 ;then
+            hocon -f $HOCON_CONFIG set "jicofo.xmpp.client.password" "\"$JICOFO_AUTH_PASSWORD\""
+        fi
+
+        # Add the JvbBrewery config if missing
+        if ! grep -sq "org.jitsi.jicofo.BRIDGE_MUC" "$OLD_JITSI_CONFIG" ;then
+            if ! hocon -f $HOCON_CONFIG get "jicofo.bridge.brewery-jid" > /dev/null 2>&1 ; then
+                hocon -f $HOCON_CONFIG set "jicofo.bridge.brewery-jid" \"JvbBrewery@internal.auth.${JVB_HOSTNAME}\"
+            fi
+        fi
+
+        # Mark the jibri domain as trusted unless the trusted-domains have been set.
+        if  [[ $(hocon -j -f $HOCON_CONFIG get "jicofo.xmpp.trusted-domains" 2> /dev/null | jq -r "type") != "array" ]] ;then
+            hocon -f $HOCON_CONFIG set "jicofo.xmpp.trusted-domains" "[ \"recorder.$JVB_HOSTNAME\" ]"
+        fi
+
+        # we don't want to start the daemon as root
+        if ! getent group jitsi > /dev/null ; then
+            groupadd jitsi
+        fi
+        if ! getent passwd jicofo > /dev/null ; then
+            useradd -r -g jitsi --shell /bin/bash --create-home -d /usr/share/jicofo jicofo
+        fi
+        if ! groups jicofo | grep '\bjitsi\b' > /dev/null ; then
+            usermod -g jitsi jicofo
+        fi
+
+        mkdir -p /usr/share/jicofo
+
+        # we claim the home folder of jicofo in case it is owned by someone else
+        OWNER=$(stat -c '%U' /usr/share/jicofo)
+        GROUP=$(stat -c '%G' /usr/share/jicofo)
+        if ! dpkg-statoverride --list /usr/share/jicofo/* >/dev/null && [ "$OWNER:$GROUP" != "jicofo:jitsi" ]; then
+            chown -R jicofo:jitsi /usr/share/jicofo
+            OWNER=jicofo
+            GROUP=jitsi
+        fi
+
+        CONFIG_DIR=$(dirname $CONFIG)
+        if ! dpkg-statoverride --list "$CONFIG_DIR" >/dev/null; then
+            chown -R jicofo:jitsi "$CONFIG_DIR"
+            chmod 750 "$CONFIG_DIR"
+        fi
+
+        # die logz
+        if [ ! -d /var/log/jitsi ]; then
+            mkdir -p /var/log/jitsi
+            chown $OWNER:$GROUP /var/log/jitsi
+            chmod 770 /var/log/jitsi
+        fi
+        ls /var/log/jitsi/jicofo* 1>/dev/null 2>&1 && chown -f -R $OWNER:$GROUP /var/log/jitsi/jicofo*
+        ls /var/log/jitsi/jicofo* 1>/dev/null 2>&1 && chmod -f -R 640 /var/log/jitsi/jicofo*
+
+        # ensure focus is not running - it will be started at the end
+        if invoke-rc.d jicofo status >/dev/null 2>&1 ; then
+            invoke-rc.d jicofo stop || true
+        fi
+
+        # clean up old jicofo group
+        if getent group jicofo > /dev/null; then
+            groupdel jicofo
+        fi
+    ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+# dh_installdeb will replace this with shell code automatically
+# generated by other debhelper scripts.
+
+#DEBHELPER#
+
+exit 0

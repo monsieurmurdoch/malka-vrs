@@ -1,0 +1,14 @@
+Royal purple: #0D1A38
+Light purple: #16164C, #848395
+Dark purple: #00003C, #05063C
+White: #FFFFFF
+Dark grey: #252525 #343330
+Black: #000000
+Green: #89BD0E
+Red (light): #CE0F13
+Red (dark): #84151E
+Orange: #F47D22 (#E97A00) #EC7800 #E97A00
+
+
+
+#070637
