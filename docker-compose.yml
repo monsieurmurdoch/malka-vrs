@@ -1,0 +1,137 @@
+version: "3.8"
+
+# ============================================================
+# MalkaVRS Full Stack — Self-Hosted
+#
+# Usage:
+#   cp .env.example .env   # then fill in secrets
+#   docker compose up --build
+#
+# Services:
+#   prosody   — XMPP server (Jitsi signalling)
+#   jicofo    — Jitsi Conference Focus
+#   jvb       — Jitsi Videobridge (WebRTC media relay)
+#   vrs       — MalkaVRS main server (API + WebSocket + frontend)
+#   twilio    — Twilio Voice server (optional, phone features)
+#   ops       — Ops/Admin server (dashboard, accounts)
+# ============================================================
+
+x-jitsi-common: &jitsi-common
+  networks:
+    - meet.jitsi
+
+services:
+  # ─── Jitsi XMPP Server ────────────────────────────────────
+  prosody:
+    image: jitsi/prosody:stable-9584
+    <<: *jitsi-common
+    ports:
+      - "5222:5222"    # XMPP client
+      - "5280:5280"    # BOSH / WebSocket
+      - "5347:5347"    # XMPP component
+    environment:
+      - AUTH_TYPE=internal
+      - ENABLE_AUTH=0
+      - ENABLE_GUESTS=1
+      - ENABLE_LOBBY=0
+      - PUBLIC_URL=http://localhost:8080
+      - XMPP_DOMAIN=meet.jitsi
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_GUEST_DOMAIN=guest.meet.jitsi
+      - XMPP_MUC_DOMAIN=muc.meet.jitsi
+      - XMPP_INTERNAL_MUC_DOMAIN=internal-muc.meet.jitsi
+      - JICOFO_COMPONENT_SECRET=${JICOFO_COMPONENT_SECRET:-jicofo-secret}
+      - JICOFO_AUTH_PASSWORD=${JICOFO_AUTH_PASSWORD:-jicofo-pass}
+      - JVB_AUTH_PASSWORD=${JVB_AUTH_PASSWORD:-jvb-pass}
+    volumes:
+      - prosody-data:/config/data
+
+  # ─── Jitsi Conference Focus ───────────────────────────────
+  jicofo:
+    image: jitsi/jicofo:stable-9584
+    <<: *jitsi-common
+    depends_on:
+      - prosody
+    environment:
+      - XMPP_DOMAIN=meet.jitsi
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_MUC_DOMAIN=muc.meet.jitsi
+      - XMPP_INTERNAL_MUC_DOMAIN=internal-muc.meet.jitsi
+      - JICOFO_COMPONENT_SECRET=${JICOFO_COMPONENT_SECRET:-jicofo-secret}
+      - JICOFO_AUTH_USER=focus
+      - JICOFO_AUTH_PASSWORD=${JICOFO_AUTH_PASSWORD:-jicofo-pass}
+
+  # ─── Jitsi Videobridge ────────────────────────────────────
+  jvb:
+    image: jitsi/jvb:stable-9584
+    <<: *jitsi-common
+    depends_on:
+      - prosody
+    ports:
+      - "10000:10000/udp"   # WebRTC media
+      - "4443:4443"         # HARVEST fallback
+    environment:
+      - XMPP_DOMAIN=meet.jitsi
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_INTERNAL_MUC_DOMAIN=internal-muc.meet.jitsi
+      - JVB_AUTH_USER=jvb
+      - JVB_AUTH_PASSWORD=${JVB_AUTH_PASSWORD:-jvb-pass}
+      - JVB_BREWERY_MUC=jvbbrewery
+      - DOCKER_HOST_ADDRESS=127.0.0.1
+
+  # ─── MalkaVRS Main Server ─────────────────────────────────
+  vrs:
+    build:
+      context: .
+      dockerfile: Dockerfile.vrs-server
+    ports:
+      - "3001:3001"
+    env_file: .env
+    environment:
+      - PORT=3001
+      - JITSI_DOMAIN=meet.jitsi
+    depends_on:
+      - prosody
+    volumes:
+      - vrs-data:/app/data
+    networks:
+      - meet.jitsi
+
+  # ─── Twilio Voice Server ──────────────────────────────────
+  twilio:
+    build:
+      context: .
+      dockerfile: Dockerfile.twilio-server
+    ports:
+      - "3002:3002"
+    env_file: .env
+    environment:
+      - TWILIO_PORT=3002
+    profiles:
+      - twilio          # Only started with: docker compose --profile twilio up
+    networks:
+      - meet.jitsi
+
+  # ─── Ops / Admin Server ───────────────────────────────────
+  ops:
+    build:
+      context: .
+      dockerfile: Dockerfile.ops-server
+    ports:
+      - "3003:3003"
+    env_file: .env
+    environment:
+      - PORT=3003
+    volumes:
+      - ops-data:/app/data
+    networks:
+      - meet.jitsi
+
+networks:
+  meet.jitsi:
+    driver: bridge
+
+volumes:
+  prosody-data:
+  vrs-data:
+  ops-data:

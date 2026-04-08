@@ -1,0 +1,17 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy dependency manifests first (layer caching)
+COPY vrs-server/package*.json ./
+RUN npm install --omit=dev
+
+# Copy server source
+COPY vrs-server/ .
+
+# Create data directory
+RUN mkdir -p /app/data
+
+EXPOSE 3001
+
+CMD ["node", "server.js"]

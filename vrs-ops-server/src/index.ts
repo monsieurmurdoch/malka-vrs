@@ -30,14 +30,24 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 
 const PORT = process.env.PORT || 3003;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
-const JWT_SECRET = process.env.VRS_SHARED_JWT_SECRET || process.env.JWT_SECRET || 'vrs-ops-shared-secret';
+const JWT_SECRET = process.env.VRS_SHARED_JWT_SECRET || process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    console.error('FATAL: VRS_SHARED_JWT_SECRET or JWT_SECRET environment variable is required.');
+    console.error('Set it in your .env file before starting the server.');
+    process.exit(1);
+}
 const AUTH_WINDOW_MS = Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
 const AUTH_MAX_ATTEMPTS = Number(process.env.AUTH_RATE_LIMIT_MAX_ATTEMPTS || 5);
 const DATA_DIR = path.resolve(__dirname, '..', 'data');
 const OPS_STATE_FILE = path.join(DATA_DIR, 'ops-state.json');
 const BOOTSTRAP_SUPERADMIN_ENABLED = process.env.ENABLE_BOOTSTRAP_SUPERADMIN !== 'false';
 const BOOTSTRAP_SUPERADMIN_USERNAME = process.env.VRS_BOOTSTRAP_SUPERADMIN_USERNAME || 'superadmin';
-const BOOTSTRAP_SUPERADMIN_PASSWORD = process.env.VRS_BOOTSTRAP_SUPERADMIN_PASSWORD || 'MalkaSuperadmin123!';
+const BOOTSTRAP_SUPERADMIN_PASSWORD = process.env.VRS_BOOTSTRAP_SUPERADMIN_PASSWORD;
+if (!BOOTSTRAP_SUPERADMIN_PASSWORD) {
+    console.error('FATAL: VRS_BOOTSTRAP_SUPERADMIN_PASSWORD environment variable is required.');
+    console.error('Set it in your .env file before starting the server.');
+    process.exit(1);
+}
 const BOOTSTRAP_SUPERADMIN_NAME = process.env.VRS_BOOTSTRAP_SUPERADMIN_NAME || 'Malka Superadmin';
 const MAX_AUDIT_EVENTS = 500;
 

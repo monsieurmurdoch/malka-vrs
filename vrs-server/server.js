@@ -34,7 +34,12 @@ const handoffService = require('./lib/handoff-service');
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3001;
-const JWT_SECRET = process.env.VRS_SHARED_JWT_SECRET || process.env.JWT_SECRET || 'vrs-ops-shared-secret';
+const JWT_SECRET = process.env.VRS_SHARED_JWT_SECRET || process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    console.error('FATAL: VRS_SHARED_JWT_SECRET or JWT_SECRET environment variable is required.');
+    console.error('Set it in your .env file before starting the server.');
+    process.exit(1);
+}
 const LEGACY_ADMIN_LOGIN_ENABLED = process.env.ENABLE_LEGACY_ADMIN_LOGIN === 'true';
 
 function verifyJwtToken(token) {
