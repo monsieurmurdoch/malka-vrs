@@ -49,7 +49,8 @@ function log(message) {
 }
 
 function generateCallId() {
-    return `vrs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const crypto = require('crypto');
+    return `vrs_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
 }
 
 /**

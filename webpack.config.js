@@ -63,6 +63,11 @@ function getBundleAnalyzerPlugin(analyzeBundle, name) {
  * target, undefined; otherwise, the path to the local file to be served.
  */
 function devServerProxyBypass({ path }) {
+    // Serve root index.html locally (the VRS welcome page)
+    if (path === '/' || path === '/index.html') {
+        return '/index.html';
+    }
+
     if (path.startsWith('/css/')
             || path.startsWith('/doc/')
             || path.startsWith('/fonts/')
@@ -80,6 +85,28 @@ function devServerProxyBypass({ path }) {
             return path.replace('.min.js', '.js');
         }
 
+        return path;
+    }
+
+    // Serve root-level JS config/util files locally instead of proxying
+    const rootLocalFiles = [
+        '/config.js',
+        '/interface_config.js',
+        '/vrs-room-generator.js',
+        '/utils.js',
+        '/do_external_connect.js',
+        '/analytics-ga.js',
+        '/favicon.ico',
+        '/manifest.json',
+        '/pwa-worker.js'
+    ];
+
+    if (rootLocalFiles.includes(path)) {
+        return path;
+    }
+
+    // Serve VRS HTML pages locally
+    if (path.endsWith('.html') && fs.existsSync(join(process.cwd(), path))) {
         return path;
     }
 }
@@ -238,7 +265,7 @@ function getDevServerConfig() {
                 warnings: false
             }
         },
-        host: '127.0.0.1',
+        host: process.env.VRS_DEV_HOST || 'localhost',
         hot: true,
         proxy: {
             '/': {
@@ -250,7 +277,34 @@ function getDevServerConfig() {
                 }
             }
         },
-        server: process.env.CODESPACES ? 'http' : 'https',
+        server: (process.env.VRS_DEV_HTTPS) ? 'https' : 'http',
+
+        // Rewrite .min.js requests to .js BEFORE webpack-dev-middleware processes them.
+        // In dev mode webpack outputs app.bundle.js (not .min.js), but index.html
+        // references .min.js for production compat. This middleware rewrites the URL
+        // so webpack-dev-middleware can serve the in-memory bundle.
+        setupMiddlewares: (middlewares, devServer) => {
+            // Rewrite .min.js → .js for webpack-compiled bundles that don't exist
+            // on disk as .min.js (e.g. app.bundle.min.js → app.bundle.js).
+            // Files that DO exist as .min.js on disk (e.g. lib-jitsi-meet.min.js)
+            // are left untouched so the static file server handles them.
+            middlewares.unshift({
+                name: 'rewrite-min-js',
+                middleware: (req, _res, next) => {
+                    if (req.url && req.url.startsWith('/libs/') && req.url.includes('.min.js')) {
+                        const urlPath = req.url.split('?')[0];
+                        const diskPath = join(process.cwd(), urlPath);
+
+                        if (!fs.existsSync(diskPath)) {
+                            req.url = req.url.replace('.min.js', '.js');
+                        }
+                    }
+                    next();
+                }
+            });
+
+            return middlewares;
+        },
         static: {
             directory: process.cwd(),
             watch: {

@@ -48,7 +48,7 @@ export function requestInterpreter(language: string = 'ASL') {
         const clientName = localParticipant?.name || localParticipant?.displayName || 'Guest';
 
         // Generate a unique request ID
-        const requestId = `req-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        const requestId = `req-${Date.now()}-${crypto.getRandomValues(new Uint8Array(6)).reduce((s: string, b: number) => s + b.toString(36), '').substring(0, 9)}`;
 
         // Dispatch action to update local state
         dispatch({

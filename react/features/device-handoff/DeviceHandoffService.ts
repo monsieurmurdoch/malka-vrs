@@ -18,6 +18,8 @@
  * 6. Original device leaves room gracefully
  */
 
+import { createBleManager } from './BleAdapter';
+
 declare var config: any;
 
 // ============================================
@@ -163,7 +165,7 @@ class DeviceHandoffService {
             : null;
 
         if (!id) {
-            id = `device-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            id = `device-${Date.now()}-${crypto.getRandomValues(new Uint8Array(6)).reduce((s: string, b: number) => s + b.toString(36), '').substring(0, 9)}`;
             if (typeof sessionStorage !== 'undefined') {
                 sessionStorage.setItem('malka_device_id', id);
             }
@@ -172,11 +174,15 @@ class DeviceHandoffService {
         return id;
     }
 
-    private async initReactNativeBLE() {
-        try {
-            const { BleManager } = require('react-native-ble-plx');
-            this.rnBleManager = new BleManager();
-        } catch {
+    private initReactNativeBLE() {
+        // createBleManager() is platform-split:
+        //   BleAdapter.web.ts  → returns null  (no native BLE on web)
+        //   BleAdapter.native.ts → returns a BleManager from react-native-ble-plx
+        // Webpack resolves .web.ts for the web bundle, so the Flow-syntax
+        // library is never pulled in.
+        this.rnBleManager = createBleManager();
+
+        if (!this.rnBleManager) {
             console.warn('[DeviceHandoff] react-native-ble-plx not available');
         }
     }
@@ -313,7 +319,7 @@ class DeviceHandoffService {
         }
 
         try {
-            const device = await navigator.bluetooth.requestDevice({
+            const device = await navigator.bluetooth!.requestDevice({
                 filters: [{ services: [MALKA_VRS_SERVICE_UUID] }],
                 optionalServices: [ACCOUNT_CHAR_UUID, HANDOFF_CHAR_UUID]
             });

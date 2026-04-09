@@ -1,0 +1,63 @@
+# ============================================================
+# Multi-stage build: compile Jitsi/VRS frontend assets
+# then bundle them into the vrs-server container so it can
+# serve everything via express.static().
+# ============================================================
+
+# ── Stage 1: Build the frontend ─────────────────────────────
+FROM node:18-alpine AS frontend-build
+
+WORKDIR /build
+
+# Install build tools needed by native npm modules (node-sass, etc.)
+RUN apk add --no-cache python3 make g++
+
+# Copy dependency manifests and install
+COPY package.json package-lock.json ./
+RUN npm install --legacy-peer-deps
+
+# Copy the full source tree (needed for webpack + sass)
+COPY . .
+
+# Build: webpack bundles + SCSS → CSS + deploy assets to libs/
+RUN make
+
+# ── Stage 2: VRS Server + built frontend ────────────────────
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install vrs-server dependencies
+COPY vrs-server/package*.json ./vrs-server/
+RUN cd vrs-server && npm install --omit=dev
+
+# Copy vrs-server source
+COPY vrs-server/ ./vrs-server/
+
+# Copy the built frontend from stage 1
+# vrs-server does: express.static(path.join(__dirname, '..'))
+# So __dirname = /app/vrs-server, parent = /app
+COPY --from=frontend-build /build/libs/ ./libs/
+COPY --from=frontend-build /build/css/ ./css/
+COPY --from=frontend-build /build/images/ ./images/
+COPY --from=frontend-build /build/fonts/ ./fonts/
+COPY --from=frontend-build /build/sounds/ ./sounds/
+COPY --from=frontend-build /build/static/ ./static/
+COPY --from=frontend-build /build/lang/ ./lang/
+COPY --from=frontend-build /build/index.html ./
+COPY --from=frontend-build /build/client-profile.html ./
+COPY --from=frontend-build /build/config.js ./
+COPY --from=frontend-build /build/interface_config.js ./
+COPY --from=frontend-build /build/manifest.json ./
+COPY --from=frontend-build /build/favicon.ico ./
+
+# Copy any other root HTML files (admin dashboard, interpreter profile, etc.)
+COPY --from=frontend-build /build/*.html ./
+
+# Data directory for SQLite
+RUN mkdir -p /app/vrs-server/data
+
+EXPOSE 3001
+
+WORKDIR /app/vrs-server
+CMD ["node", "server.js"]

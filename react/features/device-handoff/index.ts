@@ -49,7 +49,7 @@ export type { DeviceHandoffState } from './reducer';
 
 // Components
 export { default as HandoffBanner } from './components/HandoffBanner';
-export { default as HandoffProgress } from './components/HandoffProgress';
+export { default as HandoffProgressOverlay } from './components/HandoffProgress';
 export { default as HandoffReceiver } from './components/HandoffReceiver';
 export { default as InterpreterHandoffNotification }
     from './components/InterpreterHandoffNotification';

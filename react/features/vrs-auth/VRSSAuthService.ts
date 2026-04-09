@@ -190,7 +190,7 @@ class VRSSAuthService {
      * Create a client session (no server validation needed for basic access)
      */
     private async createClientSession(name?: string): Promise<AuthResponse> {
-        const userId = `client-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        const userId = `client-${Date.now()}-${crypto.getRandomValues(new Uint8Array(6)).reduce((s, b) => s + b.toString(36), '').substring(0, 9)}`;
         const now = Date.now();
 
         const user: VRSUser = {
@@ -337,7 +337,7 @@ class VRSSAuthService {
      * Quick role set for client flow (backward compatibility)
      */
     setClientRole(name?: string): void {
-        const userId = `client-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        const userId = `client-${Date.now()}-${crypto.getRandomValues(new Uint8Array(6)).reduce((s, b) => s + b.toString(36), '').substring(0, 9)}`;
         const now = Date.now();
 
         const user: VRSUser = {

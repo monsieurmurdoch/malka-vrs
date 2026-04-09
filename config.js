@@ -29,24 +29,24 @@ var config = {
     //
 
     hosts: {
-        // XMPP domain.
-        domain: 'jitsi-meet.example.com',
+        // XMPP domain (matches Prosody XMPP_DOMAIN in docker-compose)
+        domain: 'meet.jitsi',
 
         // When using authentication, domain for guest users.
-        // anonymousdomain: 'guest.example.com',
+        anonymousdomain: 'guest.meet.jitsi',
 
         // Domain for authenticated users. Defaults to <domain>.
-        // authdomain: 'jitsi-meet.example.com',
+        // authdomain: 'auth.meet.jitsi',
 
         // Focus component domain. Defaults to focus.<domain>.
-        // focus: 'focus.jitsi-meet.example.com',
+        focus: 'focus.meet.jitsi',
 
         // XMPP MUC domain. FIXME: use XEP-0030 to discover it.
-        muc: 'conference.' + subdomain + 'jitsi-meet.example.com',
+        muc: 'conference.' + subdomain + 'meet.jitsi',
     },
 
-    // BOSH URL. FIXME: use XEP-0156 to discover it.
-    bosh: 'https://jitsi-meet.example.com/' + subdir + 'http-bind',
+    // BOSH URL — goes through nginx reverse proxy
+    bosh: '//' + window.location.host + '/' + subdir + 'http-bind',
 
     // Websocket URL (XMPP)
     // websocket: 'wss://jitsi-meet.example.com/' + subdir + 'xmpp-websocket',
@@ -647,10 +647,10 @@ var config = {
 
     // Configs for welcome page.
     welcomePage: {
-        // Enable welcome page for VRS role selection
-        disabled: false,
-        // Use custom VRS welcome page
-        customUrl: 'vrs-welcome.html'
+        // Enable welcome page — React WelcomePage.web.tsx renders the VRS UI
+        disabled: false
+        // NOTE: Do NOT set customUrl here — it causes a redirect loop.
+        // The VRS role selection is built into the React welcome page component.
     },
 
     // Configs for the lobby screen.
@@ -697,9 +697,8 @@ var config = {
     // Hides the dominant speaker name badge that hovers above the toolbox
     // hideDominantSpeakerBadge: false,
 
-    // Default language for the user interface. Cannot be overwritten.
-    // DEPRECATED! Use the `lang` iframe option directly instead.
-    // defaultLanguage: 'en',
+    // Default language for the user interface.
+    defaultLanguage: 'en',
 
     // Disables profile and the edit of all fields from the profile settings (display name and email)
     // disableProfile: false,
@@ -1725,22 +1724,20 @@ var config = {
     // VRS (Video Relay Service) Configuration
     vrs: {
         // Interpreter Queue Service WebSocket URL
-        // In production, use wss:// for secure connections
-        queueServiceUrl: 'ws://localhost:3001/ws',
+        // Auto-detect: use current host so it works behind nginx
+        queueServiceUrl: (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.host + '/ws',
+
+        // VRS server API URL (same origin, proxied by nginx)
+        serverUrl: window.location.origin,
 
         // Twilio Voice Server URL for outbound calls to hearing parties
-        twilioVoiceUrl: 'http://localhost:3002',
+        twilioVoiceUrl: window.location.origin,
 
         // Ops/Admin API endpoint for call logging and monitoring
-        opsApiUrl: 'http://localhost:3003/api',
-
-        // JWT secret for role validation — MUST be set via process.env or
-        // a local .env file before running in any environment.
-        // The app will refuse to start if this is left as the placeholder.
-        jwtSecret: process.env.VRS_JWT_SECRET || '',
+        opsApiUrl: window.location.origin + '/ops/api',
 
         // Role validation endpoint
-        authEndpoint: 'http://localhost:3003/api/auth',
+        authEndpoint: window.location.origin + '/ops/api/auth',
 
         // Call logging settings
         callLogging: {

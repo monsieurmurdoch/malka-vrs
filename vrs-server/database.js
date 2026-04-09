@@ -211,12 +211,45 @@ function createTables() {
                 FOREIGN KEY (interpreter_id) REFERENCES interpreters(id) ON DELETE CASCADE
             )`,
 
+            // Missed calls table (for P2P calling)
+            `CREATE TABLE IF NOT EXISTS missed_calls (
+                id TEXT PRIMARY KEY,
+                caller_id TEXT NOT NULL,
+                callee_id TEXT NOT NULL,
+                caller_name TEXT,
+                caller_phone TEXT,
+                room_name TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                seen INTEGER DEFAULT 0,
+                FOREIGN KEY (caller_id) REFERENCES clients(id) ON DELETE CASCADE,
+                FOREIGN KEY (callee_id) REFERENCES clients(id) ON DELETE CASCADE
+            )`,
+
+            // P2P active rooms table
+            `CREATE TABLE IF NOT EXISTS p2p_rooms (
+                id TEXT PRIMARY KEY,
+                caller_id TEXT NOT NULL,
+                callee_id TEXT,
+                room_name TEXT NOT NULL UNIQUE,
+                status TEXT DEFAULT 'ringing',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                answered_at DATETIME,
+                ended_at DATETIME,
+                duration_seconds INTEGER,
+                FOREIGN KEY (caller_id) REFERENCES clients(id) ON DELETE CASCADE
+            )`,
+
             // Additional indexes
             `CREATE INDEX IF NOT EXISTS idx_speed_dial_client ON speed_dial(client_id)`,
             `CREATE INDEX IF NOT EXISTS idx_client_phone_client ON client_phone_numbers(client_id)`,
             `CREATE INDEX IF NOT EXISTS idx_shifts_interpreter ON interpreter_shifts(interpreter_id)`,
             `CREATE INDEX IF NOT EXISTS idx_shifts_date ON interpreter_shifts(date)`,
-            `CREATE INDEX IF NOT EXISTS idx_earnings_interpreter ON interpreter_earnings(interpreter_id)`
+            `CREATE INDEX IF NOT EXISTS idx_earnings_interpreter ON interpreter_earnings(interpreter_id)`,
+            `CREATE INDEX IF NOT EXISTS idx_missed_calls_callee ON missed_calls(callee_id)`,
+            `CREATE INDEX IF NOT EXISTS idx_missed_calls_seen ON missed_calls(callee_id, seen)`,
+            `CREATE INDEX IF NOT EXISTS idx_p2p_rooms_status ON p2p_rooms(status)`,
+            `CREATE INDEX IF NOT EXISTS idx_p2p_rooms_caller ON p2p_rooms(caller_id)`,
+            `CREATE INDEX IF NOT EXISTS idx_p2p_rooms_callee ON p2p_rooms(callee_id)`
         ];
 
         let completed = 0;
@@ -431,9 +464,9 @@ async function getClientByEmail(email) {
     return rows[0];
 }
 
-async function createClient({ name, email, organization, password }) {
+async function createClient({ name, email, organization, password, passwordHash: preHashed }) {
     const id = uuidv4();
-    const passwordHash = password ? await bcrypt.hash(password, 10) : null;
+    const passwordHash = preHashed || (password ? await bcrypt.hash(password, 10) : null);
 
     await runInsert(
         'INSERT INTO clients (id, name, email, password_hash, organization) VALUES (?, ?, ?, ?, ?)',
@@ -876,6 +909,95 @@ async function getInterpreterStats(interpreterId) {
 }
 
 // ============================================
+// P2P CALL OPERATIONS
+// ============================================
+
+async function getClientByPhoneNumber(phoneNumber) {
+    const rows = await runQuery(
+        `SELECT c.*, cpn.phone_number
+         FROM clients c
+         JOIN client_phone_numbers cpn ON cpn.client_id = c.id
+         WHERE cpn.phone_number = ? AND cpn.active = 1`,
+        [phoneNumber]
+    );
+    return rows[0] || null;
+}
+
+async function createP2PRoom({ callerId, calleeId, roomName }) {
+    const id = uuidv4();
+    await runInsert(
+        'INSERT INTO p2p_rooms (id, caller_id, callee_id, room_name, status) VALUES (?, ?, ?, ?, ?)',
+        [id, callerId, calleeId, roomName, 'ringing']
+    );
+    return { id, roomName, status: 'ringing' };
+}
+
+async function updateP2PRoom(roomName, updates) {
+    const fields = [];
+    const params = [];
+
+    if (updates.status !== undefined) { fields.push('status = ?'); params.push(updates.status); }
+    if (updates.answeredAt !== undefined) { fields.push('answered_at = CURRENT_TIMESTAMP'); }
+    if (updates.endedAt !== undefined) { fields.push('ended_at = CURRENT_TIMESTAMP'); }
+    if (updates.durationSeconds !== undefined) { fields.push('duration_seconds = ?'); params.push(updates.durationSeconds); }
+    if (updates.calleeId !== undefined) { fields.push('callee_id = ?'); params.push(updates.calleeId); }
+
+    if (fields.length > 0) {
+        params.push(roomName);
+        await runUpdate(`UPDATE p2p_rooms SET ${fields.join(', ')} WHERE room_name = ?`, params);
+    }
+}
+
+async function getP2PRoom(roomName) {
+    const rows = await runQuery('SELECT * FROM p2p_rooms WHERE room_name = ?', [roomName]);
+    return rows[0] || null;
+}
+
+async function getActiveP2PRoomsForClient(clientId) {
+    return await runQuery(
+        `SELECT r.*,
+                caller.name as caller_name, callee.name as callee_name,
+                cpn_caller.phone_number as caller_phone, cpn_callee.phone_number as callee_phone
+         FROM p2p_rooms r
+         LEFT JOIN clients caller ON caller.id = r.caller_id
+         LEFT JOIN clients callee ON callee.id = r.callee_id
+         LEFT JOIN client_phone_numbers cpn_caller ON cpn_caller.client_id = r.caller_id AND cpn_caller.is_primary = 1
+         LEFT JOIN client_phone_numbers cpn_callee ON cpn_callee.client_id = r.callee_id AND cpn_callee.is_primary = 1
+         WHERE (r.caller_id = ? OR r.callee_id = ?) AND r.status IN ('ringing', 'active')`,
+        [clientId, clientId]
+    );
+}
+
+async function createMissedCall({ callerId, calleeId, callerName, callerPhone, roomName }) {
+    const id = uuidv4();
+    await runInsert(
+        'INSERT INTO missed_calls (id, caller_id, callee_id, caller_name, caller_phone, room_name) VALUES (?, ?, ?, ?, ?, ?)',
+        [id, callerId, calleeId, callerName, callerPhone, roomName]
+    );
+    return { id };
+}
+
+async function getMissedCalls(clientId, limit = 20) {
+    return await runQuery(
+        `SELECT mc.*, c.name as caller_name, cpn.phone_number as caller_phone
+         FROM missed_calls mc
+         LEFT JOIN clients c ON c.id = mc.caller_id
+         LEFT JOIN client_phone_numbers cpn ON cpn.client_id = mc.caller_id AND cpn.is_primary = 1
+         WHERE mc.callee_id = ?
+         ORDER BY mc.created_at DESC
+         LIMIT ?`,
+        [clientId, limit]
+    );
+}
+
+async function markMissedCallsSeen(clientId) {
+    return await runUpdate(
+        'UPDATE missed_calls SET seen = 1 WHERE callee_id = ? AND seen = 0',
+        [clientId]
+    );
+}
+
+// ============================================
 // EXPORT
 // ============================================
 
@@ -924,5 +1046,14 @@ module.exports = {
     // Call history
     getClientCallHistory,
     getInterpreterCallHistory,
+    // P2P calls
+    getClientByPhoneNumber,
+    createP2PRoom,
+    updateP2PRoom,
+    getP2PRoom,
+    getActiveP2PRoomsForClient,
+    createMissedCall,
+    getMissedCalls,
+    markMissedCallsSeen,
     db: () => db
 };

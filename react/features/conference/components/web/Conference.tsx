@@ -20,7 +20,7 @@ import InterpreterStatusToggle from '../../../interpreter-queue/components/web/I
 import QueueStatsDashboard from '../../../interpreter-queue/components/web/QueueStatsDashboard';
 import LanguageSwitcher from '../../../vrs-layout/components/LanguageSwitcher';
 import VRSLayout, { isVrsSession } from '../../../vrs-layout/components/VRSLayout';
-import { HandoffBanner, HandoffProgress, InterpreterHandoffNotification }
+import { HandoffBanner, HandoffProgressOverlay, InterpreterHandoffNotification }
     from '../../../device-handoff';
 import Chat from '../../../chat/components/web/Chat';
 import MainFilmstrip from '../../../filmstrip/components/web/MainFilmstrip';
@@ -330,7 +330,7 @@ class Conference extends AbstractConference<IProps, any> {
 
                         {/* Device handoff - companion device banner and progress overlay */}
                         <HandoffBanner />
-                        <HandoffProgress />
+                        <HandoffProgressOverlay />
 
                         {/* Interpreter handoff notification - shown when client switches devices */}
                         {isInterpreter() && <InterpreterHandoffNotification />}

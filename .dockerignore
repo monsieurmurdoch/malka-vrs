@@ -1,0 +1,41 @@
+# Dependencies (installed inside container)
+node_modules/
+vrs-server/node_modules/
+vrs-ops-server/node_modules/
+twilio-voice-server/node_modules/
+
+# Build artifacts (keep libs/ — contains pre-built frontend)
+build/
+
+# Git
+.git/
+.github/
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment (secrets — must not bake into image)
+.env
+.env.local
+.env.production
+
+# Data files (mounted as volumes)
+vrs-server/data/
+vrs-ops-server/data/
+*.sqlite
+*.sqlite3
+*.db
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude / dev tools
+.claude/
+
+# Android / iOS (not needed for web deploy)
+android/
+ios/

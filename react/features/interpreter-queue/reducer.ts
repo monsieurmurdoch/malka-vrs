@@ -100,20 +100,26 @@ ReducerRegistry.register<QueueState>('features/interpreter-queue',
                     queuePosition: undefined
                 };
 
-            case INTERPRETER_REQUEST_RECEIVED:
+            case INTERPRETER_REQUEST_RECEIVED: {
+                const req = action.request;
+                if (!req) {
+                    return state;
+                }
+
                 return {
                     ...state,
                     pendingRequests: [
                         ...state.pendingRequests,
                         {
-                            id: action.request.id,
-                            clientName: action.request.clientName,
-                            language: action.request.language,
-                            timestamp: action.request.timestamp || Date.now(),
-                            roomName: action.request.roomName
+                            id: req.id,
+                            clientName: req.clientName,
+                            language: req.language,
+                            timestamp: req.timestamp || Date.now(),
+                            roomName: req.roomName
                         }
                     ]
                 };
+            }
 
             case REQUEST_ACCEPTED:
                 return {
@@ -142,21 +148,27 @@ ReducerRegistry.register<QueueState>('features/interpreter-queue',
                     matchData: action.meetingData
                 };
 
-            case QUEUE_STATUS_UPDATE:
+            case QUEUE_STATUS_UPDATE: {
+                const status = action.status;
+                if (!status) {
+                    return state;
+                }
+
                 return {
                     ...state,
-                    currentRequestId: action.status.requestId || state.currentRequestId,
-                    activeInterpreters: action.status.activeInterpreters || state.activeInterpreters,
-                    pendingRequests: action.status.pendingRequests || state.pendingRequests,
-                    queuePosition: typeof action.status.queuePosition === 'number'
-                        ? action.status.queuePosition
+                    currentRequestId: status.requestId || state.currentRequestId,
+                    activeInterpreters: status.activeInterpreters ?? state.activeInterpreters,
+                    pendingRequests: status.pendingRequests || state.pendingRequests,
+                    queuePosition: typeof status.queuePosition === 'number'
+                        ? status.queuePosition
                         : state.queuePosition
                 };
+            }
 
             case QUEUE_CONNECTION_CHANGED:
                 return {
                     ...state,
-                    isConnected: action.connected
+                    isConnected: action.connected ?? false
                 };
 
             default:

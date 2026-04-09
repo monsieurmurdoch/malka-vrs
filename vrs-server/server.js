@@ -29,6 +29,7 @@ const db = require('./database');
 const activityLogger = require('./lib/activity-logger');
 const queueService = require('./lib/queue-service');
 const handoffService = require('./lib/handoff-service');
+const { seedDemoAccounts } = require('./seed-demo-accounts');
 
 // Initialize Express app
 const app = express();
@@ -74,12 +75,23 @@ const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:8080,https:/
     .map(o => o.trim())
     .filter(Boolean);
 
+// Also allow the droplet/domain origin automatically
+const PUBLIC_IP = process.env.DROPLET_PUBLIC_IP;
+const DOMAIN = process.env.DOMAIN;
+if (PUBLIC_IP) {
+    CORS_ORIGINS.push(`http://${PUBLIC_IP}`, `https://${PUBLIC_IP}`);
+}
+if (DOMAIN) {
+    CORS_ORIGINS.push(`http://${DOMAIN}`, `https://${DOMAIN}`);
+}
+
 app.use(cors({
     origin(origin, callback) {
         // Allow requests with no origin (mobile apps, curl, server-to-server)
         if (!origin || CORS_ORIGINS.includes(origin)) {
             callback(null, true);
         } else {
+            console.warn('[CORS] Blocked origin:', origin, '| Allowed:', CORS_ORIGINS);
             callback(new Error('CORS not allowed'));
         }
     },
@@ -87,31 +99,53 @@ app.use(cors({
 }));
 
 // Security headers via Helmet
+// Build dynamic CSP connect-src based on environment
+const cspConnectSrc = [
+    "'self'",
+    'ws:', 'wss:',           // WebSocket connections (same origin or explicit)
+    'http://localhost:3001', 'https://localhost:3001',
+    'ws://localhost:3001', 'wss://localhost:3001',
+    'http://localhost:3002', 'http://localhost:3003'
+];
+
+// Add the droplet IP if set
+if (process.env.DROPLET_PUBLIC_IP) {
+    const ip = process.env.DROPLET_PUBLIC_IP;
+    cspConnectSrc.push(`http://${ip}`, `https://${ip}`, `ws://${ip}`, `wss://${ip}`);
+}
+
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: [ "'self'" ],
             scriptSrc: [ "'self'", "'unsafe-inline'", "'unsafe-eval'" ],
+            scriptSrcAttr: [ "'unsafe-inline'" ],
             styleSrc: [ "'self'", "'unsafe-inline'" ],
-            imgSrc: [ "'self'", 'data:' ],
-            connectSrc: [ "'self'",
-                'ws://localhost:3001', 'wss://localhost:3001',
-                'http://localhost:3001', 'https://localhost:3001',
-                'http://localhost:3002', 'http://localhost:3003' ],
+            imgSrc: [ "'self'", 'data:', 'blob:' ],
+            connectSrc: cspConnectSrc,
             mediaSrc: [ "'self'", 'blob:' ],
-            fontSrc: [ "'self'" ]
+            fontSrc: [ "'self'", 'data:' ],
+            workerSrc: [ "'self'", 'blob:' ],
+            // Don't force HTTPS upgrade in dev/test (no SSL cert yet)
+            upgradeInsecureRequests: process.env.NODE_ENV === 'production' && process.env.DOMAIN ? [] : null
         }
     },
+    crossOriginOpenerPolicy: false,  // Causes issues with non-HTTPS origins
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
 }));
 
-// Global rate limiter — 100 requests per minute per IP
+// Global rate limiter — only for API routes, NOT static files
 const globalLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 100,
+    max: 200,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: 'Too many requests, please try again later.' }
+    message: { error: 'Too many requests, please try again later.' },
+    skip: (req) => {
+        // Don't rate-limit static file requests (JS, CSS, images, HTML, fonts, etc.)
+        const p = req.path;
+        return !p.startsWith('/api/') && !p.startsWith('/ws');
+    }
 });
 app.use(globalLimiter);
 
@@ -263,6 +297,27 @@ wss.on('connection', (ws, req) => {
                 case 'handoff_cancel':
                     handleHandoffCancel(ws, data);
                     break;
+
+                // P2P direct call messages
+                case 'p2p_call':
+                    await handleP2PCall(ws, data);
+                    break;
+
+                case 'p2p_accept':
+                    await handleP2PAccept(ws, data);
+                    break;
+
+                case 'p2p_decline':
+                    await handleP2PDecline(ws, data);
+                    break;
+
+                case 'p2p_cancel':
+                    await handleP2PCancel(ws, data);
+                    break;
+
+                case 'p2p_end':
+                    await handleP2PEnd(ws, data);
+                    break;
             }
         } catch (error) {
             console.error('[WebSocket] Error:', error);
@@ -365,6 +420,19 @@ function handleAuth(ws, data, clientId) {
             clientId: userId,
             clientName: name
         });
+
+        // Deliver unseen missed calls on connect
+        if (clientInfo.authenticated && clientInfo.userId) {
+            db.getMissedCalls(clientInfo.userId, 10).then(missed => {
+                const unseen = missed.filter(m => !m.seen);
+                if (unseen.length > 0) {
+                    ws.send(JSON.stringify({
+                        type: 'missed_calls',
+                        data: { calls: unseen }
+                    }));
+                }
+            }).catch(err => console.error('[WS] Error fetching missed calls:', err));
+        }
 
     } else if (role === 'admin') {
         clients.admins.set(clientId, clientInfo);
@@ -1368,6 +1436,32 @@ function authenticateUser(req, res, next) {
     }
 }
 
+/**
+ * Middleware: authenticate a client user via Bearer token.
+ * Sets req.clientId and req.user on success.
+ */
+function authenticateClient(req, res, next) {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Authorization required' });
+    }
+
+    const token = authHeader.substring(7);
+
+    try {
+        const decoded = normalizeAuthClaims(verifyJwtToken(token));
+        if (decoded.role !== 'client') {
+            return res.status(403).json({ error: 'Client access required' });
+        }
+        req.user = decoded;
+        req.clientId = decoded.id;
+        next();
+    } catch (error) {
+        return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+}
+
 // --- Client Auth ---
 
 app.post('/api/auth/client/register', authLimiter, async (req, res) => {
@@ -1387,7 +1481,8 @@ app.post('/api/auth/client/register', authLimiter, async (req, res) => {
         const client = await db.createClient({ name, email, password, organization });
 
         // Assign a phone number
-        const phoneNum = `+1-555-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, '0')}`;
+        const crypto = require('crypto');
+        const phoneNum = `+1-555-${String(crypto.randomInt(1000, 9999))}`;
         await db.assignClientPhoneNumber({ clientId: client.id, phoneNumber: phoneNum, isPrimary: true });
 
         const token = jwt.sign(
@@ -1545,8 +1640,8 @@ app.get('/api/client/call-history', authenticateUser, async (req, res) => {
         return res.status(403).json({ error: 'Client access required' });
     }
 
-    const limit = parseInt(req.query.limit as string) || 20;
-    const offset = parseInt(req.query.offset as string) || 0;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = parseInt(req.query.offset) || 0;
 
     try {
         const calls = await db.getClientCallHistory(req.user.id, limit, offset);
@@ -1615,7 +1710,7 @@ app.put('/api/client/speed-dial/:id', authenticateUser, async (req, res) => {
             return res.status(404).json({ error: 'Entry not found' });
         }
 
-        const updates: Record<string, string> = {};
+        const updates = {};
         if (name !== undefined) updates.name = name;
         if (phoneNumber !== undefined) {
             const sanitized = sanitizePhoneNumber(phoneNumber);
@@ -1686,8 +1781,8 @@ app.get('/api/interpreter/call-history', authenticateUser, async (req, res) => {
         return res.status(403).json({ error: 'Interpreter access required' });
     }
 
-    const limit = parseInt(req.query.limit as string) || 20;
-    const offset = parseInt(req.query.offset as string) || 0;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = parseInt(req.query.offset) || 0;
 
     try {
         const calls = await db.getInterpreterCallHistory(req.user.id, limit, offset);
@@ -1706,7 +1801,7 @@ app.get('/api/interpreter/shifts', authenticateUser, async (req, res) => {
     const { startDate, endDate } = req.query;
 
     try {
-        const shifts = await db.getInterpreterShifts(req.user.id, startDate as string, endDate as string);
+        const shifts = await db.getInterpreterShifts(req.user.id, startDate, endDate);
         res.json({ shifts });
     } catch (error) {
         console.error('[Interpreter Shifts] Error:', error);
@@ -1722,8 +1817,8 @@ app.get('/api/interpreter/earnings', authenticateUser, async (req, res) => {
     const now = new Date();
     const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
     const defaultEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
-    const periodStart = (req.query.periodStart as string) || defaultStart;
-    const periodEnd = (req.query.periodEnd as string) || defaultEnd;
+    const periodStart = (req.query.periodStart) || defaultStart;
+    const periodEnd = (req.query.periodEnd) || defaultEnd;
 
     try {
         const earnings = await db.getInterpreterEarnings(req.user.id, periodStart, periodEnd);
@@ -1842,6 +1937,339 @@ app.get('/api/handoff/status', (req, res) => {
 });
 
 // ============================================
+// P2P CALL HANDLERS (WebSocket)
+// ============================================
+
+/**
+ * Find a connected WS client by their userId.
+ * Searches both clients.clients and checks ws.clientInfo.
+ */
+function findClientWsByUserId(userId) {
+    for (const [, info] of clients.clients) {
+        if (info.userId === userId && info.ws && info.ws.readyState === WebSocket.OPEN) {
+            return info;
+        }
+    }
+    return null;
+}
+
+/**
+ * p2p_call: Caller initiates a direct call to a phone number.
+ * Looks up callee by phone → creates room → notifies callee via WS.
+ * If callee is offline, creates a missed call record.
+ */
+async function handleP2PCall(ws, data) {
+    const { phoneNumber, roomName } = data;
+    const callerInfo = ws.clientInfo;
+
+    if (!callerInfo || callerInfo.role !== 'client') {
+        ws.send(JSON.stringify({ type: 'p2p_error', data: { message: 'Not authenticated as client' } }));
+        return;
+    }
+
+    // Look up callee by phone number
+    const callee = await db.getClientByPhoneNumber(phoneNumber);
+    if (!callee) {
+        ws.send(JSON.stringify({ type: 'p2p_error', data: { message: 'No user found with that number' } }));
+        return;
+    }
+
+    if (callee.id === callerInfo.userId) {
+        ws.send(JSON.stringify({ type: 'p2p_error', data: { message: 'Cannot call yourself' } }));
+        return;
+    }
+
+    // Get caller phone for display
+    const callerPhones = await db.getClientPhoneNumbers(callerInfo.userId);
+    const callerPhone = callerPhones.find(p => p.is_primary)?.phone_number || callerPhones[0]?.phone_number || '';
+
+    // Generate room name if not provided
+    const room = roomName || ('p2p-' + uuidv4().substring(0, 8));
+
+    // Create P2P room record
+    await db.createP2PRoom({
+        callerId: callerInfo.userId,
+        calleeId: callee.id,
+        roomName: room
+    });
+
+    // Try to notify callee via WebSocket
+    const calleeWs = findClientWsByUserId(callee.id);
+
+    if (calleeWs) {
+        calleeWs.ws.send(JSON.stringify({
+            type: 'p2p_incoming',
+            data: {
+                roomName: room,
+                callerId: callerInfo.userId,
+                callerName: callerInfo.name,
+                callerPhone
+            }
+        }));
+
+        ws.send(JSON.stringify({
+            type: 'p2p_ringing',
+            data: {
+                roomName: room,
+                calleeId: callee.id,
+                calleeName: callee.name
+            }
+        }));
+    } else {
+        // Callee offline → missed call
+        await db.createMissedCall({
+            callerId: callerInfo.userId,
+            calleeId: callee.id,
+            callerName: callerInfo.name,
+            callerPhone,
+            roomName: room
+        });
+
+        await db.updateP2PRoom(room, { status: 'missed' });
+
+        ws.send(JSON.stringify({
+            type: 'p2p_unavailable',
+            data: {
+                roomName: room,
+                calleeName: callee.name,
+                message: `${callee.name} is not available. They'll see your missed call.`
+            }
+        }));
+    }
+
+    activityLogger.log('p2p_call', {
+        callerId: callerInfo.userId,
+        callerName: callerInfo.name,
+        calleeId: callee.id,
+        calleeName: callee.name,
+        roomName: room,
+        calleeOnline: !!calleeWs
+    });
+}
+
+/**
+ * p2p_accept: Callee accepts an incoming P2P call.
+ * Notifies the caller and updates room status.
+ */
+async function handleP2PAccept(ws, data) {
+    const { roomName } = data;
+    const calleeInfo = ws.clientInfo;
+
+    if (!calleeInfo) return;
+
+    const room = await db.getP2PRoom(roomName);
+    if (!room || room.status !== 'ringing') {
+        ws.send(JSON.stringify({ type: 'p2p_error', data: { message: 'Call no longer available' } }));
+        return;
+    }
+
+    await db.updateP2PRoom(roomName, { status: 'active', answeredAt: true });
+
+    // Notify caller
+    const callerWs = findClientWsByUserId(room.caller_id);
+    if (callerWs) {
+        callerWs.ws.send(JSON.stringify({
+            type: 'p2p_accepted',
+            data: { roomName, calleeName: calleeInfo.name }
+        }));
+    }
+
+    ws.send(JSON.stringify({
+        type: 'p2p_join',
+        data: { roomName }
+    }));
+
+    activityLogger.log('p2p_accept', { roomName, calleeId: calleeInfo.userId });
+}
+
+/**
+ * p2p_decline: Callee declines an incoming P2P call.
+ */
+async function handleP2PDecline(ws, data) {
+    const { roomName } = data;
+    const calleeInfo = ws.clientInfo;
+
+    if (!calleeInfo) return;
+
+    const room = await db.getP2PRoom(roomName);
+    if (!room) return;
+
+    await db.updateP2PRoom(roomName, { status: 'declined' });
+
+    // Create missed call record since it was declined
+    const callerPhones = await db.getClientPhoneNumbers(room.caller_id);
+    const callerPhone = callerPhones.find(p => p.is_primary)?.phone_number || '';
+    const caller = await db.getClient(room.caller_id);
+
+    await db.createMissedCall({
+        callerId: room.caller_id,
+        calleeId: calleeInfo.userId,
+        callerName: caller?.name || 'Unknown',
+        callerPhone,
+        roomName
+    });
+
+    // Notify caller
+    const callerWs = findClientWsByUserId(room.caller_id);
+    if (callerWs) {
+        callerWs.ws.send(JSON.stringify({
+            type: 'p2p_declined',
+            data: { roomName, message: `${calleeInfo.name} declined the call` }
+        }));
+    }
+
+    activityLogger.log('p2p_decline', { roomName, calleeId: calleeInfo.userId });
+}
+
+/**
+ * p2p_cancel: Caller cancels a ringing call before it's answered.
+ */
+async function handleP2PCancel(ws, data) {
+    const { roomName } = data;
+    const callerInfo = ws.clientInfo;
+
+    if (!callerInfo) return;
+
+    const room = await db.getP2PRoom(roomName);
+    if (!room || room.status !== 'ringing') return;
+
+    await db.updateP2PRoom(roomName, { status: 'cancelled' });
+
+    // Notify callee
+    const calleeWs = findClientWsByUserId(room.callee_id);
+    if (calleeWs) {
+        calleeWs.ws.send(JSON.stringify({
+            type: 'p2p_cancelled',
+            data: { roomName, message: 'Call was cancelled' }
+        }));
+    }
+
+    activityLogger.log('p2p_cancel', { roomName, callerId: callerInfo.userId });
+}
+
+/**
+ * p2p_end: Either party ends an active P2P call.
+ */
+async function handleP2PEnd(ws, data) {
+    const { roomName } = data;
+    const userInfo = ws.clientInfo;
+
+    if (!userInfo) return;
+
+    const room = await db.getP2PRoom(roomName);
+    if (!room) return;
+
+    const answeredAt = room.answered_at ? new Date(room.answered_at) : new Date(room.created_at);
+    const durationSeconds = Math.floor((Date.now() - answeredAt.getTime()) / 1000);
+
+    await db.updateP2PRoom(roomName, { status: 'ended', endedAt: true, durationSeconds });
+
+    // Also record in the calls table for call history
+    await db.createCall({
+        clientId: room.caller_id,
+        interpreterId: null,
+        roomName,
+        language: 'P2P'
+    });
+    // Find the call we just created and immediately end it with duration
+    const activeCalls = await db.getActiveCalls();
+    const thisCall = activeCalls.find(c => c.room_name === roomName);
+    if (thisCall) {
+        await db.endCall(thisCall.id, Math.ceil(durationSeconds / 60));
+    }
+
+    // Notify the other party
+    const otherUserId = userInfo.userId === room.caller_id ? room.callee_id : room.caller_id;
+    const otherWs = findClientWsByUserId(otherUserId);
+    if (otherWs) {
+        otherWs.ws.send(JSON.stringify({
+            type: 'p2p_ended',
+            data: { roomName, durationSeconds }
+        }));
+    }
+
+    activityLogger.log('p2p_end', { roomName, endedBy: userInfo.userId, durationSeconds });
+}
+
+// ============================================
+// P2P REST ENDPOINTS
+// ============================================
+
+/**
+ * Look up a client by phone number.
+ * Returns basic info (name, id) — no sensitive data.
+ */
+app.get('/api/client/lookup-phone', authenticateClient, async (req, res) => {
+    try {
+        const { phone } = req.query;
+        if (!phone) return res.status(400).json({ error: 'phone query parameter required' });
+
+        const client = await db.getClientByPhoneNumber(phone);
+        if (!client) return res.json({ found: false });
+
+        res.json({
+            found: true,
+            id: client.id,
+            name: client.name,
+            phone: client.phone_number
+        });
+    } catch (error) {
+        console.error('[API] lookup-phone error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * Get missed calls for the authenticated client.
+ */
+app.get('/api/client/missed-calls', authenticateClient, async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 20;
+        const calls = await db.getMissedCalls(req.clientId, limit);
+        res.json({ calls });
+    } catch (error) {
+        console.error('[API] missed-calls error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * Mark all missed calls as seen.
+ */
+app.post('/api/client/missed-calls/mark-seen', authenticateClient, async (req, res) => {
+    try {
+        await db.markMissedCallsSeen(req.clientId);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[API] mark-seen error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * Get active P2P rooms for the authenticated client.
+ */
+app.get('/api/client/active-rooms', authenticateClient, async (req, res) => {
+    try {
+        const rooms = await db.getActiveP2PRoomsForClient(req.clientId);
+        res.json({ rooms });
+    } catch (error) {
+        console.error('[API] active-rooms error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ============================================
+// SPA FALLBACK — serve index.html for Jitsi room URLs
+// ============================================
+// Any GET request that didn't match a static file or API route
+// is a Jitsi room URL (e.g. /vrs-abc123) — serve index.html
+// so the client-side router handles it.
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'index.html'));
+});
+
+// ============================================
 // ERROR HANDLER
 // ============================================
 
@@ -1858,7 +2286,10 @@ app.use((error, req, res, next) => {
 // ============================================
 
 // Initialize database then start server
-db.initialize().then(() => {
+db.initialize().then(async () => {
+    // Seed demo accounts (idempotent -- skips existing)
+    await seedDemoAccounts();
+
     queueService.broadcastToAdmins = (type, data) => broadcastToAdmins({ type, data });
     server.listen(PORT, () => {
         console.log(`

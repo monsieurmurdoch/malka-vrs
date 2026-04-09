@@ -6,6 +6,7 @@ import SettingsButton from '../../settings/components/web/SettingsButton';
 import { SETTINGS_TABS } from '../../settings/constants';
 
 import { AbstractWelcomePage, IProps, _mapStateToProps } from './AbstractWelcomePage';
+import { EarthVisual, MoonVisual } from './CelestialBackgrounds';
 import { LanguageSwitcher } from '../../vrs-layout/components';
 
 declare var config: any;
@@ -284,6 +285,12 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                 className = { `welcome vrs-auth-page ${contentClassName} ${footerClassName}` }
                 id = 'welcome_page'>
                 <div className = 'vrs-auth-fullscreen'>
+                    {/* Celestial backgrounds */}
+                    <div className = { `celestial-container ${isClient ? 'show-earth' : 'show-moon'}` }>
+                        <EarthVisual />
+                        <MoonVisual />
+                    </div>
+
                     {/* Settings corner */}
                     <div className = 'welcome-page-settings'>
                         <SettingsButton

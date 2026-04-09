@@ -45,6 +45,22 @@ function _getWebConferenceRoute(state: IReduxState) {
         return;
     }
 
+    // VRS auth gate — only allow conference access when the user has a valid
+    // VRS session (stored by the WelcomePage auth flow or profile pages).
+    if (typeof sessionStorage !== 'undefined') {
+        const hasVrsAuth = sessionStorage.getItem('vrs_auth_token')
+            || sessionStorage.getItem('vrs_user_role');
+
+        if (!hasVrsAuth) {
+            // No VRS session → redirect to welcome / login page
+            const route = _getEmptyRoute();
+
+            route.href = '/';
+
+            return Promise.resolve(route);
+        }
+    }
+
     const route = _getEmptyRoute();
     const config = state['features/base/config'];
 

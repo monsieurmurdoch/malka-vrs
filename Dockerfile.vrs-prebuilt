@@ -1,0 +1,54 @@
+# ============================================================
+# VRS Server with PRE-BUILT frontend assets.
+# The frontend is built locally (make) and copied in directly.
+# No webpack compilation happens inside this container.
+# ============================================================
+
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install vrs-server dependencies
+COPY vrs-server/package*.json ./vrs-server/
+RUN cd vrs-server && npm install --omit=dev
+
+# Copy vrs-server source
+COPY vrs-server/ ./vrs-server/
+
+# Copy pre-built frontend assets
+# vrs-server does: express.static(path.join(__dirname, '..'))
+# So __dirname = /app/vrs-server, parent = /app
+COPY libs/ ./libs/
+COPY css/ ./css/
+COPY images/ ./images/
+COPY fonts/ ./fonts/
+COPY sounds/ ./sounds/
+COPY lang/ ./lang/
+
+# Use the pre-processed index.html (SSI includes inlined)
+COPY index.production.html ./index.html
+
+# Other HTML pages
+COPY client-profile.html ./
+COPY interpreter-profile.html ./
+COPY interpreter-dashboard.html ./
+COPY vrs-admin-dashboard.html ./
+COPY vrs-admin.html ./
+COPY vrs-welcome.html ./
+
+COPY config.js ./
+COPY interface_config.js ./
+COPY favicon.ico ./
+COPY vrs-room-generator.js ./
+
+# Optional dirs
+COPY static/ ./static/
+COPY manifest.json ./
+
+# Data directory for SQLite
+RUN mkdir -p /app/vrs-server/data
+
+EXPOSE 3001
+
+WORKDIR /app/vrs-server
+CMD ["node", "server.js"]

@@ -495,7 +495,9 @@
         };
 
         window.__joinQueue = function() {
-            const roomName = 'interpreter-' + Math.random().toString(36).substr(2, 9);
+            const arr = new Uint8Array(7);
+            crypto.getRandomValues(arr);
+            const roomName = 'interpreter-' + Array.from(arr, b => b.toString(36)).join('').substring(0, 9);
             sessionStorage.setItem('vrs_user_role', 'interpreter');
             window.location.href = '/' + roomName + '?role=interpreter';
         };

@@ -327,6 +327,198 @@
             opacity: 0.7;
         }
 
+        /* Phone dialer */
+        .dialer-input-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .dialer-input-row input {
+            flex: 1;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            color: #fff;
+            padding: 12px 14px;
+            font-size: 18px;
+            font-family: monospace;
+            letter-spacing: 1px;
+        }
+
+        .dialer-input-row input::placeholder { color: rgba(255,255,255,0.3); }
+        .dialer-input-row input:focus { outline: none; border-color: #4caf50; }
+
+        .dial-btn {
+            padding: 12px 24px;
+            background: #4caf50;
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .dial-btn:hover { background: #43a047; }
+        .dial-btn:disabled { background: #555; cursor: not-allowed; }
+
+        .dial-status {
+            font-size: 13px;
+            opacity: 0.6;
+            margin-top: 4px;
+            min-height: 18px;
+        }
+
+        /* Incoming call overlay */
+        .call-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            backdrop-filter: blur(8px);
+        }
+
+        .call-overlay-content {
+            text-align: center;
+            max-width: 360px;
+        }
+
+        .call-overlay-title {
+            font-size: 16px;
+            opacity: 0.7;
+            margin-bottom: 12px;
+        }
+
+        .call-overlay-name {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .call-overlay-phone {
+            font-size: 18px;
+            opacity: 0.5;
+            font-family: monospace;
+            margin-bottom: 32px;
+        }
+
+        .call-overlay-actions {
+            display: flex;
+            gap: 24px;
+            justify-content: center;
+        }
+
+        .call-overlay-actions button {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .call-overlay-actions button:hover { transform: scale(1.1); }
+
+        .btn-accept { background: #4caf50; color: #fff; }
+        .btn-decline { background: #f44336; color: #fff; }
+        .btn-cancel-call { background: #f44336; color: #fff; }
+
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(76,175,80,0.5); }
+            70% { box-shadow: 0 0 0 20px rgba(76,175,80,0); }
+            100% { box-shadow: 0 0 0 0 rgba(76,175,80,0); }
+        }
+
+        .btn-accept { animation: pulse-ring 1.5s infinite; }
+
+        /* Missed calls */
+        .missed-call-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .missed-call-item:last-child { border-bottom: none; }
+
+        .missed-call-info .missed-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: #f44336;
+        }
+
+        .missed-call-info .missed-time {
+            font-size: 12px;
+            opacity: 0.4;
+            margin-top: 2px;
+        }
+
+        .callback-btn {
+            background: rgba(76,175,80,0.2);
+            border: 1px solid rgba(76,175,80,0.4);
+            border-radius: 6px;
+            color: #4caf50;
+            cursor: pointer;
+            padding: 6px 14px;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .callback-btn:hover {
+            background: rgba(76,175,80,0.35);
+        }
+
+        .badge {
+            background: #f44336;
+            color: #fff;
+            border-radius: 10px;
+            padding: 1px 7px;
+            font-size: 11px;
+            font-weight: 700;
+            margin-left: 6px;
+        }
+
+        /* Active rooms */
+        .active-room-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .join-room-btn {
+            background: #4caf50;
+            border: none;
+            border-radius: 6px;
+            color: #fff;
+            cursor: pointer;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .join-room-btn:hover { background: #43a047; }
+
+        /* WS indicator */
+        .ws-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+
+        .ws-connected { background: #4caf50; }
+        .ws-disconnected { background: #f44336; }
+
         /* Responsive */
         @media (max-width: 768px) {
             .profile-main {
@@ -351,11 +543,28 @@
 
     <script>
     (function() {
+        // When behind nginx (port 80/443), API and WS go through the same origin.
+        // When running standalone dev, they go to :3001 directly.
         const API_BASE = (function() {
-            if (typeof config !== 'undefined' && config.vrs && config.vrs.queueServiceUrl) {
-                return config.vrs.queueServiceUrl.replace(/^ws/, 'http').replace(/\/ws$/, '');
+            if (typeof config !== 'undefined' && config.vrs && config.vrs.serverUrl) {
+                return config.vrs.serverUrl;
             }
-            return 'http://localhost:3001';
+            // If served from port 80/443 (nginx), use same origin; otherwise direct to :3001
+            const port = location.port;
+            if (!port || port === '80' || port === '443') {
+                return location.origin;
+            }
+            const proto = location.protocol === 'https:' ? 'https' : 'http';
+            return proto + '://' + location.hostname + ':3001';
+        })();
+
+        const WS_URL = (function() {
+            const port = location.port;
+            const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+            if (!port || port === '80' || port === '443') {
+                return proto + '://' + location.host + '/ws';
+            }
+            return proto + '://' + location.hostname + ':3001/ws';
         })();
 
         function getToken() {
@@ -386,18 +595,153 @@
             return res.json();
         }
 
-        // State
+        // ── State ──
         let state = {
             profile: null,
             calls: [],
             speedDial: [],
+            missedCalls: [],
+            activeRooms: [],
             showAddForm: false,
             editEntry: null,
             newName: '',
             newPhone: '',
-            newCategory: 'personal'
+            newCategory: 'personal',
+            dialNumber: '',
+            dialStatus: '',
+            // Call overlays
+            incomingCall: null,  // { roomName, callerName, callerPhone }
+            ringingCall: null,   // { roomName, calleeName }
+            // WebSocket
+            wsConnected: false
         };
 
+        // ── WebSocket ──
+        let ws = null;
+        let wsReconnectTimer = null;
+        let wsHeartbeat = null;
+
+        function connectWS() {
+            if (ws && ws.readyState <= 1) return;
+            const user = getUser();
+            const token = getToken();
+            if (!user || !token) return;
+
+            try {
+                ws = new WebSocket(WS_URL);
+            } catch(e) { return; }
+
+            ws.onopen = function() {
+                state.wsConnected = true;
+                render();
+                // Authenticate
+                ws.send(JSON.stringify({
+                    type: 'auth',
+                    role: 'client',
+                    userId: user.id,
+                    name: user.name,
+                    token: token
+                }));
+                // Heartbeat every 25s
+                wsHeartbeat = setInterval(() => {
+                    if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'heartbeat' }));
+                }, 25000);
+            };
+
+            ws.onmessage = function(event) {
+                try {
+                    const msg = JSON.parse(event.data);
+                    handleWSMessage(msg);
+                } catch(e) { /* ignore parse errors */ }
+            };
+
+            ws.onclose = function() {
+                state.wsConnected = false;
+                clearInterval(wsHeartbeat);
+                render();
+                // Auto-reconnect in 3s
+                wsReconnectTimer = setTimeout(connectWS, 3000);
+            };
+
+            ws.onerror = function() {
+                ws.close();
+            };
+        }
+
+        function handleWSMessage(msg) {
+            switch (msg.type) {
+                case 'p2p_incoming':
+                    // Someone is calling us
+                    state.incomingCall = msg.data;
+                    render();
+                    // Browser notification
+                    if (Notification.permission === 'granted') {
+                        new Notification('Incoming Call', { body: msg.data.callerName + ' is calling you', icon: '/images/malka-logo-white.png' });
+                    }
+                    break;
+
+                case 'p2p_ringing':
+                    // Our call is ringing on the other side
+                    state.ringingCall = msg.data;
+                    render();
+                    break;
+
+                case 'p2p_accepted':
+                    // Callee accepted — join the Jitsi room
+                    state.ringingCall = null;
+                    sessionStorage.setItem('vrs_user_role', 'client');
+                    window.location.href = '/' + msg.data.roomName + '?role=client';
+                    break;
+
+                case 'p2p_declined':
+                    state.ringingCall = null;
+                    state.dialStatus = msg.data.message || 'Call declined';
+                    render();
+                    setTimeout(() => { state.dialStatus = ''; render(); }, 4000);
+                    break;
+
+                case 'p2p_unavailable':
+                    state.ringingCall = null;
+                    state.dialStatus = msg.data.message || 'User unavailable';
+                    render();
+                    setTimeout(() => { state.dialStatus = ''; render(); }, 4000);
+                    break;
+
+                case 'p2p_cancelled':
+                    state.incomingCall = null;
+                    render();
+                    break;
+
+                case 'p2p_ended':
+                    loadCallHistory().then(render);
+                    break;
+
+                case 'p2p_join':
+                    // We accepted a call — join the room
+                    state.incomingCall = null;
+                    sessionStorage.setItem('vrs_user_role', 'client');
+                    window.location.href = '/' + msg.data.roomName + '?role=client';
+                    break;
+
+                case 'p2p_error':
+                    state.ringingCall = null;
+                    state.dialStatus = msg.data.message || 'Call error';
+                    render();
+                    setTimeout(() => { state.dialStatus = ''; render(); }, 4000);
+                    break;
+
+                case 'missed_calls':
+                    state.missedCalls = msg.data.calls || [];
+                    render();
+                    break;
+            }
+        }
+
+        function wsSend(msg) {
+            if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
+        }
+
+        // ── Helpers ──
         function formatDate(iso) {
             if (!iso) return '';
             const d = new Date(iso);
@@ -405,6 +749,15 @@
                 + ', ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
         }
 
+        function timeAgo(iso) {
+            const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+            if (seconds < 60) return 'just now';
+            if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+            if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+            return Math.floor(seconds / 86400) + 'd ago';
+        }
+
+        // ── Render ──
         function render() {
             const user = getUser();
             if (!user || user.role !== 'client') {
@@ -416,33 +769,87 @@
             const profile = state.profile;
             const calls = state.calls;
             const speedDial = state.speedDial;
+            const unseenMissed = state.missedCalls.filter(m => !m.seen);
 
-            document.getElementById('app').innerHTML = `
+            let html = '';
+
+            // ── Incoming call overlay ──
+            if (state.incomingCall) {
+                html += `
+                    <div class="call-overlay">
+                        <div class="call-overlay-content">
+                            <div class="call-overlay-title">Incoming Call</div>
+                            <div class="call-overlay-name">${state.incomingCall.callerName || 'Unknown'}</div>
+                            <div class="call-overlay-phone">${state.incomingCall.callerPhone || ''}</div>
+                            <div class="call-overlay-actions">
+                                <button class="btn-accept" onclick="window.__acceptCall()">&#128222;</button>
+                                <button class="btn-decline" onclick="window.__declineCall()">&#10006;</button>
+                            </div>
+                        </div>
+                    </div>`;
+            }
+
+            // ── Ringing overlay (we're calling someone) ──
+            if (state.ringingCall) {
+                html += `
+                    <div class="call-overlay">
+                        <div class="call-overlay-content">
+                            <div class="call-overlay-title">Calling...</div>
+                            <div class="call-overlay-name">${state.ringingCall.calleeName || 'Unknown'}</div>
+                            <div class="call-overlay-phone">Ringing</div>
+                            <div class="call-overlay-actions">
+                                <button class="btn-cancel-call" onclick="window.__cancelCall()">&#10006;</button>
+                            </div>
+                        </div>
+                    </div>`;
+            }
+
+            html += `
                 <div class="profile-header">
                     <div class="profile-header-left">
-                        <img src="images/malka-logo-white.png" alt="MalkaVRI" class="profile-header-logo">
+                        <img src="images/malka-logo-white.png" alt="MalkaVRS" class="profile-header-logo"
+                             onerror="this.style.display='none'">
                         <span class="profile-header-title">Client Profile</span>
                     </div>
                     <div class="profile-header-right">
+                        <span style="font-size:12px;opacity:0.5">
+                            <span class="ws-indicator ${state.wsConnected ? 'ws-connected' : 'ws-disconnected'}"></span>
+                            ${state.wsConnected ? 'Live' : 'Offline'}
+                        </span>
                         <span class="profile-user-name">${user.name || user.email || ''}</span>
                         <button class="sign-out-btn" onclick="window.__signOut()">Sign Out</button>
                     </div>
                 </div>
 
                 <div class="profile-main">
-                    <!-- Left column: VRS number + Start Call -->
+                    <!-- Left column -->
                     <div>
+                        <!-- VRS Number + Dialer -->
                         <div class="card" style="margin-bottom:24px">
                             <div class="card-title">Your VRS Number</div>
                             <div class="vrs-number">${profile?.primaryPhone || 'Not assigned'}</div>
                             <div class="vrs-number-label">Personal Video Relay Number</div>
+
+                            <div style="margin-top:20px">
+                                <div class="card-title">Dial a Number</div>
+                                <div class="dialer-input-row">
+                                    <input type="tel" id="dialInput" placeholder="+1-855-652-0200"
+                                           value="${state.dialNumber}"
+                                           oninput="window.__dialInput(this.value)"
+                                           onkeydown="if(event.key==='Enter') window.__dialNumber()">
+                                    <button class="dial-btn" onclick="window.__dialNumber()"
+                                            ${!state.wsConnected ? 'disabled' : ''}>&#128222;</button>
+                                </div>
+                                <div class="dial-status">${state.dialStatus}</div>
+                            </div>
+
                             <button class="start-call-btn" onclick="window.__startCall()" style="margin-top:16px">
                                 Start Instant Room
                             </button>
                         </div>
 
                         <!-- Speed Dial -->
-                        <div class="card">
+                        <div class="card" style="margin-bottom:24px">
                             <div class="card-title">Speed Dial</div>
 
                             ${state.showAddForm || state.editEntry ? `
@@ -471,25 +878,62 @@
                                         </div>
                                     `).join('')}
                                 </div>
-                            ` : `
-                                <div class="empty-state">No speed dial contacts yet</div>
-                            `}
+                            ` : `<div class="empty-state">No speed dial contacts yet</div>`}
 
                             ${!state.showAddForm && !state.editEntry ? `
                                 <button class="add-speed-dial-btn" onclick="window.__showAddForm()">+ Add Contact</button>
                             ` : ''}
                         </div>
+
+                        <!-- Missed Calls -->
+                        <div class="card">
+                            <div class="card-title">
+                                Missed Calls
+                                ${unseenMissed.length > 0 ? '<span class="badge">' + unseenMissed.length + '</span>' : ''}
+                            </div>
+                            ${state.missedCalls.length > 0 ? state.missedCalls.map(mc => `
+                                <div class="missed-call-item">
+                                    <div class="missed-call-info">
+                                        <div class="missed-name">${mc.caller_name || 'Unknown'}</div>
+                                        <div class="missed-time">${mc.caller_phone || ''} &middot; ${timeAgo(mc.created_at)}</div>
+                                    </div>
+                                    <button class="callback-btn" onclick="window.__callContact('${mc.caller_phone || ''}')">Call Back</button>
+                                </div>
+                            `).join('') : '<div class="empty-state">No missed calls</div>'}
+                        </div>
                     </div>
 
-                    <!-- Right column: Call History -->
+                    <!-- Right column -->
                     <div>
+                        <!-- Active Rooms -->
+                        ${state.activeRooms.length > 0 ? `
+                            <div class="card" style="margin-bottom:24px">
+                                <div class="card-title">Active Rooms</div>
+                                ${state.activeRooms.map(room => `
+                                    <div class="active-room-item">
+                                        <div>
+                                            <div style="font-size:14px;font-weight:500">
+                                                ${room.caller_name || 'Unknown'} ${room.callee_name ? '&harr; ' + room.callee_name : ''}
+                                            </div>
+                                            <div style="font-size:12px;opacity:0.4">${room.status} &middot; ${timeAgo(room.created_at)}</div>
+                                        </div>
+                                        <button class="join-room-btn" onclick="window.__joinRoom('${room.room_name}')">Join</button>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+
+                        <!-- Call History -->
                         <div class="card">
                             <div class="card-title">Call History</div>
                             ${calls.length > 0 ? calls.map(call => `
                                 <div class="call-item">
                                     <div>
                                         <div class="call-date">${formatDate(call.started_at)}</div>
-                                        <div class="call-interpreter">${call.interpreter_name ? 'Interpreter: ' + call.interpreter_name : ''}</div>
+                                        <div class="call-interpreter">
+                                            ${call.language === 'P2P' ? 'Direct Call'
+                                                : call.interpreter_name ? 'Interpreter: ' + call.interpreter_name : ''}
+                                        </div>
                                     </div>
                                     <div class="call-duration">${call.duration_minutes ? call.duration_minutes + ' min' : 'In progress'}</div>
                                 </div>
@@ -498,27 +942,81 @@
                     </div>
                 </div>
             `;
+
+            document.getElementById('app').innerHTML = html;
         }
 
-        // Actions
+        // ── Actions ──
         window.__signOut = function() {
+            if (ws) ws.close();
+            clearTimeout(wsReconnectTimer);
             sessionStorage.clear();
             window.location.href = '/';
         };
 
         window.__startCall = function() {
-            const roomName = 'vrs-' + Math.random().toString(36).substr(2, 9);
+            const arr = new Uint8Array(7);
+            crypto.getRandomValues(arr);
+            const roomName = 'vrs-' + Array.from(arr, b => b.toString(36)).join('').substring(0, 9);
             sessionStorage.setItem('vrs_user_role', 'client');
             window.location.href = '/' + roomName + '?role=client';
         };
 
-        window.__callContact = function(phoneNumber) {
-            const roomName = 'vrs-' + Math.random().toString(36).substr(2, 9);
-            sessionStorage.setItem('vrs_user_role', 'client');
-            sessionStorage.setItem('vrs_dial_number', phoneNumber);
-            window.location.href = '/' + roomName + '?role=client&dial=' + encodeURIComponent(phoneNumber);
+        window.__dialInput = function(value) {
+            state.dialNumber = value;
         };
 
+        window.__dialNumber = function() {
+            const phone = state.dialNumber.trim();
+            if (!phone) return;
+            if (!state.wsConnected) {
+                state.dialStatus = 'Not connected to server';
+                render();
+                return;
+            }
+            const arr = new Uint8Array(4);
+            crypto.getRandomValues(arr);
+            const roomName = 'p2p-' + Array.from(arr, b => b.toString(36)).join('').substring(0, 8);
+
+            wsSend({ type: 'p2p_call', phoneNumber: phone, roomName });
+            state.dialStatus = 'Calling...';
+            render();
+        };
+
+        window.__callContact = function(phoneNumber) {
+            if (!phoneNumber) return;
+            state.dialNumber = phoneNumber;
+            window.__dialNumber();
+        };
+
+        // Incoming call actions
+        window.__acceptCall = function() {
+            if (!state.incomingCall) return;
+            wsSend({ type: 'p2p_accept', roomName: state.incomingCall.roomName });
+        };
+
+        window.__declineCall = function() {
+            if (!state.incomingCall) return;
+            wsSend({ type: 'p2p_decline', roomName: state.incomingCall.roomName });
+            state.incomingCall = null;
+            render();
+        };
+
+        window.__cancelCall = function() {
+            if (!state.ringingCall) return;
+            wsSend({ type: 'p2p_cancel', roomName: state.ringingCall.roomName });
+            state.ringingCall = null;
+            state.dialStatus = 'Call cancelled';
+            render();
+            setTimeout(() => { state.dialStatus = ''; render(); }, 3000);
+        };
+
+        window.__joinRoom = function(roomName) {
+            sessionStorage.setItem('vrs_user_role', 'client');
+            window.location.href = '/' + roomName + '?role=client';
+        };
+
+        // Speed dial actions
         window.__showAddForm = function() {
             state.showAddForm = true;
             state.editEntry = null;
@@ -580,7 +1078,7 @@
             render();
         };
 
-        // Data loading
+        // ── Data loading ──
         async function loadProfile() {
             const data = await apiFetch('/api/client/profile');
             if (data) state.profile = data;
@@ -596,7 +1094,17 @@
             if (data && data.entries) state.speedDial = data.entries;
         }
 
-        // Init
+        async function loadMissedCalls() {
+            const data = await apiFetch('/api/client/missed-calls');
+            if (data && data.calls) state.missedCalls = data.calls;
+        }
+
+        async function loadActiveRooms() {
+            const data = await apiFetch('/api/client/active-rooms');
+            if (data && data.rooms) state.activeRooms = data.rooms;
+        }
+
+        // ── Init ──
         async function init() {
             const user = getUser();
             const token = getToken();
@@ -606,9 +1114,28 @@
                 return;
             }
 
+            // Request notification permission
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+
             render();
-            await Promise.all([loadProfile(), loadCallHistory(), loadSpeedDial()]);
+            await Promise.all([loadProfile(), loadCallHistory(), loadSpeedDial(), loadMissedCalls(), loadActiveRooms()]);
             render();
+
+            // Mark missed calls as seen after loading
+            if (state.missedCalls.some(m => !m.seen)) {
+                apiFetch('/api/client/missed-calls/mark-seen', { method: 'POST' });
+            }
+
+            // Connect WebSocket
+            connectWS();
+
+            // Refresh active rooms every 30s
+            setInterval(async () => {
+                await loadActiveRooms();
+                render();
+            }, 30000);
         }
 
         init();

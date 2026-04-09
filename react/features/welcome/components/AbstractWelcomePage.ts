@@ -73,6 +73,15 @@ interface IState {
     roomNameInputAnimation?: any;
     roomPlaceholder: string;
     updateTimeoutId?: number;
+
+    // VRS auth fields (used by WelcomePage.web.tsx)
+    selectedTab?: 'client' | 'interpreter';
+    email?: string;
+    password?: string;
+    name?: string;
+    isLogin?: boolean;
+    isSubmitting?: boolean;
+    error?: string;
 }
 
 /**

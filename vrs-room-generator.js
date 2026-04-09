@@ -5,15 +5,17 @@
  * for the MalkaVRI system.
  */
 
-// Generate secure random room IDs
+// Generate secure random room IDs using crypto API
 function generateVRSRoomId() {
     const adjectives = ['secure', 'private', 'safe', 'trusted', 'verified', 'professional'];
     const nouns = ['meeting', 'session', 'conference', 'room', 'space', 'hub'];
-    const numbers = Math.floor(Math.random() * 9999).toString().padStart(4, '0');
-    
-    const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
-    const noun = nouns[Math.floor(Math.random() * nouns.length)];
-    
+    const rand = new Uint32Array(3);
+    crypto.getRandomValues(rand);
+    const numbers = (rand[0] % 10000).toString().padStart(4, '0');
+
+    const adj = adjectives[rand[1] % adjectives.length];
+    const noun = nouns[rand[2] % nouns.length];
+
     return `vrs-${adj}-${noun}-${numbers}`;
 }
 
