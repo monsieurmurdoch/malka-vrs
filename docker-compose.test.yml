@@ -82,6 +82,22 @@ services:
       - DOCKER_HOST_ADDRESS=${DROPLET_PUBLIC_IP:-138.197.121.127}
       - JVB_STUN_SERVERS=stun.l.google.com:19302,stun1.l.google.com:19302
 
+  # ─── PostgreSQL ───────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    <<: *common
+    environment:
+      - POSTGRES_USER=${PGUSER:-malka}
+      - POSTGRES_PASSWORD=${PGPASSWORD:-malka}
+      - POSTGRES_DB=${PGDATABASE:-malka_vrs}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-malka}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   # ─── MalkaVRS Server (API + Frontend) ────────────────────
   vrs:
     build:
@@ -94,10 +110,11 @@ services:
       - NODE_ENV=production
       - JITSI_DOMAIN=meet.jitsi
       - DROPLET_PUBLIC_IP=${DROPLET_PUBLIC_IP:-138.197.121.127}
+      - DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@postgres:5432/${PGDATABASE:-malka_vrs}
     depends_on:
-      - prosody
-    volumes:
-      - vrs-data:/app/vrs-server/data
+      postgres:
+        condition: service_healthy
+      prosody:
 
   # ─── Ops / Admin Server ──────────────────────────────────
   ops:
@@ -118,5 +135,5 @@ networks:
 
 volumes:
   prosody-data:
-  vrs-data:
+  pg-data:
   ops-data:

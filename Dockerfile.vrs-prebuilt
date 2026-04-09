@@ -45,9 +45,6 @@ COPY vrs-room-generator.js ./
 COPY static/ ./static/
 COPY manifest.json ./
 
-# Data directory for SQLite
-RUN mkdir -p /app/vrs-server/data
-
 EXPOSE 3001
 
 WORKDIR /app/vrs-server

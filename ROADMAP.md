@@ -73,6 +73,69 @@
 
 ---
 
+## Phase 1.5: Enhanced Communication & UX
+> Goal: Core user-facing features that make MalkaVRS a real phone replacement
+
+### 1E — Visual Voicemail (Video Messaging)
+> Deaf users communicate in sign language — voicemail must be video-based, not audio
+
+- [ ] **Video mailbox** — callers can leave a short video message (ASL) when callee is offline
+- [ ] **Missed call → video message prompt** — if callee doesn't answer, offer "leave a video message"
+- [ ] **Voicemail inbox UI** — thumbnail grid of video messages with sender name, timestamp, duration
+- [ ] **Video playback** — click-to-play with standard controls (pause, scrub, replay)
+- [ ] **Voicemail notifications** — badge count + push notification when new message arrives
+- [ ] **Message expiry** — auto-delete after configurable period (default 30 days) for storage management
+- [ ] **Admin voicemail settings** — max message length, retention policy, storage quotas per user
+- [ ] Storage backend: object storage (S3-compatible) for video files, metadata in DB
+
+### 1F — Auto-Captioning (Speech-to-Text)
+> Live captions alongside the interpreter — for transparency, accessibility, and call documentation
+
+- [ ] **Real-time STT stream** — integrate Whisper API (OpenAI), Google Speech-to-Text, or AWS Transcribe
+- [ ] **Caption overlay in call** — live text feed overlaid on the video call (toggle on/off)
+- [ ] **Dual-stream captions** — separate caption tracks for hearing party (audio → text) and deaf party (interpreter signs → optional text summary)
+- [ ] **Caption language detection** — auto-detect spoken language and transcribe accordingly
+- [ ] **Post-call transcript** — save full transcript alongside CDR for call history
+- [ ] **Transcript search** — search across past call transcripts (useful for business/legal calls)
+- [ ] **Opt-in consent management** — all parties must consent to captioning/recording per FCC rules
+- [ ] Fallback for poor audio: indicate "audio unclear" rather than garbled text
+
+### 1G — Contacts & Address Book
+> Users need a real address book, not just speed dial
+
+- [ ] **Contact list UI** — searchable, alphabetical list with avatars, phone numbers, last call date
+- [ ] **Import contacts** — from CSV/VCARD upload, Google Contacts API, or phone address book (mobile)
+- [ ] **Contact groups** — personal, work, family, favorites (user-defined categories)
+- [ ] **Merge/dedup** — detect and merge duplicate contacts (same phone number or email)
+- [ ] **Contact cards** — tap a contact to see full history: calls, messages, notes
+- [ ] **Block list** — block unwanted callers; blocked calls go straight to rejected (no voicemail)
+- [ ] **Contact sync** — keep contacts synced across devices (web + mobile)
+- [ ] Enhance existing speed dial → unified contacts system (speed dial entries become "favorites")
+
+### 1H — Text-to-Speech (TTS) Fallback
+> For calls without an interpreter, or when a deaf user prefers typing
+
+- [ ] **In-call text box** — deaf user types a message, TTS reads it aloud to the hearing party
+- [ ] **Voice selection** — configurable TTS voice (male/female, speed, pitch)
+- [ ] **Quick phrases** — saved phrases for common responses ("Hold please", "Let me transfer you")
+- [ ] **STS (Speech-to-Speech) mode** — for users with speech disabilities who want their own voice modified
+- [ ] This is a separate call mode from VRS (no interpreter) — routed as VCO (Voice Carry Over)
+
+### 1I — Call Management & UX
+> Features users expect from any modern phone system
+
+- [ ] **Call waiting** — visual + vibration alert for incoming call while on another call; accept/reject/hold-and-accept
+- [ ] **Call transfer** — deaf user asks interpreter to transfer to another number mid-call
+- [ ] **3-way calling** — add a third party to an existing call (conference bridge)
+- [ ] **Do Not Disturb mode** — suppress incoming calls; callers go straight to voicemail
+- [ ] **Recent calls** — full call history with filters (missed, outgoing, incoming, duration)
+- [ ] **Call back** — one-tap redial from call history or missed calls
+- [ ] **In-call text chat** — side panel for text communication during video call (supplement to signing)
+- [ ] **Wait screen** — show position in queue + estimated wait time while waiting for interpreter
+- [ ] **Dark mode** — reduce eye strain during long calls; auto-detect system preference
+
+---
+
 ## Phase 2: Engineering Hardening
 > Goal: Production-grade code quality, security, and observability
 
@@ -92,12 +155,12 @@
 - [ ] **Tighten CSP** — remove `unsafe-inline`/`unsafe-eval` once Jitsi compatibility is resolved
 - [ ] **Automated tests** — zero test coverage currently (see 2F below)
 
-### 2A — PostgreSQL Migration
-- [ ] Abstract current `database.js` (SQLite) behind clean adapter interface
-- [ ] Build PostgreSQL adapter implementing same interface
-- [ ] Schema migration tooling (`node-pg-migrate`)
-- [ ] Run SQLite + PostgreSQL in parallel, verify data parity
-- [ ] Cut over to PostgreSQL
+### 2A — PostgreSQL Migration ✅
+- [x] Rewrote `database.js` — SQLite → PostgreSQL (`pg` with connection pooling)
+- [x] All 60+ queries converted: `?` → `$1`, date functions, booleans, JSONB, `ON CONFLICT`
+- [x] PostgreSQL 16 added to docker-compose (test + prod) with health checks
+- [x] `sqlite3` removed from dependencies, `pg` added
+- [ ] Schema migration tooling (`node-pg-migrate`) for future schema changes
 - [ ] Add `pg_audit` extension for FCC-compliant audit logging
 - [ ] Configure WAL archiving for point-in-time recovery
 - [ ] Set up PgBouncer connection pooling (multi-server architecture)
@@ -263,14 +326,46 @@
 ## Phase 7: Advanced Features
 > Goal: Production polish, scale, and operational excellence
 
+### 7A — Interpreter Tools
 - [ ] Real-time interpreter analytics (avg wait time, call duration, utilization)
-- [ ] Interpreter scheduling and shift management
-- [ ] Call recording (opt-in, with consent, for quality assurance)
-- [ ] AI-powered quality monitoring (sentiment, sign recognition metrics)
+- [ ] Interpreter scheduling and shift management (enhance existing `interpreter_shifts` table)
+- [ ] **Interpreter teaming** — pair junior + senior interpreters on complex calls
+- [ ] **Interpreter notes** — leave notes on clients for the next interpreter (preferences, communication style)
+- [ ] **Interpreter break management** — enforce mandatory breaks between calls, max consecutive calls
+- [ ] **Post-call survey** — optional quality feedback from client (1-5 rating + comment)
+- [ ] **Interpreter performance dashboard** — call volume, average handling time, client satisfaction
+
+### 7B — AI & Accessibility
+- [ ] **ASL recognition (research/prototype)** — long-term goal: real-time sign language → text translation
+- [ ] **AI-powered quality monitoring** — sentiment analysis on audio stream, detect frustrated callers
+- [ ] **Smart queue routing** — ML model predicts best interpreter match based on history, accent, speciality
+- [ ] **Automated call categorization** — AI tags call type (medical, legal, business, personal) for billing
+- [ ] **Voice cloning for TTS** — personalized TTS voice for deaf users who want a consistent "their" voice
+- [ ] **Noise suppression** — AI audio cleanup for interpreter's environment (typing, background noise)
+
+### 7C — Call Recording & Compliance
+- [ ] **Call recording** (opt-in, with all-party consent, per FCC/state laws)
+- [ ] **Video recording** — record full video call for quality assurance and dispute resolution
+- [ ] **Recording consent flow** — in-call prompt: "This call may be recorded. Press X to consent."
+- [ ] **Encrypted storage** — recordings encrypted at rest, access logged for audit trail
+- [ ] **Retention policies** — auto-delete after regulatory retention period (typically 90 days for VRS)
+- [ ] **Redaction tools** — blur/clip sensitive portions of recordings before release
+
+### 7D — Infrastructure & Scale
 - [ ] Load balancing across multiple Jitsi shards
 - [ ] Geographic redundancy (multi-region deployment)
 - [ ] DDoS protection, SOC 2 compliance
 - [ ] Automated E2E testing suite (call flow tests)
+- [ ] **Auto-scaling interpreter pool** — predict demand peaks (business hours, Mondays) and alert standby interpreters
+- [ ] **CDN for static assets** — serve video mailbox recordings and profile images via CDN
+
+### 7E — VRI-Specific Features (Corporate)
+- [ ] **VRI scheduling portal** — corporate clients book interpreters for specific dates/times
+- [ ] **Pre-scheduled calls** — calendar integration (Google Calendar, Outlook) for planned VRI sessions
+- [ ] **Industry-specific interpreter matching** — medical, legal, educational interpreters with verified credentials
+- [ ] **Corporate reporting** — monthly usage reports, cost center breakdown, department-level tracking
+- [ ] **API access** — REST API for corporate clients to integrate VRI into their own scheduling systems
+- [ ] **Waiting room** — branded pre-call lobby for VRI clients (company logo, estimated wait time)
 
 ---
 
