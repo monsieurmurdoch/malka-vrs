@@ -76,6 +76,22 @@
 ## Phase 2: Engineering Hardening
 > Goal: Production-grade code quality, security, and observability
 
+### Security Fixes Applied ✅
+- [x] SQL injection in `getDailyUsageStats` — parameterized query with safe integer cast
+- [x] Handoff REST endpoints (`/api/handoff/*`) — added `authenticateUser` middleware
+- [x] Interpreter login N+1 — `getInterpreterByEmail()` replaces `getAllInterpreters()` + find
+- [x] Speed dial authorization bypass — SQL `WHERE client_id = ?` enforced in DB layer
+- [x] Phone number collision — retry loop with `getClientByPhoneNumber` check before assignment
+- [x] WebSocket client auth — `handleInterpreterRequest` now requires `authenticated: true`
+- [x] WebSocket message size limit — 64KB max, rejects oversized payloads before JSON parse
+- [x] `uuid.substr()` → `.substring()` (already correct)
+
+### Remaining Architectural Issues
+- [ ] **Split monolithic server.js** (~2300 lines) → route modules (auth, client, interpreter, admin, p2p, handoff)
+- [ ] **Persist in-memory state** — queue, connected clients, handoff tokens in Redis or DB (restart = lost state)
+- [ ] **Tighten CSP** — remove `unsafe-inline`/`unsafe-eval` once Jitsi compatibility is resolved
+- [ ] **Automated tests** — zero test coverage currently (see 2F below)
+
 ### 2A — PostgreSQL Migration
 - [ ] Abstract current `database.js` (SQLite) behind clean adapter interface
 - [ ] Build PostgreSQL adapter implementing same interface

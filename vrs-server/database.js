@@ -368,6 +368,11 @@ async function getInterpreter(id) {
     };
 }
 
+async function getInterpreterByEmail(email) {
+    const rows = await runQuery('SELECT * FROM interpreters WHERE email = ?', [email]);
+    return rows[0];
+}
+
 async function createInterpreter({ name, email, languages, password }) {
     const id = uuidv4();
     const passwordHash = await bcrypt.hash(password || 'changeme', 10);
@@ -711,6 +716,8 @@ async function getDashboardStats() {
 // ============================================
 
 async function getDailyUsageStats(days = 7) {
+    // Ensure days is a positive integer to prevent injection
+    const safeDays = Math.max(1, Math.floor(Number(days) || 7));
     return await runQuery(`
         SELECT
             date(started_at) as date,
@@ -719,10 +726,10 @@ async function getDailyUsageStats(days = 7) {
             COUNT(DISTINCT client_id) as unique_clients,
             COUNT(DISTINCT interpreter_id) as unique_interpreters
         FROM calls
-        WHERE date(started_at) >= date('now', '-${days} days')
+        WHERE date(started_at) >= date('now', '-' || ? || ' days')
         GROUP BY date(started_at)
         ORDER BY date
-    `);
+    `, [safeDays]);
 }
 
 // ============================================
@@ -745,7 +752,7 @@ async function addSpeedDialEntry({ clientId, name, phoneNumber, category }) {
     return { id, name, phoneNumber };
 }
 
-async function updateSpeedDialEntry(id, { name, phoneNumber, category }) {
+async function updateSpeedDialEntry(id, clientId, { name, phoneNumber, category }) {
     const updates = [];
     const params = [];
 
@@ -754,13 +761,14 @@ async function updateSpeedDialEntry(id, { name, phoneNumber, category }) {
     if (category !== undefined) { updates.push('category = ?'); params.push(category); }
 
     if (updates.length > 0) {
-        params.push(id);
-        await runUpdate(`UPDATE speed_dial SET ${updates.join(', ')} WHERE id = ?`, params);
+        params.push(id, clientId);
+        const result = await runUpdate(`UPDATE speed_dial SET ${updates.join(', ')} WHERE id = ? AND client_id = ?`, params);
+        return result;
     }
 }
 
-async function deleteSpeedDialEntry(id) {
-    await runUpdate('DELETE FROM speed_dial WHERE id = ?', [id]);
+async function deleteSpeedDialEntry(id, clientId) {
+    return await runUpdate('DELETE FROM speed_dial WHERE id = ? AND client_id = ?', [id, clientId]);
 }
 
 async function incrementSpeedDialUsage(id) {
@@ -1007,6 +1015,7 @@ module.exports = {
     createAdmin,
     getAllInterpreters,
     getInterpreter,
+    getInterpreterByEmail,
     createInterpreter,
     updateInterpreter,
     deleteInterpreter,

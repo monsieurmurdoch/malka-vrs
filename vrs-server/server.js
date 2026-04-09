@@ -221,6 +221,11 @@ wss.on('connection', (ws, req) => {
 
     ws.on('message', async (message) => {
         try {
+            // Reject oversized messages (64KB limit)
+            if (message.length > 65536) {
+                ws.send(JSON.stringify({ type: 'error', data: { message: 'Message too large' } }));
+                return;
+            }
             const data = JSON.parse(message);
             console.log('[WebSocket] Received:', data.type, data);
 
@@ -501,10 +506,10 @@ async function handleInterpreterRequest(ws, data) {
     const client = ws.clientInfo;
     const payload = data.data || {};
 
-    if (!client || client.role !== 'client') {
+    if (!client || client.role !== 'client' || !client.authenticated) {
         ws.send(JSON.stringify({
             type: 'error',
-            data: { message: 'Client authentication required before requesting an interpreter.' }
+            data: { message: 'Authenticated client required before requesting an interpreter. Please log in first.' }
         }));
         return;
     }
@@ -1480,9 +1485,21 @@ app.post('/api/auth/client/register', authLimiter, async (req, res) => {
 
         const client = await db.createClient({ name, email, password, organization });
 
-        // Assign a phone number
+        // Assign a unique phone number (retry on collision)
         const crypto = require('crypto');
-        const phoneNum = `+1-555-${String(crypto.randomInt(1000, 9999))}`;
+        let phoneNum;
+        let attempts = 0;
+        const MAX_ATTEMPTS = 10;
+        while (attempts < MAX_ATTEMPTS) {
+            phoneNum = `+1-555-${String(crypto.randomInt(1000, 9999))}`;
+            const existing = await db.getClientByPhoneNumber(phoneNum);
+            if (!existing) break;
+            attempts++;
+            if (attempts >= MAX_ATTEMPTS) {
+                console.error('[Client Register] Could not generate unique phone number after', MAX_ATTEMPTS, 'attempts');
+                return res.status(500).json({ error: 'Unable to assign phone number, please try again' });
+            }
+        }
         await db.assignClientPhoneNumber({ clientId: client.id, phoneNumber: phoneNum, isPrimary: true });
 
         const token = jwt.sign(
@@ -1562,8 +1579,7 @@ app.post('/api/auth/interpreter/login', authLimiter, async (req, res) => {
     const { email, password } = req.body;
 
     try {
-        const interpreters = await db.getAllInterpreters();
-        const interpreter = interpreters.find(i => i.email === email);
+        const interpreter = await db.getInterpreterByEmail(email);
 
         if (!interpreter || !interpreter.password_hash) {
             return res.status(401).json({ error: 'Invalid email or password' });
@@ -1704,12 +1720,6 @@ app.put('/api/client/speed-dial/:id', authenticateUser, async (req, res) => {
     const { name, phoneNumber, category } = req.body;
 
     try {
-        const entries = await db.getSpeedDialEntries(req.user.id);
-        const entry = entries.find(e => e.id === req.params.id);
-        if (!entry) {
-            return res.status(404).json({ error: 'Entry not found' });
-        }
-
         const updates = {};
         if (name !== undefined) updates.name = name;
         if (phoneNumber !== undefined) {
@@ -1721,7 +1731,8 @@ app.put('/api/client/speed-dial/:id', authenticateUser, async (req, res) => {
         }
         if (category !== undefined) updates.category = category;
 
-        await db.updateSpeedDialEntry(req.params.id, updates);
+        // Authorization enforced in SQL: WHERE id = ? AND client_id = ?
+        await db.updateSpeedDialEntry(req.params.id, req.user.id, updates);
         res.json({ success: true });
     } catch (error) {
         console.error('[Speed Dial Update] Error:', error);
@@ -1735,12 +1746,8 @@ app.delete('/api/client/speed-dial/:id', authenticateUser, async (req, res) => {
     }
 
     try {
-        const entries = await db.getSpeedDialEntries(req.user.id);
-        if (!entries.find(e => e.id === req.params.id)) {
-            return res.status(404).json({ error: 'Entry not found' });
-        }
-
-        await db.deleteSpeedDialEntry(req.params.id);
+        // Authorization enforced in SQL: WHERE id = ? AND client_id = ?
+        await db.deleteSpeedDialEntry(req.params.id, req.user.id);
         res.json({ success: true });
     } catch (error) {
         console.error('[Speed Dial Delete] Error:', error);
@@ -1852,7 +1859,7 @@ app.get('/api/interpreter/stats', authenticateUser, async (req, res) => {
  * Body: { userId, targetDeviceId }
  * Returns: { token, roomName, interpreterId }
  */
-app.post('/api/handoff/prepare', (req, res) => {
+app.post('/api/handoff/prepare', authenticateUser, (req, res) => {
     const validationError = validateRequired(req.body, [ 'userId', 'targetDeviceId' ]);
     if (validationError) {
         return res.status(400).json({ error: validationError });
@@ -1893,7 +1900,7 @@ app.post('/api/handoff/prepare', (req, res) => {
  * Body: { token, newDeviceId }
  * Returns: { roomName, interpreterId, userId, fromDeviceId }
  */
-app.post('/api/handoff/execute', (req, res) => {
+app.post('/api/handoff/execute', authenticateUser, (req, res) => {
     const validationError = validateRequired(req.body, [ 'token', 'newDeviceId' ]);
     if (validationError) {
         return res.status(400).json({ error: validationError });
@@ -1926,7 +1933,7 @@ app.post('/api/handoff/execute', (req, res) => {
  * Query: ?userId=xxx
  * Returns: { inProgress, targetDeviceId?, roomName?, expiresAt? }
  */
-app.get('/api/handoff/status', (req, res) => {
+app.get('/api/handoff/status', authenticateUser, (req, res) => {
     const { userId } = req.query;
     if (!userId) {
         return res.status(400).json({ error: 'userId query parameter is required' });
