@@ -1,0 +1,56 @@
+name: Deploy to DigitalOcean
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # manual trigger button in GitHub UI
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to droplet
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: root
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          script: |
+            set -e
+
+            echo "=== Pulling latest code ==="
+            cd /opt/malka-vrs
+
+            # If repo not cloned yet, clone it; otherwise pull
+            if [ -d .git ]; then
+              git fetch origin main
+              git reset --hard origin/main
+            else
+              git clone https://${{ secrets.GH_PAT }}@github.com/monsieurmurdoch/malka-vrs.git /opt/malka-vrs
+              cd /opt/malka-vrs
+            fi
+
+            echo "=== Building and deploying ==="
+            docker compose -f docker-compose.test.yml up -d --build --remove-orphans
+
+            echo "=== Waiting for services ==="
+            sleep 5
+            docker compose -f docker-compose.test.yml ps
+
+            echo "=== Checking VRS health ==="
+            for i in 1 2 3 4 5; do
+              if curl -sf http://localhost/api/health > /dev/null 2>&1; then
+                echo "VRS is healthy!"
+                exit 0
+              fi
+              echo "Waiting for VRS... ($i/5)"
+              sleep 3
+            done
+
+            echo "VRS health check inconclusive, checking container status..."
+            docker compose -f docker-compose.test.yml logs vrs --tail=10
