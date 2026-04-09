@@ -42,6 +42,7 @@ function initialize() {
 
             // Create tables
             createTables()
+                .then(() => runMigrations())
                 .then(() => {
                     console.log('[Database] Tables initialized');
                     resolve();
@@ -216,7 +217,21 @@ function createTables() {
             `CREATE INDEX IF NOT EXISTS idx_client_phone_client ON client_phone_numbers(client_id)`,
             `CREATE INDEX IF NOT EXISTS idx_shifts_interpreter ON interpreter_shifts(interpreter_id)`,
             `CREATE INDEX IF NOT EXISTS idx_shifts_date ON interpreter_shifts(date)`,
-            `CREATE INDEX IF NOT EXISTS idx_earnings_interpreter ON interpreter_earnings(interpreter_id)`
+            `CREATE INDEX IF NOT EXISTS idx_earnings_interpreter ON interpreter_earnings(interpreter_id)`,
+
+            // Missed calls (P2P — stored when target is offline)
+            `CREATE TABLE IF NOT EXISTS missed_calls (
+                id TEXT PRIMARY KEY,
+                caller_id TEXT NOT NULL,
+                callee_phone TEXT NOT NULL,
+                callee_client_id TEXT,
+                room_name TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                seen INTEGER DEFAULT 0,
+                FOREIGN KEY (caller_id) REFERENCES clients(id) ON DELETE CASCADE
+            )`,
+            `CREATE INDEX IF NOT EXISTS idx_missed_calls_callee ON missed_calls(callee_client_id, seen)`,
+            `CREATE INDEX IF NOT EXISTS idx_missed_calls_caller ON missed_calls(caller_id)`
         ];
 
         let completed = 0;
@@ -824,9 +839,11 @@ async function getInterpreterEarnings(interpreterId, periodStart, periodEnd) {
 
 async function getClientCallHistory(clientId, limit = 20, offset = 0) {
     return await runQuery(
-        `SELECT c.*, i.name as interpreter_name
+        `SELECT c.*, i.name as interpreter_name,
+                callee.name as callee_name
          FROM calls c
          LEFT JOIN interpreters i ON i.id = c.interpreter_id
+         LEFT JOIN clients callee ON callee.id = c.callee_id
          WHERE c.client_id = ?
          ORDER BY c.started_at DESC
          LIMIT ? OFFSET ?`,
@@ -873,6 +890,93 @@ async function getInterpreterStats(interpreterId) {
         avgDuration: Math.round(calls[0]?.avg_duration || 0),
         totalEarnings: earnings[0]?.total_earnings || 0
     };
+}
+
+// ============================================
+// MIGRATIONS
+// ============================================
+
+function runMigrations() {
+    return new Promise((resolve) => {
+        db.all('PRAGMA table_info(calls)', (err, columns) => {
+            const hasCalleeId = columns && columns.some(col => col.name === 'callee_id');
+            if (!hasCalleeId) {
+                db.run('ALTER TABLE calls ADD COLUMN callee_id TEXT', (err2) => {
+                    if (err2) console.warn('[Database] Migration callee_id:', err2.message);
+                    resolve();
+                });
+            } else {
+                resolve();
+            }
+        });
+    });
+}
+
+// ============================================
+// P2P CLIENT-TO-CLIENT OPERATIONS
+// ============================================
+
+async function getClientByPhoneNumber(phoneNumber) {
+    const rows = await runQuery(
+        `SELECT c.*, cpn.phone_number, cpn.is_primary
+         FROM client_phone_numbers cpn
+         JOIN clients c ON c.id = cpn.client_id
+         WHERE cpn.phone_number = ? AND cpn.active = 1`,
+        [phoneNumber]
+    );
+    return rows[0] || null;
+}
+
+async function createP2PCall({ callerId, calleeId, roomName }) {
+    const id = uuidv4();
+    await runInsert(
+        'INSERT INTO calls (id, client_id, interpreter_id, room_name, language, status, callee_id) VALUES (?, ?, NULL, ?, NULL, ?, ?)',
+        [id, callerId, roomName, 'p2p_active', calleeId]
+    );
+    return id;
+}
+
+async function createMissedCall({ callerId, calleePhone, calleeClientId, roomName }) {
+    const id = uuidv4();
+    await runInsert(
+        'INSERT INTO missed_calls (id, caller_id, callee_phone, callee_client_id, room_name) VALUES (?, ?, ?, ?, ?)',
+        [id, callerId, calleePhone, calleeClientId || null, roomName || null]
+    );
+    return { id };
+}
+
+async function getMissedCalls(clientId) {
+    return await runQuery(
+        `SELECT mc.*, c.name as caller_name
+         FROM missed_calls mc
+         JOIN clients c ON c.id = mc.caller_id
+         WHERE mc.callee_client_id = ?
+         ORDER BY mc.created_at DESC`,
+        [clientId]
+    );
+}
+
+async function markMissedCallsSeen(clientId) {
+    await runUpdate(
+        'UPDATE missed_calls SET seen = 1 WHERE callee_client_id = ? AND seen = 0',
+        [clientId]
+    );
+}
+
+async function getActiveP2PRoomsForClient(clientId) {
+    return await runQuery(
+        `SELECT c.id as call_id, c.room_name, c.started_at, c.client_id as caller_id,
+                caller.name as caller_name,
+                callee.name as callee_name,
+                callee.id as callee_id
+         FROM calls c
+         LEFT JOIN clients caller ON caller.id = c.client_id
+         LEFT JOIN clients callee ON callee.id = c.callee_id
+         WHERE c.status = 'p2p_active'
+           AND (c.client_id = ? OR c.callee_id = ?)
+         ORDER BY c.started_at DESC`,
+        [clientId, clientId]
+    );
 }
 
 // ============================================
@@ -924,5 +1028,12 @@ module.exports = {
     // Call history
     getClientCallHistory,
     getInterpreterCallHistory,
+    // P2P client-to-client
+    getClientByPhoneNumber,
+    createP2PCall,
+    createMissedCall,
+    getMissedCalls,
+    markMissedCallsSeen,
+    getActiveP2PRoomsForClient,
     db: () => db
 };

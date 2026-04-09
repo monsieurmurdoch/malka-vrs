@@ -2,12 +2,30 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# Install build tools for native modules (sqlite3)
+RUN apk add --no-cache python3 make g++ py3-setuptools
+
 # Copy dependency manifests first (layer caching)
 COPY vrs-server/package*.json ./
-RUN npm install --omit=dev
+RUN npm install --omit=dev \
+    && npm rebuild sqlite3 --build-from-source \
+    && node -e "require('sqlite3'); console.log('sqlite3 OK')"
 
-# Copy server source
-COPY vrs-server/ .
+# Copy server source (avoid copying local node_modules which has macOS binaries)
+COPY vrs-server/server.js vrs-server/database.js vrs-server/*.json ./
+COPY vrs-server/lib ./lib
+COPY vrs-server/scripts ./scripts
+
+# Copy frontend HTML files (server.js serves them from __dirname/..)
+COPY *.html /
+COPY *.js /
+COPY css /css
+COPY images /images
+COPY fonts /fonts
+COPY sounds /sounds
+COPY libs /libs
+COPY static /static
+COPY manifest.json /manifest.json
 
 # Create data directory
 RUN mkdir -p /app/data
