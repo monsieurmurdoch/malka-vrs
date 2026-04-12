@@ -1,87 +1,218 @@
-# <p align="center">Jitsi Meet</p>
+# MalkaVRS
 
-Jitsi Meet is a set of Open Source projects which empower users to use and deploy
-video conferencing platforms with state-of-the-art video quality and features.
+Video Relay Service (VRS) platform for deaf and hard-of-hearing users. Connects clients with ASL interpreters via real-time video, with phone bridging to hearing parties through Twilio.
 
-<hr />
+Built on [Jitsi Meet](https://github.com/jitsi/jitsi-meet) with custom backend services for queue management, authentication, and call routing.
 
-<p align="center">
-<img src="https://raw.githubusercontent.com/jitsi/jitsi-meet/master/readme-img1.png" width="900" />
-</p>
+## Architecture
 
-<hr />
+```
+                     ┌──────────────────┐
+                     │   Browser / App   │
+                     │  (React + Jitsi)  │
+                     └────────┬─────────┘
+                              │
+              ┌───────────────┼───────────────┐
+              │               │               │
+     WebSocket /ws     REST /api      WebRTC media
+              │               │               │
+     ┌────────▼──────┐ ┌─────▼──────┐ ┌──────▼──────┐
+     │  VRS Server    │ │ Ops Server  │ │ JVB (Jitsi  │
+     │  :3001         │ │ :3003       │ │ Videobridge)│
+     │  Queue, Auth,  │ │ Admin,      │ │ :10000/udp  │
+     │  P2P, Handoff  │ │ CDR, Stats  │ │             │
+     └────────┬──────┘ └─────────────┘ └──────┬──────┘
+              │                                │
+     ┌────────▼──────┐              ┌──────────▼──┐
+     │   SQLite DB   │              │ Prosody XMPP│
+     │   (vrs-data)  │              │ + Jicofo    │
+     └───────────────┘              └─────────────┘
 
-Amongst others here are the main features Jitsi Meet offers:
+     ┌───────────────┐
+     │ Twilio Server │  (optional, :3002)
+     │ Phone bridge  │
+     └───────────────┘
+```
 
-* Support for all current browsers
-* Mobile applications
-* Web and native SDKs for integration
-* HD audio and video
-* Content sharing
-* Raise hand and reactions
-* Chat with private conversations
-* Polls
-* Virtual backgrounds
+## Services
 
-And many more!
+| Service | Port | Description |
+|---------|------|-------------|
+| **VRS Server** | 3001 | Main API, WebSocket queue, auth, P2P calling, device handoff |
+| **Ops Server** | 3003 | Admin dashboard, call logging, interpreter management |
+| **Twilio Server** | 3002 | Phone-to-video bridge (optional, `--profile twilio`) |
+| **Prosody** | 5222/5280 | XMPP signaling for Jitsi WebRTC |
+| **Jicofo** | — | Jitsi conference focus |
+| **JVB** | 10000/udp | Jitsi videobridge (media relay) |
 
-## Using Jitsi Meet
+## Quick Start
 
-Using Jitsi Meet is straightforward, as it's browser based. Head over to [meet.jit.si](https://meet.jit.si) and give it a try. It's scalable and free to use. All you need is a Google, Facebook or GitHub account in order to start a meeting. All browsers are supported!
+### Prerequisites
 
-Using mobile? No problem, you can either use your mobile web browser or our fully-featured
-mobile apps:
+- Docker and Docker Compose
+- Node.js 18+ (for local development)
 
-| Android | Android (F-Droid) | iOS |
-|:-:|:-:|:-:|
-| [<img src="resources/img/google-play-badge.png" height="50">](https://play.google.com/store/apps/details?id=org.jitsi.meet) | [<img src="resources/img/f-droid-badge.png" height="50">](https://f-droid.org/en/packages/org.jitsi.meet/) | [<img src="resources/img/appstore-badge.png" height="50">](https://itunes.apple.com/us/app/jitsi-meet/id1165103905) |
+### Environment Setup
 
-If you are feeling adventurous and want to get an early scoop of the features as they are being
-developed you can also sign up for our open beta testing here:
+```bash
+cp .env.example .env
+```
 
-* [Android](https://play.google.com/apps/testing/org.jitsi.meet)
-* [iOS](https://testflight.apple.com/join/isy6ja7S)
+Edit `.env` and set at minimum:
 
-## Running your own instance
+```env
+VRS_SHARED_JWT_SECRET=<generate a random 64-char string>
+VRS_BOOTSTRAP_SUPERADMIN_PASSWORD=<choose a strong password>
+JICOFO_COMPONENT_SECRET=<random string>
+JICOFO_AUTH_PASSWORD=<random string>
+JVB_AUTH_PASSWORD=<random string>
+```
 
-If you'd like to run your own Jitsi Meet installation head over to the [handbook](https://jitsi.github.io/handbook/docs/devops-guide/) to get started.
+### Run with Docker Compose
 
-We provide Debian packages and a comprehensive Docker setup to make deployments as simple as possible.
-Advanced users also have the possibility of building all the components from source.
+```bash
+# Start all services
+docker compose up --build
 
-You can check the latest releases [here](https://jitsi.github.io/handbook/docs/releases).
+# Start with Twilio phone integration
+docker compose --profile twilio up --build
+```
 
-## Jitsi as a Service
+The app will be available at `http://localhost:8080`.
 
-If you like the branding capabilities of running your own instance but you'd like
-to avoid dealing with the complexity of monitoring, scaling and updates, JaaS might be
-for you.
+### Run Locally (Development)
 
-[8x8 Jitsi as a Service (JaaS)](https://jaas.8x8.vc) is an enterprise-ready video meeting platform that allows developers, organizations and businesses to easily build and deploy video solutions. With Jitsi as a Service we now give you all the power of Jitsi running on our global platform so you can focus on building secure and branded video experiences.
+```bash
+# Install dependencies for VRS server
+cd vrs-server && npm install && cd ..
 
-## Documentation
+# Install dependencies for Ops server
+cd vrs-ops-server && npm install && cd ..
 
-All the Jitsi Meet documentation is available in [the handbook](https://jitsi.github.io/handbook/).
+# Start VRS server
+cd vrs-server && npm start
 
-## Security
+# Start Ops server (separate terminal)
+cd vrs-ops-server && npm start
+```
 
-For a comprehensive description of all Jitsi Meet's security aspects, please check [this link](https://jitsi.org/security).
+## Key Features
 
-For a detailed description of Jitsi Meet's End-to-End Encryption (E2EE) implementation,
-please check [this link](https://jitsi.org/e2ee-whitepaper/).
+- **Interpreter Queue** — WebSocket-based real-time queue with language-based matching and priority routing
+- **P2P Client Calling** — Direct video calls between clients using phone number resolution
+- **Device Handoff** — Seamless call transfer between devices using one-time cryptographic tokens
+- **Admin Dashboard** — Real-time interpreter status, queue management, activity logging, usage analytics
+- **Phone Integration** — Twilio Voice API for bridging hearing parties into video calls
+- **Security** — JWT auth, Helmet CSP, rate limiting, CORS whitelist, bcrypt password hashing
 
-For information on reporting security vulnerabilities in Jitsi Meet, see [SECURITY.md](./SECURITY.md).
+## API Overview
 
-## Contributing
+### Authentication
+```
+POST /api/auth/client/register      — Register a new client
+POST /api/auth/client/login         — Client login
+POST /api/auth/interpreter/login    — Interpreter login
+POST /api/admin/login               — Admin login (legacy, disabled by default)
+```
 
-If you are looking to contribute to Jitsi Meet, first of all, thank you! Please
-see our [guidelines for contributing](CONTRIBUTING.md).
+### Client Endpoints (authenticated)
+```
+GET  /api/client/profile            — Get client profile
+GET  /api/client/call-history       — Call history with pagination
+GET  /api/client/speed-dial         — Speed dial entries
+POST /api/client/speed-dial         — Add speed dial entry
+GET  /api/client/missed-calls       — Missed P2P calls
+GET  /api/client/lookup-phone       — Look up a client by phone number
+```
 
-<br />
-<br />
+### Interpreter Endpoints (authenticated)
+```
+GET  /api/interpreter/profile       — Interpreter profile
+GET  /api/interpreter/call-history  — Call history
+GET  /api/interpreter/shifts        — Shift schedule
+GET  /api/interpreter/earnings      — Earnings for a date range
+GET  /api/interpreter/stats         — Monthly stats
+```
 
-<footer>
-<p align="center" style="font-size: smaller;">
-Built with ❤️ by the Jitsi team at <a href="https://8x8.com" target="_blank">8x8</a> and our community.
-</p>
-</footer>
+### Admin Endpoints (authenticated)
+```
+GET  /api/admin/stats               — Dashboard statistics
+GET  /api/admin/interpreters        — List interpreters with status
+POST /api/admin/interpreters        — Create interpreter
+GET  /api/admin/clients             — List clients
+GET  /api/admin/queue               — Current queue state
+POST /api/admin/queue/pause         — Pause the queue
+POST /api/admin/queue/resume        — Resume the queue
+GET  /api/admin/activity            — Activity log
+```
+
+### WebSocket Events (`/ws`)
+```
+auth                    — Authenticate with role + token
+interpreter_status      — Update interpreter availability
+request_interpreter     — Client requests an interpreter
+accept_request          — Interpreter accepts a queue request
+p2p_call                — Initiate P2P client-to-client call
+session_register        — Register for device handoff
+handoff_prepare         — Begin device handoff
+```
+
+## Production Deployment
+
+See `deploy/` for DigitalOcean deployment scripts:
+
+```bash
+# On a fresh droplet
+./deploy/setup.sh
+```
+
+This installs Docker, configures firewall (ports 80, 443, 10000/udp), obtains SSL certificates via certbot, and launches the full stack with nginx reverse proxy.
+
+See `ROADMAP.md` for the full development plan and `deploy/nginx.conf` for the production proxy configuration.
+
+## Project Structure
+
+```
+malka-vrs-app/
+├── vrs-server/              # Main backend (Express + WebSocket + SQLite)
+│   ├── server.js            # API routes, WebSocket handlers
+│   ├── database.js          # SQLite data layer
+│   └── lib/
+│       ├── queue-service.js # Interpreter queue matching
+│       ├── handoff-service.js# Device handoff tokens
+│       └── activity-logger.js
+├── vrs-ops-server/          # Admin dashboard backend (TypeScript)
+├── twilio-voice-server/     # Twilio phone integration
+├── react/                   # React components (Jitsi Meet fork)
+├── deploy/                  # Production deployment configs
+│   ├── nginx.conf
+│   ├── setup.sh
+│   └── docker-compose.prod.yml
+├── docker-compose.yml       # Development stack
+├── Dockerfile.vrs-server
+├── Dockerfile.ops-server
+├── Dockerfile.twilio-server
+└── ROADMAP.md               # Development roadmap
+```
+
+## Demo Accounts
+
+The server seeds demo accounts on first run:
+
+| Role | Email | Password |
+|------|-------|----------|
+| Client | (set via `.env`) | (set via `.env`) |
+| Interpreter | (set via `.env`) | (set via `.env`) |
+
+## Tech Stack
+
+- **Frontend:** React 18, Jitsi Meet SDK, Material UI
+- **Backend:** Node.js, Express, WebSocket (ws), SQLite3
+- **Auth:** JWT, bcrypt
+- **Video:** Jitsi Meet (Prosody + Jicofo + JVB), WebRTC
+- **Phone:** Twilio Voice API
+- **Infrastructure:** Docker, Docker Compose, nginx, Let's Encrypt
+
+## License
+
+This project includes code from [Jitsi Meet](https://github.com/jitsi/jitsi-meet), licensed under the Apache License 2.0. MalkaVRS-specific code is proprietary.

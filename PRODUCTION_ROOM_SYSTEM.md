@@ -108,3 +108,12 @@ GENERATE_ROOMNAMES_ON_WELCOME_PAGE: true
 - Unlimited unique meetings
 
 Your VRS system now works like production Jitsi Meet with proper dynamic room generation! 🎉
+
+## ✅ Service Readiness
+
+Dynamic room URLs are only one piece of launch readiness. For actual production operations, validate the service stack as well:
+
+- Queue server: `http://localhost:3001/api/readiness`
+- Ops server: `http://localhost:3003/api/readiness`
+- Twilio voice server: `http://localhost:3002/api/readiness`
+- Full static/live stack check: `npm run validate:vrs-stack`

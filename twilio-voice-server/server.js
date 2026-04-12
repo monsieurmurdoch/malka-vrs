@@ -12,27 +12,49 @@ const bodyParser = require('body-parser');
 // Initialize Express app
 const app = express();
 const PORT = process.env.TWILIO_PORT || 3002;
+const DEFAULT_TWILIO_ACCOUNT_SID = 'YOUR_ACCOUNT_SID';
+const DEFAULT_TWILIO_AUTH_TOKEN = 'YOUR_AUTH_TOKEN';
+const DEFAULT_TWILIO_PHONE_NUMBER = 'YOUR_TWILIO_NUMBER';
+const DEFAULT_WEBHOOK_BASE_URL = 'https://your-domain.com';
+const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'https://127.0.0.1:8080,http://localhost:8080')
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean);
+const CALL_RATE_LIMIT_WINDOW_MS = Number(process.env.TWILIO_CALL_RATE_LIMIT_WINDOW_MS || 60 * 1000);
+const CALL_RATE_LIMIT_MAX = Number(process.env.TWILIO_CALL_RATE_LIMIT_MAX || 10);
+
+app.set('trust proxy', true);
 
 // Middleware
 app.use(cors({
-    origin: ['https://127.0.0.1:8080', 'http://localhost:8080'],
+    origin(origin, callback) {
+        if (!origin || CORS_ORIGINS.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('CORS not allowed'));
+        }
+    },
     credentials: true
 }));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // Twilio configuration - YOU NEED TO SET THESE ENVIRONMENT VARIABLES
-const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID || 'YOUR_ACCOUNT_SID';
-const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN || 'YOUR_AUTH_TOKEN';
-const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER || 'YOUR_TWILIO_NUMBER';
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID || DEFAULT_TWILIO_ACCOUNT_SID;
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN || DEFAULT_TWILIO_AUTH_TOKEN;
+const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER || DEFAULT_TWILIO_PHONE_NUMBER;
 
 // Your webhook URL for call status updates
-const WEBHOOK_BASE_URL = process.env.WEBHOOK_BASE_URL || 'https://your-domain.com';
+const WEBHOOK_BASE_URL = process.env.WEBHOOK_BASE_URL || DEFAULT_WEBHOOK_BASE_URL;
 
 // Initialize Twilio client
 let twilio;
+let twilioSdk;
 try {
-    twilio = require('twilio')(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+    twilioSdk = require('twilio');
+    if (TWILIO_ACCOUNT_SID !== DEFAULT_TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN !== DEFAULT_TWILIO_AUTH_TOKEN) {
+        twilio = twilioSdk(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+    }
 } catch (error) {
     console.error('⚠️  Twilio initialization failed. Please install: npm install twilio');
     console.error('⚠️  And set your environment variables.');
@@ -40,6 +62,7 @@ try {
 
 // In-memory call storage (in production, use Redis or database)
 const activeCalls = new Map();
+const callRateLimitStore = new Map();
 
 /**
  * Utility functions
@@ -52,19 +75,111 @@ function generateCallId() {
     return `vrs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
+function isPlaceholder(value, placeholder) {
+    return !value || value === placeholder;
+}
+
+function getRateLimitKey(req) {
+    return req.ip || req.headers['x-forwarded-for'] || 'unknown';
+}
+
+function isCallRateLimited(key) {
+    const now = Date.now();
+    const existing = callRateLimitStore.get(key);
+
+    if (!existing || existing.expiresAt <= now) {
+        callRateLimitStore.delete(key);
+        return false;
+    }
+
+    return existing.count >= CALL_RATE_LIMIT_MAX;
+}
+
+function registerCallAttempt(key) {
+    const now = Date.now();
+    const existing = callRateLimitStore.get(key);
+
+    if (!existing || existing.expiresAt <= now) {
+        callRateLimitStore.set(key, { count: 1, expiresAt: now + CALL_RATE_LIMIT_WINDOW_MS });
+        return;
+    }
+
+    existing.count += 1;
+}
+
+function getTwilioWarnings() {
+    const warnings = [];
+
+    if (CORS_ORIGINS.length === 0) {
+        warnings.push('cors_origins_empty');
+    }
+
+    if (WEBHOOK_BASE_URL === DEFAULT_WEBHOOK_BASE_URL) {
+        warnings.push('webhook_base_url_not_configured');
+    }
+
+    return warnings;
+}
+
+function getTwilioHealthSnapshot() {
+    const warnings = getTwilioWarnings();
+    const checks = {
+        accountSidConfigured: !isPlaceholder(TWILIO_ACCOUNT_SID, DEFAULT_TWILIO_ACCOUNT_SID),
+        authTokenConfigured: !isPlaceholder(TWILIO_AUTH_TOKEN, DEFAULT_TWILIO_AUTH_TOKEN),
+        phoneNumberConfigured: !isPlaceholder(TWILIO_PHONE_NUMBER, DEFAULT_TWILIO_PHONE_NUMBER),
+        twilioClientReady: Boolean(twilio),
+        webhookBaseUrlConfigured: WEBHOOK_BASE_URL !== DEFAULT_WEBHOOK_BASE_URL,
+        webhookSignatureValidationEnabled: Boolean(twilioSdk) && !isPlaceholder(TWILIO_AUTH_TOKEN, DEFAULT_TWILIO_AUTH_TOKEN)
+    };
+    const blockers = Object.entries(checks)
+        .filter(([, passed]) => !passed)
+        .map(([name]) => name);
+    const ready = blockers.length === 0;
+
+    return {
+        activeCalls: activeCalls.size,
+        blockers,
+        checks,
+        ready,
+        service: 'twilio-voice-server',
+        status: ready ? (warnings.length ? 'degraded' : 'ok') : 'not_ready',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        warnings
+    };
+}
+
+function validateTwilioWebhook(req) {
+    if (!twilioSdk || isPlaceholder(TWILIO_AUTH_TOKEN, DEFAULT_TWILIO_AUTH_TOKEN)) {
+        return false;
+    }
+
+    const signature = req.headers['x-twilio-signature'];
+    if (!signature) {
+        return false;
+    }
+
+    const forwardedProto = req.get('x-forwarded-proto');
+    const protocol = forwardedProto ? forwardedProto.split(',')[0].trim() : req.protocol;
+    const host = req.get('x-forwarded-host') || req.get('host');
+    const url = `${protocol}://${host}${req.originalUrl}`;
+
+    return twilioSdk.validateRequest(TWILIO_AUTH_TOKEN, signature, url, req.body || {});
+}
+
 /**
  * ROUTES
  */
 
 // Health check
-app.get('/health', (req, res) => {
-    res.json({
-        status: 'healthy',
-        service: 'twilio-voice-server',
-        activeCalls: activeCalls.size,
-        uptime: process.uptime(),
-        twilioConfigured: !!twilio && TWILIO_ACCOUNT_SID !== 'YOUR_ACCOUNT_SID'
-    });
+app.get(['/health', '/api/health'], (req, res) => {
+    res.json(getTwilioHealthSnapshot());
+});
+
+app.get('/api/readiness', (req, res) => {
+    const snapshot = getTwilioHealthSnapshot();
+
+    res.status(snapshot.ready ? 200 : 503).json(snapshot);
 });
 
 // Initiate outbound call
@@ -77,6 +192,22 @@ app.post('/api/voice/call', async (req, res) => {
                 error: 'Missing required fields: phoneNumber, interpreterId'
             });
         }
+
+        const readiness = getTwilioHealthSnapshot();
+        if (!readiness.ready) {
+            return res.status(503).json({
+                error: 'Twilio service is not ready for outbound calling',
+                blockers: readiness.blockers
+            });
+        }
+
+        const rateLimitKey = getRateLimitKey(req);
+        if (isCallRateLimited(rateLimitKey)) {
+            return res.status(429).json({
+                error: 'Too many call attempts. Please try again shortly.'
+            });
+        }
+        registerCallAttempt(rateLimitKey);
 
         if (!twilio) {
             return res.status(500).json({
@@ -242,6 +373,11 @@ app.get('/api/voice/status/:callSid', async (req, res) => {
 
 // Webhook endpoint for call status updates
 app.post('/api/voice/webhook/:sessionId?', (req, res) => {
+    if (twilio && !validateTwilioWebhook(req)) {
+        log('Rejected webhook with invalid Twilio signature');
+        return res.status(403).json({ error: 'Invalid Twilio webhook signature' });
+    }
+
     const sessionId = req.params.sessionId;
     const {
         CallSid,
@@ -308,8 +444,9 @@ app.listen(PORT, () => {
     console.log(`📞 Server running on port ${PORT}`);
     console.log(`🌐 Base URL: http://localhost:${PORT}`);
     console.log(`💾 Health check: http://localhost:${PORT}/health`);
+    console.log(`🩺 Readiness check: http://localhost:${PORT}/api/readiness`);
     
-    if (TWILIO_ACCOUNT_SID === 'YOUR_ACCOUNT_SID') {
+    if (TWILIO_ACCOUNT_SID === DEFAULT_TWILIO_ACCOUNT_SID) {
         console.log('');
         console.log('⚠️  CONFIGURATION REQUIRED:');
         console.log('   Set the following environment variables:');
@@ -322,6 +459,11 @@ app.listen(PORT, () => {
         console.log(`✅ Twilio configured for account: ${TWILIO_ACCOUNT_SID}`);
         console.log(`📱 Using Twilio number: ${TWILIO_PHONE_NUMBER}`);
         console.log(`🔗 Webhook URL: ${WEBHOOK_BASE_URL}/api/voice/webhook`);
+    }
+
+    const warnings = getTwilioWarnings();
+    if (warnings.length) {
+        console.warn(`⚠️  Startup warnings: ${warnings.join(', ')}`);
     }
     
     console.log('📋 Ready to handle VRS calls for interpreters!');

@@ -4,18 +4,24 @@
  */
 
 // API Configuration
-const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://localhost:3001/api'
-    : `/api`;
-const OPS_API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://localhost:3003/api'
-    : `${window.location.protocol}//${window.location.hostname}:3003/api`;
-const AUTH_API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://localhost:3003/api/auth'
-    : `${window.location.protocol}//${window.location.hostname}:3003/api/auth`;
-const WS_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const HTTP_PROTOCOL = window.location.protocol === 'https:' ? 'https:' : 'http:';
+const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const QUEUE_ORIGIN = IS_LOCAL
+    ? 'http://localhost:3001'
+    : `${HTTP_PROTOCOL}//${window.location.hostname}:3001`;
+const OPS_ORIGIN = IS_LOCAL
+    ? 'http://localhost:3003'
+    : `${HTTP_PROTOCOL}//${window.location.hostname}:3003`;
+const TWILIO_ORIGIN = IS_LOCAL
+    ? 'http://localhost:3002'
+    : `${HTTP_PROTOCOL}//${window.location.hostname}:3002`;
+const API_BASE = `${QUEUE_ORIGIN}/api`;
+const OPS_API_BASE = `${OPS_ORIGIN}/api`;
+const AUTH_API_BASE = `${OPS_ORIGIN}/api/auth`;
+const WS_URL = IS_LOCAL
     ? 'ws://localhost:3001/ws'
-    : `ws://${window.location.host}/ws`;
+    : `${WS_PROTOCOL}//${window.location.hostname}:3001/ws`;
 
 // State
 let authToken = localStorage.getItem('vrs_admin_token');
@@ -332,32 +338,36 @@ function connectWebSocket() {
 function handleWebSocketMessage(data) {
     switch (data.type) {
         case 'dashboard_data':
-            updateDashboardStats(data.data);
+            loadDashboardStats();
             break;
         case 'interpreters_list':
-            updateInterpretersList(data.data);
-            break;
-        case 'queue_update':
-            updateQueueDisplay(data.data);
-            break;
         case 'interpreter_connected':
         case 'interpreter_disconnected':
         case 'interpreter_status_changed':
-            // Refresh interpreters list
+            loadDashboardStats();
             if (window.location.hash.includes('interpreters')) {
                 loadInterpreters();
             }
             break;
+        case 'queue_update':
+            renderLiveQueue(data.data);
+            renderQueuePreview(data.data);
+            loadDashboardStats();
+            loadMonitoringSummary();
+            break;
         case 'queue_request_added':
+        case 'queue_request_cancelled':
+        case 'queue_request_removed':
         case 'queue_match_complete':
-            // Refresh queue
-            if (window.location.hash.includes('queue')) {
-                loadLiveQueue();
-            }
+        case 'queue_paused':
+        case 'queue_resumed':
+            loadDashboardStats();
+            loadLiveQueue();
+            loadMonitoringSummary();
             break;
         case 'ops_audit':
         case 'activity_logged':
-            // Refresh activity feed
+            loadMonitoringSummary();
             if (window.location.hash.includes('activity')) {
                 loadActivityFeed();
             }
@@ -372,10 +382,98 @@ function handleWebSocketMessage(data) {
 // DASHBOARD
 // ============================================
 
+async function fetchServiceSnapshot(origin, primaryPath, fallbackPath) {
+    async function request(path) {
+        const response = await fetch(`${origin}${path}`);
+        const data = await response.json().catch(() => ({}));
+
+        return {
+            ...data,
+            ok: response.ok,
+            reachable: true,
+            statusCode: response.status
+        };
+    }
+
+    try {
+        const snapshot = await request(primaryPath);
+        if (snapshot.statusCode === 404 && fallbackPath) {
+            return await request(fallbackPath);
+        }
+
+        return snapshot;
+    } catch (error) {
+        return {
+            ok: false,
+            reachable: false,
+            ready: false,
+            status: 'offline',
+            warnings: [ error.message ]
+        };
+    }
+}
+
+function getStatusBadgeClass(status) {
+    if (status === 'ok' || status === 'ready' || status === 'healthy') {
+        return 'status-online';
+    }
+
+    if (status === 'degraded' || status === 'external') {
+        return 'status-busy';
+    }
+
+    return 'status-offline';
+}
+
+function formatDurationSeconds(seconds) {
+    const safeSeconds = Math.max(0, Number(seconds) || 0);
+
+    if (safeSeconds < 60) {
+        return `${safeSeconds}s`;
+    }
+
+    const minutes = Math.floor(safeSeconds / 60);
+    if (minutes < 60) {
+        return `${minutes}m ${safeSeconds % 60}s`;
+    }
+
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h ${minutes % 60}m`;
+}
+
+function formatDurationFromDate(dateStr) {
+    if (!dateStr) {
+        return '—';
+    }
+
+    return formatDurationSeconds(Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000));
+}
+
+function formatWarnings(warnings = []) {
+    const filtered = Array.isArray(warnings) ? warnings.filter(Boolean) : [];
+    return filtered.length ? filtered.join(', ') : 'None';
+}
+
+function syncQueuePauseButton(paused) {
+    const btn = document.getElementById('pauseQueueBtn');
+    if (!btn) {
+        return;
+    }
+
+    btn.dataset.paused = paused ? 'true' : 'false';
+    btn.textContent = paused ? '▶️ Resume Queue' : '⏸ Pause Queue';
+}
+
 async function loadDashboardStats() {
     try {
-        const stats = await apiCall('/admin/stats');
-        updateDashboardStats(stats);
+        const [ stats, activeCalls, dailyUsage ] = await Promise.all([
+            apiCall('/admin/stats'),
+            apiCall('/admin/calls/active').catch(() => []),
+            apiCall('/admin/usage/daily?days=7').catch(() => [])
+        ]);
+
+        updateDashboardStats(stats, activeCalls, dailyUsage);
+        loadActiveInterpreters(activeCalls);
     } catch (error) {
         console.error('[Dashboard] Error:', error);
     }
@@ -383,21 +481,43 @@ async function loadDashboardStats() {
 
 async function loadMonitoringSummary() {
     try {
-        const summary = await opsApiCall('/admin/monitoring/summary');
-        renderMonitoringSummary(summary);
+        const [ summary, queueService, opsService, twilioService ] = await Promise.all([
+            opsApiCall('/admin/monitoring/summary'),
+            fetchServiceSnapshot(QUEUE_ORIGIN, '/api/readiness', '/api/health'),
+            fetchServiceSnapshot(OPS_ORIGIN, '/api/readiness', '/api/health'),
+            fetchServiceSnapshot(TWILIO_ORIGIN, '/api/readiness', '/health')
+        ]);
+
+        renderMonitoringSummary({ summary, queueService, opsService, twilioService });
+        syncQueuePauseButton(Boolean(queueService.queue?.paused));
     } catch (error) {
         console.error('[Monitoring] Error:', error);
     }
 }
 
-function updateDashboardStats(stats) {
-    // Update stat cards
+function updateDashboardStats(stats, activeCalls = [], dailyUsage = []) {
     updateStat('totalClients', stats.clients?.total || 0);
     updateStat('totalInterpreters', stats.interpreters?.total || 0);
     updateStat('queueCount', stats.queue?.count || 0);
-    updateStat('activeCalls', stats.calls?.active || 0);
+    updateStat('activeCalls', activeCalls.length || stats.calls?.active || 0);
 
-    // Update subtexts
+    const clientsTrend = document.getElementById('clientsTrend');
+    if (clientsTrend) {
+        clientsTrend.textContent = `${stats.clients?.total || 0} total`;
+        clientsTrend.className = 'stat-trend up';
+    }
+
+    const clientsSubtext = document.getElementById('clientsSubtext');
+    if (clientsSubtext) {
+        clientsSubtext.textContent = `${stats.calls?.today || 0} calls placed today`;
+    }
+
+    const interpretersTrend = document.getElementById('interpretersTrend');
+    if (interpretersTrend) {
+        interpretersTrend.textContent = `${stats.interpreters?.online || 0} online`;
+        interpretersTrend.className = 'stat-trend up';
+    }
+
     const interpretersOnline = document.getElementById('interpretersOnline');
     if (interpretersOnline) {
         interpretersOnline.textContent = `${stats.interpreters?.online || 0} online now`;
@@ -405,52 +525,84 @@ function updateDashboardStats(stats) {
 
     const avgWaitTime = document.getElementById('avgWaitTime');
     if (avgWaitTime) {
-        const minutes = Math.round(stats.queue?.avg_wait_minutes || 0);
-        avgWaitTime.textContent = `Avg wait: ${minutes} min`;
+        avgWaitTime.textContent = `Avg wait: ${Math.round(stats.queue?.avg_wait_minutes || 0)} min`;
     }
 
-    // Update queue trend
     const queueTrend = document.getElementById('queueTrend');
-    if (queueTrend && stats.growth) {
-        const growth = calculateGrowth(stats.growth.this_week, stats.growth.last_week);
-        queueTrend.textContent = growth;
-        queueTrend.className = `stat-trend ${growth.startsWith('+') ? 'up' : 'down'}`;
+    if (queueTrend) {
+        const queueCount = stats.queue?.count || 0;
+        queueTrend.textContent = queueCount > 0 ? 'LIVE' : 'CLEAR';
+        queueTrend.className = `stat-trend ${queueCount > 0 ? 'up' : 'down'}`;
     }
 
-    // Update active interpreters table
-    loadActiveInterpreters();
+    const activeCallsTrend = document.getElementById('activeCallsTrend');
+    if (activeCallsTrend) {
+        const growth = calculateGrowth(stats.growth?.this_week || 0, stats.growth?.last_week || 0);
+        activeCallsTrend.textContent = growth;
+        activeCallsTrend.className = `stat-trend ${growth.startsWith('+') ? 'up' : 'down'}`;
+    }
 
-    // Update queue preview
+    const callsToday = document.getElementById('callsToday');
+    if (callsToday) {
+        callsToday.textContent = `Today: ${stats.calls?.today || 0} calls`;
+    }
+
+    renderActiveCallsTable(activeCalls);
+    renderWeeklyUsageChart(dailyUsage);
     renderQueuePreview();
 }
 
-function renderMonitoringSummary(summary) {
+function renderMonitoringSummary({ summary, queueService, opsService, twilioService }) {
     const monitoringBody = document.getElementById('monitoringSummaryBody');
     const authBody = document.getElementById('authSummaryBody');
 
     if (monitoringBody) {
         const services = [
-            { name: 'Auth Service', status: summary.services?.auth || 'unknown', detail: `Uptime: ${Math.round(summary.uptime || 0)}s` },
-            { name: 'Ops WebSocket', status: 'healthy', detail: `${summary.services?.opsWebSocketClients || 0} clients connected` },
-            { name: 'Queue API', status: summary.services?.queueApi || 'external', detail: `${summary.queue?.pendingRequests || 0} requests waiting` },
-            { name: 'State Store', status: 'healthy', detail: summary.services?.storageFile || 'n/a' }
+            {
+                name: 'Queue Server',
+                status: queueService.status || 'offline',
+                detail: `${queueService.queue?.pendingRequestCount || queueService.queue?.queueSize || 0} waiting · ${queueService.queue?.activeInterpreterCount || 0} interpreters · warnings: ${formatWarnings(queueService.warnings)}`
+            },
+            {
+                name: 'Ops Server',
+                status: opsService.status || summary.status || 'offline',
+                detail: `${opsService.services?.opsWebSocketClients || summary.services?.opsWebSocketClients || 0} websocket clients · storage: ${opsService.services?.storageState || summary.services?.storageState || 'unknown'}`
+            },
+            {
+                name: 'Twilio Voice',
+                status: twilioService.status || 'offline',
+                detail: `${twilioService.activeCalls || 0} active calls · blockers: ${formatWarnings(twilioService.blockers || twilioService.warnings)}`
+            },
+            {
+                name: 'Queue State',
+                status: queueService.queue?.paused ? 'degraded' : 'ok',
+                detail: queueService.queue?.paused ? 'Queue is paused for new matching' : 'Queue is accepting interpreter matches'
+            }
         ];
 
         monitoringBody.innerHTML = services.map(service => `
             <tr>
                 <td>${service.name}</td>
-                <td><span class="status-badge ${service.status === 'healthy' ? 'status-online' : 'status-busy'}"><span class="status-dot"></span>${service.status}</span></td>
+                <td><span class="status-badge ${getStatusBadgeClass(service.status)}"><span class="status-dot"></span>${service.status}</span></td>
                 <td style="color: var(--text-secondary);">${service.detail}</td>
             </tr>
         `).join('');
     }
 
     if (authBody) {
+        const combinedWarnings = [
+            ...(summary.warnings || []),
+            ...(opsService.warnings || []),
+            ...(twilioService.warnings || [])
+        ];
+
         const authRows = [
             [ 'Active Accounts', summary.auth?.activeAccounts || 0 ],
             [ 'Recent Failed Attempts', summary.auth?.recentFailedAttempts || 0 ],
             [ 'Locked-Out Buckets', summary.auth?.lockedOutBuckets || 0 ],
-            [ 'Bootstrap Superadmin', summary.auth?.bootstrapSuperadminEnabled ? 'Enabled' : 'Disabled' ]
+            [ 'Bootstrap Superadmin', summary.auth?.bootstrapSuperadminEnabled ? 'Enabled' : 'Disabled' ],
+            [ 'Ops Readiness', summary.ready ? 'Ready' : 'Needs attention' ],
+            [ 'Open Warnings', formatWarnings(combinedWarnings) ]
         ];
 
         authBody.innerHTML = authRows.map(([ label, value ]) => `
@@ -475,18 +627,18 @@ function calculateGrowth(thisWeek, lastWeek) {
     return `${growth > 0 ? '+' : ''}${growth}%`;
 }
 
-async function loadActiveInterpreters() {
+async function loadActiveInterpreters(activeCalls = []) {
     try {
         const interpreters = await apiCall('/admin/interpreters');
-        const active = interpreters.filter(i => i.connected && i.currentStatus !== 'offline');
+        const active = interpreters.filter(interpreter => interpreter.connected && interpreter.currentStatus !== 'offline');
 
-        renderActiveInterpretersTable(active.slice(0, 5));
+        renderActiveInterpretersTable(active.slice(0, 5), activeCalls);
     } catch (error) {
         console.error('[Active Interpreters] Error:', error);
     }
 }
 
-function renderActiveInterpretersTable(interpreters) {
+function renderActiveInterpretersTable(interpreters, activeCalls = []) {
     const tbody = document.getElementById('activeInterpretersList');
     if (!tbody) return;
 
@@ -501,11 +653,20 @@ function renderActiveInterpretersTable(interpreters) {
         return;
     }
 
+    const activeCallMap = new Map(activeCalls.map(call => [
+        String(call.interpreter_name || '').toLowerCase(),
+        call
+    ]));
+
     tbody.innerHTML = interpreters.map(interp => {
         const statusClass = interp.currentStatus === 'online' ? 'status-online' :
                            interp.currentStatus === 'busy' ? 'status-busy' : 'status-in-call';
         const statusText = interp.currentStatus === 'online' ? 'Available' :
                           interp.currentStatus === 'busy' ? 'Busy' : 'In Call';
+        const currentCall = activeCallMap.get(String(interp.name || '').toLowerCase());
+        const currentCallLabel = currentCall
+            ? `${currentCall.client_name || 'Client'} · ${formatDurationFromDate(currentCall.started_at)}`
+            : (interp.currentStatus === 'busy' || interp.currentStatus === 'in-call' ? 'In progress' : '—');
 
         return `
             <tr>
@@ -519,16 +680,16 @@ function renderActiveInterpretersTable(interpreters) {
                         ${statusText}
                     </span>
                 </td>
-                <td>—</td>
+                <td>${currentCallLabel}</td>
                 <td>${interp.calls_today || 0} calls</td>
             </tr>
         `;
     }).join('');
 }
 
-async function renderQueuePreview() {
+async function renderQueuePreview(queueData = null) {
     try {
-        const queue = await apiCall('/admin/queue');
+        const queue = Array.isArray(queueData) ? queueData : await apiCall('/admin/queue');
         const container = document.getElementById('queuePreview');
         if (!container) return;
 
@@ -560,6 +721,73 @@ async function renderQueuePreview() {
     }
 }
 
+function renderWeeklyUsageChart(dailyUsage = []) {
+    const chart = document.getElementById('usageChart');
+    const labels = document.getElementById('usageChartLabels');
+    const summary = document.getElementById('usageChartSummary');
+
+    if (!chart || !labels || !summary) {
+        return;
+    }
+
+    if (!dailyUsage.length) {
+        chart.innerHTML = '<div class="empty-state" style="padding: 32px 0; width: 100%;"><p>No usage data yet</p></div>';
+        labels.innerHTML = '';
+        summary.textContent = 'Waiting for completed calls to populate usage history.';
+        return;
+    }
+
+    const maxCalls = Math.max(...dailyUsage.map(day => Number(day.calls) || 0), 1);
+    const totalCalls = dailyUsage.reduce((sum, day) => sum + (Number(day.calls) || 0), 0);
+    const totalMinutes = dailyUsage.reduce((sum, day) => sum + (Number(day.minutes) || 0), 0);
+
+    chart.innerHTML = dailyUsage.map(day => {
+        const calls = Number(day.calls) || 0;
+        const height = Math.max(12, Math.round((calls / maxCalls) * 100));
+        const isToday = day.date === new Date().toISOString().split('T')[0];
+
+        return `<div class="chart-bar ${isToday ? 'today' : ''}" style="height: ${height}%" title="${day.date}: ${calls} calls"></div>`;
+    }).join('');
+
+    labels.innerHTML = dailyUsage.map(day => {
+        const date = new Date(`${day.date}T00:00:00`);
+        return `<span>${date.toLocaleDateString('en-US', { weekday: 'short' })}</span>`;
+    }).join('');
+
+    summary.textContent = `${totalCalls} calls over the last ${dailyUsage.length} days · ${Math.round(totalMinutes)} total minutes`;
+}
+
+function renderActiveCallsTable(activeCalls = []) {
+    const tbody = document.getElementById('activeCallsTableBody');
+    const summary = document.getElementById('activeCallsSummary');
+    if (!tbody || !summary) {
+        return;
+    }
+
+    summary.textContent = activeCalls.length
+        ? `${activeCalls.length} live call${activeCalls.length === 1 ? '' : 's'} in progress`
+        : 'No live calls right now';
+
+    if (!activeCalls.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    No active calls in progress
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = activeCalls.map(call => `
+        <tr>
+            <td>${call.client_name || 'Unknown client'}</td>
+            <td>${call.interpreter_name || 'Unassigned'}</td>
+            <td>${call.room_name || '—'}</td>
+            <td>${formatDurationFromDate(call.started_at)}</td>
+        </tr>
+    `).join('');
+}
 // ============================================
 // INTERPRETERS
 // ============================================
@@ -876,7 +1104,15 @@ function formatDate(dateStr) {
 
 async function loadLiveQueue() {
     try {
-        const queue = await apiCall('/admin/queue');
+        const [ queue, queueService ] = await Promise.all([
+            apiCall('/admin/queue'),
+            fetchServiceSnapshot(QUEUE_ORIGIN, '/api/readiness', '/api/health').catch(() => null)
+        ]);
+
+        if (queueService) {
+            syncQueuePauseButton(Boolean(queueService.queue?.paused));
+        }
+
         renderLiveQueue(queue);
     } catch (error) {
         console.error('[Queue] Error:', error);
@@ -917,15 +1153,16 @@ function renderLiveQueue(queue) {
 
 async function toggleQueue() {
     const btn = document.getElementById('pauseQueueBtn');
-    const isPausing = btn?.textContent.includes('Pause');
+    const isPaused = btn?.dataset.paused === 'true';
 
     try {
-        await apiCall(`/admin/queue/${isPausing ? 'resume' : 'pause'}`, {
+        const result = await apiCall(`/admin/queue/${isPaused ? 'resume' : 'pause'}`, {
             method: 'POST'
         });
 
-        btn.textContent = isPausing ? '⏸ Pause Queue' : '▶️ Resume Queue';
+        syncQueuePauseButton(Boolean(result.paused));
         loadLiveQueue();
+        loadMonitoringSummary();
     } catch (error) {
         alert('Failed to toggle queue: ' + error.message);
     }

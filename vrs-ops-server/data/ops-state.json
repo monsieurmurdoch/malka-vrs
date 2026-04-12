@@ -1,18 +1,138 @@
 {
   "accounts": [
     {
-      "email": "",
-      "name": "Malka Superadmin",
-      "passwordHash": "$2a$10$fsgP2Qwgnqv.v1GVYqNuSuHSVvgUnPkN9jg8zLvvI7jgJhRECR7zS",
-      "role": "superadmin",
-      "username": "superadmin",
       "active": true,
-      "createdAt": "2026-04-05T10:21:05.533Z",
-      "id": "464f913b-e74f-4cd4-b5a8-6038e357d693",
+      "createdAt": "2026-04-07T05:40:24.539Z",
+      "createdBy": null,
+      "email": "",
+      "id": "559dc60c-9f8e-4350-806c-293358a66d6e",
       "languages": [
         "ASL"
-      ]
+      ],
+      "lastLoginAt": "2026-04-12T07:04:35.327Z",
+      "name": "Malka Superadmin",
+      "passwordHash": "$2a$10$yXfuks53fGahYEGtd.ptfOB24kwAc/gzvYRFMYKI.zPCx5tQ74wXS",
+      "role": "superadmin",
+      "username": "superadmin"
+    },
+    {
+      "active": true,
+      "createdAt": "2026-04-10T05:40:24.601Z",
+      "createdBy": null,
+      "email": "ops.admin@malka.local",
+      "id": "ef7282c0-3759-4af7-bd89-e1b6fd196c4d",
+      "languages": [
+        "Arabic",
+        "English"
+      ],
+      "lastLoginAt": "2026-04-12T04:40:24.601Z",
+      "name": "Operations Admin",
+      "passwordHash": "$2a$10$xvD5w6BpgZFCSAmQ.EjRm.uuIyoLcrxgYRxuYLXzf2cLWNWlX1YUS",
+      "role": "admin",
+      "username": "opsadmin"
+    },
+    {
+      "active": true,
+      "createdAt": "2026-04-11T05:40:24.658Z",
+      "createdBy": null,
+      "email": "amina.hassan@malka.local",
+      "id": "c9508940-2149-43a5-a68f-0089e3f0191e",
+      "languages": [
+        "ASL",
+        "Arabic",
+        "English"
+      ],
+      "lastLoginAt": "2026-04-12T05:10:24.658Z",
+      "name": "Amina Hassan",
+      "passwordHash": "$2a$10$CKBJ3elZm.FnQVGVncMVpOYfuJuJFY6z1au2rxNTSEGiieHlUBRqS",
+      "role": "interpreter",
+      "username": "amina.hassan"
     }
   ],
-  "audit": []
+  "audit": [
+    {
+      "details": {
+        "identifier": "superadmin",
+        "ip": "::1",
+        "role": "superadmin",
+        "userId": "559dc60c-9f8e-4350-806c-293358a66d6e",
+        "username": "superadmin"
+      },
+      "event": "login_success",
+      "id": "e302ae1b-e9d3-4062-8910-8047ed8b89eb",
+      "timestamp": "2026-04-12T07:04:35.328Z"
+    },
+    {
+      "details": {
+        "identifier": "superadmin",
+        "ip": "::1",
+        "role": "superadmin",
+        "userId": "559dc60c-9f8e-4350-806c-293358a66d6e",
+        "username": "superadmin"
+      },
+      "event": "login_success",
+      "id": "410fee5a-3f13-4dee-8f2a-1aa7d229e4b5",
+      "timestamp": "2026-04-12T06:19:20.118Z"
+    },
+    {
+      "details": {
+        "identifier": "superadmin",
+        "ip": "::1",
+        "role": "superadmin",
+        "userId": "559dc60c-9f8e-4350-806c-293358a66d6e",
+        "username": "superadmin"
+      },
+      "event": "login_success",
+      "id": "a6f89e1d-dba9-4c56-8915-b24bd6c9a832",
+      "timestamp": "2026-04-12T05:37:24.715Z"
+    },
+    {
+      "details": {
+        "accountId": "ef7282c0-3759-4af7-bd89-e1b6fd196c4d",
+        "actorId": "559dc60c-9f8e-4350-806c-293358a66d6e",
+        "actorRole": "superadmin",
+        "createdRole": "admin",
+        "email": "ops.admin@malka.local",
+        "username": "opsadmin"
+      },
+      "event": "account_created",
+      "id": "ae7a876b-8980-4ac5-83ef-69944b88726b",
+      "timestamp": "2026-04-12T05:28:24.715Z"
+    },
+    {
+      "details": {
+        "accountId": "c9508940-2149-43a5-a68f-0089e3f0191e",
+        "actorId": "559dc60c-9f8e-4350-806c-293358a66d6e",
+        "actorRole": "superadmin",
+        "createdRole": "interpreter",
+        "email": "amina.hassan@malka.local",
+        "username": "amina.hassan"
+      },
+      "event": "account_created",
+      "id": "d6b385a6-f090-4c7b-b5c2-564349c8da81",
+      "timestamp": "2026-04-12T05:30:24.715Z"
+    },
+    {
+      "details": {
+        "identifier": "opsadmin",
+        "ip": "::1",
+        "role": "admin",
+        "userId": "ef7282c0-3759-4af7-bd89-e1b6fd196c4d",
+        "username": "opsadmin"
+      },
+      "event": "login_success",
+      "id": "9e251005-8720-4c34-a92e-5b12e1ed2da6",
+      "timestamp": "2026-04-12T05:33:24.715Z"
+    },
+    {
+      "details": {
+        "identifier": "unknown-admin",
+        "ip": "::1",
+        "role": "ops"
+      },
+      "event": "login_failed",
+      "id": "f279de05-0f99-4697-a100-503599c22e81",
+      "timestamp": "2026-04-12T05:18:24.715Z"
+    }
+  ]
 }

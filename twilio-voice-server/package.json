@@ -2,10 +2,10 @@
   "name": "malka-meet-twilio-voice-server",
   "version": "1.0.0",
   "description": "Twilio Voice Server for VRS calls in Malka Meet",
-  "main": "twilio-voice-server.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node twilio-voice-server.js",
-    "dev": "nodemon twilio-voice-server.js",
+    "start": "node server.js",
+    "dev": "nodemon server.js",
     "install-deps": "npm install express cors body-parser twilio nodemon"
   },
   "dependencies": {

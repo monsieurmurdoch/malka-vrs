@@ -30,6 +30,7 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 
 const PORT = process.env.PORT || 3003;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const DEFAULT_SHARED_JWT_SECRET = 'vrs-ops-shared-secret';
 const JWT_SECRET: string = process.env.VRS_SHARED_JWT_SECRET || process.env.JWT_SECRET || '';
 if (!JWT_SECRET) {
     console.error('FATAL: VRS_SHARED_JWT_SECRET or JWT_SECRET environment variable is required.');
@@ -50,11 +51,12 @@ if (!BOOTSTRAP_SUPERADMIN_PASSWORD) {
 }
 const BOOTSTRAP_SUPERADMIN_NAME = process.env.VRS_BOOTSTRAP_SUPERADMIN_NAME || 'Malka Superadmin';
 const MAX_AUDIT_EVENTS = 500;
+const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
 // Middleware
 app.use(helmet());
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || '*'
+    origin: CORS_ORIGIN
 }));
 app.use(express.json());
 
@@ -286,6 +288,18 @@ function assertBootstrapSuperadmin() {
     const existing = findAuthRecord(BOOTSTRAP_SUPERADMIN_USERNAME, 'superadmin');
 
     if (existing) {
+        const updatedBootstrap = normalizeAccountRecord({
+            ...existing,
+            name: BOOTSTRAP_SUPERADMIN_NAME,
+            passwordHash: bcrypt.hashSync(BOOTSTRAP_SUPERADMIN_PASSWORD, 10),
+            role: 'superadmin',
+            username: BOOTSTRAP_SUPERADMIN_USERNAME
+        });
+
+        authDirectory = authDirectory.map(record =>
+            record.id === existing.id ? updatedBootstrap : record
+        );
+        persistOpsState();
         return;
     }
 
@@ -323,7 +337,7 @@ function loadAuthDirectory(): AuthDirectoryRecord[] {
 }
 
 function assertSecureConfig() {
-    if (JWT_SECRET === 'vrs-ops-shared-secret') {
+    if (JWT_SECRET === DEFAULT_SHARED_JWT_SECRET) {
         const message = 'VRS auth is using the default shared JWT secret. Set VRS_SHARED_JWT_SECRET or JWT_SECRET.';
 
         if (IS_PRODUCTION) {
@@ -346,6 +360,55 @@ function assertSecureConfig() {
 
 assertBootstrapSuperadmin();
 assertSecureConfig();
+
+function getOpsWarnings() {
+    const warnings: string[] = [];
+
+    if (BOOTSTRAP_SUPERADMIN_ENABLED) {
+        warnings.push('bootstrap_superadmin_enabled');
+    }
+
+    if (CORS_ORIGIN === '*') {
+        warnings.push('cors_origin_wildcard');
+    }
+
+    if (JWT_SECRET === DEFAULT_SHARED_JWT_SECRET) {
+        warnings.push('default_shared_jwt_secret');
+    }
+
+    return warnings;
+}
+
+function getOpsHealthSnapshot() {
+    ensureDataDir();
+
+    const warnings = getOpsWarnings();
+    const authDirectoryConfigured = authDirectory.length > 0;
+    const storageFileExists = fs.existsSync(OPS_STATE_FILE);
+    const ready = Boolean(JWT_SECRET) && authDirectoryConfigured && storageFileExists;
+
+    return {
+        checks: {
+            authConfigured: Boolean(JWT_SECRET),
+            authDirectoryConfigured,
+            persistentStateAccessible: storageFileExists,
+            websocketReady: Boolean(wss)
+        },
+        ready,
+        service: 'vrs-ops-server',
+        status: ready ? (warnings.length ? 'degraded' : 'ok') : 'not_ready',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        warnings,
+        services: {
+            auth: authDirectoryConfigured ? 'ready' : 'missing_credentials',
+            opsWebSocketClients: wsClients.size,
+            queueApi: 'external',
+            storageFile: OPS_STATE_FILE,
+            storageState: storageFileExists ? 'ready' : 'missing'
+        }
+    };
+}
 
 function getRateLimitKey(req: Request, role: string, email: string) {
     return `${req.ip || 'unknown'}:${role}:${email.trim().toLowerCase()}`;
@@ -551,13 +614,13 @@ app.get('/api/auth/validate', authenticateToken, (req: Request, res: Response) =
 });
 
 app.get('/api/health', (_req: Request, res: Response) => {
-    res.json({
-        authConfigured: authDirectory.length > 0,
-        jwtConfigured: JWT_SECRET !== 'vrs-ops-shared-secret',
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime()
-    });
+    res.json(getOpsHealthSnapshot());
+});
+
+app.get('/api/readiness', (_req: Request, res: Response) => {
+    const snapshot = getOpsHealthSnapshot();
+
+    res.status(snapshot.ready ? 200 : 503).json(snapshot);
 });
 
 // ==================== Call Endpoints ====================
@@ -980,6 +1043,7 @@ app.get('/api/admin/monitoring/summary', authenticateToken, requireRole('admin',
     const authFailures = Array.from(authAttemptStore.values())
         .filter(entry => entry.expiresAt > now)
         .reduce((sum, entry) => sum + entry.attempts, 0);
+    const health = getOpsHealthSnapshot();
 
     res.json({
         auth: {
@@ -992,14 +1056,12 @@ app.get('/api/admin/monitoring/summary', authenticateToken, requireRole('admin',
             activeCalls: activeCalls.size,
             pendingRequests: Array.from(callSessions.values()).filter(call => call.status === 'waiting').length
         },
-        services: {
-            auth: 'healthy',
-            opsWebSocketClients: wsClients.size,
-            queueApi: 'external',
-            storageFile: OPS_STATE_FILE
-        },
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime()
+        ready: health.ready,
+        services: health.services,
+        status: health.status,
+        timestamp: health.timestamp,
+        uptime: health.uptime,
+        warnings: health.warnings
     });
 });
 
@@ -1099,6 +1161,12 @@ server.listen(PORT, () => {
     console.log(`🚀 VRS Ops Server running on port ${PORT}`);
     console.log(`📊 Dashboard API: http://localhost:${PORT}/api/dashboard/live`);
     console.log(`🔌 WebSocket: ws://localhost:${PORT}/ws`);
+    console.log(`🩺 Readiness: http://localhost:${PORT}/api/readiness`);
+
+    const warnings = getOpsWarnings();
+    if (warnings.length) {
+        console.warn('[Ops] Startup warnings:', warnings.join(', '));
+    }
 });
 
 export { app, server, wss };

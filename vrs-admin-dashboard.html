@@ -654,21 +654,21 @@
                 <div class="stat-card">
                     <div class="stat-card-header">
                         <div class="stat-icon blue">👥</div>
-                        <span class="stat-trend up">↑ 12%</span>
+                        <span class="stat-trend" id="clientsTrend">--</span>
                     </div>
-                    <div class="stat-value" id="totalClients">248</div>
+                    <div class="stat-value" id="totalClients">--</div>
                     <div class="stat-label">Total Clients</div>
-                    <div class="stat-subtext">+12 this week</div>
+                    <div class="stat-subtext" id="clientsSubtext">Loading live data...</div>
                 </div>
 
                 <div class="stat-card">
                     <div class="stat-card-header">
                         <div class="stat-icon green">🎙️</div>
-                        <span class="stat-trend up">↑ 8%</span>
+                        <span class="stat-trend" id="interpretersTrend">--</span>
                     </div>
-                    <div class="stat-value" id="totalInterpreters">42</div>
+                    <div class="stat-value" id="totalInterpreters">--</div>
                     <div class="stat-label">Interpreters</div>
-                    <div class="stat-subtext" id="interpretersOnline">18 online now</div>
+                    <div class="stat-subtext" id="interpretersOnline">Loading live data...</div>
                 </div>
 
                 <div class="stat-card">
@@ -676,19 +676,19 @@
                         <div class="stat-icon orange">⏳</div>
                         <span class="stat-trend" id="queueTrend">-</span>
                     </div>
-                    <div class="stat-value" id="queueCount">7</div>
+                    <div class="stat-value" id="queueCount">--</div>
                     <div class="stat-label">In Queue</div>
-                    <div class="stat-subtext" id="avgWaitTime">Avg wait: 4 min</div>
+                    <div class="stat-subtext" id="avgWaitTime">Loading live data...</div>
                 </div>
 
                 <div class="stat-card">
                     <div class="stat-card-header">
                         <div class="stat-icon purple">📞</div>
-                        <span class="stat-trend up">↑ 23%</span>
+                        <span class="stat-trend" id="activeCallsTrend">--</span>
                     </div>
-                    <div class="stat-value" id="activeCalls">12</div>
+                    <div class="stat-value" id="activeCalls">--</div>
                     <div class="stat-label">Active Calls</div>
-                    <div class="stat-subtext">Today: 156 calls</div>
+                    <div class="stat-subtext" id="callsToday">Loading live data...</div>
                 </div>
             </div>
 
@@ -802,24 +802,35 @@
                     </div>
                 </div>
                 <div style="padding: 24px;">
-                    <div class="mini-chart" id="usageChart">
-                        <div class="chart-bar" style="height: 40%"></div>
-                        <div class="chart-bar" style="height: 65%"></div>
-                        <div class="chart-bar" style="height: 80%"></div>
-                        <div class="chart-bar" style="height: 55%"></div>
-                        <div class="chart-bar" style="height: 90%"></div>
-                        <div class="chart-bar" style="height: 70%"></div>
-                        <div class="chart-bar today" style="height: 85%"></div>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; margin-top: 8px; color: var(--text-muted); font-size: 12px;">
-                        <span>Mon</span>
-                        <span>Tue</span>
-                        <span>Wed</span>
-                        <span>Thu</span>
-                        <span>Fri</span>
-                        <span>Sat</span>
-                        <span>Sun</span>
-                    </div>
+                    <div class="mini-chart" id="usageChart"></div>
+                    <div id="usageChartLabels" style="display: flex; justify-content: space-between; margin-top: 8px; color: var(--text-muted); font-size: 12px;"></div>
+                    <div id="usageChartSummary" style="margin-top: 12px; color: var(--text-secondary); font-size: 13px;">Loading usage history...</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-header">
+                    <h2 class="section-title">📞 Live Calls</h2>
+                    <div id="activeCallsSummary" style="color: var(--text-secondary); font-size: 13px;">Loading live call state...</div>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Client</th>
+                                <th>Interpreter</th>
+                                <th>Room</th>
+                                <th>Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody id="activeCallsTableBody">
+                            <tr>
+                                <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                                    Loading active calls...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

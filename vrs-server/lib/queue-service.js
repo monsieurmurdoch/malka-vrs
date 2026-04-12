@@ -45,6 +45,35 @@ async function withRetry(fn, retries = MAX_DB_RETRIES) {
     }
 }
 
+async function initialize() {
+    queue.clear();
+    matchingLocks.clear();
+
+    const waitingRequests = await withRetry(() => db.getQueueRequests('waiting'));
+
+    waitingRequests.forEach(request => {
+        queue.set(request.id, {
+            id: request.id,
+            clientId: request.client_id ?? null,
+            clientName: request.client_name,
+            language: request.language,
+            roomName: request.room_name,
+            position: request.position,
+            status: request.status || 'waiting',
+            createdAt: request.created_at ? new Date(request.created_at) : new Date()
+        });
+    });
+
+    reorderQueue();
+
+    console.log(`[Queue] Rehydrated ${queue.size} waiting request${queue.size === 1 ? '' : 's'} from database`);
+
+    return {
+        success: true,
+        queueSize: queue.size
+    };
+}
+
 // ============================================
 // CLIENT REQUESTS
 // ============================================
@@ -392,6 +421,7 @@ function notifyAdmins(type, data) {
 // ============================================
 
 module.exports = {
+    initialize,
     requestInterpreter,
     cancelRequest,
     removeFromQueue,

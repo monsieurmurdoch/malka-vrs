@@ -8,7 +8,7 @@ mkdir -p twilio-voice-server
 cd twilio-voice-server
 
 # Copy the server files
-cp ../twilio-voice-server.js server.js
+cp ../twilio-voice-server/server.js server.js
 cp ../twilio-server-package.json package.json
 
 # Install dependencies

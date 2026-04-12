@@ -58,6 +58,7 @@ if [ "$TWILIO_ENABLED" = true ]; then
     echo "Twilio Server: http://localhost:3002"
     echo "Webhook URL: $WEBHOOK_BASE_URL/api/voice/webhook"
     echo "Health Check: http://localhost:3002/health"
+    echo "Readiness: http://localhost:3002/api/readiness"
 fi
 
 echo ""

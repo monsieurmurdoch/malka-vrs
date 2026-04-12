@@ -111,6 +111,7 @@ The backend server provides these endpoints:
 
 ### Management:
 - `GET /health` - Server health check
+- `GET /api/readiness` - Readiness and configuration blockers
 - `GET /api/voice/calls` - List active calls (debugging)
 
 ## 📊 Monitoring & Debugging
@@ -118,12 +119,13 @@ The backend server provides these endpoints:
 ### Health Check
 ```bash
 curl http://localhost:3002/health
+curl http://localhost:3002/api/readiness
 ```
 
 Expected response:
 ```json
 {
-  "status": "healthy",
+  "status": "ok",
   "service": "twilio-voice-server", 
   "activeCalls": 0,
   "uptime": 123.45,
@@ -153,7 +155,7 @@ Server logs all call activity:
 - Rotate tokens regularly
 
 ### Webhook Security
-- Validate Twilio webhook signatures (TODO: implement)
+- Validate Twilio webhook signatures (implemented in the voice server)
 - Use HTTPS for all webhook URLs
 - Implement rate limiting for production
 
