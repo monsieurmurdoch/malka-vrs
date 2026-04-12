@@ -73,9 +73,17 @@ interface VRSHandoffConfig {
     bleScanInterval: number;
 }
 
+function getDefaultServerUrl(): string {
+    if (typeof window !== 'undefined') {
+        return window.location.origin;
+    }
+
+    return 'http://localhost:3001';
+}
+
 function getHandoffConfig(): VRSHandoffConfig {
     const defaults: VRSHandoffConfig = {
-        serverUrl: 'http://localhost:3001',
+        serverUrl: getDefaultServerUrl(),
         bleScanInterval: 5000
     };
 

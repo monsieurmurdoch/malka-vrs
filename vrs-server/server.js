@@ -71,6 +71,10 @@ let isDatabaseReady = false;
 // Initialize shared auth module
 auth.init(JWT_SECRET);
 
+// The production stack sits behind nginx, so trust the first proxy hop for
+// client IPs and secure-header handling.
+app.set('trust proxy', 1);
+
 // Propagate legacy admin flag
 setLegacyFlag(LEGACY_ADMIN_LOGIN_ENABLED);
 
@@ -117,6 +121,10 @@ app.use(helmet({
             connectSrc: CONNECT_SRC,
             mediaSrc: ["'self'", 'blob:'],
             fontSrc: ["'self'"],
+            // Re-enable this once the public endpoints are served over HTTPS
+            // with valid certificates. It is disabled temporarily so HTTP
+            // smoke-testing against the droplet IP does not auto-upgrade every
+            // asset request to an unavailable https:// origin.
             upgradeInsecureRequests: null
         }
     },

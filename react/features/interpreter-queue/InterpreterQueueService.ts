@@ -53,9 +53,19 @@ interface StoredUserInfo {
     name?: string;
 }
 
+function getDefaultQueueServiceUrl() {
+    if (typeof window !== 'undefined') {
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+
+        return `${wsProtocol}//${window.location.host}/ws`;
+    }
+
+    return 'ws://localhost:3001/ws';
+}
+
 function getVRSConfig() {
     const defaults = {
-        queueServiceUrl: 'ws://localhost:3001/ws',
+        queueServiceUrl: getDefaultQueueServiceUrl(),
         queue: {
             maxWaitTime: 10,
             estimatedWaitPerPerson: 2

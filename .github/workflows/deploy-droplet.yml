@@ -19,6 +19,18 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend assets
+        run: make
+
       - name: Create deployment bundle
         run: |
           tar \
@@ -26,9 +38,10 @@ jobs:
             --exclude=.github \
             --exclude=node_modules \
             --exclude=.tmp \
+            --exclude=build \
             --exclude=vrs-server/node_modules \
             --exclude=vrs-ops-server/node_modules \
-            -czf deploy.tgz . || true
+            -czf deploy.tgz .
 
       - name: Upload bundle to droplet
         uses: appleboy/scp-action@v0.1.7

@@ -911,17 +911,74 @@ async function getInterpreterStats(interpreterId) {
 // ============================================
 
 function runMigrations() {
-    return new Promise((resolve) => {
-        db.all('PRAGMA table_info(calls)', (err, columns) => {
-            const hasCalleeId = columns && columns.some(col => col.name === 'callee_id');
-            if (!hasCalleeId) {
-                db.run('ALTER TABLE calls ADD COLUMN callee_id TEXT', (err2) => {
-                    if (err2) console.warn('[Database] Migration callee_id:', err2.message);
-                    resolve();
-                });
-            } else {
-                resolve();
-            }
+    return new Promise((resolve, reject) => {
+        db.serialize(() => {
+            db.all('PRAGMA table_info(calls)', (callsErr, callColumns) => {
+                if (callsErr) {
+                    return reject(callsErr);
+                }
+
+                const hasCalleeId = callColumns.some(col => col.name === 'callee_id');
+
+                const migrateMissedCalls = () => {
+                    db.all('PRAGMA table_info(missed_calls)', (missedErr, missedColumns) => {
+                        if (missedErr) {
+                            return reject(missedErr);
+                        }
+
+                        const columnNames = new Set(missedColumns.map(col => col.name));
+                        const migrationSteps = [];
+
+                        if (!columnNames.has('callee_phone')) {
+                            migrationSteps.push('ALTER TABLE missed_calls ADD COLUMN callee_phone TEXT');
+                        }
+
+                        if (!columnNames.has('callee_client_id')) {
+                            migrationSteps.push('ALTER TABLE missed_calls ADD COLUMN callee_client_id TEXT');
+                        }
+
+                        if (columnNames.has('callee_id')) {
+                            migrationSteps.push(
+                                `UPDATE missed_calls
+                                 SET callee_client_id = COALESCE(callee_client_id, callee_id)
+                                 WHERE callee_id IS NOT NULL`
+                            );
+                        }
+
+                        migrationSteps.push(
+                            'CREATE INDEX IF NOT EXISTS idx_missed_calls_callee ON missed_calls(callee_client_id, seen)'
+                        );
+
+                        let index = 0;
+                        const runNext = () => {
+                            if (index >= migrationSteps.length) {
+                                return resolve();
+                            }
+
+                            db.run(migrationSteps[index], (stepErr) => {
+                                if (stepErr) {
+                                    console.warn('[Database] Migration step failed:', stepErr.message);
+                                }
+                                index += 1;
+                                runNext();
+                            });
+                        };
+
+                        runNext();
+                    });
+                };
+
+                if (!hasCalleeId) {
+                    db.run('ALTER TABLE calls ADD COLUMN callee_id TEXT', (alterErr) => {
+                        if (alterErr) {
+                            console.warn('[Database] Migration callee_id:', alterErr.message);
+                        }
+                        migrateMissedCalls();
+                    });
+                } else {
+                    migrateMissedCalls();
+                }
+            });
         });
     });
 }

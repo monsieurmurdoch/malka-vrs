@@ -255,6 +255,10 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
             return wsUrl.replace(/^ws/, 'http').replace(/\/ws$/, '');
         }
 
+        if (typeof window !== 'undefined') {
+            return window.location.origin;
+        }
+
         return 'http://localhost:3001';
     }
 
