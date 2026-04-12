@@ -23,6 +23,21 @@ if (subdomain.startsWith('<!--')) {
 }
 
 var enableJaaS = false;
+var vrsLocalHost = typeof window !== 'undefined'
+    && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+var vrsHttpOrigin = typeof window !== 'undefined'
+    ? window.location.origin
+    : 'http://localhost:3001';
+var vrsWsOrigin = typeof window !== 'undefined'
+    ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
+    : 'ws://localhost:3001';
+var vrsTwilioOrigin = typeof window !== 'undefined'
+    ? `${window.location.origin}/twilio`
+    : 'http://localhost:3002';
+
+function resolveVrsServiceUrl(localUrl, remoteUrl) {
+    return vrsLocalHost ? localUrl : remoteUrl;
+}
 
 var config = {
     // Connection
@@ -45,11 +60,18 @@ var config = {
         muc: 'conference.' + subdomain + 'meet.jitsi',
     },
 
-    // BOSH URL. FIXME: use XEP-0156 to discover it.
-    bosh: 'http://localhost:5280/' + subdir + 'http-bind',
+    // Route XMPP through the current origin in production so nginx can proxy
+    // to Prosody, while keeping localhost defaults for local development.
+    bosh: resolveVrsServiceUrl(
+        'http://localhost:5280/' + subdir + 'http-bind',
+        vrsHttpOrigin + '/' + subdir + 'http-bind'
+    ),
 
     // Websocket URL (XMPP)
-    websocket: 'ws://localhost:5280/' + subdir + 'xmpp-websocket',
+    websocket: resolveVrsServiceUrl(
+        'ws://localhost:5280/' + subdir + 'xmpp-websocket',
+        vrsWsOrigin + '/' + subdir + 'xmpp-websocket'
+    ),
 
     // Whether BOSH should be preferred over WebSocket if both are configured.
     // preferBosh: false,
@@ -1725,22 +1747,26 @@ var config = {
     // VRS (Video Relay Service) Configuration
     vrs: {
         // Interpreter Queue Service WebSocket URL
-        // In production, use wss:// for secure connections
-        queueServiceUrl: 'ws://localhost:3001/ws',
+        queueServiceUrl: resolveVrsServiceUrl('ws://localhost:3001/ws', `${vrsWsOrigin}/ws`),
 
         // Twilio Voice Server URL for outbound calls to hearing parties
-        twilioVoiceUrl: 'http://localhost:3002',
+        twilioVoiceUrl: resolveVrsServiceUrl(
+            'http://localhost:3002',
+            vrsTwilioOrigin
+        ),
 
         // Ops/Admin API endpoint for call logging and monitoring
-        opsApiUrl: 'http://localhost:3003/api',
+        opsApiUrl: resolveVrsServiceUrl('http://localhost:3003/api', `${vrsHttpOrigin}/ops/api`),
 
         // JWT secret for role validation — MUST be set via process.env or
         // a local .env file before running in any environment.
         // The app will refuse to start if this is left as the placeholder.
-        jwtSecret: process.env.VRS_JWT_SECRET || '',
+        jwtSecret: typeof process !== 'undefined' && process.env
+            ? (process.env.VRS_JWT_SECRET || '')
+            : '',
 
         // Role validation endpoint
-        authEndpoint: 'http://localhost:3003/api/auth',
+        authEndpoint: resolveVrsServiceUrl('http://localhost:3003/api/auth', `${vrsHttpOrigin}/ops/api/auth`),
 
         // Call logging settings
         callLogging: {

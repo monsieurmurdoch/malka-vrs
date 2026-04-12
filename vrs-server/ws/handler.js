@@ -21,6 +21,35 @@ function sanitizePhoneNumber(raw) {
     return cleaned;
 }
 
+function requireAuthenticatedRole(ws, roles, message = 'Authentication required.') {
+    const client = ws.clientInfo;
+    const allowedRoles = Array.isArray(roles) ? roles : [roles];
+    if (!client || !client.authenticated || (allowedRoles[0] && !allowedRoles.includes(client.role))) {
+        ws.send(JSON.stringify({ type: 'error', data: { message } }));
+        return null;
+    }
+    return client;
+}
+
+function requireOwnedUserId(ws, providedUserId, actionLabel) {
+    const client = requireAuthenticatedRole(ws, 'client', 'Client authentication required.');
+    if (!client) {
+        return null;
+    }
+
+    if (!providedUserId) {
+        ws.send(JSON.stringify({ type: 'error', data: { message: `${actionLabel} requires userId` } }));
+        return null;
+    }
+
+    if (String(providedUserId) !== String(client.userId)) {
+        ws.send(JSON.stringify({ type: 'error', data: { message: 'You can only manage your own session.' } }));
+        return null;
+    }
+
+    return client;
+}
+
 // ============================================
 // CONNECTION HANDLER
 // ============================================
@@ -188,15 +217,15 @@ function handleAuth(ws, data, clientId) {
 
         state.broadcastToAdmins({
             type: 'interpreter_connected',
-            data: { id: userId, name, status: 'offline', timestamp: Date.now() }
+            data: { id: clientInfo.userId, name: clientInfo.name, status: 'offline', timestamp: Date.now() }
         });
 
-        activityLogger.log('interpreter_online', { interpreterId: userId, interpreterName: name });
+        activityLogger.log('interpreter_online', { interpreterId: clientInfo.userId, interpreterName: clientInfo.name });
 
     } else if (role === 'client') {
         state.clients.clients.set(clientId, clientInfo);
 
-        activityLogger.log('client_connected', { clientId: userId, clientName: name });
+        activityLogger.log('client_connected', { clientId: clientInfo.userId, clientName: clientInfo.name });
 
         if (clientInfo.authenticated) {
             db.getMissedCalls(clientInfo.userId).then(missed => {
@@ -297,16 +326,24 @@ async function handleInterpreterRequest(ws, data) {
 }
 
 async function handleCancelRequest(ws, data) {
-    const client = ws.clientInfo;
-    if (!client || !client.authenticated) {
-        ws.send(JSON.stringify({ type: 'error', data: { message: 'Authentication required.' } }));
-        return;
-    }
+    const client = requireAuthenticatedRole(ws, 'client', 'Client authentication required before cancelling requests.');
+    if (!client) return;
 
     const payload = data.data || {};
     const requestId = payload.requestId;
     if (!requestId) {
         ws.send(JSON.stringify({ type: 'error', data: { message: 'requestId is required to cancel a queue request.' } }));
+        return;
+    }
+
+    const request = queueService.getRequest(requestId);
+    if (!request) {
+        ws.send(JSON.stringify({ type: 'error', data: { message: 'Queue request not found.' } }));
+        return;
+    }
+
+    if (String(request.clientId) !== String(client.userId)) {
+        ws.send(JSON.stringify({ type: 'error', data: { message: 'You can only cancel your own queue requests.' } }));
         return;
     }
 
@@ -361,10 +398,13 @@ async function handleAcceptRequest(ws, data) {
 }
 
 function handleDeclineRequest(ws, data) {
+    const interpreter = requireAuthenticatedRole(ws, 'interpreter', 'Interpreter authentication required before declining requests.');
+    if (!interpreter) return;
+
     const payload = data.data || {};
     ws.send(JSON.stringify({
         type: 'request_declined',
-        data: { requestId: payload.requestId, declinedBy: ws.clientInfo?.userId || null }
+        data: { requestId: payload.requestId, declinedBy: interpreter.userId }
     }));
 }
 
@@ -432,56 +472,42 @@ function sendAdminDashboard(ws) {
 // ============================================
 
 function handleSessionRegister(ws, data) {
-    const client = ws.clientInfo;
-    if (!client || !client.authenticated) {
-        ws.send(JSON.stringify({ type: 'error', data: { message: 'Authentication required.' } }));
-        return;
-    }
-
     const { userId, roomName, deviceId } = data.data || data;
-    if (!userId || !roomName || !deviceId) {
+    const client = requireOwnedUserId(ws, userId, 'session_register');
+    if (!client) return;
+
+    if (!roomName || !deviceId) {
         ws.send(JSON.stringify({ type: 'error', data: { message: 'session_register requires userId, roomName, deviceId' } }));
         return;
     }
 
-    handoffService.registerSession(userId, roomName, deviceId, ws);
+    handoffService.registerSession(client.userId, roomName, deviceId, ws);
 
-    ws.send(JSON.stringify({ type: 'session_registered', data: { userId, roomName, deviceId } }));
-    activityLogger.log('session_registered', { userId, roomName, deviceId });
+    ws.send(JSON.stringify({ type: 'session_registered', data: { userId: client.userId, roomName, deviceId } }));
+    activityLogger.log('session_registered', { userId: client.userId, roomName, deviceId });
 }
 
 function handleSessionUnregister(ws, data) {
-    const client = ws.clientInfo;
-    if (!client || !client.authenticated) {
-        ws.send(JSON.stringify({ type: 'error', data: { message: 'Authentication required.' } }));
-        return;
-    }
-
     const { userId } = data.data || data;
-    if (!userId) {
-        ws.send(JSON.stringify({ type: 'error', data: { message: 'session_unregister requires userId' } }));
-        return;
-    }
+    const client = requireOwnedUserId(ws, userId, 'session_unregister');
+    if (!client) return;
 
-    handoffService.unregisterSession(userId);
-    ws.send(JSON.stringify({ type: 'session_unregistered', data: { userId } }));
-    activityLogger.log('session_unregistered', { userId });
+    handoffService.unregisterSession(client.userId);
+    ws.send(JSON.stringify({ type: 'session_unregistered', data: { userId: client.userId } }));
+    activityLogger.log('session_unregistered', { userId: client.userId });
 }
 
 async function handleHandoffPrepare(ws, data) {
-    const client = ws.clientInfo;
-    if (!client || !client.authenticated) {
-        ws.send(JSON.stringify({ type: 'error', data: { message: 'Authentication required.' } }));
-        return;
-    }
-
     const { userId, targetDeviceId } = data.data || data;
-    if (!userId || !targetDeviceId) {
+    const client = requireOwnedUserId(ws, userId, 'handoff_prepare');
+    if (!client) return;
+
+    if (!targetDeviceId) {
         ws.send(JSON.stringify({ type: 'error', data: { message: 'handoff_prepare requires userId and targetDeviceId' } }));
         return;
     }
 
-    const result = handoffService.prepareHandoff(userId, targetDeviceId);
+    const result = handoffService.prepareHandoff(client.userId, targetDeviceId);
     if (result.error) {
         ws.send(JSON.stringify({ type: 'handoff_error', data: { message: result.error } }));
         return;
@@ -489,30 +515,38 @@ async function handleHandoffPrepare(ws, data) {
 
     ws.send(JSON.stringify({ type: 'handoff_prepared', data: { token: result.token, roomName: result.roomName } }));
 
-    const session = handoffService.getActiveSession(userId);
+    const session = handoffService.getActiveSession(client.userId);
     if (session && session.interpreterId) {
         const interpreterWs = state.findInterpreterSocketByUserId(session.interpreterId);
         if (interpreterWs) {
             interpreterWs.send(JSON.stringify({
                 type: 'handoff_in_progress',
-                data: { userId, roomName: session.roomName, estimatedDuration: '2s' }
+                data: { userId: client.userId, roomName: session.roomName, estimatedDuration: '2s' }
             }));
         }
     }
 
-    activityLogger.log('handoff_prepared', { userId, targetDeviceId, roomName: result.roomName });
+    activityLogger.log('handoff_prepared', { userId: client.userId, targetDeviceId, roomName: result.roomName });
 }
 
 function handleHandoffReady(ws, data) {
-    const client = ws.clientInfo;
-    if (!client || !client.authenticated) {
-        ws.send(JSON.stringify({ type: 'error', data: { message: 'Authentication required.' } }));
-        return;
-    }
+    const client = requireAuthenticatedRole(ws, 'client', 'Client authentication required.');
+    if (!client) return;
 
     const { token, newDeviceId } = data.data || data;
     if (!token || !newDeviceId) {
         ws.send(JSON.stringify({ type: 'error', data: { message: 'handoff_ready requires token and newDeviceId' } }));
+        return;
+    }
+
+    const pendingHandoff = handoffService.getHandoffByToken(token);
+    if (!pendingHandoff) {
+        ws.send(JSON.stringify({ type: 'handoff_error', data: { message: 'Invalid or expired handoff token' } }));
+        return;
+    }
+
+    if (String(pendingHandoff.userId) !== String(client.userId)) {
+        ws.send(JSON.stringify({ type: 'handoff_error', data: { message: 'You can only complete your own handoff.' } }));
         return;
     }
 
@@ -536,48 +570,32 @@ function handleHandoffReady(ws, data) {
 }
 
 function handleHandoffComplete(ws, data) {
-    const client = ws.clientInfo;
-    if (!client || !client.authenticated) {
-        ws.send(JSON.stringify({ type: 'error', data: { message: 'Authentication required.' } }));
-        return;
-    }
-
     const { userId } = data.data || data;
-    if (!userId) {
-        ws.send(JSON.stringify({ type: 'error', data: { message: 'handoff_complete requires userId' } }));
-        return;
-    }
+    const client = requireOwnedUserId(ws, userId, 'handoff_complete');
+    if (!client) return;
 
-    handoffService.unregisterSession(userId);
+    handoffService.unregisterSession(client.userId);
 
     const { interpreterId } = data.data || {};
     if (interpreterId) {
         const interpreterWs = state.findInterpreterSocketByUserId(interpreterId);
         if (interpreterWs) {
-            interpreterWs.send(JSON.stringify({ type: 'handoff_complete', data: { userId } }));
+            interpreterWs.send(JSON.stringify({ type: 'handoff_complete', data: { userId: client.userId } }));
         }
     }
 
-    ws.send(JSON.stringify({ type: 'handoff_completed', data: { userId } }));
-    activityLogger.log('handoff_completed', { userId });
+    ws.send(JSON.stringify({ type: 'handoff_completed', data: { userId: client.userId } }));
+    activityLogger.log('handoff_completed', { userId: client.userId });
 }
 
 function handleHandoffCancel(ws, data) {
-    const client = ws.clientInfo;
-    if (!client || !client.authenticated) {
-        ws.send(JSON.stringify({ type: 'error', data: { message: 'Authentication required.' } }));
-        return;
-    }
-
     const { userId } = data.data || data;
-    if (!userId) {
-        ws.send(JSON.stringify({ type: 'error', data: { message: 'handoff_cancel requires userId' } }));
-        return;
-    }
+    const client = requireOwnedUserId(ws, userId, 'handoff_cancel');
+    if (!client) return;
 
-    handoffService.cancelHandoff(userId);
-    ws.send(JSON.stringify({ type: 'handoff_cancelled', data: { userId } }));
-    activityLogger.log('handoff_cancelled', { userId });
+    handoffService.cancelHandoff(client.userId);
+    ws.send(JSON.stringify({ type: 'handoff_cancelled', data: { userId: client.userId } }));
+    activityLogger.log('handoff_cancelled', { userId: client.userId });
 }
 
 // ============================================

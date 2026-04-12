@@ -1,7 +1,7 @@
 *.swp
 .*.tmp
 deploy-local.sh
-libs/
+# libs/ is intentionally tracked — built frontend assets needed for Docker deploy
 all.css
 *css.map
 .remote-sync.json

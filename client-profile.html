@@ -544,20 +544,50 @@
     <!-- Hidden audio element for ringtone -->
     <audio id="ringtone" src="sounds/ring.mp3" loop preload="auto"></audio>
 
+    <script src="config.js"></script>
     <script>
     (function() {
-        const API_BASE = (function() {
-            if (typeof config !== 'undefined' && config.vrs && config.vrs.queueServiceUrl) {
-                return config.vrs.queueServiceUrl.replace(/^ws/, 'http').replace(/\/ws$/, '');
+        const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+        function isLoopbackUrl(value) {
+            if (!value) {
+                return false;
             }
-            return 'http://localhost:3001';
+
+            try {
+                const parsed = new URL(value, window.location.origin);
+                return parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+            } catch (error) {
+                return false;
+            }
+        }
+
+        function preferConfiguredUrl(configuredValue, fallbackValue) {
+            if (!configuredValue) {
+                return fallbackValue;
+            }
+
+            if (!IS_LOCAL && isLoopbackUrl(configuredValue)) {
+                return fallbackValue;
+            }
+
+            return configuredValue;
+        }
+
+        const API_BASE = (function() {
+            const configured = typeof config !== 'undefined' && config.vrs && config.vrs.queueServiceUrl
+                ? config.vrs.queueServiceUrl.replace(/^ws/, 'http').replace(/\/ws$/, '')
+                : null;
+            return preferConfiguredUrl(configured, window.location.origin);
         })();
 
         const WS_URL = (function() {
-            if (typeof config !== 'undefined' && config.vrs && config.vrs.queueServiceUrl) {
-                return config.vrs.queueServiceUrl;
-            }
-            return 'ws://localhost:3001/ws';
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const fallback = `${wsProtocol}//${window.location.host}/ws`;
+            const configured = typeof config !== 'undefined' && config.vrs && config.vrs.queueServiceUrl
+                ? config.vrs.queueServiceUrl
+                : null;
+            return preferConfiguredUrl(configured, fallback);
         })();
 
         function getToken() {
@@ -940,6 +970,10 @@
         };
 
         window.__callBack = function(phone) {
+            if (!phone) {
+                alert('This caller does not have a callback number on file.');
+                return;
+            }
             wsSend({
                 type: 'p2p_call',
                 data: { phoneNumber: phone }
@@ -1047,7 +1081,7 @@
                                             <div class="missed-call-name">${mc.caller_name || 'Unknown'}</div>
                                             <div class="missed-call-time">${formatDate(mc.created_at)}</div>
                                         </div>
-                                        <button class="call-back-btn" onclick="window.__callBack('${mc.caller_id}')">Call Back</button>
+                                        <button class="call-back-btn" onclick="window.__callBack('${mc.caller_phone || ''}')">Call Back</button>
                                     </div>
                                 `).join('')}
                                 <button style="margin-top:12px;padding:6px 12px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:6px;color:#fff;cursor:pointer;font-size:12px" onclick="window.__markMissedSeen()">Mark All Seen</button>
@@ -1222,7 +1256,7 @@
 
         async function loadMissedCalls() {
             const data = await apiFetch('/api/client/missed-calls');
-            if (data && data.missedCalls) state.missedCalls = data.missedCalls;
+            if (data) state.missedCalls = data.missedCalls || data.missed || [];
         }
 
         async function loadActiveRooms() {
@@ -1255,6 +1289,5 @@
         init();
     })();
     </script>
-    <script src="config.js"></script>
 </body>
 </html>

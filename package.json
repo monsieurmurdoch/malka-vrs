@@ -212,7 +212,8 @@
     "tsc-test:native": "tsc --project tsconfig.native.json --listFilesOnly | grep -v node_modules | grep web",
     "start": "make dev",
     "validate:vrs-stack": "node scripts/validate-vrs-stack.mjs",
-    "seed:vrs-admin-smoke": "node scripts/seed-vrs-admin-smoke.mjs"
+    "seed:vrs-admin-smoke": "node scripts/seed-vrs-admin-smoke.mjs",
+    "smoke:vrs-pages": "node scripts/smoke-vrs-pages.mjs"
   },
   "resolutions": {
     "@types/react": "17.0.14",

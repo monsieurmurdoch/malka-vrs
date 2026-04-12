@@ -192,10 +192,25 @@ router.get('/missed-calls', authenticateUser, async (req, res) => {
 
     try {
         const missed = await db.getMissedCalls(req.user.id);
-        res.json({ missed });
+        // Preserve the legacy response field while keeping the newer name.
+        res.json({ missed, missedCalls: missed });
     } catch (error) {
         console.error('[Missed Calls] Error:', error);
         res.status(500).json({ error: 'Failed to fetch missed calls' });
+    }
+});
+
+router.post('/missed-calls/mark-seen', authenticateUser, async (req, res) => {
+    if (req.user.role !== 'client') {
+        return res.status(403).json({ error: 'Client access required' });
+    }
+
+    try {
+        await db.markMissedCallsSeen(req.user.id);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[Mark Seen] Error:', error);
+        res.status(500).json({ error: 'Failed to mark missed calls as seen' });
     }
 });
 
@@ -217,10 +232,11 @@ router.get('/lookup-phone', authenticateUser, async (req, res) => {
     try {
         const target = await db.getClientByPhoneNumber(sanitized);
         if (!target) {
-            return res.status(404).json({ error: 'No client found with that number' });
+            return res.json({ found: false });
         }
 
         res.json({
+            found: true,
             id: target.id,
             name: target.name,
             phone: sanitized
@@ -228,6 +244,20 @@ router.get('/lookup-phone', authenticateUser, async (req, res) => {
     } catch (error) {
         console.error('[Lookup Phone] Error:', error);
         res.status(500).json({ error: 'Lookup failed' });
+    }
+});
+
+router.get('/active-rooms', authenticateUser, async (req, res) => {
+    if (req.user.role !== 'client') {
+        return res.status(403).json({ error: 'Client access required' });
+    }
+
+    try {
+        const rooms = await db.getActiveP2PRoomsForClient(req.user.id);
+        res.json({ rooms });
+    } catch (error) {
+        console.error('[Active Rooms] Error:', error);
+        res.status(500).json({ error: 'Failed to fetch active rooms' });
     }
 });
 

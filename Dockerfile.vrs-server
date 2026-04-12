@@ -6,30 +6,34 @@ WORKDIR /app
 RUN apk add --no-cache python3 make g++ py3-setuptools
 
 # Copy dependency manifests first (layer caching)
-COPY vrs-server/package*.json ./
-RUN npm install --omit=dev \
+COPY vrs-server/package*.json ./vrs-server/
+RUN cd vrs-server \
+    && npm install --omit=dev \
     && npm rebuild sqlite3 --build-from-source \
     && node -e "require('sqlite3'); console.log('sqlite3 OK')"
 
 # Copy server source (avoid copying local node_modules which has macOS binaries)
-COPY vrs-server/server.js vrs-server/database.js vrs-server/*.json ./
-COPY vrs-server/lib ./lib
-COPY vrs-server/scripts ./scripts
+COPY vrs-server/server.js vrs-server/database.js vrs-server/*.json ./vrs-server/
+COPY vrs-server/lib ./vrs-server/lib
+COPY vrs-server/routes ./vrs-server/routes
+COPY vrs-server/ws ./vrs-server/ws
+COPY vrs-server/scripts ./vrs-server/scripts
 
-# Copy frontend HTML files (server.js serves them from __dirname/..)
-COPY *.html /
-COPY *.js /
-COPY css /css
-COPY images /images
-COPY fonts /fonts
-COPY sounds /sounds
-COPY libs /libs
-COPY static /static
-COPY manifest.json /manifest.json
+# Copy frontend assets (server.js serves them from /app)
+COPY *.html ./
+COPY *.js ./
+COPY css ./css
+COPY images ./images
+COPY fonts ./fonts
+COPY sounds ./sounds
+COPY libs ./libs
+COPY static ./static
+COPY manifest.json ./manifest.json
 
 # Create data directory
-RUN mkdir -p /app/data
+RUN mkdir -p /app/vrs-server/data
 
 EXPOSE 3001
 
+WORKDIR /app/vrs-server
 CMD ["node", "server.js"]

@@ -961,9 +961,13 @@ async function createMissedCall({ callerId, calleePhone, calleeClientId, roomNam
 
 async function getMissedCalls(clientId) {
     return await runQuery(
-        `SELECT mc.*, c.name as caller_name
+        `SELECT mc.*, c.name as caller_name, cp.phone_number as caller_phone
          FROM missed_calls mc
          JOIN clients c ON c.id = mc.caller_id
+         LEFT JOIN client_phone_numbers cp
+            ON cp.client_id = c.id
+           AND cp.is_primary = 1
+           AND cp.active = 1
          WHERE mc.callee_client_id = ?
          ORDER BY mc.created_at DESC`,
         [clientId]

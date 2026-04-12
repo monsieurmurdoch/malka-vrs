@@ -7,27 +7,80 @@
 const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 const HTTP_PROTOCOL = window.location.protocol === 'https:' ? 'https:' : 'http:';
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const QUEUE_ORIGIN = IS_LOCAL
-    ? 'http://localhost:3001'
-    : `${HTTP_PROTOCOL}//${window.location.hostname}:3001`;
-const OPS_ORIGIN = IS_LOCAL
-    ? 'http://localhost:3003'
-    : `${HTTP_PROTOCOL}//${window.location.hostname}:3003`;
-const TWILIO_ORIGIN = IS_LOCAL
-    ? 'http://localhost:3002'
-    : `${HTTP_PROTOCOL}//${window.location.hostname}:3002`;
+const CONFIG_VRS = typeof config !== 'undefined' ? config.vrs : null;
+
+function isLoopbackUrl(value) {
+    if (!value) {
+        return false;
+    }
+
+    try {
+        const parsed = new URL(value, window.location.origin);
+        return parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+    } catch (error) {
+        return false;
+    }
+}
+
+function preferConfiguredUrl(configuredValue, fallbackValue) {
+    if (!configuredValue) {
+        return fallbackValue;
+    }
+
+    if (!IS_LOCAL && isLoopbackUrl(configuredValue)) {
+        return fallbackValue;
+    }
+
+    return configuredValue;
+}
+
+const QUEUE_ORIGIN = preferConfiguredUrl(
+    CONFIG_VRS?.queueServiceUrl
+        ? CONFIG_VRS.queueServiceUrl.replace(/^ws/, 'http').replace(/\/ws$/, '')
+        : null,
+    IS_LOCAL ? 'http://localhost:3001' : window.location.origin
+);
+const OPS_ORIGIN = preferConfiguredUrl(
+    CONFIG_VRS?.opsApiUrl
+        ? CONFIG_VRS.opsApiUrl.replace(/\/api$/, '')
+        : null,
+    IS_LOCAL ? 'http://localhost:3003' : `${window.location.origin}/ops`
+);
+const TWILIO_ORIGIN = preferConfiguredUrl(
+    CONFIG_VRS?.twilioVoiceUrl || null,
+    IS_LOCAL ? 'http://localhost:3002' : `${window.location.origin}/twilio`
+);
 const API_BASE = `${QUEUE_ORIGIN}/api`;
 const OPS_API_BASE = `${OPS_ORIGIN}/api`;
 const AUTH_API_BASE = `${OPS_ORIGIN}/api/auth`;
-const WS_URL = IS_LOCAL
-    ? 'ws://localhost:3001/ws'
-    : `${WS_PROTOCOL}//${window.location.hostname}:3001/ws`;
+const WS_URL = preferConfiguredUrl(
+    CONFIG_VRS?.queueServiceUrl || null,
+    IS_LOCAL ? 'ws://localhost:3001/ws' : `${WS_PROTOCOL}//${window.location.host}/ws`
+);
 
 // State
 let authToken = localStorage.getItem('vrs_admin_token');
 let ws = null;
 let refreshInterval = null;
 let currentAdminRole = localStorage.getItem('vrs_admin_role') || 'admin';
+const scheduledRefreshes = new Map();
+
+function scheduleRefresh(key, callback, delay = 250) {
+    if (scheduledRefreshes.has(key)) {
+        return;
+    }
+
+    const timer = setTimeout(async () => {
+        scheduledRefreshes.delete(key);
+        try {
+            await callback();
+        } catch (error) {
+            console.error(`[Refresh:${key}] Error:`, error);
+        }
+    }, delay);
+
+    scheduledRefreshes.set(key, timer);
+}
 
 // ============================================
 // INITIALIZATION
@@ -338,22 +391,22 @@ function connectWebSocket() {
 function handleWebSocketMessage(data) {
     switch (data.type) {
         case 'dashboard_data':
-            loadDashboardStats();
+            scheduleRefresh('dashboard', loadDashboardStats, 100);
             break;
         case 'interpreters_list':
         case 'interpreter_connected':
         case 'interpreter_disconnected':
         case 'interpreter_status_changed':
-            loadDashboardStats();
+            scheduleRefresh('dashboard', loadDashboardStats, 150);
             if (window.location.hash.includes('interpreters')) {
-                loadInterpreters();
+                scheduleRefresh('interpreters', loadInterpreters, 150);
             }
             break;
         case 'queue_update':
             renderLiveQueue(data.data);
             renderQueuePreview(data.data);
-            loadDashboardStats();
-            loadMonitoringSummary();
+            scheduleRefresh('dashboard', loadDashboardStats, 150);
+            scheduleRefresh('monitoring', loadMonitoringSummary, 250);
             break;
         case 'queue_request_added':
         case 'queue_request_cancelled':
@@ -361,15 +414,15 @@ function handleWebSocketMessage(data) {
         case 'queue_match_complete':
         case 'queue_paused':
         case 'queue_resumed':
-            loadDashboardStats();
-            loadLiveQueue();
-            loadMonitoringSummary();
+            scheduleRefresh('dashboard', loadDashboardStats, 150);
+            scheduleRefresh('queue', loadLiveQueue, 200);
+            scheduleRefresh('monitoring', loadMonitoringSummary, 250);
             break;
         case 'ops_audit':
         case 'activity_logged':
-            loadMonitoringSummary();
+            scheduleRefresh('monitoring', loadMonitoringSummary, 250);
             if (window.location.hash.includes('activity')) {
-                loadActivityFeed();
+                scheduleRefresh('activity', loadActivityFeed, 250);
             }
             break;
         case 'ping':

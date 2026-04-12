@@ -1,0 +1,117 @@
+version: "3.8"
+
+x-common: &common
+  restart: unless-stopped
+  networks:
+    - meet.jitsi
+
+services:
+  nginx:
+    image: nginx:1.25-alpine
+    <<: *common
+    ports:
+      - "80:80"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - vrs
+      - ops
+      - prosody
+
+  prosody:
+    image: jitsi/prosody:stable-9584
+    <<: *common
+    environment:
+      - AUTH_TYPE=internal
+      - ENABLE_AUTH=0
+      - ENABLE_GUESTS=1
+      - ENABLE_LOBBY=0
+      - PUBLIC_URL=http://${DOMAIN:-localhost}
+      - XMPP_DOMAIN=meet.jitsi
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_GUEST_DOMAIN=guest.meet.jitsi
+      - XMPP_MUC_DOMAIN=muc.meet.jitsi
+      - XMPP_INTERNAL_MUC_DOMAIN=internal-muc.meet.jitsi
+      - JICOFO_COMPONENT_SECRET=${JICOFO_COMPONENT_SECRET:-jicofo-secret}
+      - JICOFO_AUTH_PASSWORD=${JICOFO_AUTH_PASSWORD:-jicofo-pass}
+      - JVB_AUTH_PASSWORD=${JVB_AUTH_PASSWORD:-jvb-pass}
+    volumes:
+      - prosody-data:/config/data
+
+  jicofo:
+    image: jitsi/jicofo:stable-9584
+    <<: *common
+    depends_on:
+      - prosody
+    environment:
+      - XMPP_DOMAIN=meet.jitsi
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_MUC_DOMAIN=muc.meet.jitsi
+      - XMPP_INTERNAL_MUC_DOMAIN=internal-muc.meet.jitsi
+      - JICOFO_COMPONENT_SECRET=${JICOFO_COMPONENT_SECRET:-jicofo-secret}
+      - JICOFO_AUTH_USER=focus
+      - JICOFO_AUTH_PASSWORD=${JICOFO_AUTH_PASSWORD:-jicofo-pass}
+
+  jvb:
+    image: jitsi/jvb:stable-9584
+    <<: *common
+    depends_on:
+      - prosody
+    ports:
+      - "10000:10000/udp"
+      - "4443:4443"
+    environment:
+      - XMPP_DOMAIN=meet.jitsi
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_INTERNAL_MUC_DOMAIN=internal-muc.meet.jitsi
+      - JVB_AUTH_USER=jvb
+      - JVB_AUTH_PASSWORD=${JVB_AUTH_PASSWORD:-jvb-pass}
+      - JVB_BREWERY_MUC=jvbbrewery
+      - DOCKER_HOST_ADDRESS=${DROPLET_PUBLIC_IP:-127.0.0.1}
+      - JVB_STUN_SERVERS=stun.l.google.com:19302,stun1.l.google.com:19302
+
+  vrs:
+    build:
+      context: .
+      dockerfile: Dockerfile.vrs-server
+    <<: *common
+    env_file: .env
+    environment:
+      - PORT=3001
+      - NODE_ENV=production
+      - JITSI_DOMAIN=meet.jitsi
+    volumes:
+      - vrs-data:/app/vrs-server/data
+
+  ops:
+    build:
+      context: .
+      dockerfile: Dockerfile.ops-server
+    <<: *common
+    env_file: .env
+    environment:
+      - PORT=3003
+      - NODE_ENV=production
+    volumes:
+      - ops-data:/app/data
+
+  twilio:
+    build:
+      context: .
+      dockerfile: Dockerfile.twilio-server
+    <<: *common
+    env_file: .env
+    environment:
+      - TWILIO_PORT=3002
+      - NODE_ENV=production
+    profiles:
+      - twilio
+
+networks:
+  meet.jitsi:
+    driver: bridge
+
+volumes:
+  prosody-data:
+  vrs-data:
+  ops-data:

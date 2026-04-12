@@ -222,10 +222,43 @@
         </div>
     </div>
 
+    <script src="config.js"></script>
     <script>
-        const AUTH_API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:3003/api/auth'
-            : `${window.location.protocol}//${window.location.hostname}:3003/api/auth`;
+        const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+        function isLoopbackUrl(value) {
+            if (!value) {
+                return false;
+            }
+
+            try {
+                const parsed = new URL(value, window.location.origin);
+                return parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+            } catch (error) {
+                return false;
+            }
+        }
+
+        function preferConfiguredUrl(configuredValue, fallbackValue) {
+            if (!configuredValue) {
+                return fallbackValue;
+            }
+
+            if (!IS_LOCAL && isLoopbackUrl(configuredValue)) {
+                return fallbackValue;
+            }
+
+            return configuredValue;
+        }
+
+        const AUTH_API_BASE = (() => {
+            const configured = typeof config !== 'undefined' && config.vrs ? config.vrs.authEndpoint : null;
+            const fallback = IS_LOCAL
+                ? 'http://localhost:3003/api/auth'
+                : `${window.location.origin}/ops/api/auth`;
+
+            return preferConfiguredUrl(configured, fallback);
+        })();
 
         const loginForm = document.getElementById('loginForm');
         const errorMessage = document.getElementById('errorMessage');

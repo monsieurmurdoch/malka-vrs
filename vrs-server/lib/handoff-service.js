@@ -173,6 +173,20 @@ function getHandoffStatus(userId) {
     return { inProgress: false };
 }
 
+function getHandoffByToken(token) {
+    const data = handoffTokens.get(token);
+    if (!data) {
+        return null;
+    }
+
+    if (Date.now() > data.expiresAt) {
+        handoffTokens.delete(token);
+        return null;
+    }
+
+    return { ...data };
+}
+
 /**
  * Cancel a pending handoff.
  */
@@ -226,6 +240,7 @@ module.exports = {
     prepareHandoff,
     executeHandoff,
     getHandoffStatus,
+    getHandoffByToken,
     cancelHandoff,
     cleanup
 };

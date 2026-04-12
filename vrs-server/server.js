@@ -56,6 +56,8 @@ const server = http.createServer(app);
 const PORT = process.env.PORT || 3001;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const JWT_SECRET = process.env.VRS_SHARED_JWT_SECRET || process.env.JWT_SECRET;
+const API_RATE_LIMIT_WINDOW_MS = Number(process.env.API_RATE_LIMIT_WINDOW_MS || 60 * 1000);
+const API_RATE_LIMIT_MAX = Number(process.env.API_RATE_LIMIT_MAX || 300);
 
 if (!JWT_SECRET) {
     console.error('FATAL: VRS_SHARED_JWT_SECRET or JWT_SECRET environment variable is required.');
@@ -80,6 +82,19 @@ const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:8080,https:/
     .split(',')
     .map(o => o.trim())
     .filter(Boolean);
+const CONNECT_SRC = Array.from(new Set([
+    "'self'",
+    'http://localhost:*',
+    'https://localhost:*',
+    'ws://localhost:*',
+    'wss://localhost:*',
+    'http://127.0.0.1:*',
+    'https://127.0.0.1:*',
+    'ws://127.0.0.1:*',
+    'wss://127.0.0.1:*',
+    ...CORS_ORIGINS,
+    ...CORS_ORIGINS.map(origin => origin.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:'))
+]));
 
 app.use(cors({
     origin(origin, callback) {
@@ -99,23 +114,24 @@ app.use(helmet({
             scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
             styleSrc: ["'self'", "'unsafe-inline'"],
             imgSrc: ["'self'", 'data:'],
-            connectSrc: ["'self'",
-                'ws://localhost:3001', 'wss://localhost:3001',
-                'http://localhost:3001', 'https://localhost:3001',
-                'http://localhost:3002', 'http://localhost:3003'],
+            connectSrc: CONNECT_SRC,
             mediaSrc: ["'self'", 'blob:'],
-            fontSrc: ["'self'"]
+            fontSrc: ["'self'"],
+            upgradeInsecureRequests: null
         }
     },
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
 }));
 
-// Global rate limiter
-app.use(rateLimit({
-    windowMs: 60 * 1000,
-    max: 100,
+// API rate limiter (kept off static assets so the dashboard can bootstrap cleanly)
+app.use('/api', rateLimit({
+    windowMs: API_RATE_LIMIT_WINDOW_MS,
+    max: API_RATE_LIMIT_MAX,
     standardHeaders: true,
     legacyHeaders: false,
+    skip(req) {
+        return req.path === '/readiness' || req.path === '/health';
+    },
     message: { error: 'Too many requests, please try again later.' }
 }));
 

@@ -1,0 +1,70 @@
+name: Deploy Droplet
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-droplet
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Create deployment bundle
+        run: |
+          tar \
+            --exclude=.git \
+            --exclude=.github \
+            --exclude=node_modules \
+            --exclude=.tmp \
+            --exclude=vrs-server/node_modules \
+            --exclude=vrs-ops-server/node_modules \
+            -czf deploy.tgz .
+
+      - name: Upload bundle to droplet
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: root
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          source: deploy.tgz
+          target: /tmp
+
+      - name: Deploy on droplet
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: root
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          script: |
+            set -eu
+            APP_DIR="${APP_DIR:-/opt/malka-vrs}"
+            NEXT_DIR="${APP_DIR}.next"
+
+            rm -rf "$NEXT_DIR"
+            mkdir -p "$NEXT_DIR"
+
+            if [ -f "${APP_DIR}/.env" ]; then
+              cp "${APP_DIR}/.env" /tmp/malka-vrs.env
+            fi
+
+            tar -xzf /tmp/deploy.tgz -C "$NEXT_DIR"
+
+            if [ -f /tmp/malka-vrs.env ]; then
+              mv /tmp/malka-vrs.env "${NEXT_DIR}/.env"
+            fi
+
+            rm -rf "$APP_DIR"
+            mv "$NEXT_DIR" "$APP_DIR"
+
+            cd "$APP_DIR"
+            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans

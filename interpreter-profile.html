@@ -308,13 +308,41 @@
 <body>
     <div id="app"></div>
 
+    <script src="config.js"></script>
     <script>
     (function() {
-        const API_BASE = (function() {
-            if (typeof config !== 'undefined' && config.vrs && config.vrs.queueServiceUrl) {
-                return config.vrs.queueServiceUrl.replace(/^ws/, 'http').replace(/\/ws$/, '');
+        const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+        function isLoopbackUrl(value) {
+            if (!value) {
+                return false;
             }
-            return 'http://localhost:3001';
+
+            try {
+                const parsed = new URL(value, window.location.origin);
+                return parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+            } catch (error) {
+                return false;
+            }
+        }
+
+        function preferConfiguredUrl(configuredValue, fallbackValue) {
+            if (!configuredValue) {
+                return fallbackValue;
+            }
+
+            if (!IS_LOCAL && isLoopbackUrl(configuredValue)) {
+                return fallbackValue;
+            }
+
+            return configuredValue;
+        }
+
+        const API_BASE = (function() {
+            const configured = typeof config !== 'undefined' && config.vrs && config.vrs.queueServiceUrl
+                ? config.vrs.queueServiceUrl.replace(/^ws/, 'http').replace(/\/ws$/, '')
+                : null;
+            return preferConfiguredUrl(configured, window.location.origin);
         })();
 
         function getToken() {
@@ -544,6 +572,5 @@
         init();
     })();
     </script>
-    <script src="config.js"></script>
 </body>
 </html>

@@ -37,6 +37,20 @@ function validateRequired(body, fields) {
     return null;
 }
 
+function requireClientOwnership(req, res, userId) {
+    if (req.user.role !== 'client') {
+        res.status(403).json({ error: 'Client access required' });
+        return false;
+    }
+
+    if (req.user.id !== userId) {
+        res.status(403).json({ error: 'Can only manage handoff for your own session' });
+        return false;
+    }
+
+    return true;
+}
+
 // Prepare a handoff by creating a one-time token
 router.post('/prepare', authenticateUser, (req, res) => {
     const validationError = validateRequired(req.body, ['userId', 'targetDeviceId']);
@@ -46,8 +60,8 @@ router.post('/prepare', authenticateUser, (req, res) => {
 
     const { userId, targetDeviceId } = req.body;
 
-    if (req.user.id !== userId) {
-        return res.status(403).json({ error: 'Can only prepare handoff for your own session' });
+    if (!requireClientOwnership(req, res, userId)) {
+        return;
     }
 
     const result = handoffService.prepareHandoff(userId, targetDeviceId);
@@ -80,6 +94,15 @@ router.post('/execute', authenticateUser, (req, res) => {
     }
 
     const { token, newDeviceId } = req.body;
+    const pendingHandoff = handoffService.getHandoffByToken(token);
+    if (!pendingHandoff) {
+        return res.status(400).json({ error: 'Invalid or expired handoff token' });
+    }
+
+    if (!requireClientOwnership(req, res, pendingHandoff.userId)) {
+        return;
+    }
+
     const result = handoffService.executeHandoff(token, newDeviceId);
 
     if (result.error) {
@@ -102,9 +125,9 @@ router.post('/execute', authenticateUser, (req, res) => {
 
 // Check handoff status
 router.get('/status', authenticateUser, (req, res) => {
-    const { userId } = req.query;
-    if (!userId) {
-        return res.status(400).json({ error: 'userId query parameter is required' });
+    const userId = req.query.userId || req.user.id;
+    if (!requireClientOwnership(req, res, userId)) {
+        return;
     }
 
     const status = handoffService.getHandoffStatus(userId);
