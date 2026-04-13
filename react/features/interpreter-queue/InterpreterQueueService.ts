@@ -80,20 +80,29 @@ function getVRSConfig() {
 }
 
 function getStoredJson<T>(key: string): T | null {
-    if (typeof sessionStorage === 'undefined') {
-        return null;
-    }
-
-    const value = sessionStorage.getItem(key);
-    if (!value) {
-        return null;
-    }
-
     try {
-        return JSON.parse(value) as T;
+        const localValue = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+        if (localValue) {
+            if (typeof sessionStorage !== 'undefined') {
+                sessionStorage.setItem(key, localValue);
+            }
+
+            return JSON.parse(localValue) as T;
+        }
+
+        const sessionValue = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(key) : null;
+        if (sessionValue) {
+            if (typeof localStorage !== 'undefined') {
+                localStorage.setItem(key, sessionValue);
+            }
+
+            return JSON.parse(sessionValue) as T;
+        }
     } catch (error) {
         return null;
     }
+
+    return null;
 }
 
 function getCurrentRoomName(): string | undefined {

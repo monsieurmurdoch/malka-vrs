@@ -97,10 +97,17 @@ export class VRSOpsClient {
     // ==================== Authentication ====================
 
     private getAuthToken(): string | null {
-        if (typeof sessionStorage === 'undefined') return null;
-        const tokenStr = sessionStorage.getItem('vrs_auth_token');
-        if (!tokenStr) return null;
         try {
+            const tokenStr = (typeof localStorage !== 'undefined' && localStorage.getItem('vrs_auth_token'))
+                || (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('vrs_auth_token'));
+            if (!tokenStr) {
+                return null;
+            }
+
+            if (typeof sessionStorage !== 'undefined') {
+                sessionStorage.setItem('vrs_auth_token', tokenStr);
+            }
+
             const token = JSON.parse(tokenStr);
             return token.token;
         } catch {

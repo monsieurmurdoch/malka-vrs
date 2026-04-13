@@ -19,8 +19,20 @@
     <script>
         // Custom page initialization for interpreter dashboard
         document.addEventListener('DOMContentLoaded', () => {
-            const token = sessionStorage.getItem('vrs_auth_token');
-            const role = sessionStorage.getItem('vrs_user_role');
+            let token = null;
+            let role = null;
+
+            try {
+                token = localStorage.getItem('vrs_auth_token') || sessionStorage.getItem('vrs_auth_token');
+                role = localStorage.getItem('vrs_user_role') || sessionStorage.getItem('vrs_user_role');
+                if (token) {
+                    sessionStorage.setItem('vrs_auth_token', token);
+                }
+                if (role) {
+                    sessionStorage.setItem('vrs_user_role', role);
+                }
+            } catch (e) {}
+
             const isAuthenticated = Boolean(token) && role === 'interpreter';
             
             if (!isAuthenticated) {

@@ -17,11 +17,14 @@ import {
 import { getUserRole } from '../base/user-role/functions';
 
 function hasInterpreterSessionToken() {
-    if (typeof sessionStorage === 'undefined') {
+    try {
+        return Boolean(
+            (typeof localStorage !== 'undefined' && localStorage.getItem('vrs_auth_token'))
+            || (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('vrs_auth_token'))
+        );
+    } catch {
         return false;
     }
-
-    return Boolean(sessionStorage.getItem('vrs_auth_token'));
 }
 
 MiddlewareRegistry.register((store: { dispatch: Function; getState: Function; _interpreterQueueInitialized?: boolean }) =>

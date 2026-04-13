@@ -9,18 +9,17 @@
  * requesting an interpreter. The interpreter can be requested at any time.
  */
 
+import { clearPersistentItems, getPersistentItem, setPersistentItem } from '../../vrs-auth/storage';
+
 /**
  * Determines if the current user is an interpreter based on URL, session, or other indicators.
  *
  * @returns {boolean} True if the user is an interpreter, false otherwise.
  */
 export function isInterpreter(): boolean {
-    // Check session storage for user role (set by welcome page)
-    if (typeof sessionStorage !== 'undefined') {
-        const userRole = sessionStorage.getItem('vrs_user_role');
-        if (userRole === 'interpreter') {
-            return true;
-        }
+    const userRole = getPersistentItem('vrs_user_role');
+    if (userRole === 'interpreter') {
+        return true;
     }
 
     // Check URL path for interpreter-specific pages
@@ -49,23 +48,18 @@ export function isInterpreter(): boolean {
  * @returns {boolean} True if the user is a client, false otherwise.
  */
 export function isClient(): boolean {
-    // Check session storage for user role (set by welcome page)
-    if (typeof sessionStorage !== 'undefined') {
-        const userRole = sessionStorage.getItem('vrs_user_role');
-        if (userRole === 'client') {
-            return true;
-        }
+    const userRole = getPersistentItem('vrs_user_role');
+    if (userRole === 'client') {
+        return true;
+    }
 
-        // If explicitly set to interpreter, not a client
-        if (userRole === 'interpreter') {
-            return false;
-        }
+    if (userRole === 'interpreter') {
+        return false;
+    }
 
-        // Legacy check for backward compatibility
-        const isClientAuth = sessionStorage.getItem('vrs_client_auth') === 'true';
-        if (isClientAuth) {
-            return true;
-        }
+    const isClientAuth = getPersistentItem('vrs_client_auth') === 'true';
+    if (isClientAuth) {
+        return true;
     }
 
     // Check URL path for client-specific pages
@@ -103,17 +97,15 @@ export function getUserRole(): 'interpreter' | 'client' {
  * @param {'interpreter' | 'client'} role - The user's role.
  */
 export function setUserRole(role: 'interpreter' | 'client'): void {
-    if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.setItem('vrs_user_role', role);
+    setPersistentItem('vrs_user_role', role);
 
-        if (role === 'client') {
-            sessionStorage.setItem('vrs_client_auth', 'true');
-        }
+    if (role === 'client') {
+        setPersistentItem('vrs_client_auth', 'true');
+    }
 
-        sessionStorage.removeItem('vrs_interpreter_auth');
-        if (role !== 'client') {
-            sessionStorage.removeItem('vrs_client_auth');
-        }
+    clearPersistentItems([ 'vrs_interpreter_auth' ]);
+    if (role !== 'client') {
+        clearPersistentItems([ 'vrs_client_auth' ]);
     }
 }
 
@@ -121,9 +113,5 @@ export function setUserRole(role: 'interpreter' | 'client'): void {
  * Clears the user role from session storage.
  */
 export function clearUserRole(): void {
-    if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.removeItem('vrs_user_role');
-        sessionStorage.removeItem('vrs_interpreter_auth');
-        sessionStorage.removeItem('vrs_client_auth');
-    }
+    clearPersistentItems([ 'vrs_user_role', 'vrs_interpreter_auth', 'vrs_client_auth' ]);
 }

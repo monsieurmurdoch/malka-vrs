@@ -238,12 +238,15 @@ const useStyles = makeStyles()(theme => ({
 }));
 
 function getStoredVrsRole() {
-    if (typeof sessionStorage !== 'undefined') {
-        const role = sessionStorage.getItem('vrs_user_role');
+    const role = (typeof localStorage !== 'undefined' && localStorage.getItem('vrs_user_role'))
+        || (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('vrs_user_role'));
 
-        if (role === 'client' || role === 'interpreter') {
-            return role;
+    if (role === 'client' || role === 'interpreter') {
+        if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('vrs_user_role') !== role) {
+            sessionStorage.setItem('vrs_user_role', role);
         }
+
+        return role;
     }
 
     if (typeof window !== 'undefined') {
@@ -258,11 +261,10 @@ function getStoredVrsRole() {
 }
 
 function getStoredTargetClient() {
-    if (typeof sessionStorage === 'undefined') {
-        return undefined;
-    }
+    const value = (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('vrs_target_client'))
+        || (typeof localStorage !== 'undefined' && localStorage.getItem('vrs_target_client'));
 
-    return sessionStorage.getItem('vrs_target_client') || undefined;
+    return value || undefined;
 }
 
 function getParticipantName(participant?: IParticipant, fallback = 'Waiting to Join') {

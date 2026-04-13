@@ -48,20 +48,29 @@ function getVRSConfig() {
 }
 
 function getStoredJson<T>(key: string): T | null {
-    if (typeof sessionStorage === 'undefined') {
-        return null;
-    }
-
-    const raw = sessionStorage.getItem(key);
-    if (!raw) {
-        return null;
-    }
-
     try {
-        return JSON.parse(raw) as T;
+        const localRaw = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+        if (localRaw) {
+            if (typeof sessionStorage !== 'undefined') {
+                sessionStorage.setItem(key, localRaw);
+            }
+
+            return JSON.parse(localRaw) as T;
+        }
+
+        const sessionRaw = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(key) : null;
+        if (sessionRaw) {
+            if (typeof localStorage !== 'undefined') {
+                localStorage.setItem(key, sessionRaw);
+            }
+
+            return JSON.parse(sessionRaw) as T;
+        }
     } catch (error) {
         return null;
     }
+
+    return null;
 }
 
 class TwilioVoiceService {

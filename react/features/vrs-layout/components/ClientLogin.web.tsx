@@ -11,6 +11,7 @@ import { makeStyles } from 'tss-react/mui';
 import { translate } from '../../base/i18n/functions';
 import type { IReduxState } from '../../app/types';
 import { queueService } from '../../interpreter-queue/InterpreterQueueService';
+import { setPersistentItem } from '../../vrs-auth/storage';
 
 interface IProps {
     /**
@@ -311,9 +312,8 @@ const ClientLogin = ({ t, roomName }: IProps) => {
     };
 
     const handleJoinMeeting = () => {
-        // Store client role
-        sessionStorage.setItem('vrs_user_role', 'client');
-        sessionStorage.setItem('vrs_client_auth', 'true');
+        setPersistentItem('vrs_user_role', 'client');
+        setPersistentItem('vrs_client_auth', 'true');
 
         // Navigate to the meeting
         window.location.href = `/${roomName}`;

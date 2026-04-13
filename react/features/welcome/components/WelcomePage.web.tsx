@@ -7,6 +7,7 @@ import { SETTINGS_TABS } from '../../settings/constants';
 
 import { AbstractWelcomePage, IProps, _mapStateToProps } from './AbstractWelcomePage';
 import { LanguageSwitcher } from '../../vrs-layout/components';
+import { setPersistentItem } from '../../vrs-auth/storage';
 
 declare var config: any;
 
@@ -46,7 +47,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
             isLogin: true,
             isSubmitting: false,
             error: ''
-        };
+        } as any;
 
         this._titleHasNotAllowCharacter = false;
         this._additionalContentRef = null;
@@ -147,26 +148,26 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
             selectedTab: tab,
             error: '',
             isLogin: true
-        });
+        } as any);
     }
 
     _handleEmailChange(e: React.ChangeEvent<HTMLInputElement>) {
-        this.setState({ email: e.target.value, error: '' });
+        this.setState({ email: e.target.value, error: '' } as any);
     }
 
     _handlePasswordChange(e: React.ChangeEvent<HTMLInputElement>) {
-        this.setState({ password: e.target.value, error: '' });
+        this.setState({ password: e.target.value, error: '' } as any);
     }
 
     _handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {
-        this.setState({ name: e.target.value, error: '' });
+        this.setState({ name: e.target.value, error: '' } as any);
     }
 
     _toggleAuthMode() {
         this.setState((prev: any) => ({
             isLogin: !prev.isLogin,
             error: ''
-        }));
+        }) as any);
     }
 
     /**
@@ -178,16 +179,16 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
         const { selectedTab, email, password, isLogin, name } = this.state as any;
 
         if (!email || !password) {
-            this.setState({ error: 'Email and password are required.' });
+            this.setState({ error: 'Email and password are required.' } as any);
             return;
         }
 
         if (!isLogin && !name) {
-            this.setState({ error: 'Name is required to create an account.' });
+            this.setState({ error: 'Name is required to create an account.' } as any);
             return;
         }
 
-        this.setState({ isSubmitting: true, error: '' });
+        this.setState({ isSubmitting: true, error: '' } as any);
 
         const role = selectedTab;
         const apiBase = this._getApiBase();
@@ -206,7 +207,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                     this.setState({
                         error: 'Interpreter accounts are created by administrators.',
                         isSubmitting: false
-                    });
+                    } as any);
                     return;
                 }
 
@@ -223,16 +224,20 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                 this.setState({
                     error: data.error || 'Authentication failed.',
                     isSubmitting: false
-                });
+                } as any);
                 return;
             }
 
             // Store auth info
-            if (typeof sessionStorage !== 'undefined') {
-                sessionStorage.setItem('vrs_auth_token', JSON.stringify({
-                    token: data.token
-                }));
-                sessionStorage.setItem('vrs_user_info', JSON.stringify(data.user));
+            setPersistentItem('vrs_auth_token', JSON.stringify({
+                token: data.token,
+                userId: data.user?.id,
+                name: data.user?.name
+            }));
+            setPersistentItem('vrs_user_info', JSON.stringify(data.user));
+            setPersistentItem('vrs_user_role', role);
+            if (role === 'client') {
+                setPersistentItem('vrs_client_auth', 'true');
             }
 
             // Redirect to profile page
@@ -245,7 +250,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
             this.setState({
                 error: 'Network error. Please check your connection.',
                 isSubmitting: false
-            });
+            } as any);
         }
     }
 

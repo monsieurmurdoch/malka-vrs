@@ -7,6 +7,7 @@
 
 import { VRSRole, VRSUser, AuthResponse, LoginCredentials, ValidationResult, AuthToken } from './types';
 import { STORAGE_KEYS, TOKEN_EXPIRY, ROLE_PERMISSIONS } from './constants';
+import { clearPersistentItems, getPersistentItem, removePersistentItem, setPersistentItem } from './storage';
 
 // Config will be loaded from Jitsi's config
 declare var config: any;
@@ -322,13 +323,13 @@ class VRSSAuthService {
     logout(): void {
         this.currentUser = null;
 
-        if (typeof sessionStorage !== 'undefined') {
-            sessionStorage.removeItem(STORAGE_KEYS.USER_ROLE);
-            sessionStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-            sessionStorage.removeItem(STORAGE_KEYS.USER_INFO);
-            sessionStorage.removeItem(STORAGE_KEYS.CLIENT_AUTH);
-            sessionStorage.removeItem('vrs_interpreter_auth');
-        }
+        clearPersistentItems([
+            STORAGE_KEYS.USER_ROLE,
+            STORAGE_KEYS.AUTH_TOKEN,
+            STORAGE_KEYS.USER_INFO,
+            STORAGE_KEYS.CLIENT_AUTH,
+            'vrs_interpreter_auth'
+        ]);
 
         this.validationCache.clear();
     }
@@ -349,12 +350,9 @@ class VRSSAuthService {
             expiresAt: now + TOKEN_EXPIRY.CLIENT
         };
 
-        // Use sessionStorage for backward compatibility
-        if (typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem(STORAGE_KEYS.USER_ROLE, 'client');
-            sessionStorage.setItem(STORAGE_KEYS.CLIENT_AUTH, 'true');
-            sessionStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(user));
-        }
+        setPersistentItem(STORAGE_KEYS.USER_ROLE, 'client');
+        setPersistentItem(STORAGE_KEYS.CLIENT_AUTH, 'true');
+        setPersistentItem(STORAGE_KEYS.USER_INFO, JSON.stringify(user));
 
         this.currentUser = user;
     }
@@ -375,20 +373,14 @@ class VRSSAuthService {
     private setUser(user: VRSUser, token: AuthToken): void {
         this.currentUser = user;
 
-        if (typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem(STORAGE_KEYS.USER_ROLE, user.role);
-            sessionStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, JSON.stringify(token));
-            sessionStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(user));
-        }
+        setPersistentItem(STORAGE_KEYS.USER_ROLE, user.role);
+        setPersistentItem(STORAGE_KEYS.AUTH_TOKEN, JSON.stringify(token));
+        setPersistentItem(STORAGE_KEYS.USER_INFO, JSON.stringify(user));
     }
 
     private loadUserFromStorage(): void {
-        if (typeof sessionStorage === 'undefined') {
-            return;
-        }
-
         try {
-            const userInfo = sessionStorage.getItem(STORAGE_KEYS.USER_INFO);
+            const userInfo = getPersistentItem(STORAGE_KEYS.USER_INFO);
             if (userInfo) {
                 const user = JSON.parse(userInfo) as VRSUser;
 
@@ -406,12 +398,8 @@ class VRSSAuthService {
     }
 
     private getStoredToken(): AuthToken | null {
-        if (typeof sessionStorage === 'undefined') {
-            return null;
-        }
-
         try {
-            const tokenStr = sessionStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+            const tokenStr = getPersistentItem(STORAGE_KEYS.AUTH_TOKEN);
             if (tokenStr) {
                 return JSON.parse(tokenStr) as AuthToken;
             }

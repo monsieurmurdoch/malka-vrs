@@ -345,16 +345,54 @@
             return preferConfiguredUrl(configured, window.location.origin);
         })();
 
+        function getPersistentItem(key) {
+            try {
+                const localValue = localStorage.getItem(key);
+                if (localValue !== null) {
+                    sessionStorage.setItem(key, localValue);
+                    return localValue;
+                }
+            } catch (e) {}
+
+            try {
+                const sessionValue = sessionStorage.getItem(key);
+                if (sessionValue !== null) {
+                    localStorage.setItem(key, sessionValue);
+                    return sessionValue;
+                }
+            } catch (e) {}
+
+            return null;
+        }
+
+        function setPersistentItem(key, value) {
+            try { localStorage.setItem(key, value); } catch (e) {}
+            try { sessionStorage.setItem(key, value); } catch (e) {}
+        }
+
+        function clearPersistentAuth() {
+            [
+                'vrs_auth_token',
+                'vrs_user_info',
+                'vrs_user_role',
+                'vrs_client_auth',
+                'vrs_interpreter_auth'
+            ].forEach(function(key) {
+                try { localStorage.removeItem(key); } catch (e) {}
+                try { sessionStorage.removeItem(key); } catch (e) {}
+            });
+        }
+
         function getToken() {
             try {
-                const stored = JSON.parse(sessionStorage.getItem('vrs_auth_token') || '{}');
+                const stored = JSON.parse(getPersistentItem('vrs_auth_token') || '{}');
                 return stored.token || null;
             } catch(e) { return null; }
         }
 
         function getUser() {
             try {
-                return JSON.parse(sessionStorage.getItem('vrs_user_info') || 'null');
+                return JSON.parse(getPersistentItem('vrs_user_info') || 'null');
             } catch(e) { return null; }
         }
 
@@ -366,7 +404,7 @@
         async function apiFetch(path, options = {}) {
             const res = await fetch(API_BASE + path, { ...options, headers: { ...authHeaders(), ...(options.headers || {}) } });
             if (res.status === 401 || res.status === 403) {
-                sessionStorage.clear();
+                clearPersistentAuth();
                 window.location.href = '/';
                 return null;
             }
@@ -518,13 +556,13 @@
 
         // Actions
         window.__signOut = function() {
-            sessionStorage.clear();
+            clearPersistentAuth();
             window.location.href = '/';
         };
 
         window.__joinQueue = function() {
             const roomName = 'interpreter-' + Math.random().toString(36).substr(2, 9);
-            sessionStorage.setItem('vrs_user_role', 'interpreter');
+            setPersistentItem('vrs_user_role', 'interpreter');
             window.location.href = '/' + roomName + '?role=interpreter';
         };
 

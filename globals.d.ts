@@ -27,6 +27,12 @@ declare global {
         alwaysOnTop: { api: any };
     }
 
+    interface Navigator {
+        bluetooth?: any;
+    }
+
+    type BluetoothDevice = any;
+
     interface Document {
         mozCancelFullScreen?: Function;
         webkitExitFullscreen?: Function;

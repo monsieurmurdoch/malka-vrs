@@ -108,10 +108,8 @@ function isReactNative(): boolean {
 
 function getStoredAccountId(): string | null {
     try {
-        if (typeof sessionStorage === 'undefined') {
-            return null;
-        }
-        const userInfo = sessionStorage.getItem('vrs_user_info');
+        const userInfo = (typeof localStorage !== 'undefined' && localStorage.getItem('vrs_user_info'))
+            || (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('vrs_user_info'));
         if (!userInfo) {
             return null;
         }
@@ -125,10 +123,8 @@ function getStoredAccountId(): string | null {
 
 function getStoredUserId(): string | null {
     try {
-        if (typeof sessionStorage === 'undefined') {
-            return null;
-        }
-        const userInfo = sessionStorage.getItem('vrs_user_info');
+        const userInfo = (typeof localStorage !== 'undefined' && localStorage.getItem('vrs_user_info'))
+            || (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('vrs_user_info'));
 
         return userInfo ? JSON.parse(userInfo)?.id : null;
     } catch {
@@ -166,12 +162,19 @@ class DeviceHandoffService {
     }
 
     private generateDeviceId(): string {
-        let id = typeof sessionStorage !== 'undefined'
-            ? sessionStorage.getItem('malka_device_id')
+        let id = typeof localStorage !== 'undefined'
+            ? localStorage.getItem('malka_device_id')
             : null;
+
+        if (!id && typeof sessionStorage !== 'undefined') {
+            id = sessionStorage.getItem('malka_device_id');
+        }
 
         if (!id) {
             id = `device-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            if (typeof localStorage !== 'undefined') {
+                localStorage.setItem('malka_device_id', id);
+            }
             if (typeof sessionStorage !== 'undefined') {
                 sessionStorage.setItem('malka_device_id', id);
             }

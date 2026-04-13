@@ -11,6 +11,7 @@ import { makeStyles } from 'tss-react/mui';
 import { translate } from '../../base/i18n/functions';
 import type { IReduxState } from '../../app/types';
 import { queueService } from '../../interpreter-queue/InterpreterQueueService';
+import { setPersistentItem } from '../../vrs-auth/storage';
 import { vrsAuthService } from '../../vrs-auth/VRSSAuthService';
 
 interface IProps {
@@ -584,7 +585,7 @@ const InterpreterLogin = ({ t, roomName }: IProps) => {
             return;
         }
 
-        sessionStorage.setItem('vrs_user_role', 'interpreter');
+        setPersistentItem('vrs_user_role', 'interpreter');
         setInterpreterName(result.user.name || result.user.email || 'Interpreter');
         setEmail(result.user.email || email.trim());
         setPassword('');
