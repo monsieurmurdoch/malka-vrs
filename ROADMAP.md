@@ -10,26 +10,26 @@
 - [x] Fix react-native-ble-plx web build error (platform-split BleAdapter)
 - [ ] **SCSS build pipeline** — compile `_welcome_page.scss` → `css/all.css` so celestial animations render
 - [ ] **Clean up** broken `images/earth-realistic.png` (2KB HTML, not an image)
-- [ ] Verify demo account login flow end-to-end (client + interpreter)
+- [x] Verify demo account login flow end-to-end (client + interpreter)
 - [ ] Test interpreter queue states: in-queue, out-queue, on-break, teamed
 
 ---
 
 ## Phase 0.5: Production Deployment (DigitalOcean)
 > Goal: Get the app live on a real URL for testing
-> Status: **Ready to deploy**
+> Status: **In Progress (live on test domain)**
 
 ### Infrastructure
 - [x] `docker-compose.prod.yml` — full production stack (nginx + Jitsi + VRS + Ops)
 - [x] `Dockerfile.frontend` — multi-stage build (webpack frontend → vrs-server container)
 - [x] `deploy/nginx.conf` — reverse proxy with SSL, WebSocket, BOSH routing
 - [x] `deploy/setup.sh` — one-command droplet provisioning (Docker, firewall, certbot)
-- [ ] Provision DigitalOcean Droplet (4GB RAM / 2 vCPU minimum)
-- [ ] Point domain A record to droplet IP
-- [ ] Fill `.env` with production secrets (JWT, superadmin password, Jitsi secrets)
+- [x] Provision DigitalOcean Droplet (4GB RAM / 2 vCPU minimum)
+- [x] Point domain A record to droplet IP
+- [x] Fill `.env` with production secrets (JWT, superadmin password, Jitsi secrets)
 - [ ] Run `deploy/setup.sh` — installs Docker, gets SSL cert, launches stack
-- [ ] Verify: `https://your-domain.com` loads VRS welcome page
-- [ ] Verify: WebSocket connections work through nginx
+- [x] Verify: `https://your-domain.com` loads VRS welcome page
+- [x] Verify: WebSocket connections work through nginx
 - [ ] Verify: JVB media flows (UDP 10000) — test a real video call
 
 ### Post-Deploy Checklist
@@ -58,16 +58,17 @@
 - [ ] Queue dashboard for ops team
 
 ### 1C — VRS Call Lifecycle
-- [ ] Client dials 10-digit number → request enters interpreter queue
+- [x] Client dials 10-digit number → request enters interpreter queue
 - [ ] Interpreter matched → 3-way Jitsi room created (caller video, interpreter video, callee audio)
 - [ ] In-call controls: mute, hold, transfer, add party
 - [ ] Call end → CDR (Call Detail Record) written to database
 - [ ] Multi-party conference support (Jitsi-native)
-- [ ] P2P direct calls between clients (no interpreter, standard Jitsi flow)
+- [x] P2P direct calls between clients (no interpreter, standard Jitsi flow)
+- [ ] Summon interpreter from inside an active room (bottom toolbar button with waiting/accepted state)
 
 ### 1D — UI Polish
 - [ ] Navy/white color scheme with VRS branding
-- [ ] Celestial animations (earth = client, moon = interpreter) with smooth tab transitions
+- [x] Celestial animations (earth = client, moon = interpreter) with smooth tab transitions
 - [ ] Responsive layout for desktop + tablet
 - [ ] Accessibility audit (WCAG 2.1 AA minimum — critical for deaf users)
 
@@ -104,6 +105,9 @@
 > Users need a real address book, not just speed dial
 
 - [ ] **Contact list UI** — searchable, alphabetical list with avatars, phone numbers, last call date
+- [ ] **Accessible contacts section in instant rooms** — easy-to-open contacts drawer/panel while joining or inviting
+- [ ] **Logged-in-only instant-room invite links** — invite links should require platform auth before joining
+- [ ] **Instant-room invite suggestions** — suggest recent/favorite friends to invite right after room creation
 - [ ] **Import contacts** — from CSV/VCARD upload, Google Contacts API, or phone address book (mobile)
 - [ ] **Contact groups** — personal, work, family, favorites (user-defined categories)
 - [ ] **Merge/dedup** — detect and merge duplicate contacts (same phone number or email)
@@ -132,6 +136,9 @@
 - [ ] **Call back** — one-tap redial from call history or missed calls
 - [ ] **In-call text chat** — side panel for text communication during video call (supplement to signing)
 - [ ] **Wait screen** — show position in queue + estimated wait time while waiting for interpreter
+- [ ] **Instant-room fast join** — allow instant rooms to skip the waiting room when appropriate
+- [ ] **Instant-room media defaults** — camera + mic off by default when quick-joining an instant room
+- [ ] **Remember media permission preference** — avoid repeated prompts where the browser/app allows it
 - [ ] **Dark mode** — reduce eye strain during long calls; auto-detect system preference
 
 ---
@@ -150,16 +157,18 @@
 - [x] `uuid.substr()` → `.substring()` (already correct)
 
 ### Remaining Architectural Issues
-- [ ] **Split monolithic server.js** (~2300 lines) → route modules (auth, client, interpreter, admin, p2p, handoff)
+- [x] **Split monolithic server.js** (~2300 lines) → route modules (auth, client, interpreter, admin, p2p, handoff)
 - [ ] **Persist in-memory state** — queue, connected clients, handoff tokens in Redis or DB (restart = lost state)
 - [ ] **Tighten CSP** — remove `unsafe-inline`/`unsafe-eval` once Jitsi compatibility is resolved
 - [ ] **Automated tests** — zero test coverage currently (see 2F below)
 
-### 2A — PostgreSQL Migration ✅
-- [x] Rewrote `database.js` — SQLite → PostgreSQL (`pg` with connection pooling)
-- [x] All 60+ queries converted: `?` → `$1`, date functions, booleans, JSONB, `ON CONFLICT`
-- [x] PostgreSQL 16 added to docker-compose (test + prod) with health checks
-- [x] `sqlite3` removed from dependencies, `pg` added
+### 2A — PostgreSQL Migration
+- [ ] Port PostgreSQL migration commit (`1eb7cc1` from `claude/intelligent-edison`) into current modular server cleanly
+- [ ] Rework `database.js` for PostgreSQL (`pg` with connection pooling) without regressing queue/P2P/handoff fixes now on `main`
+- [ ] Convert all queries: `?` → `$1`, date functions, booleans, JSONB, `ON CONFLICT`
+- [ ] Add PostgreSQL 16 to docker-compose (test + prod) with health checks on the current branch topology
+- [ ] Replace `sqlite3` dependency with `pg` on `main`
+- [ ] End-to-end verify: auth, speed dial, missed calls, queue `targetPhone`, handoff, admin stats, P2P calling
 - [ ] Schema migration tooling (`node-pg-migrate`) for future schema changes
 - [ ] Add `pg_audit` extension for FCC-compliant audit logging
 - [ ] Configure WAL archiving for point-in-time recovery
