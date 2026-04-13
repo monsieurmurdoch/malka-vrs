@@ -672,7 +672,7 @@
             incomingCall: null,   // { callId, roomName, callerName, callerId, calleeId }
             ringingCall: null,    // { callId, roomName, calleeName, calleePhone }
             // VRS queue state
-            queueRequest: null,   // { requestId, position, roomName, language }
+            queueRequest: null,   // { requestId, position, roomName, language, targetPhone }
             wsConnected: false
         };
 
@@ -754,6 +754,16 @@
 
                 case 'auth_error':
                     console.error('[WS] Auth error:', msg.data);
+                    break;
+
+                case 'error':
+                    if (state.queueRequest) {
+                        state.queueRequest = null;
+                        renderOverlays();
+                    }
+                    if (msg.data && msg.data.message) {
+                        alert(msg.data.message);
+                    }
                     break;
 
                 case 'p2p_incoming_call':

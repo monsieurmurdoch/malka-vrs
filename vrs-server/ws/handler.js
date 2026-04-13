@@ -264,6 +264,22 @@ function handleAuth(ws, data, clientId) {
     return clientInfo;
 }
 
+function coerceInterpreterStatus(payload = {}) {
+    if (typeof payload.status === 'string' && payload.status.trim()) {
+        return payload.status.trim().toLowerCase();
+    }
+
+    if (payload.available === true) {
+        return 'available';
+    }
+
+    if (payload.available === false) {
+        return 'offline';
+    }
+
+    return null;
+}
+
 // ============================================
 // INTERPRETER STATUS
 // ============================================
@@ -276,7 +292,16 @@ function handleInterpreterStatus(ws, data) {
     }
 
     const payload = data.data || data;
-    const { status, languages } = payload;
+    const status = coerceInterpreterStatus(payload);
+    const { languages } = payload;
+
+    if (!status) {
+        ws.send(JSON.stringify({
+            type: 'error',
+            data: { message: 'interpreter_status requires a valid status.' }
+        }));
+        return;
+    }
 
     for (const [, entry] of state.clients.interpreters) {
         if (entry.ws === ws) {
@@ -318,10 +343,20 @@ async function handleInterpreterRequest(ws, data) {
     }
 
     const payload = data.data || {};
+    const targetPhone = sanitizePhoneNumber(payload.targetPhone);
+    if (payload.targetPhone && !targetPhone) {
+        ws.send(JSON.stringify({
+            type: 'error',
+            data: { message: 'A valid hearing-party phone number is required.' }
+        }));
+        return;
+    }
+
     const result = await queueService.requestInterpreter({
         clientId: client.userId,
         clientName: payload.clientName || client.name || 'Guest',
         language: payload.language || 'ASL',
+        targetPhone,
         roomName: payload.roomName || generateFriendlyRoomName()
     });
 
@@ -332,7 +367,13 @@ async function handleInterpreterRequest(ws, data) {
 
     ws.send(JSON.stringify({
         type: 'request_queued',
-        data: { requestId: result.requestId, position: result.position, roomName: result.request.roomName, language: result.request.language }
+        data: {
+            requestId: result.requestId,
+            position: result.position,
+            roomName: result.request.roomName,
+            language: result.request.language,
+            targetPhone: result.request.targetPhone || null
+        }
     }));
 
     notifyAvailableInterpreters(result.request);
@@ -396,7 +437,8 @@ async function handleAcceptRequest(ws, data) {
         roomName: result.roomName,
         clientId: result.clientId, clientName: result.clientName,
         interpreterId: interpreter.userId, interpreterName: interpreter.name,
-        language: request.language
+        language: request.language,
+        targetPhone: request.targetPhone || null
     };
 
     ws.send(JSON.stringify({ type: 'request_accepted', data: meetingData }));

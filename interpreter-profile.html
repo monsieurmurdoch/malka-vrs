@@ -420,7 +420,7 @@
             calls: [],
             // Queue state
             available: false,
-            pendingRequest: null   // { requestId, clientName, language, roomName }
+            pendingRequest: null   // { requestId, clientName, language, roomName, targetPhone }
         };
 
         // ============================================
@@ -449,7 +449,14 @@
             }
 
             ws.onopen = function() {
-                ws.send(JSON.stringify({ type: 'auth', data: { token } }));
+                const user = getUser() || {};
+                ws.send(JSON.stringify({
+                    type: 'auth',
+                    role: 'interpreter',
+                    userId: user.id,
+                    name: user.name,
+                    token
+                }));
             };
 
             ws.onmessage = function(event) {
@@ -483,7 +490,7 @@
                 case 'auth_success':
                     // If we were already available before reconnect, re-announce.
                     if (state.available) {
-                        wsSend({ type: 'interpreter_status', data: { available: true } });
+                        wsSend({ type: 'interpreter_status', data: { status: 'available' } });
                     }
                     break;
 
@@ -507,6 +514,13 @@
 
                 case 'pong':
                 case 'heartbeat_ack':
+                    break;
+
+                case 'error':
+                case 'auth_error':
+                    if (msg.data && msg.data.message) {
+                        alert(msg.data.message);
+                    }
                     break;
             }
         }
@@ -532,6 +546,7 @@
                 <div style="font-size:48px">📞</div>
                 <div style="font-size:22px;font-weight:600">Incoming Request</div>
                 <div style="opacity:0.75">Client: ${req.clientName || 'Unknown'} · Language: ${req.language || 'ASL'}</div>
+                ${req.targetPhone ? `<div style="opacity:0.75">Hearing Party: ${req.targetPhone}</div>` : ''}
                 <div style="display:flex;gap:16px;margin-top:8px">
                     <button onclick="window.__acceptRequest()"
                         style="padding:14px 32px;border-radius:50px;border:none;background:#4caf50;color:#fff;font-size:16px;cursor:pointer">
@@ -701,16 +716,18 @@
          */
         window.__joinQueue = function() {
             state.available = true;
-            wsSend({ type: 'interpreter_status', data: { available: true } });
+            wsSend({ type: 'interpreter_status', data: { status: 'available' } });
             render();
         };
 
         /** Accept the pending client request and navigate to the assigned room. */
         window.__acceptRequest = function() {
             if (!state.pendingRequest) return;
+            const requestId = state.pendingRequest.requestId || state.pendingRequest.id;
+            if (!requestId) return;
             wsSend({
                 type: 'accept_request',
-                data: { requestId: state.pendingRequest.requestId }
+                data: { requestId }
             });
             // Navigation happens in handleWsMessage on meeting_initiated.
         };
@@ -718,9 +735,11 @@
         /** Decline the pending client request and return to available state. */
         window.__declineRequest = function() {
             if (!state.pendingRequest) return;
+            const requestId = state.pendingRequest.requestId || state.pendingRequest.id;
+            if (!requestId) return;
             wsSend({
                 type: 'decline_request',
-                data: { requestId: state.pendingRequest.requestId }
+                data: { requestId }
             });
             state.pendingRequest = null;
             removeAcceptOverlay();
