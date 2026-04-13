@@ -108,6 +108,7 @@ function createTables() {
                 client_id TEXT,
                 client_name TEXT NOT NULL,
                 language TEXT NOT NULL,
+                target_phone TEXT,
                 room_name TEXT NOT NULL,
                 status TEXT DEFAULT 'waiting',
                 position INTEGER,
@@ -505,7 +506,7 @@ async function getActiveCalls() {
 // QUEUE OPERATIONS
 // ============================================
 
-async function addToQueue({ clientId, clientName, language, roomName }) {
+async function addToQueue({ clientId, clientName, language, roomName, targetPhone = null }) {
     const id = uuidv4();
 
     // Get current position
@@ -514,8 +515,8 @@ async function addToQueue({ clientId, clientName, language, roomName }) {
     );
 
     await runInsert(
-        'INSERT INTO queue_requests (id, client_id, client_name, language, room_name, position) VALUES (?, ?, ?, ?, ?, ?)',
-        [id, clientId || null, clientName, language, roomName, count[0].count + 1]
+        'INSERT INTO queue_requests (id, client_id, client_name, language, target_phone, room_name, position) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [id, clientId || null, clientName, language, targetPhone, roomName, count[0].count + 1]
     );
 
     return { id, position: count[0].count + 1 };
@@ -927,44 +928,55 @@ function runMigrations() {
                         }
 
                         const columnNames = new Set(missedColumns.map(col => col.name));
-                        const migrationSteps = [];
+                        db.all('PRAGMA table_info(queue_requests)', (queueErr, queueColumns) => {
+                            if (queueErr) {
+                                return reject(queueErr);
+                            }
 
-                        if (!columnNames.has('callee_phone')) {
+                            const queueColumnNames = new Set(queueColumns.map(col => col.name));
+                            const migrationSteps = [];
+
+                            if (!columnNames.has('callee_phone')) {
                             migrationSteps.push('ALTER TABLE missed_calls ADD COLUMN callee_phone TEXT');
-                        }
+                            }
 
-                        if (!columnNames.has('callee_client_id')) {
+                            if (!columnNames.has('callee_client_id')) {
                             migrationSteps.push('ALTER TABLE missed_calls ADD COLUMN callee_client_id TEXT');
-                        }
+                            }
 
-                        if (columnNames.has('callee_id')) {
+                            if (columnNames.has('callee_id')) {
                             migrationSteps.push(
                                 `UPDATE missed_calls
                                  SET callee_client_id = COALESCE(callee_client_id, callee_id)
                                  WHERE callee_id IS NOT NULL`
                             );
-                        }
-
-                        migrationSteps.push(
-                            'CREATE INDEX IF NOT EXISTS idx_missed_calls_callee ON missed_calls(callee_client_id, seen)'
-                        );
-
-                        let index = 0;
-                        const runNext = () => {
-                            if (index >= migrationSteps.length) {
-                                return resolve();
                             }
 
-                            db.run(migrationSteps[index], (stepErr) => {
-                                if (stepErr) {
-                                    console.warn('[Database] Migration step failed:', stepErr.message);
-                                }
-                                index += 1;
-                                runNext();
-                            });
-                        };
+                            if (!queueColumnNames.has('target_phone')) {
+                                migrationSteps.push('ALTER TABLE queue_requests ADD COLUMN target_phone TEXT');
+                            }
 
-                        runNext();
+                            migrationSteps.push(
+                                'CREATE INDEX IF NOT EXISTS idx_missed_calls_callee ON missed_calls(callee_client_id, seen)'
+                            );
+
+                            let index = 0;
+                            const runNext = () => {
+                                if (index >= migrationSteps.length) {
+                                    return resolve();
+                                }
+
+                                db.run(migrationSteps[index], (stepErr) => {
+                                    if (stepErr) {
+                                        console.warn('[Database] Migration step failed:', stepErr.message);
+                                    }
+                                    index += 1;
+                                    runNext();
+                                });
+                            };
+
+                            runNext();
+                        });
                     });
                 };
 

@@ -671,6 +671,8 @@
             // P2P call state
             incomingCall: null,   // { callId, roomName, callerName, callerId, calleeId }
             ringingCall: null,    // { callId, roomName, calleeName, calleePhone }
+            // VRS queue state
+            queueRequest: null,   // { requestId, position, roomName, language, targetPhone }
             wsConnected: false
         };
 
@@ -754,6 +756,16 @@
                     console.error('[WS] Auth error:', msg.data);
                     break;
 
+                case 'error':
+                    if (state.queueRequest) {
+                        state.queueRequest = null;
+                        renderOverlays();
+                    }
+                    if (msg.data && msg.data.message) {
+                        alert(msg.data.message);
+                    }
+                    break;
+
                 case 'p2p_incoming_call':
                     handleIncomingCall(msg.data);
                     break;
@@ -795,6 +807,23 @@
                         state.missedCalls = msg.data;
                         render();
                         showBrowserNotification('Missed Calls', 'You have ' + msg.data.length + ' missed call(s)');
+                    }
+                    break;
+
+                // ── VRS queue responses ──────────────────────────────────────
+                case 'request_queued':
+                    // Server confirmed we're in queue. Show waiting UI.
+                    state.queueRequest = msg.data;
+                    renderOverlays();
+                    break;
+
+                case 'match_found':
+                case 'meeting_initiated':
+                    // Interpreter accepted — navigate both parties to the shared room.
+                    if (msg.data && msg.data.roomName) {
+                        state.queueRequest = null;
+                        setPersistentItem('vrs_user_role', 'client');
+                        window.location.href = '/' + msg.data.roomName + '?role=client';
                     }
                     break;
 
@@ -952,12 +981,88 @@
                 return;
             }
 
+            // Queue waiting overlay — shown while searching for an interpreter.
+            if (state.queueRequest) {
+                const q = state.queueRequest;
+                container.innerHTML = `
+                    <div class="overlay">
+                        <div class="pulse-animation" style="width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-size:36px">
+                            &#128483;
+                        </div>
+                        <div class="overlay-caller-name">Finding an interpreter…</div>
+                        <div class="overlay-status">Position in queue: ${q.position || 1} &nbsp;·&nbsp; Language: ${q.language || 'ASL'}</div>
+                        <div class="overlay-buttons">
+                            <button class="overlay-btn overlay-btn-cancel" onclick="window.__cancelQueueRequest()" title="Cancel">&#10006;</button>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
             container.innerHTML = '';
         }
 
         // ============================================
+        // VRS QUEUE ACTIONS (exposed globally)
+        // ============================================
+
+        /** Send a Request Interpreter WS message and enter the waiting overlay. */
+        window.__requestInterpreter = function(language) {
+            const user = getUser();
+            wsSend({
+                type: 'request_interpreter',
+                data: {
+                    language: language || 'ASL',
+                    clientName: user ? user.name : undefined
+                }
+            });
+            // Optimistic UI: show the queue overlay immediately; the server
+            // will correct position/roomName when it replies with request_queued.
+            state.queueRequest = { position: 1, language: language || 'ASL' };
+            renderOverlays();
+        };
+
+        /** Cancel the current queue request. */
+        window.__cancelQueueRequest = function() {
+            if (!state.queueRequest || !state.queueRequest.requestId) {
+                // Not confirmed by server yet — just clear the optimistic state.
+                state.queueRequest = null;
+                renderOverlays();
+                return;
+            }
+            wsSend({
+                type: 'cancel_request',
+                data: { requestId: state.queueRequest.requestId }
+            });
+            state.queueRequest = null;
+            renderOverlays();
+        };
+
+        // ============================================
         // P2P ACTIONS (exposed globally)
         // ============================================
+
+        /** Flow 1: enter hearing person's number → request interpreter → waiting overlay → auto-join. */
+        window.__dialViaInterpreter = function() {
+            const input = document.getElementById('dial-phone');
+            if (!input) return;
+            const phone = input.value.trim();
+            if (!phone) return;
+
+            const user = getUser();
+            wsSend({
+                type: 'request_interpreter',
+                data: {
+                    language: 'ASL',
+                    clientName: user ? user.name : undefined,
+                    targetPhone: phone
+                }
+            });
+
+            // Optimistic waiting overlay; server corrects position/roomName on request_queued.
+            state.queueRequest = { position: 1, language: 'ASL', targetPhone: phone };
+            renderOverlays();
+        };
 
         window.__p2pDial = function() {
             const input = document.getElementById('dial-phone');
@@ -1090,15 +1195,15 @@
                             </button>
                         </div>
 
-                        <!-- Phone Dialer -->
+                        <!-- Phone Dialer — enters hearing person's number, routes through interpreter queue -->
                         <div class="card" style="margin-bottom:24px">
-                            <div class="card-title">Direct Call</div>
+                            <div class="card-title">Call via Interpreter</div>
                             <div class="dialer-row">
                                 <input type="tel" id="dial-phone" class="dialer-input" placeholder="+1-555-XXXX"
-                                    onkeydown="if(event.key==='Enter')window.__p2pDial()">
-                                <button class="dialer-btn" onclick="window.__p2pDial()">Call</button>
+                                    onkeydown="if(event.key==='Enter')window.__dialViaInterpreter()">
+                                <button class="dialer-btn" onclick="window.__dialViaInterpreter()">Call</button>
                             </div>
-                            <div style="font-size:12px;opacity:0.4">Enter another client's VRS number to call them directly</div>
+                            <div style="font-size:12px;opacity:0.4">Enter a phone number — an interpreter will connect you</div>
                         </div>
 
                         <!-- Active Rooms -->

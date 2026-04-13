@@ -34,6 +34,7 @@ services:
       - ENABLE_AUTH=0
       - ENABLE_GUESTS=1
       - ENABLE_LOBBY=0
+      - XMPP_MUC_MODULES=muc_allowners
       - PUBLIC_URL=http://localhost:8080
       - XMPP_DOMAIN=meet.jitsi
       - XMPP_AUTH_DOMAIN=auth.meet.jitsi

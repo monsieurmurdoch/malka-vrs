@@ -342,8 +342,7 @@ const Prejoin = ({
                 if (countdown <= 0) {
                     clearInterval(countdownInterval);
                     console.log(`Joining interpreter session: ${data.roomName}`);
-                    // Redirect to the meeting room
-                    window.location.href = data.joinUrl;
+                    window.location.href = `/${data.roomName}`;
                 }
             }, 1000);
         };
@@ -400,8 +399,14 @@ const Prejoin = ({
 
         const handleMeetingInitiated = (data: any) => {
             console.log('🚀 Meeting initiated:', data);
-            // Both client and interpreter should join the meeting
-            if (data.roomName) {
+            if (!data.roomName) return;
+
+            // If already on the correct Prejoin page, skip the page reload and
+            // join the conference directly so the client doesn't bounce.
+            const currentRoom = window.location.pathname.replace(/^\//, '').split('?')[0];
+            if (currentRoom === data.roomName) {
+                joinConference();
+            } else {
                 window.location.href = `/${data.roomName}`;
             }
         };
@@ -552,7 +557,8 @@ const Prejoin = ({
     // Handlers for interpreter popup actions
     const handleAcceptRequest = (requestId: string) => {
         console.log('Accepting request:', requestId);
-        const roomName = `vrs-${requestId}-${Date.now()}`;
+        // Use the room the client is already in — don't generate a new one.
+        const roomName = currentRequest?.roomName;
         queueService.acceptRequest(requestId, roomName);
         setCurrentRequest(null);
     };

@@ -54,9 +54,11 @@ async function initialize() {
     waitingRequests.forEach(request => {
         queue.set(request.id, {
             id: request.id,
+            requestId: request.id,
             clientId: request.client_id ?? null,
             clientName: request.client_name,
             language: request.language,
+            targetPhone: request.target_phone || null,
             roomName: request.room_name,
             position: request.position,
             status: request.status || 'waiting',
@@ -78,7 +80,7 @@ async function initialize() {
 // CLIENT REQUESTS
 // ============================================
 
-async function requestInterpreter({ clientId, clientName, language, roomName }) {
+async function requestInterpreter({ clientId, clientName, language, roomName, targetPhone = null }) {
     if (paused) {
         return {
             success: false,
@@ -91,14 +93,17 @@ async function requestInterpreter({ clientId, clientName, language, roomName }) 
         clientId,
         clientName,
         language,
-        roomName
+        roomName,
+        targetPhone
     }));
 
     const request = {
         id,
+        requestId: id,
         clientId: clientId || null,
         clientName,
         language,
+        targetPhone,
         roomName,
         position,
         status: 'waiting',
@@ -282,6 +287,7 @@ function findBestMatch(request, interpreters) {
 async function completeMatch(request, interpreter) {
     const clientId = request.clientId ?? request.client_id ?? null;
     const clientName = request.clientName ?? request.client_name ?? 'Guest';
+    const targetPhone = request.targetPhone ?? request.target_phone ?? null;
     const roomName = request.roomName ?? request.room_name;
 
     // Update database (with retry)
@@ -314,6 +320,7 @@ async function completeMatch(request, interpreter) {
         interpreterName: interpreter.name,
         roomName,
         language: request.language,
+        targetPhone,
         callId
     });
 
@@ -326,7 +333,8 @@ async function completeMatch(request, interpreter) {
         },
         clientId,
         clientName,
-        roomName
+        roomName,
+        targetPhone
     };
 }
 

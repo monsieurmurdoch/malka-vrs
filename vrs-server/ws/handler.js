@@ -14,6 +14,20 @@ const handoffService = require('../lib/handoff-service');
 const state = require('../lib/state');
 const { verifyJwtToken, normalizeAuthClaims, tokenMatchesRequestedRole } = require('../lib/auth');
 
+// Friendly room name adjectives/nouns used so the Jitsi header shows something
+// human-readable instead of a raw UUID (e.g. "vrs-amber-bridge-4712").
+const ROOM_ADJECTIVES = ['amber', 'azure', 'cedar', 'coral', 'delta', 'ember',
+    'fern', 'jade', 'maple', 'ocean', 'pearl', 'river', 'sage', 'slate', 'solar'];
+const ROOM_NOUNS = ['arc', 'bay', 'bridge', 'cove', 'dale', 'glen', 'grove',
+    'hill', 'isle', 'lake', 'mesa', 'path', 'peak', 'pond', 'vale'];
+
+function generateFriendlyRoomName() {
+    const adj  = ROOM_ADJECTIVES[Math.floor(Math.random() * ROOM_ADJECTIVES.length)];
+    const noun = ROOM_NOUNS[Math.floor(Math.random() * ROOM_NOUNS.length)];
+    const num  = String(Math.floor(Math.random() * 9000) + 1000); // 4-digit
+    return `vrs-${adj}-${noun}-${num}`;
+}
+
 function sanitizePhoneNumber(raw) {
     if (typeof raw !== 'string') return null;
     const cleaned = raw.replace(/[^\d+]/g, '');
@@ -250,6 +264,22 @@ function handleAuth(ws, data, clientId) {
     return clientInfo;
 }
 
+function coerceInterpreterStatus(payload = {}) {
+    if (typeof payload.status === 'string' && payload.status.trim()) {
+        return payload.status.trim().toLowerCase();
+    }
+
+    if (payload.available === true) {
+        return 'available';
+    }
+
+    if (payload.available === false) {
+        return 'offline';
+    }
+
+    return null;
+}
+
 // ============================================
 // INTERPRETER STATUS
 // ============================================
@@ -262,7 +292,16 @@ function handleInterpreterStatus(ws, data) {
     }
 
     const payload = data.data || data;
-    const { status, languages } = payload;
+    const status = coerceInterpreterStatus(payload);
+    const { languages } = payload;
+
+    if (!status) {
+        ws.send(JSON.stringify({
+            type: 'error',
+            data: { message: 'interpreter_status requires a valid status.' }
+        }));
+        return;
+    }
 
     for (const [, entry] of state.clients.interpreters) {
         if (entry.ws === ws) {
@@ -304,11 +343,21 @@ async function handleInterpreterRequest(ws, data) {
     }
 
     const payload = data.data || {};
+    const targetPhone = sanitizePhoneNumber(payload.targetPhone);
+    if (payload.targetPhone && !targetPhone) {
+        ws.send(JSON.stringify({
+            type: 'error',
+            data: { message: 'A valid hearing-party phone number is required.' }
+        }));
+        return;
+    }
+
     const result = await queueService.requestInterpreter({
         clientId: client.userId,
         clientName: payload.clientName || client.name || 'Guest',
         language: payload.language || 'ASL',
-        roomName: payload.roomName || `vrs-${client.clientId}`
+        targetPhone,
+        roomName: payload.roomName || generateFriendlyRoomName()
     });
 
     if (!result.success) {
@@ -318,7 +367,13 @@ async function handleInterpreterRequest(ws, data) {
 
     ws.send(JSON.stringify({
         type: 'request_queued',
-        data: { requestId: result.requestId, position: result.position, roomName: result.request.roomName, language: result.request.language }
+        data: {
+            requestId: result.requestId,
+            position: result.position,
+            roomName: result.request.roomName,
+            language: result.request.language,
+            targetPhone: result.request.targetPhone || null
+        }
     }));
 
     notifyAvailableInterpreters(result.request);
@@ -382,7 +437,8 @@ async function handleAcceptRequest(ws, data) {
         roomName: result.roomName,
         clientId: result.clientId, clientName: result.clientName,
         interpreterId: interpreter.userId, interpreterName: interpreter.name,
-        language: request.language
+        language: request.language,
+        targetPhone: request.targetPhone || null
     };
 
     ws.send(JSON.stringify({ type: 'request_accepted', data: meetingData }));

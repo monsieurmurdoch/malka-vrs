@@ -27,6 +27,9 @@ services:
       - ENABLE_GUESTS=1
       - ENABLE_LOBBY=0
       - PUBLIC_URL=http://${DOMAIN:-localhost}
+      # Give all room participants owner/moderator rights so either party
+      # (interpreter or Deaf client) can end the call for everyone.
+      - XMPP_MUC_MODULES=muc_allowners
       - XMPP_DOMAIN=meet.jitsi
       - XMPP_AUTH_DOMAIN=auth.meet.jitsi
       - XMPP_GUEST_DOMAIN=guest.meet.jitsi
