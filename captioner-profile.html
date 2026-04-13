@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MalkaVRS Captioner Workspace</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: linear-gradient(135deg, #2b1b0f 0%, #5a2f14 48%, #9a631c 100%);
+            --card: rgba(20, 12, 6, 0.68);
+            --border: rgba(255, 255, 255, 0.12);
+            --text: #f8f3ea;
+            --muted: rgba(248, 243, 234, 0.72);
+            --accent: #f2b94b;
+            --accent-ink: #2a1a08;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Inter", "Segoe UI", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        .page {
+            max-width: 1040px;
+            margin: 0 auto;
+            padding: 40px 20px 56px;
+        }
+
+        .shell {
+            display: grid;
+            gap: 20px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 24px;
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            box-shadow: 0 10px 35px rgba(0, 0, 0, 0.22);
+        }
+
+        .hero {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: flex-start;
+        }
+
+        .eyebrow {
+            margin: 0 0 10px;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        h1 {
+            margin: 0 0 10px;
+            font-size: clamp(32px, 6vw, 48px);
+            line-height: 1.05;
+        }
+
+        p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.55;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border-radius: 999px;
+            padding: 10px 14px;
+            background: rgba(242, 185, 75, 0.14);
+            color: var(--accent);
+            font-size: 13px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .metric {
+            padding: 18px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .metric strong,
+        .section-title {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text);
+            font-size: 15px;
+        }
+
+        .checklist {
+            margin: 0;
+            padding-left: 18px;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        button,
+        a.button {
+            appearance: none;
+            border: none;
+            border-radius: 12px;
+            padding: 12px 16px;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .primary {
+            background: var(--accent);
+            color: var(--accent-ink);
+        }
+
+        .secondary {
+            background: rgba(255, 255, 255, 0.07);
+            color: var(--text);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .identity {
+            display: grid;
+            gap: 6px;
+        }
+
+        .identity span {
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        @media (max-width: 720px) {
+            .hero {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <div class="shell">
+            <section class="card hero">
+                <div>
+                    <p class="eyebrow">Human Captioning</p>
+                    <h1 id="captioner-name">Captioner workspace</h1>
+                    <p id="captioner-summary">
+                        This stub profile is the foundation for live human captioning. It will grow into
+                        the place where captioners accept calls, monitor audio, and publish captions in any language.
+                    </p>
+                    <div class="actions">
+                        <a class="button primary" href="/" id="return-home">Return to welcome page</a>
+                        <button class="secondary" id="logout-button" type="button">Sign out</button>
+                    </div>
+                </div>
+                <div class="pill" id="captioner-status">Stub role enabled</div>
+            </section>
+
+            <section class="grid">
+                <div class="card metric">
+                    <strong>Identity</strong>
+                    <div class="identity">
+                        <span id="captioner-email">Email: not available</span>
+                        <span id="captioner-role">Role: captioner</span>
+                        <span id="captioner-languages">Languages: not set yet</span>
+                    </div>
+                </div>
+                <div class="card metric">
+                    <strong>Next capabilities</strong>
+                    <ul class="checklist">
+                        <li>Availability toggle for captioning shifts</li>
+                        <li>Call queue for requested caption sessions</li>
+                        <li>Live caption editor and publish controls</li>
+                    </ul>
+                </div>
+                <div class="card metric">
+                    <strong>AI-ready foundation</strong>
+                    <ul class="checklist">
+                        <li>Human and AI captions can share the same room overlay</li>
+                        <li>Deepgram or another STT provider can feed the same caption surface</li>
+                        <li>U.S. VRS transcript retention can stay disabled by default</li>
+                    </ul>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script>
+        const STORAGE_KEYS = [
+            'vrs_auth_token',
+            'vrs_user_info',
+            'vrs_user_role',
+            'vrs_client_auth',
+            'vrs_pending_room_redirect'
+        ];
+
+        function readStorage(key) {
+            try {
+                return localStorage.getItem(key) || sessionStorage.getItem(key);
+            } catch (error) {
+                return null;
+            }
+        }
+
+        function clearStorage() {
+            STORAGE_KEYS.forEach((key) => {
+                try {
+                    localStorage.removeItem(key);
+                    sessionStorage.removeItem(key);
+                } catch (error) {
+                    // ignore
+                }
+            });
+        }
+
+        function redirectHome() {
+            window.location.href = '/';
+        }
+
+        const role = readStorage('vrs_user_role');
+        const rawUser = readStorage('vrs_user_info');
+
+        if (role !== 'captioner' || !rawUser) {
+            redirectHome();
+        } else {
+            try {
+                const user = JSON.parse(rawUser);
+                document.getElementById('captioner-name').textContent = user.name || 'Captioner workspace';
+                document.getElementById('captioner-email').textContent = `Email: ${user.email || 'not available'}`;
+                document.getElementById('captioner-role').textContent = `Role: ${user.role || 'captioner'}`;
+                document.getElementById('captioner-languages').textContent =
+                    `Languages: ${Array.isArray(user.languages) && user.languages.length ? user.languages.join(', ') : 'not set yet'}`;
+            } catch (error) {
+                redirectHome();
+            }
+        }
+
+        document.getElementById('logout-button').addEventListener('click', () => {
+            clearStorage();
+            redirectHome();
+        });
+    </script>
+</body>
+</html>

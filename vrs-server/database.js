@@ -78,6 +78,19 @@ function createTables() {
                 last_active DATETIME
             )`,
 
+            // Captioners table
+            `CREATE TABLE IF NOT EXISTS captioners (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                password_hash TEXT,
+                languages TEXT DEFAULT '["en"]',
+                status TEXT DEFAULT 'offline',
+                active INTEGER DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_active DATETIME
+            )`,
+
             // Clients table
             `CREATE TABLE IF NOT EXISTS clients (
                 id TEXT PRIMARY KEY,
@@ -158,6 +171,7 @@ function createTables() {
             `CREATE INDEX IF NOT EXISTS idx_queue_created ON queue_requests(created_at)`,
             `CREATE INDEX IF NOT EXISTS idx_activity_type ON activity_log(type)`,
             `CREATE INDEX IF NOT EXISTS idx_activity_date ON activity_log(created_at)`,
+            `CREATE INDEX IF NOT EXISTS idx_captioners_email ON captioners(email)`,
 
             // Speed dial (client favorites)
             `CREATE TABLE IF NOT EXISTS speed_dial (
@@ -424,6 +438,60 @@ async function getInterpreterStats() {
         GROUP BY i.id
         ORDER BY total_calls DESC
     `);
+}
+
+// ============================================
+// CAPTIONER OPERATIONS
+// ============================================
+
+async function getAllCaptioners() {
+    const captioners = await runQuery(`
+        SELECT *
+        FROM captioners
+        WHERE active = 1
+        ORDER BY name
+    `);
+
+    return captioners.map(captioner => ({
+        ...captioner,
+        languages: JSON.parse(captioner.languages || '[]')
+    }));
+}
+
+async function getCaptioner(id) {
+    const rows = await runQuery('SELECT * FROM captioners WHERE id = ?', [id]);
+    if (rows.length === 0) return null;
+
+    const captioner = rows[0];
+
+    return {
+        ...captioner,
+        languages: JSON.parse(captioner.languages || '[]')
+    };
+}
+
+async function getCaptionerByEmail(email) {
+    const rows = await runQuery('SELECT * FROM captioners WHERE email = ?', [email]);
+    if (rows.length === 0) return null;
+
+    const captioner = rows[0];
+
+    return {
+        ...captioner,
+        languages: JSON.parse(captioner.languages || '[]')
+    };
+}
+
+async function createCaptioner({ name, email, languages, password }) {
+    const id = uuidv4();
+    const passwordHash = await bcrypt.hash(password || 'changeme', 10);
+
+    await runInsert(
+        'INSERT INTO captioners (id, name, email, password_hash, languages) VALUES (?, ?, ?, ?, ?)',
+        [id, name, email, passwordHash, JSON.stringify(languages || ['en'])]
+    );
+
+    return { id, name, email };
 }
 
 // ============================================
@@ -914,7 +982,31 @@ async function getInterpreterStats(interpreterId) {
 function runMigrations() {
     return new Promise((resolve, reject) => {
         db.serialize(() => {
-            db.all('PRAGMA table_info(calls)', (callsErr, callColumns) => {
+            db.run(
+                `CREATE TABLE IF NOT EXISTS captioners (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    email TEXT UNIQUE NOT NULL,
+                    password_hash TEXT,
+                    languages TEXT DEFAULT '["en"]',
+                    status TEXT DEFAULT 'offline',
+                    active INTEGER DEFAULT 1,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    last_active DATETIME
+                )`,
+                (captionersErr) => {
+                    if (captionersErr) {
+                        return reject(captionersErr);
+                    }
+
+                    db.run(
+                        'CREATE INDEX IF NOT EXISTS idx_captioners_email ON captioners(email)',
+                        (captionersIndexErr) => {
+                            if (captionersIndexErr) {
+                                return reject(captionersIndexErr);
+                            }
+
+                            db.all('PRAGMA table_info(calls)', (callsErr, callColumns) => {
                 if (callsErr) {
                     return reject(callsErr);
                 }
@@ -990,7 +1082,11 @@ function runMigrations() {
                 } else {
                     migrateMissedCalls();
                 }
-            });
+                            });
+                        }
+                    );
+                }
+            );
         });
     });
 }
@@ -1081,6 +1177,10 @@ module.exports = {
     updateInterpreter,
     deleteInterpreter,
     getInterpreterStats,
+    getAllCaptioners,
+    getCaptioner,
+    getCaptionerByEmail,
+    createCaptioner,
     getAllClients,
     getClient,
     getClientByEmail,

@@ -92,14 +92,17 @@
 ### 1F — Auto-Captioning (Speech-to-Text)
 > Live captions alongside the interpreter — for transparency, accessibility, and call documentation
 
-- [ ] **Real-time STT stream** — integrate Whisper API (OpenAI), Google Speech-to-Text, or AWS Transcribe
+- [x] **Captioner role foundation** — captioner auth path + stub profile so human live captioning has a first-class home
+- [ ] **Human captioner workflow** — let captioners join calls as hidden transcribers and publish live captions manually
+- [ ] **Real-time STT stream** — integrate Deepgram first (preferred), with Whisper API (OpenAI), Google Speech-to-Text, or AWS Transcribe as alternatives
 - [ ] **Caption overlay in call** — live text feed overlaid on the video call (toggle on/off)
 - [ ] **Dual-stream captions** — separate caption tracks for hearing party (audio → text) and deaf party (interpreter signs → optional text summary)
 - [ ] **Caption language detection** — auto-detect spoken language and transcribe accordingly
-- [ ] **Post-call transcript** — save full transcript alongside CDR for call history
-- [ ] **Transcript search** — search across past call transcripts (useful for business/legal calls)
+- [ ] **Post-call transcript** — save full transcript alongside CDR for call history where product/compliance allows it
+- [ ] **Transcript search** — search across past call transcripts for non-U.S. / enterprise products that permit retention
 - [ ] **Opt-in consent management** — all parties must consent to captioning/recording per FCC rules
 - [ ] Fallback for poor audio: indicate "audio unclear" rather than garbled text
+- [ ] **U.S. VRS retention guardrails** — default to ephemeral live captions only, with no transcript retention unless compliance review approves a narrow exception
 
 ### 1G — Contacts & Address Book
 > Users need a real address book, not just speed dial
