@@ -494,6 +494,40 @@ async function createCaptioner({ name, email, languages, password }) {
     return { id, name, email };
 }
 
+async function updateCaptioner(id, { name, email, languages, active }) {
+    const updates = [];
+    const params = [];
+
+    if (name !== undefined) {
+        updates.push('name = ?');
+        params.push(name);
+    }
+    if (email !== undefined) {
+        updates.push('email = ?');
+        params.push(email);
+    }
+    if (languages !== undefined) {
+        updates.push('languages = ?');
+        params.push(JSON.stringify(languages));
+    }
+    if (active !== undefined) {
+        updates.push('active = ?');
+        params.push(active ? 1 : 0);
+    }
+
+    if (updates.length > 0) {
+        params.push(id);
+        await runUpdate(
+            `UPDATE captioners SET ${updates.join(', ')} WHERE id = ?`,
+            params
+        );
+    }
+}
+
+async function deleteCaptioner(id) {
+    await runUpdate('UPDATE captioners SET active = 0 WHERE id = ?', [id]);
+}
+
 // ============================================
 // CLIENT OPERATIONS
 // ============================================
@@ -1181,6 +1215,8 @@ module.exports = {
     getCaptioner,
     getCaptionerByEmail,
     createCaptioner,
+    updateCaptioner,
+    deleteCaptioner,
     getAllClients,
     getClient,
     getClientByEmail,

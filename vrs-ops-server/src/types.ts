@@ -2,7 +2,7 @@
  * VRS Ops Server Types
  */
 
-export type VRSRole = 'client' | 'interpreter' | 'admin' | 'superadmin';
+export type VRSRole = 'client' | 'interpreter' | 'captioner' | 'admin' | 'superadmin';
 
 export type CallStatus =
     | 'waiting'      // Client waiting for interpreter

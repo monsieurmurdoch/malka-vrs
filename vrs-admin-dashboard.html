@@ -625,6 +625,7 @@
             <nav class="nav-tabs">
                 <button class="nav-tab active" data-tab="dashboard">Dashboard</button>
                 <button class="nav-tab" data-tab="interpreters">Interpreters</button>
+                <button class="nav-tab" data-tab="captioners">Captioners</button>
                 <button class="nav-tab" data-tab="accounts">Accounts</button>
                 <button class="nav-tab" data-tab="clients">Clients</button>
                 <button class="nav-tab" data-tab="queue">Live Queue</button>
@@ -876,11 +877,44 @@
             </div>
         </div>
 
+        <!-- Captioners Tab -->
+        <div class="tab-content" id="captioners-tab">
+            <div class="section">
+                <div class="section-header">
+                    <h2 class="section-title">📝 Captioners Management</h2>
+                    <div class="section-actions">
+                        <button class="btn btn-primary" id="addCaptionerBtn">+ Add Captioner</button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Languages</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="captionersTableBody">
+                            <tr>
+                                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                                    Captioners will appear here.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <!-- Accounts Tab -->
         <div class="tab-content" id="accounts-tab">
             <div class="section">
                 <div class="section-header">
-                    <h2 class="section-title">🛡️ Admin & Interpreter Accounts</h2>
+                    <h2 class="section-title">🛡️ Admin, Interpreter & Captioner Accounts</h2>
                     <div class="section-actions">
                         <button class="btn btn-primary" id="addAccountBtn">+ Add Account</button>
                     </div>
