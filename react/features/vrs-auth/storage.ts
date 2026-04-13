@@ -87,3 +87,42 @@ export function clearPersistentItems(keys: string[]): void {
     keys.forEach(removePersistentItem);
 }
 
+export function getPersistentJson<T>(key: string): T | null {
+    const value = getPersistentItem(key);
+
+    if (!value) {
+        return null;
+    }
+
+    try {
+        return JSON.parse(value) as T;
+    } catch {
+        return null;
+    }
+}
+
+export function hasPersistentAuthToken(): boolean {
+    const auth = getPersistentJson<{ token?: string }>('vrs_auth_token');
+
+    return Boolean(auth?.token);
+}
+
+const PENDING_ROOM_REDIRECT_KEY = 'vrs_pending_room_redirect';
+
+export function setPendingRoomRedirect(url: string): void {
+    setPersistentItem(PENDING_ROOM_REDIRECT_KEY, url);
+}
+
+export function getPendingRoomRedirect(): string | null {
+    return getPersistentItem(PENDING_ROOM_REDIRECT_KEY);
+}
+
+export function consumePendingRoomRedirect(): string | null {
+    const url = getPendingRoomRedirect();
+
+    if (url) {
+        removePersistentItem(PENDING_ROOM_REDIRECT_KEY);
+    }
+
+    return url;
+}

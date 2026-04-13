@@ -10,6 +10,7 @@ import Switch from '../../../base/ui/components/web/Switch';
 import { queueService, QueueStatus } from '../../../interpreter-queue/InterpreterQueueService';
 import InterpreterRequestPopup, { InterpreterRequest } from '../../../interpreter-queue/components/web/InterpreterRequestPopup';
 import MinimizedRequestList from '../../../interpreter-queue/components/web/MinimizedRequestList';
+import { getPersistentJson } from '../../../vrs-auth/storage';
 
 import { IReduxState } from '../../../app/types';
 import Avatar from '../../../base/avatar/components/Avatar';
@@ -43,6 +44,8 @@ import {
 import { hasDisplayName } from '../../utils';
 
 import JoinByPhoneDialog from './dialogs/JoinByPhoneDialog';
+
+declare var config: any;
 
 interface IProps {
 
@@ -140,6 +143,47 @@ interface IProps {
      * The JitsiLocalTrack to display.
      */
     videoTrack?: Object;
+}
+
+interface SpeedDialEntry {
+    id: string | number;
+    name: string;
+    phone_number: string;
+}
+
+function getApiBase() {
+    if (typeof config !== 'undefined' && config.vrs?.queueServiceUrl) {
+        const wsUrl = config.vrs.queueServiceUrl as string;
+
+        return wsUrl.replace(/^ws/, 'http').replace(/\/ws$/, '');
+    }
+
+    return typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001';
+}
+
+function getCurrentRoomName() {
+    if (typeof window === 'undefined') {
+        return '';
+    }
+
+    const path = window.location.pathname.split('/').filter(Boolean);
+    const roomName = path[path.length - 1];
+
+    if (!roomName || roomName.endsWith('.html')) {
+        return '';
+    }
+
+    return roomName;
+}
+
+function getPreferredClientName() {
+    const storedUser = getPersistentJson<{ name?: string }>('vrs_user_info');
+
+    return storedUser?.name?.trim() || '';
+}
+
+function getFirstName(name?: string) {
+    return (name || '').trim().split(/\s+/)[0] || '';
 }
 
 const useStyles = makeStyles()(theme => {
@@ -274,6 +318,80 @@ const useStyles = makeStyles()(theme => {
                 top: 0,
                 width: 'calc(100% - 32px)'
             }
+        },
+
+        contactsPanel: {
+            marginTop: theme.spacing(2),
+            padding: theme.spacing(2),
+            borderRadius: theme.shape.borderRadius,
+            backgroundColor: theme.palette.ui02,
+            border: `1px solid ${theme.palette.ui03}`,
+            textAlign: 'left'
+        },
+
+        contactsPanelHeader: {
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: theme.spacing(2),
+            marginBottom: theme.spacing(1)
+        },
+
+        contactsPanelTitle: {
+            ...withPixelLineHeight(theme.typography.bodyShortBold),
+            color: theme.palette.text01
+        },
+
+        contactsPanelBody: {
+            display: 'flex',
+            flexDirection: 'column',
+            gap: theme.spacing(1)
+        },
+
+        contactsPanelHint: {
+            ...withPixelLineHeight(theme.typography.labelRegular),
+            color: theme.palette.text03
+        },
+
+        contactsList: {
+            display: 'flex',
+            flexDirection: 'column',
+            gap: theme.spacing(1)
+        },
+
+        contactRow: {
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: theme.spacing(1),
+            padding: `${theme.spacing(1)} ${theme.spacing(1.5)}`,
+            borderRadius: theme.shape.borderRadius,
+            backgroundColor: theme.palette.action02
+        },
+
+        contactMeta: {
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column'
+        },
+
+        contactName: {
+            ...withPixelLineHeight(theme.typography.bodyShortBold),
+            color: theme.palette.text01
+        },
+
+        contactPhone: {
+            ...withPixelLineHeight(theme.typography.labelRegular),
+            color: theme.palette.text03
+        },
+
+        contactAction: {
+            flexShrink: 0
+        },
+
+        inviteButtonRow: {
+            display: 'flex',
+            gap: theme.spacing(1)
         }
     };
 });
@@ -316,9 +434,64 @@ const Prejoin = ({
     const [ currentRequest, setCurrentRequest ] = useState<InterpreterRequest | null>(null);
     const [ minimizedRequests, setMinimizedRequests ] = useState<InterpreterRequest[]>([]);
     const [ currentRequestId, setCurrentRequestId ] = useState<string | null>(null);
+    const [ speedDialEntries, setSpeedDialEntries ] = useState<SpeedDialEntry[]>([]);
+    const [ contactsOpen, setContactsOpen ] = useState(true);
+    const [ contactsLoading, setContactsLoading ] = useState(false);
+    const [ contactsError, setContactsError ] = useState('');
+    const [ copiedInviteLabel, setCopiedInviteLabel ] = useState<string | null>(null);
     const { classes } = useStyles();
     const { t } = useTranslation();
     const dispatch = useDispatch();
+    const currentRoomName = getCurrentRoomName();
+    const inviteLink = currentRoomName
+        ? `${window.location.origin}/${currentRoomName}?role=client`
+        : '';
+
+    useEffect(() => {
+        if (!isClient() || readOnlyName || name) {
+            return;
+        }
+
+        const preferredName = getFirstName(getPreferredClientName());
+
+        if (preferredName) {
+            dispatchUpdateSettings({
+                displayName: preferredName
+            });
+        }
+    }, [ dispatchUpdateSettings, name, readOnlyName ]);
+
+    useEffect(() => {
+        const auth = getPersistentJson<{ token?: string }>('vrs_auth_token');
+
+        if (!isClient() || !auth?.token || !currentRoomName) {
+            return;
+        }
+
+        setContactsLoading(true);
+        setContactsError('');
+
+        fetch(`${getApiBase()}/api/client/speed-dial`, {
+            headers: {
+                Authorization: `Bearer ${auth.token}`
+            }
+        })
+            .then(async response => {
+                const payload = await response.json().catch(() => ({}));
+
+                if (!response.ok) {
+                    throw new Error(payload.error || 'Unable to load contacts.');
+                }
+
+                setSpeedDialEntries(Array.isArray(payload.entries) ? payload.entries.slice(0, 5) : []);
+            })
+            .catch(error => {
+                setContactsError(error instanceof Error ? error.message : 'Unable to load contacts.');
+            })
+            .finally(() => {
+                setContactsLoading(false);
+            });
+    }, [ currentRoomName ]);
 
     // Set up queue service event listeners
     useEffect(() => {
@@ -588,6 +761,27 @@ const Prejoin = ({
         setMinimizedRequests(prev => prev.filter(req => req.id !== requestId));
     };
 
+    const copyInviteLink = async (label: string) => {
+        if (!inviteLink) {
+            return;
+        }
+
+        const inviteText = `Join me on Malka VRS: ${inviteLink}`;
+
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(inviteText);
+            } else {
+                throw new Error('Clipboard unavailable');
+            }
+
+            setCopiedInviteLabel(label);
+            window.setTimeout(() => setCopiedInviteLabel(current => current === label ? null : current), 2000);
+        } catch {
+            window.prompt('Copy this secure invite link:', inviteLink);
+        }
+    };
+
     /**
      * KeyPress handler for accessibility.
      *
@@ -746,6 +940,66 @@ const Prejoin = ({
                             type = { requestStatus === 'idle' ? BUTTON_TYPES.SECONDARY : BUTTON_TYPES.DESTRUCTIVE }
                             disabled = { requestStatus === 'matched' }
                         />
+                    </div>
+                )}
+                {isClient() && currentRoomName && (
+                    <div
+                        aria-label = 'Invite friends'
+                        className = { classes.contactsPanel }>
+                        <div className = { classes.contactsPanelHeader }>
+                            <div>
+                                <div className = { classes.contactsPanelTitle }>Invite friends</div>
+                                <div className = { classes.contactsPanelHint }>
+                                    Secure room links now require a Malka login before joining.
+                                </div>
+                            </div>
+                            <Button
+                                label = { contactsOpen ? 'Hide' : 'Show' }
+                                onClick = { () => setContactsOpen(open => !open) }
+                                type = { BUTTON_TYPES.SECONDARY } />
+                        </div>
+                        {contactsOpen && (
+                            <div className = { classes.contactsPanelBody }>
+                                <div className = { classes.inviteButtonRow }>
+                                    <Button
+                                        fullWidth = { true }
+                                        label = { copiedInviteLabel === 'general' ? 'Copied invite link' : 'Copy secure invite link' }
+                                        onClick = { () => copyInviteLink('general') }
+                                        type = { BUTTON_TYPES.SECONDARY } />
+                                </div>
+                                {contactsLoading && (
+                                    <div className = { classes.contactsPanelHint }>Loading favorite contacts...</div>
+                                )}
+                                {!contactsLoading && contactsError && (
+                                    <div className = { classes.contactsPanelHint }>{contactsError}</div>
+                                )}
+                                {!contactsLoading && !contactsError && speedDialEntries.length > 0 && (
+                                    <div className = { classes.contactsList }>
+                                        {speedDialEntries.map(entry => (
+                                            <div
+                                                className = { classes.contactRow }
+                                                key = { String(entry.id) }>
+                                                <div className = { classes.contactMeta }>
+                                                    <span className = { classes.contactName }>{entry.name}</span>
+                                                    <span className = { classes.contactPhone }>{entry.phone_number}</span>
+                                                </div>
+                                                <div className = { classes.contactAction }>
+                                                    <Button
+                                                        label = { copiedInviteLabel === String(entry.id) ? 'Copied' : 'Copy invite' }
+                                                        onClick = { () => copyInviteLink(String(entry.id)) }
+                                                        type = { BUTTON_TYPES.SECONDARY } />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                {!contactsLoading && !contactsError && !speedDialEntries.length && (
+                                    <div className = { classes.contactsPanelHint }>
+                                        Add speed-dial contacts in your profile and they’ll appear here as quick invite suggestions.
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
                 {isInterpreter() && (

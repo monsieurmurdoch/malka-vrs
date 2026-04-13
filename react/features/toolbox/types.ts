@@ -32,6 +32,7 @@ export type ToolbarButton = 'camera' |
     'raisehand' |
     'reactions' |
     'recording' |
+    'requestInterpreter' |
     'security' |
     'select-background' |
     'settings' |

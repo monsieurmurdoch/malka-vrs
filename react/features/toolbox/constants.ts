@@ -84,6 +84,7 @@ export const TOOLBAR_BUTTONS: ToolbarButton[] = [
     'profile',
     'raisehand',
     'recording',
+    'requestInterpreter',
     'security',
     'select-background',
     'settings',
