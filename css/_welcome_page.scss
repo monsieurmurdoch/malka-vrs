@@ -66,6 +66,11 @@ body.welcome-page {
         color: #c9d6df;
         text-shadow: 0 2px 8px rgba(126, 184, 218, 0.5);
     }
+
+    &.sun {
+        color: #f2b94b;
+        text-shadow: 0 2px 8px rgba(242, 185, 75, 0.45);
+    }
 }
 
 /* Tab toggle */
@@ -82,7 +87,7 @@ body.welcome-page {
     position: absolute;
     top: 0;
     left: 0;
-    width: 50%;
+    width: 33.3334%;
     height: 100%;
     background: rgba(255, 255, 255, 0.12);
     border-radius: 10px;
@@ -91,6 +96,18 @@ body.welcome-page {
     &.left {
         transform: translateX(0);
     }
+
+    &.center {
+        transform: translateX(100%);
+    }
+
+    &.right {
+        transform: translateX(200%);
+    }
+}
+
+.vrs-auth-tabs--two-up .vrs-auth-tab-indicator {
+    width: 50%;
 
     &.right {
         transform: translateX(100%);
@@ -212,6 +229,17 @@ body.welcome-page {
             background: #6aabc9;
             transform: translateY(-1px);
             box-shadow: 0 4px 16px rgba(126, 184, 218, 0.35);
+        }
+    }
+
+    &.sun {
+        background: #f2b94b;
+        color: #2a1a08;
+
+        &:hover:not(:disabled) {
+            background: #e4aa39;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(242, 185, 75, 0.35);
         }
     }
 

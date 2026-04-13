@@ -13,7 +13,7 @@ declare var config: any;
 
 /**
  * The Web container rendering the welcome page — a single centered auth box
- * with Client (earth) / Interpreter (moon) tabs that shift the entire
+ * with Client / Interpreter / Captioner tabs that shift the entire
  * background.
  */
 class WelcomePage extends AbstractWelcomePage<IProps> {
@@ -40,7 +40,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
             generateRoomNames:
                 interfaceConfig.GENERATE_ROOMNAMES_ON_WELCOME_PAGE,
             recentMeetingsCollapsed: true,
-            selectedTab: 'client' as 'client' | 'interpreter',
+            selectedTab: 'client' as 'client' | 'interpreter' | 'captioner',
             email: '',
             password: '',
             name: '',
@@ -125,7 +125,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
     }
 
     /**
-     * Apply earth or moon background based on selected tab.
+     * Apply background and accent theme based on selected tab.
      */
     _applyTheme() {
         const tab = (this.state as any).selectedTab;
@@ -133,17 +133,21 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
             document.body.style.setProperty('--vrs-bg',
                 'linear-gradient(135deg, #1a4d6e 0%, #2d5a3d 50%, #4a3b2a 100%)');
             document.body.style.setProperty('--vrs-accent', '#4caf50');
-        } else {
+        } else if (tab === 'interpreter') {
             document.body.style.setProperty('--vrs-bg',
                 'linear-gradient(135deg, #0f1724 0%, #1a2332 50%, #252f3f 100%)');
             document.body.style.setProperty('--vrs-accent', '#7eb8da');
+        } else {
+            document.body.style.setProperty('--vrs-bg',
+                'linear-gradient(135deg, #2b1b0f 0%, #5a2f14 48%, #9a631c 100%)');
+            document.body.style.setProperty('--vrs-accent', '#f2b94b');
         }
     }
 
     /**
-     * Switch between Client and Interpreter tabs.
+     * Switch between role tabs.
      */
-    _handleTabSwitch(tab: 'client' | 'interpreter') {
+    _handleTabSwitch(tab: 'client' | 'interpreter' | 'captioner') {
         this.setState({
             selectedTab: tab,
             error: '',
@@ -246,6 +250,8 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                 window.location.href = pendingRoomRedirect;
             } else if (role === 'client') {
                 window.location.href = '/client-profile.html';
+            } else if (role === 'captioner') {
+                window.location.href = '/captioner-profile.html';
             } else {
                 window.location.href = '/interpreter-profile.html';
             }
@@ -290,6 +296,20 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
         } = this.state as any;
 
         const isClient = selectedTab === 'client';
+        const isInterpreter = selectedTab === 'interpreter';
+        const isCaptioner = selectedTab === 'captioner';
+        const canSelfRegister = isClient;
+        const themeClass = isClient ? 'earth' : isInterpreter ? 'moon' : 'sun';
+        const tabIndicatorClass = isClient ? 'left' : isInterpreter ? 'center' : 'right';
+        const subtitle = isLogin
+            ? (isClient
+                ? 'Sign in to make video relay calls'
+                : isInterpreter
+                    ? 'Sign in to join the interpreter queue'
+                    : 'Sign in to join live calls as a captioner')
+            : (isClient
+                ? 'Create your account to get started'
+                : 'Captioner and interpreter accounts are created by administrators');
 
         return (
             <div
@@ -318,14 +338,14 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                                 alt = 'MalkaVRI'
                                 className = 'vrs-auth-logo-img'
                                 src = 'images/malka-logo-white.png' />
-                            <span className = { `vrs-auth-logo-text ${isClient ? 'earth' : 'moon'}` }>
+                            <span className = { `vrs-auth-logo-text ${themeClass}` }>
                                 VRS
                             </span>
                         </div>
 
                         {/* Tab toggle */}
                         <div className = 'vrs-auth-tabs'>
-                            <div className = { `vrs-auth-tab-indicator ${isClient ? 'left' : 'right'}` } />
+                            <div className = { `vrs-auth-tab-indicator ${tabIndicatorClass}` } />
                             <button
                                 className = { `vrs-auth-tab ${isClient ? 'active' : ''}` }
                                 onClick = { () => this._handleTabSwitch('client') }
@@ -333,22 +353,22 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                                 Client
                             </button>
                             <button
-                                className = { `vrs-auth-tab ${!isClient ? 'active' : ''}` }
+                                className = { `vrs-auth-tab ${isInterpreter ? 'active' : ''}` }
                                 onClick = { () => this._handleTabSwitch('interpreter') }
                                 type = 'button'>
                                 Interpreter
+                            </button>
+                            <button
+                                className = { `vrs-auth-tab ${isCaptioner ? 'active' : ''}` }
+                                onClick = { () => this._handleTabSwitch('captioner') }
+                                type = 'button'>
+                                Captioner
                             </button>
                         </div>
 
                         {/* Subtitle */}
                         <p className = 'vrs-auth-subtitle'>
-                            {isLogin
-                                ? (isClient
-                                    ? 'Sign in to make video relay calls'
-                                    : 'Sign in to join the interpreter queue')
-                                : (isClient
-                                    ? 'Create your account to get started'
-                                    : 'Interpreter accounts require admin approval')}
+                            {subtitle}
                         </p>
 
                         {/* Error */}
@@ -402,7 +422,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                             </div>
 
                             <button
-                                className = { `vrs-auth-submit ${isClient ? 'earth' : 'moon'}` }
+                                className = { `vrs-auth-submit ${themeClass}` }
                                 disabled = { isSubmitting }
                                 type = 'submit'>
                                 {isSubmitting
@@ -413,7 +433,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
 
                         {/* Toggle login/register */}
                         <div className = 'vrs-auth-switch'>
-                            {isLogin ? (
+                            {canSelfRegister && isLogin ? (
                                 <>
                                     <span>Don't have an account?</span>
                                     <button
@@ -422,7 +442,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                                         Create one
                                     </button>
                                 </>
-                            ) : (
+                            ) : canSelfRegister ? (
                                 <>
                                     <span>Already have an account?</span>
                                     <button
@@ -431,6 +451,8 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                                         Sign in
                                     </button>
                                 </>
+                            ) : (
+                                <span>Need access? Ask an administrator to create your account.</span>
                             )}
                         </div>
                     </div>

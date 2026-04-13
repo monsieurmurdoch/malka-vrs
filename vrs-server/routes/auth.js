@@ -175,6 +175,54 @@ router.post('/interpreter/login', authLimiter, async (req, res) => {
     }
 });
 
+// --- Captioner login ---
+router.post('/captioner/login', authLimiter, async (req, res) => {
+    const validationError = validateRequired(req.body, ['email', 'password']);
+    if (validationError) {
+        return res.status(400).json({ error: validationError });
+    }
+
+    const { email, password } = req.body;
+
+    try {
+        const captioner = await db.getCaptionerByEmail(email);
+
+        if (!captioner || !captioner.password_hash) {
+            return res.status(401).json({ error: 'Invalid email or password' });
+        }
+
+        const isMatch = await bcrypt.compare(password, captioner.password_hash);
+        if (!isMatch) {
+            return res.status(401).json({ error: 'Invalid email or password' });
+        }
+
+        if (!captioner.active) {
+            return res.status(403).json({ error: 'Account is inactive' });
+        }
+
+        const token = signToken({
+            id: captioner.id, email: captioner.email, name: captioner.name, role: 'captioner'
+        });
+
+        activityLogger.log('captioner_login', { captionerId: captioner.id });
+
+        res.json({
+            success: true,
+            token,
+            user: {
+                id: captioner.id,
+                name: captioner.name,
+                email: captioner.email,
+                role: 'captioner',
+                languages: captioner.languages
+            }
+        });
+    } catch (error) {
+        console.error('[Captioner Login] Error:', error);
+        res.status(500).json({ error: 'Login failed' });
+    }
+});
+
 // --- Legacy admin login ---
 router.post('/admin/login', authLimiter, async (req, res) => {
     if (!LEGACY_ADMIN_LOGIN_ENABLED) {

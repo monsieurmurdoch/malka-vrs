@@ -72,6 +72,19 @@ async function createTables() {
             last_active TIMESTAMPTZ
         );
 
+        -- Captioners table
+        CREATE TABLE IF NOT EXISTS captioners (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT,
+            languages JSONB DEFAULT '["en"]',
+            status TEXT DEFAULT 'offline',
+            active BOOLEAN DEFAULT true,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            last_active TIMESTAMPTZ
+        );
+
         -- Clients table
         CREATE TABLE IF NOT EXISTS clients (
             id TEXT PRIMARY KEY,
@@ -221,6 +234,7 @@ async function createTables() {
         CREATE INDEX IF NOT EXISTS idx_earnings_interpreter ON interpreter_earnings(interpreter_id);
         CREATE INDEX IF NOT EXISTS idx_missed_calls_callee ON missed_calls(callee_client_id, seen);
         CREATE INDEX IF NOT EXISTS idx_missed_calls_caller ON missed_calls(caller_id);
+        CREATE INDEX IF NOT EXISTS idx_captioners_email ON captioners(email);
 
         -- Contacts & Address Book
         CREATE TABLE IF NOT EXISTS contacts (
@@ -478,6 +492,52 @@ async function getInterpreterStats(interpreterId) {
         GROUP BY i.id
         ORDER BY total_calls DESC
     `);
+}
+
+// ============================================
+// CAPTIONER OPERATIONS
+// ============================================
+
+async function getAllCaptioners() {
+    const captioners = await runQuery(
+        `SELECT * FROM captioners WHERE active = true ORDER BY name`
+    );
+    return captioners.map(c => ({
+        ...c,
+        languages: typeof c.languages === 'string' ? JSON.parse(c.languages) : (c.languages || [])
+    }));
+}
+
+async function getCaptioner(id) {
+    const rows = await runQuery('SELECT * FROM captioners WHERE id = $1', [id]);
+    if (rows.length === 0) return null;
+    const c = rows[0];
+    return {
+        ...c,
+        languages: typeof c.languages === 'string' ? JSON.parse(c.languages) : (c.languages || [])
+    };
+}
+
+async function getCaptionerByEmail(email) {
+    const rows = await runQuery('SELECT * FROM captioners WHERE email = $1', [email]);
+    if (rows.length === 0) return null;
+    const c = rows[0];
+    return {
+        ...c,
+        languages: typeof c.languages === 'string' ? JSON.parse(c.languages) : (c.languages || [])
+    };
+}
+
+async function createCaptioner({ name, email, languages, password }) {
+    const id = uuidv4();
+    const passwordHash = await bcrypt.hash(password || 'changeme', 10);
+
+    await runInsert(
+        'INSERT INTO captioners (id, name, email, password_hash, languages) VALUES ($1, $2, $3, $4, $5)',
+        [id, name, email, passwordHash, JSON.stringify(languages || ['en'])]
+    );
+
+    return { id, name, email };
 }
 
 // ============================================
@@ -1401,6 +1461,10 @@ module.exports = {
     updateInterpreter,
     deleteInterpreter,
     getInterpreterStats,
+    getAllCaptioners,
+    getCaptioner,
+    getCaptionerByEmail,
+    createCaptioner,
     getAllClients,
     getClient,
     getClientByEmail,
