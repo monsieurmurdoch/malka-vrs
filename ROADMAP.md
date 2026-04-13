@@ -44,7 +44,7 @@
 > Goal: Two deaf users can call each other through an interpreter
 
 ### 1A — Authentication & Phone Number Sign-In
-- [ ] Email + password login (already wired)
+- [x] Email + password login (already wired)
 - [ ] Phone number as alternate login identifier
 - [ ] SMS/OTP verification via Twilio (or similar)
 - [ ] JWT-based session management across all three servers
@@ -53,8 +53,8 @@
 ### 1B — Interpreter Queue System
 - [ ] WebSocket-based queue with real-time state (available / on-break / in-call / teamed)
 - [ ] Admin controls: force-break, force-available, team interpreters
-- [ ] Queue priority logic (longest-waiting caller first)
-- [ ] Interpreter skills-based routing (language pairs)
+- [x] Queue priority logic (longest-waiting caller first)
+- [x] Interpreter skills-based routing (language pairs)
 - [ ] Queue dashboard for ops team
 
 ### 1C — VRS Call Lifecycle
@@ -132,10 +132,10 @@
 - [ ] **Call transfer** — deaf user asks interpreter to transfer to another number mid-call
 - [ ] **3-way calling** — add a third party to an existing call (conference bridge)
 - [ ] **Do Not Disturb mode** — suppress incoming calls; callers go straight to voicemail
-- [ ] **Recent calls** — full call history with filters (missed, outgoing, incoming, duration)
-- [ ] **Call back** — one-tap redial from call history or missed calls
+- [x] **Recent calls** — full call history with filters (missed, outgoing, incoming, duration)
+- [x] **Call back** — one-tap redial from call history or missed calls
 - [ ] **In-call text chat** — side panel for text communication during video call (supplement to signing)
-- [ ] **Wait screen** — show position in queue + estimated wait time while waiting for interpreter
+- [x] **Wait screen** — show position in queue + estimated wait time while waiting for interpreter
 - [ ] **Instant-room fast join** — allow instant rooms to skip the waiting room when appropriate
 - [ ] **Instant-room media defaults** — camera + mic off by default when quick-joining an instant room
 - [ ] **Remember media permission preference** — avoid repeated prompts where the browser/app allows it
