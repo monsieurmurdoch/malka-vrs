@@ -1,9 +1,14 @@
 *.swp
 .*.tmp
+.tmp/
 deploy-local.sh
 # libs/ is intentionally tracked — built frontend assets needed for Docker deploy
 all.css
 *css.map
+libs/*.min.js.map
+libs/app.bundle.min.js.map
+libs/close3.min.js
+libs/close3.min.js.map
 .remote-sync.json
 .sync-config.cson
 
@@ -111,6 +116,7 @@ react-native-sdk/sounds
 
 # VRS runtime data
 vrs-server/data/
+vrs-server/*.bak
 *.db
 *.sqlite
 

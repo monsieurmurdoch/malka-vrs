@@ -168,7 +168,7 @@ See `deploy/` for DigitalOcean deployment scripts:
 
 This installs Docker, configures firewall (ports 80, 443, 10000/udp), obtains SSL certificates via certbot, and launches the full stack with nginx reverse proxy.
 
-See `ROADMAP.md` for the full development plan and `deploy/nginx.conf` for the production proxy configuration.
+See `ROADMAP.md` for the full development plan, `RELEASES.md` for merge/deploy policy, and `deploy/nginx.conf` for the production proxy configuration.
 
 ## Project Structure
 
