@@ -7,7 +7,7 @@ import { SETTINGS_TABS } from '../../settings/constants';
 
 import { AbstractWelcomePage, IProps, _mapStateToProps } from './AbstractWelcomePage';
 import { LanguageSwitcher } from '../../vrs-layout/components';
-import { setPersistentItem } from '../../vrs-auth/storage';
+import { consumePendingRoomRedirect, setPersistentItem } from '../../vrs-auth/storage';
 
 declare var config: any;
 
@@ -240,8 +240,11 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                 setPersistentItem('vrs_client_auth', 'true');
             }
 
-            // Redirect to profile page
-            if (role === 'client') {
+            const pendingRoomRedirect = consumePendingRoomRedirect();
+
+            if (pendingRoomRedirect) {
+                window.location.href = pendingRoomRedirect;
+            } else if (role === 'client') {
                 window.location.href = '/client-profile.html';
             } else {
                 window.location.href = '/interpreter-profile.html';

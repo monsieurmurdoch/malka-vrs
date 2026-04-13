@@ -64,7 +64,7 @@
 - [ ] Call end → CDR (Call Detail Record) written to database
 - [ ] Multi-party conference support (Jitsi-native)
 - [x] P2P direct calls between clients (no interpreter, standard Jitsi flow)
-- [ ] Summon interpreter from inside an active room (bottom toolbar button with waiting/accepted state)
+- [x] Summon interpreter from inside an active room (bottom toolbar button with waiting/accepted state)
 
 ### 1D — UI Polish
 - [ ] Navy/white color scheme with VRS branding
@@ -105,9 +105,9 @@
 > Users need a real address book, not just speed dial
 
 - [ ] **Contact list UI** — searchable, alphabetical list with avatars, phone numbers, last call date
-- [ ] **Accessible contacts section in instant rooms** — easy-to-open contacts drawer/panel while joining or inviting
-- [ ] **Logged-in-only instant-room invite links** — invite links should require platform auth before joining
-- [ ] **Instant-room invite suggestions** — suggest recent/favorite friends to invite right after room creation
+- [x] **Accessible contacts section in instant rooms** — easy-to-open contacts drawer/panel while joining or inviting
+- [x] **Logged-in-only instant-room invite links** — invite links should require platform auth before joining
+- [x] **Instant-room invite suggestions** — suggest recent/favorite friends to invite right after room creation
 - [ ] **Import contacts** — from CSV/VCARD upload, Google Contacts API, or phone address book (mobile)
 - [ ] **Contact groups** — personal, work, family, favorites (user-defined categories)
 - [ ] **Merge/dedup** — detect and merge duplicate contacts (same phone number or email)
@@ -139,6 +139,7 @@
 - [ ] **Instant-room fast join** — allow instant rooms to skip the waiting room when appropriate
 - [ ] **Instant-room media defaults** — camera + mic off by default when quick-joining an instant room
 - [ ] **Remember media permission preference** — avoid repeated prompts where the browser/app allows it
+- [x] **Default display name in instant rooms** — prefill from the signed-in user’s first name
 - [ ] **Dark mode** — reduce eye strain during long calls; auto-detect system preference
 
 ---

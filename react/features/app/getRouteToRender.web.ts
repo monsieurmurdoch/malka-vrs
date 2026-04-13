@@ -14,6 +14,7 @@ import UnsupportedDesktopBrowser from '../unsupported-browser/components/Unsuppo
 import BlankPage from '../welcome/components/BlankPage.web';
 import WelcomePage from '../welcome/components/WelcomePage.web';
 import { getCustomLandingPageURL, isWelcomePageEnabled } from '../welcome/functions';
+import { hasPersistentAuthToken, setPendingRoomRedirect } from '../vrs-auth/storage';
 
 import { IReduxState } from './types';
 
@@ -47,6 +48,13 @@ function _getWebConferenceRoute(state: IReduxState) {
 
     const route = _getEmptyRoute();
     const config = state['features/base/config'];
+
+    if (!hasPersistentAuthToken()) {
+        setPendingRoomRedirect(`${window.location.pathname}${window.location.search}${window.location.hash}`);
+        route.component = WelcomePage;
+
+        return Promise.resolve(route);
+    }
 
     // if we have auto redirect enabled, and we have previously logged in successfully
     // let's redirect to the auth url to get the token and login again

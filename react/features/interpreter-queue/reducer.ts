@@ -89,6 +89,8 @@ ReducerRegistry.register<QueueState>('features/interpreter-queue',
                     isRequestPending: true,
                     currentRequestId: action.requestId,
                     requestLanguage: action.language,
+                    matchFound: false,
+                    matchData: undefined,
                     queuePosition: undefined
                 };
 
@@ -97,10 +99,16 @@ ReducerRegistry.register<QueueState>('features/interpreter-queue',
                     ...state,
                     isRequestPending: false,
                     currentRequestId: undefined,
+                    matchFound: false,
+                    matchData: undefined,
                     queuePosition: undefined
                 };
 
             case INTERPRETER_REQUEST_RECEIVED:
+                if (!action.request) {
+                    return state;
+                }
+
                 return {
                     ...state,
                     pendingRequests: [
@@ -143,6 +151,10 @@ ReducerRegistry.register<QueueState>('features/interpreter-queue',
                 };
 
             case QUEUE_STATUS_UPDATE:
+                if (!action.status) {
+                    return state;
+                }
+
                 return {
                     ...state,
                     currentRequestId: action.status.requestId || state.currentRequestId,
@@ -156,7 +168,7 @@ ReducerRegistry.register<QueueState>('features/interpreter-queue',
             case QUEUE_CONNECTION_CHANGED:
                 return {
                     ...state,
-                    isConnected: action.connected
+                    isConnected: Boolean(action.connected)
                 };
 
             default:
