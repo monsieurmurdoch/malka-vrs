@@ -1477,8 +1477,18 @@ var config = {
     // Hides the participants stats
     // hideParticipantsStats: true,
 
-    // Sets the conference subject
-    // subject: 'Conference Subject',
+    // Sets the conference subject.
+    // For VRS rooms (path starts with /vrs-) show a friendly session label
+    // in the Jitsi header instead of the raw room ID.
+    subject: (function() {
+        if (typeof window !== 'undefined') {
+            const p = window.location.pathname;
+            if (p.match(/\/vrs-[a-z]+-[a-z]+-\d{4}/)) {
+                return 'Interpreter Session';
+            }
+        }
+        return undefined;
+    }()),
 
     // Sets the conference local subject
     // localSubject: 'Conference Local Subject',

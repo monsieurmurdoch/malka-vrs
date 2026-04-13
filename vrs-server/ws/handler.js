@@ -14,6 +14,20 @@ const handoffService = require('../lib/handoff-service');
 const state = require('../lib/state');
 const { verifyJwtToken, normalizeAuthClaims, tokenMatchesRequestedRole } = require('../lib/auth');
 
+// Friendly room name adjectives/nouns used so the Jitsi header shows something
+// human-readable instead of a raw UUID (e.g. "vrs-amber-bridge-4712").
+const ROOM_ADJECTIVES = ['amber', 'azure', 'cedar', 'coral', 'delta', 'ember',
+    'fern', 'jade', 'maple', 'ocean', 'pearl', 'river', 'sage', 'slate', 'solar'];
+const ROOM_NOUNS = ['arc', 'bay', 'bridge', 'cove', 'dale', 'glen', 'grove',
+    'hill', 'isle', 'lake', 'mesa', 'path', 'peak', 'pond', 'vale'];
+
+function generateFriendlyRoomName() {
+    const adj  = ROOM_ADJECTIVES[Math.floor(Math.random() * ROOM_ADJECTIVES.length)];
+    const noun = ROOM_NOUNS[Math.floor(Math.random() * ROOM_NOUNS.length)];
+    const num  = String(Math.floor(Math.random() * 9000) + 1000); // 4-digit
+    return `vrs-${adj}-${noun}-${num}`;
+}
+
 function sanitizePhoneNumber(raw) {
     if (typeof raw !== 'string') return null;
     const cleaned = raw.replace(/[^\d+]/g, '');
@@ -308,7 +322,7 @@ async function handleInterpreterRequest(ws, data) {
         clientId: client.userId,
         clientName: payload.clientName || client.name || 'Guest',
         language: payload.language || 'ASL',
-        roomName: payload.roomName || `vrs-${client.clientId}`
+        roomName: payload.roomName || generateFriendlyRoomName()
     });
 
     if (!result.success) {

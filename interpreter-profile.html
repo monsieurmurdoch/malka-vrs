@@ -417,8 +417,138 @@
             stats: null,
             shifts: [],
             earnings: [],
-            calls: []
+            calls: [],
+            // Queue state
+            available: false,
+            pendingRequest: null   // { requestId, clientName, language, roomName }
         };
+
+        // ============================================
+        // WEBSOCKET — VRS queue connection
+        // ============================================
+
+        let ws = null;
+        let wsReconnectTimer = null;
+
+        function getWsUrl() {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const configured = typeof config !== 'undefined' && config.vrs && config.vrs.queueServiceUrl
+                ? config.vrs.queueServiceUrl
+                : null;
+            return configured || `${wsProtocol}//${window.location.host}/ws`;
+        }
+
+        function connectWS() {
+            const token = getToken();
+            if (!token) return;
+            try {
+                ws = new WebSocket(getWsUrl());
+            } catch (e) {
+                console.error('[WS] Could not connect:', e);
+                return;
+            }
+
+            ws.onopen = function() {
+                ws.send(JSON.stringify({ type: 'auth', data: { token } }));
+            };
+
+            ws.onmessage = function(event) {
+                try {
+                    const msg = JSON.parse(event.data);
+                    handleWsMessage(msg);
+                } catch (e) {
+                    console.error('[WS] Parse error:', e);
+                }
+            };
+
+            ws.onclose = function() {
+                console.log('[WS] Disconnected, reconnecting…');
+                wsReconnectTimer = setTimeout(connectWS, 4000);
+            };
+
+            ws.onerror = function(err) {
+                console.error('[WS] Error:', err);
+            };
+        }
+
+        function wsSend(data) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(data));
+            }
+        }
+
+        function handleWsMessage(msg) {
+            console.log('[WS] Received:', msg.type, msg);
+            switch (msg.type) {
+                case 'auth_success':
+                    // If we were already available before reconnect, re-announce.
+                    if (state.available) {
+                        wsSend({ type: 'interpreter_status', data: { available: true } });
+                    }
+                    break;
+
+                case 'interpreter_request':
+                    // Incoming client request — show the accept overlay.
+                    if (!state.pendingRequest) {
+                        state.pendingRequest = msg.data;
+                        renderAcceptOverlay();
+                    }
+                    break;
+
+                case 'request_accepted':
+                case 'meeting_initiated':
+                    // Server confirmed; navigate to the shared room.
+                    if (msg.data && msg.data.roomName) {
+                        clearTimeout(wsReconnectTimer);
+                        setPersistentItem('vrs_user_role', 'interpreter');
+                        window.location.href = '/' + msg.data.roomName + '?role=interpreter';
+                    }
+                    break;
+
+                case 'pong':
+                case 'heartbeat_ack':
+                    break;
+            }
+        }
+
+        // Overlay shown when an incoming client request arrives.
+        function renderAcceptOverlay() {
+            let overlay = document.getElementById('vrs-accept-overlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'vrs-accept-overlay';
+                overlay.style.cssText = [
+                    'position:fixed;inset:0;z-index:9999',
+                    'background:rgba(0,0,0,0.85)',
+                    'display:flex;flex-direction:column',
+                    'align-items:center;justify-content:center',
+                    'color:#fff;font-family:inherit;gap:16px'
+                ].join(';');
+                document.body.appendChild(overlay);
+            }
+
+            const req = state.pendingRequest || {};
+            overlay.innerHTML = `
+                <div style="font-size:48px">📞</div>
+                <div style="font-size:22px;font-weight:600">Incoming Request</div>
+                <div style="opacity:0.75">Client: ${req.clientName || 'Unknown'} · Language: ${req.language || 'ASL'}</div>
+                <div style="display:flex;gap:16px;margin-top:8px">
+                    <button onclick="window.__acceptRequest()"
+                        style="padding:14px 32px;border-radius:50px;border:none;background:#4caf50;color:#fff;font-size:16px;cursor:pointer">
+                        Accept
+                    </button>
+                    <button onclick="window.__declineRequest()"
+                        style="padding:14px 32px;border-radius:50px;border:none;background:#f44336;color:#fff;font-size:16px;cursor:pointer">
+                        Decline
+                    </button>
+                </div>
+            `;
+        }
+
+        function removeAcceptOverlay() {
+            const el = document.getElementById('vrs-accept-overlay');
+            if (el) el.remove();
+        }
 
         function formatDate(iso) {
             if (!iso) return '';
@@ -546,9 +676,14 @@
 
                     <!-- Join Queue -->
                     <div class="join-queue-section">
-                        <button class="join-queue-btn" onclick="window.__joinQueue()">
-                            Join Queue — Go Available
-                        </button>
+                        ${state.available
+                            ? `<button class="join-queue-btn" style="background:#388e3c;cursor:default" disabled>
+                                   ✓ Available — Waiting for Requests
+                               </button>`
+                            : `<button class="join-queue-btn" onclick="window.__joinQueue()">
+                                   Join Queue — Go Available
+                               </button>`
+                        }
                     </div>
                 </div>
             `;
@@ -560,10 +695,35 @@
             window.location.href = '/';
         };
 
+        /**
+         * Mark this interpreter as available in the VRS queue.
+         * The server will push interpreter_request messages when a client is waiting.
+         */
         window.__joinQueue = function() {
-            const roomName = 'interpreter-' + Math.random().toString(36).substr(2, 9);
-            setPersistentItem('vrs_user_role', 'interpreter');
-            window.location.href = '/' + roomName + '?role=interpreter';
+            state.available = true;
+            wsSend({ type: 'interpreter_status', data: { available: true } });
+            render();
+        };
+
+        /** Accept the pending client request and navigate to the assigned room. */
+        window.__acceptRequest = function() {
+            if (!state.pendingRequest) return;
+            wsSend({
+                type: 'accept_request',
+                data: { requestId: state.pendingRequest.requestId }
+            });
+            // Navigation happens in handleWsMessage on meeting_initiated.
+        };
+
+        /** Decline the pending client request and return to available state. */
+        window.__declineRequest = function() {
+            if (!state.pendingRequest) return;
+            wsSend({
+                type: 'decline_request',
+                data: { requestId: state.pendingRequest.requestId }
+            });
+            state.pendingRequest = null;
+            removeAcceptOverlay();
         };
 
         // Data loading
@@ -602,6 +762,7 @@
                 return;
             }
 
+            connectWS();
             render();
             await Promise.all([loadProfile(), loadStats(), loadShifts(), loadEarnings(), loadCallHistory()]);
             render();
