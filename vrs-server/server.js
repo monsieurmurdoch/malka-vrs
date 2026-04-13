@@ -11,7 +11,7 @@
 try {
     require('dotenv').config();
 } catch (error) {
-    console.warn('[Server] dotenv not installed, continuing with process environment only.');
+    // dotenv not installed, continuing with process environment only
 }
 const express = require('express');
 const http = require('http');
@@ -23,6 +23,10 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
+
+// Structured logging
+const log = require('./lib/logger');
+const requestIdMiddleware = require('./lib/request-id');
 
 // Import database and routes
 const db = require('./database');
@@ -37,8 +41,7 @@ const server = http.createServer(app);
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.VRS_SHARED_JWT_SECRET || process.env.JWT_SECRET;
 if (!JWT_SECRET) {
-    console.error('FATAL: VRS_SHARED_JWT_SECRET or JWT_SECRET environment variable is required.');
-    console.error('Set it in your .env file before starting the server.');
+    log.fatal('VRS_SHARED_JWT_SECRET or JWT_SECRET environment variable is required. Set it in your .env file before starting the server.');
     process.exit(1);
 }
 const LEGACY_ADMIN_LOGIN_ENABLED = process.env.ENABLE_LEGACY_ADMIN_LOGIN === 'true';
@@ -91,7 +94,7 @@ app.use(cors({
         if (!origin || CORS_ORIGINS.includes(origin)) {
             callback(null, true);
         } else {
-            console.warn('[CORS] Blocked origin:', origin, '| Allowed:', CORS_ORIGINS);
+            log.warn({ origin, allowed: CORS_ORIGINS }, 'CORS blocked origin');
             callback(new Error('CORS not allowed'));
         }
     },
@@ -162,6 +165,9 @@ const authLimiter = rateLimit({
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
+// Request ID + structured request/response logging
+app.use(requestIdMiddleware);
+
 // Static files
 app.use(express.static(path.join(__dirname, '..')));
 
@@ -227,7 +233,7 @@ wss.on('connection', (ws, req) => {
                 return;
             }
             const data = JSON.parse(message);
-            console.log('[WebSocket] Received:', data.type, data);
+            log.ws.message({ type: data.type });
 
             switch (data.type) {
                 case 'auth':
@@ -325,19 +331,19 @@ wss.on('connection', (ws, req) => {
                     break;
             }
         } catch (error) {
-            console.error('[WebSocket] Error:', error);
+            log.error({ err: error, clientId }, 'WebSocket message handling error');
         }
     });
 
     ws.on('close', () => {
-        console.log('[WebSocket] Client disconnected:', clientId);
+        log.ws.disconnected({ clientId });
         if (ws.clientInfo) {
             handleDisconnect(ws.clientInfo);
         }
     });
 
     ws.on('error', (error) => {
-        console.error('[WebSocket] Error:', error);
+        log.error({ err: error, clientId }, 'WebSocket connection error');
     });
 
     // Send initial connection confirmation
@@ -436,7 +442,7 @@ function handleAuth(ws, data, clientId) {
                         data: { calls: unseen }
                     }));
                 }
-            }).catch(err => console.error('[WS] Error fetching missed calls:', err));
+            }).catch(err => log.error({ err, clientId: clientInfo.userId }, 'Error fetching missed calls on connect'));
         }
 
     } else if (role === 'admin') {
@@ -1093,7 +1099,7 @@ app.post('/api/admin/login', authLimiter, async (req, res) => {
         });
 
     } catch (error) {
-        console.error('[Login] Error:', error);
+        log.error({ err: error }, 'Admin login error');
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -1124,7 +1130,7 @@ app.get('/api/admin/stats', authenticateAdmin, async (req, res) => {
         const stats = await db.getDashboardStats();
         res.json(stats);
     } catch (error) {
-        console.error('[Stats] Error:', error);
+        log.error({ err: error }, 'Stats fetch error');
         res.status(500).json({ error: 'Failed to fetch stats' });
     }
 });
@@ -1150,7 +1156,7 @@ app.get('/api/admin/interpreters', authenticateAdmin, async (req, res) => {
 
         res.json(interpretersWithStatus);
     } catch (error) {
-        console.error('[Interpreters] Error:', error);
+        log.error({ err: error }, 'Interpreters fetch error');
         res.status(500).json({ error: 'Failed to fetch interpreters' });
     }
 });
@@ -1183,7 +1189,7 @@ app.post('/api/admin/interpreters', authenticateAdmin, async (req, res) => {
             id: interpreterId
         });
     } catch (error) {
-        console.error('[Create Interpreter] Error:', error);
+        log.error({ err: error }, 'Create interpreter error');
         res.status(500).json({ error: 'Failed to create interpreter' });
     }
 });
@@ -1203,7 +1209,7 @@ app.put('/api/admin/interpreters/:id', authenticateAdmin, async (req, res) => {
 
         res.json({ success: true });
     } catch (error) {
-        console.error('[Update Interpreter] Error:', error);
+        log.error({ err: error, interpreterId: id }, 'Update interpreter error');
         res.status(500).json({ error: 'Failed to update interpreter' });
     }
 });
@@ -1221,7 +1227,7 @@ app.delete('/api/admin/interpreters/:id', authenticateAdmin, async (req, res) =>
 
         res.json({ success: true });
     } catch (error) {
-        console.error('[Delete Interpreter] Error:', error);
+        log.error({ err: error, interpreterId: id }, 'Delete interpreter error');
         res.status(500).json({ error: 'Failed to delete interpreter' });
     }
 });
@@ -1233,7 +1239,7 @@ app.get('/api/admin/clients', authenticateAdmin, async (req, res) => {
         const clients = await db.getAllClients();
         res.json(clients);
     } catch (error) {
-        console.error('[Clients] Error:', error);
+        log.error({ err: error }, 'Clients fetch error');
         res.status(500).json({ error: 'Failed to fetch clients' });
     }
 });
@@ -1266,7 +1272,7 @@ app.post('/api/admin/clients', authenticateAdmin, async (req, res) => {
             id: clientId
         });
     } catch (error) {
-        console.error('[Create Client] Error:', error);
+        log.error({ err: error }, 'Create client error');
         res.status(500).json({ error: 'Failed to create client' });
     }
 });
@@ -1314,7 +1320,7 @@ app.post('/api/admin/queue/:requestId/assign', authenticateAdmin, async (req, re
 
         res.json(result);
     } catch (error) {
-        console.error('[Assign] Error:', error);
+        log.error({ err: error, requestId }, 'Queue assign error');
         res.status(500).json({ error: 'Failed to assign interpreter' });
     }
 });
@@ -1332,7 +1338,7 @@ app.delete('/api/admin/queue/:requestId', authenticateAdmin, (req, res) => {
             res.json({ success: true });
         })
         .catch(error => {
-            console.error('[Queue Remove] Error:', error);
+            log.error({ err: error, requestId }, 'Queue remove error');
             res.status(500).json({ error: 'Failed to remove queue request' });
         });
 });
@@ -1349,7 +1355,7 @@ app.get('/api/admin/activity', authenticateAdmin, async (req, res) => {
         });
         res.json(activity);
     } catch (error) {
-        console.error('[Activity] Error:', error);
+        log.error({ err: error }, 'Activity log fetch error');
         res.status(500).json({ error: 'Failed to fetch activity log' });
     }
 });
@@ -1363,7 +1369,7 @@ app.get('/api/admin/usage/daily', authenticateAdmin, async (req, res) => {
         const stats = await db.getDailyUsageStats(parseInt(days));
         res.json(stats);
     } catch (error) {
-        console.error('[Usage] Error:', error);
+        log.error({ err: error }, 'Daily usage stats error');
         res.status(500).json({ error: 'Failed to fetch usage stats' });
     }
 });
@@ -1373,7 +1379,7 @@ app.get('/api/admin/usage/interpreters', authenticateAdmin, async (req, res) => 
         const stats = await db.getInterpreterStats();
         res.json(stats);
     } catch (error) {
-        console.error('[Interpreter Usage] Error:', error);
+        log.error({ err: error }, 'Interpreter usage stats error');
         res.status(500).json({ error: 'Failed to fetch interpreter stats' });
     }
 });
@@ -1410,7 +1416,7 @@ app.post('/api/vrs/register', async (req, res) => {
             id: clientId
         });
     } catch (error) {
-        console.error('[Register] Error:', error);
+        log.error({ err: error }, 'Client registration error');
         res.status(500).json({ error: 'Registration failed' });
     }
 });
@@ -1496,7 +1502,7 @@ app.post('/api/auth/client/register', authLimiter, async (req, res) => {
             if (!existing) break;
             attempts++;
             if (attempts >= MAX_ATTEMPTS) {
-                console.error('[Client Register] Could not generate unique phone number after', MAX_ATTEMPTS, 'attempts');
+                log.error({ attempts: MAX_ATTEMPTS }, 'Could not generate unique phone number');
                 return res.status(500).json({ error: 'Unable to assign phone number, please try again' });
             }
         }
@@ -1516,7 +1522,7 @@ app.post('/api/auth/client/register', authLimiter, async (req, res) => {
             user: { id: client.id, name, email, role: 'client', phoneNumber: phoneNum }
         });
     } catch (error) {
-        console.error('[Client Register] Error:', error);
+        log.error({ err: error }, 'Client register error');
         res.status(500).json({ error: 'Registration failed' });
     }
 });
@@ -1563,7 +1569,7 @@ app.post('/api/auth/client/login', authLimiter, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('[Client Login] Error:', error);
+        log.error({ err: error }, 'Client login error');
         res.status(500).json({ error: 'Login failed' });
     }
 });
@@ -1614,7 +1620,7 @@ app.post('/api/auth/interpreter/login', authLimiter, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('[Interpreter Login] Error:', error);
+        log.error({ err: error }, 'Interpreter login error');
         res.status(500).json({ error: 'Login failed' });
     }
 });
@@ -1646,7 +1652,7 @@ app.get('/api/client/profile', authenticateUser, async (req, res) => {
             phoneNumbers: phones
         });
     } catch (error) {
-        console.error('[Client Profile] Error:', error);
+        log.error({ err: error, clientId: req.user.id }, 'Client profile error');
         res.status(500).json({ error: 'Failed to fetch profile' });
     }
 });
@@ -1663,7 +1669,7 @@ app.get('/api/client/call-history', authenticateUser, async (req, res) => {
         const calls = await db.getClientCallHistory(req.user.id, limit, offset);
         res.json({ calls });
     } catch (error) {
-        console.error('[Client Call History] Error:', error);
+        log.error({ err: error, clientId: req.user.id }, 'Client call history error');
         res.status(500).json({ error: 'Failed to fetch call history' });
     }
 });
@@ -1677,7 +1683,7 @@ app.get('/api/client/speed-dial', authenticateUser, async (req, res) => {
         const entries = await db.getSpeedDialEntries(req.user.id);
         res.json({ entries });
     } catch (error) {
-        console.error('[Speed Dial Get] Error:', error);
+        log.error({ err: error, clientId: req.user.id }, 'Speed dial fetch error');
         res.status(500).json({ error: 'Failed to fetch speed dial' });
     }
 });
@@ -1707,7 +1713,7 @@ app.post('/api/client/speed-dial', authenticateUser, async (req, res) => {
         });
         res.status(201).json({ entry });
     } catch (error) {
-        console.error('[Speed Dial Add] Error:', error);
+        log.error({ err: error, clientId: req.user.id }, 'Speed dial add error');
         res.status(500).json({ error: 'Failed to add speed dial entry' });
     }
 });
@@ -1735,7 +1741,7 @@ app.put('/api/client/speed-dial/:id', authenticateUser, async (req, res) => {
         await db.updateSpeedDialEntry(req.params.id, req.user.id, updates);
         res.json({ success: true });
     } catch (error) {
-        console.error('[Speed Dial Update] Error:', error);
+        log.error({ err: error, clientId: req.user.id }, 'Speed dial update error');
         res.status(500).json({ error: 'Failed to update speed dial entry' });
     }
 });
@@ -1750,7 +1756,7 @@ app.delete('/api/client/speed-dial/:id', authenticateUser, async (req, res) => {
         await db.deleteSpeedDialEntry(req.params.id, req.user.id);
         res.json({ success: true });
     } catch (error) {
-        console.error('[Speed Dial Delete] Error:', error);
+        log.error({ err: error, clientId: req.user.id }, 'Speed dial delete error');
         res.status(500).json({ error: 'Failed to delete speed dial entry' });
     }
 });
@@ -1778,7 +1784,7 @@ app.get('/api/interpreter/profile', authenticateUser, async (req, res) => {
             languages: interpreter.languages
         });
     } catch (error) {
-        console.error('[Interpreter Profile] Error:', error);
+        log.error({ err: error, interpreterId: req.user.id }, 'Interpreter profile error');
         res.status(500).json({ error: 'Failed to fetch profile' });
     }
 });
@@ -1795,7 +1801,7 @@ app.get('/api/interpreter/call-history', authenticateUser, async (req, res) => {
         const calls = await db.getInterpreterCallHistory(req.user.id, limit, offset);
         res.json({ calls });
     } catch (error) {
-        console.error('[Interpreter Call History] Error:', error);
+        log.error({ err: error, interpreterId: req.user.id }, 'Interpreter call history error');
         res.status(500).json({ error: 'Failed to fetch call history' });
     }
 });
@@ -1811,7 +1817,7 @@ app.get('/api/interpreter/shifts', authenticateUser, async (req, res) => {
         const shifts = await db.getInterpreterShifts(req.user.id, startDate, endDate);
         res.json({ shifts });
     } catch (error) {
-        console.error('[Interpreter Shifts] Error:', error);
+        log.error({ err: error, interpreterId: req.user.id }, 'Interpreter shifts error');
         res.status(500).json({ error: 'Failed to fetch shifts' });
     }
 });
@@ -1831,7 +1837,7 @@ app.get('/api/interpreter/earnings', authenticateUser, async (req, res) => {
         const earnings = await db.getInterpreterEarnings(req.user.id, periodStart, periodEnd);
         res.json({ earnings });
     } catch (error) {
-        console.error('[Interpreter Earnings] Error:', error);
+        log.error({ err: error, interpreterId: req.user.id }, 'Interpreter earnings error');
         res.status(500).json({ error: 'Failed to fetch earnings' });
     }
 });
@@ -1845,7 +1851,7 @@ app.get('/api/interpreter/stats', authenticateUser, async (req, res) => {
         const stats = await db.getInterpreterStats(req.user.id);
         res.json(stats);
     } catch (error) {
-        console.error('[Interpreter Stats] Error:', error);
+        log.error({ err: error, interpreterId: req.user.id }, 'Interpreter stats error');
         res.status(500).json({ error: 'Failed to fetch stats' });
     }
 });
@@ -2221,7 +2227,7 @@ app.get('/api/client/lookup-phone', authenticateClient, async (req, res) => {
             phone: client.phone_number
         });
     } catch (error) {
-        console.error('[API] lookup-phone error:', error);
+        log.error({ err: error }, 'Phone lookup error');
         res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -2235,7 +2241,7 @@ app.get('/api/client/missed-calls', authenticateClient, async (req, res) => {
         const calls = await db.getMissedCalls(req.clientId, limit);
         res.json({ calls });
     } catch (error) {
-        console.error('[API] missed-calls error:', error);
+        log.error({ err: error }, 'Missed calls fetch error');
         res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -2248,7 +2254,7 @@ app.post('/api/client/missed-calls/mark-seen', authenticateClient, async (req, r
         await db.markMissedCallsSeen(req.clientId);
         res.json({ success: true });
     } catch (error) {
-        console.error('[API] mark-seen error:', error);
+        log.error({ err: error }, 'Mark missed calls seen error');
         res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -2261,7 +2267,7 @@ app.get('/api/client/active-rooms', authenticateClient, async (req, res) => {
         const rooms = await db.getActiveP2PRoomsForClient(req.clientId);
         res.json({ rooms });
     } catch (error) {
-        console.error('[API] active-rooms error:', error);
+        log.error({ err: error }, 'Active rooms fetch error');
         res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -2281,7 +2287,7 @@ app.get('*', (req, res) => {
 // ============================================
 
 app.use((error, req, res, next) => {
-    console.error('[Server] Error:', error);
+    log.error({ err: error, method: req.method, url: req.url }, 'Unhandled server error');
     res.status(500).json({
         error: 'Internal server error',
         message: process.env.NODE_ENV === 'development' ? error.message : undefined
@@ -2299,21 +2305,15 @@ db.initialize().then(async () => {
 
     queueService.broadcastToAdmins = (type, data) => broadcastToAdmins({ type, data });
     server.listen(PORT, () => {
-        console.log(`
-╔════════════════════════════════════════════════════════════╗
-║           MalkaVRS Server Started Successfully!            ║
-╠════════════════════════════════════════════════════════════╣
-║  HTTP Server:   http://localhost:${PORT}                      ║
-║  WebSocket:     ws://localhost:${PORT}/ws                     ║
-║  API Base:      /api                                          ║
-║  Admin Panel:   /vrs-admin-dashboard.html                     ║
-╠════════════════════════════════════════════════════════════╣
-║  Environment:   ${process.env.NODE_ENV || 'development'}                       ║
-╚════════════════════════════════════════════════════════════╝
-        `);
+        log.info({
+            port: PORT,
+            env: process.env.NODE_ENV || 'development',
+            http: `http://localhost:${PORT}`,
+            ws: `ws://localhost:${PORT}/ws`
+        }, `MalkaVRS server started on port ${PORT}`);
     });
 }).catch(error => {
-    console.error('Failed to initialize database:', error);
+    log.fatal({ err: error }, 'Failed to initialize database');
     process.exit(1);
 });
 
