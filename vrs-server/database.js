@@ -1,39 +1,270 @@
 /**
  * Database Module
  *
- * SQLite database for storing:
- * - Admin accounts
- * - Interpreter accounts
- * - Client accounts
- * - Call history
- * - Activity logs
- * - Usage statistics
+ * Supports SQLite for local/dev persistence and PostgreSQL for production
+ * scaling, while preserving the same exported API for the rest of the app.
  */
 
-const sqlite3 = require('sqlite3').verbose();
+const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 
 // Database file path
 const DB_PATH = path.join(__dirname, 'data', 'vrs.db');
+const DB_ENGINE = (process.env.DB_CLIENT || (process.env.DATABASE_URL ? 'postgres' : 'sqlite')).toLowerCase();
 
 let db = null;
+let pool = null;
+let sqlite3 = null;
+let Pool = null;
+
+function isPostgres() {
+    return DB_ENGINE === 'postgres';
+}
+
+function getSqliteDriver() {
+    if (!sqlite3) {
+        sqlite3 = require('sqlite3').verbose();
+    }
+
+    return sqlite3;
+}
+
+function getPgPool() {
+    if (!Pool) {
+        ({ Pool } = require('pg'));
+    }
+
+    if (!pool) {
+        const connectionString = process.env.DATABASE_URL
+            || `postgresql://${process.env.PGUSER || 'malka'}:${process.env.PGPASSWORD || 'malka'}@${process.env.PGHOST || 'postgres'}:${process.env.PGPORT || 5432}/${process.env.PGDATABASE || 'malka_vrs'}`;
+
+        pool = new Pool({
+            connectionString,
+            max: Number(process.env.PG_POOL_MAX || 20),
+            idleTimeoutMillis: 30000,
+            connectionTimeoutMillis: 5000
+        });
+    }
+
+    return pool;
+}
+
+function toParameterizedSql(sql) {
+    if (!isPostgres()) {
+        return sql;
+    }
+
+    let index = 0;
+    return sql.replace(/\?/g, () => `$${++index}`);
+}
+
+function getCreateTableStatements() {
+    const timestampType = isPostgres() ? 'TIMESTAMPTZ' : 'DATETIME';
+    const autoIdType = isPostgres() ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT';
+    const currentTimestamp = 'CURRENT_TIMESTAMP';
+
+    return [
+        // Admins table
+        `CREATE TABLE IF NOT EXISTS admins (
+            id TEXT PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            name TEXT NOT NULL,
+            created_at ${timestampType} DEFAULT ${currentTimestamp},
+            last_login ${timestampType}
+        )`,
+
+        // Interpreters table
+        `CREATE TABLE IF NOT EXISTS interpreters (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT,
+            languages TEXT DEFAULT '["ASL"]',
+            status TEXT DEFAULT 'offline',
+            active INTEGER DEFAULT 1,
+            created_at ${timestampType} DEFAULT ${currentTimestamp},
+            last_active ${timestampType}
+        )`,
+
+        // Clients table
+        `CREATE TABLE IF NOT EXISTS clients (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT,
+            organization TEXT DEFAULT 'Personal',
+            created_at ${timestampType} DEFAULT ${currentTimestamp},
+            last_call ${timestampType}
+        )`,
+
+        // Calls table
+        `CREATE TABLE IF NOT EXISTS calls (
+            id TEXT PRIMARY KEY,
+            client_id TEXT,
+            interpreter_id TEXT,
+            room_name TEXT NOT NULL,
+            started_at ${timestampType} DEFAULT ${currentTimestamp},
+            ended_at ${timestampType},
+            duration_minutes INTEGER,
+            language TEXT,
+            status TEXT DEFAULT 'active'
+        )`,
+
+        // Queue requests table
+        `CREATE TABLE IF NOT EXISTS queue_requests (
+            id TEXT PRIMARY KEY,
+            client_id TEXT,
+            client_name TEXT NOT NULL,
+            language TEXT NOT NULL,
+            target_phone TEXT,
+            room_name TEXT NOT NULL,
+            status TEXT DEFAULT 'waiting',
+            position INTEGER,
+            created_at ${timestampType} DEFAULT ${currentTimestamp},
+            assigned_at ${timestampType},
+            assigned_to TEXT,
+            completed_at ${timestampType}
+        )`,
+
+        // Activity log table
+        `CREATE TABLE IF NOT EXISTS activity_log (
+            id TEXT PRIMARY KEY,
+            type TEXT NOT NULL,
+            description TEXT,
+            data TEXT,
+            created_by TEXT,
+            created_at ${timestampType} DEFAULT ${currentTimestamp}
+        )`,
+
+        // Daily stats table
+        `CREATE TABLE IF NOT EXISTS daily_stats (
+            id ${autoIdType},
+            date DATE NOT NULL UNIQUE,
+            total_calls INTEGER DEFAULT 0,
+            total_minutes INTEGER DEFAULT 0,
+            unique_clients INTEGER DEFAULT 0,
+            unique_interpreters INTEGER DEFAULT 0,
+            avg_wait_time_seconds REAL DEFAULT 0
+        )`,
+
+        // Interpreter performance table
+        `CREATE TABLE IF NOT EXISTS interpreter_performance (
+            id ${autoIdType},
+            interpreter_id TEXT,
+            date DATE NOT NULL,
+            calls_completed INTEGER DEFAULT 0,
+            minutes_logged INTEGER DEFAULT 0,
+            avg_call_duration REAL,
+            UNIQUE(interpreter_id, date)
+        )`,
+
+        // Indexes for performance
+        `CREATE INDEX IF NOT EXISTS idx_calls_client ON calls(client_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_calls_interpreter ON calls(interpreter_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_calls_date ON calls(started_at)`,
+        `CREATE INDEX IF NOT EXISTS idx_queue_status ON queue_requests(status)`,
+        `CREATE INDEX IF NOT EXISTS idx_queue_created ON queue_requests(created_at)`,
+        `CREATE INDEX IF NOT EXISTS idx_activity_type ON activity_log(type)`,
+        `CREATE INDEX IF NOT EXISTS idx_activity_date ON activity_log(created_at)`,
+
+        // Speed dial (client favorites)
+        `CREATE TABLE IF NOT EXISTS speed_dial (
+            id TEXT PRIMARY KEY,
+            client_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            phone_number TEXT NOT NULL,
+            category TEXT DEFAULT 'personal',
+            created_at ${timestampType} DEFAULT ${currentTimestamp},
+            last_used ${timestampType},
+            use_count INTEGER DEFAULT 0,
+            FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+        )`,
+
+        // Client phone numbers (assigned VRS numbers)
+        `CREATE TABLE IF NOT EXISTS client_phone_numbers (
+            id TEXT PRIMARY KEY,
+            client_id TEXT NOT NULL,
+            phone_number TEXT UNIQUE NOT NULL,
+            is_primary INTEGER DEFAULT 0,
+            assigned_at ${timestampType} DEFAULT ${currentTimestamp},
+            active INTEGER DEFAULT 1,
+            FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+        )`,
+
+        // Interpreter shifts/schedule
+        `CREATE TABLE IF NOT EXISTS interpreter_shifts (
+            id TEXT PRIMARY KEY,
+            interpreter_id TEXT NOT NULL,
+            date DATE NOT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT,
+            total_minutes INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'scheduled',
+            created_at ${timestampType} DEFAULT ${currentTimestamp},
+            UNIQUE(interpreter_id, date),
+            FOREIGN KEY (interpreter_id) REFERENCES interpreters(id) ON DELETE CASCADE
+        )`,
+
+        // Interpreter earnings
+        `CREATE TABLE IF NOT EXISTS interpreter_earnings (
+            id TEXT PRIMARY KEY,
+            interpreter_id TEXT NOT NULL,
+            period_start DATE NOT NULL,
+            period_end DATE NOT NULL,
+            total_minutes INTEGER DEFAULT 0,
+            total_calls INTEGER DEFAULT 0,
+            hourly_rate REAL DEFAULT 0,
+            total_earnings REAL DEFAULT 0,
+            net_earnings REAL DEFAULT 0,
+            status TEXT DEFAULT 'pending',
+            UNIQUE(interpreter_id, period_start, period_end),
+            FOREIGN KEY (interpreter_id) REFERENCES interpreters(id) ON DELETE CASCADE
+        )`,
+
+        // Additional indexes
+        `CREATE INDEX IF NOT EXISTS idx_speed_dial_client ON speed_dial(client_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_client_phone_client ON client_phone_numbers(client_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_shifts_interpreter ON interpreter_shifts(interpreter_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_shifts_date ON interpreter_shifts(date)`,
+        `CREATE INDEX IF NOT EXISTS idx_earnings_interpreter ON interpreter_earnings(interpreter_id)`,
+
+        // Missed calls (P2P — stored when target is offline)
+        `CREATE TABLE IF NOT EXISTS missed_calls (
+            id TEXT PRIMARY KEY,
+            caller_id TEXT NOT NULL,
+            callee_phone TEXT NOT NULL,
+            callee_client_id TEXT,
+            room_name TEXT,
+            created_at ${timestampType} DEFAULT ${currentTimestamp},
+            seen INTEGER DEFAULT 0,
+            FOREIGN KEY (caller_id) REFERENCES clients(id) ON DELETE CASCADE
+        )`,
+        `CREATE INDEX IF NOT EXISTS idx_missed_calls_callee ON missed_calls(callee_client_id, seen)`,
+        `CREATE INDEX IF NOT EXISTS idx_missed_calls_caller ON missed_calls(caller_id)`
+    ];
+}
 
 // ============================================
 // DATABASE INITIALIZATION
 // ============================================
 
 function initialize() {
+    if (isPostgres()) {
+        return initializePostgres();
+    }
+
     return new Promise((resolve, reject) => {
         // Ensure data directory exists
-        const fs = require('fs');
         const dataDir = path.dirname(DB_PATH);
         if (!fs.existsSync(dataDir)) {
             fs.mkdirSync(dataDir, { recursive: true });
         }
 
-        db = new sqlite3.Database(DB_PATH, (err) => {
+        const Sqlite3 = getSqliteDriver();
+        db = new Sqlite3.Database(DB_PATH, (err) => {
             if (err) {
                 console.error('[Database] Connection failed:', err);
                 return reject(err);
@@ -52,189 +283,35 @@ function initialize() {
     });
 }
 
+async function initializePostgres() {
+    const pgPool = getPgPool();
+    const client = await pgPool.connect();
+
+    try {
+        const result = await client.query('SELECT NOW() as now');
+        console.log('[Database] Connected to PostgreSQL:', result.rows[0].now);
+    } finally {
+        client.release();
+    }
+
+    await createTables();
+    await runMigrations();
+    console.log('[Database] Tables initialized');
+}
+
 function createTables() {
+    const tables = getCreateTableStatements();
+
+    if (isPostgres()) {
+        return (async () => {
+            const pgPool = getPgPool();
+            for (const sql of tables) {
+                await pgPool.query(sql);
+            }
+        })();
+    }
+
     return new Promise((resolve, reject) => {
-        const tables = [
-            // Admins table
-            `CREATE TABLE IF NOT EXISTS admins (
-                id TEXT PRIMARY KEY,
-                username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                name TEXT NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                last_login DATETIME
-            )`,
-
-            // Interpreters table
-            `CREATE TABLE IF NOT EXISTS interpreters (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                email TEXT UNIQUE NOT NULL,
-                password_hash TEXT,
-                languages TEXT DEFAULT '["ASL"]',
-                status TEXT DEFAULT 'offline',
-                active INTEGER DEFAULT 1,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                last_active DATETIME
-            )`,
-
-            // Clients table
-            `CREATE TABLE IF NOT EXISTS clients (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                email TEXT UNIQUE NOT NULL,
-                password_hash TEXT,
-                organization TEXT DEFAULT 'Personal',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                last_call DATETIME
-            )`,
-
-            // Calls table
-            `CREATE TABLE IF NOT EXISTS calls (
-                id TEXT PRIMARY KEY,
-                client_id TEXT,
-                interpreter_id TEXT,
-                room_name TEXT NOT NULL,
-                started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                ended_at DATETIME,
-                duration_minutes INTEGER,
-                language TEXT,
-                status TEXT DEFAULT 'active'
-            )`,
-
-            // Queue requests table
-            `CREATE TABLE IF NOT EXISTS queue_requests (
-                id TEXT PRIMARY KEY,
-                client_id TEXT,
-                client_name TEXT NOT NULL,
-                language TEXT NOT NULL,
-                target_phone TEXT,
-                room_name TEXT NOT NULL,
-                status TEXT DEFAULT 'waiting',
-                position INTEGER,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                assigned_at DATETIME,
-                assigned_to TEXT,
-                completed_at DATETIME
-            )`,
-
-            // Activity log table
-            `CREATE TABLE IF NOT EXISTS activity_log (
-                id TEXT PRIMARY KEY,
-                type TEXT NOT NULL,
-                description TEXT,
-                data TEXT,
-                created_by TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )`,
-
-            // Daily stats table
-            `CREATE TABLE IF NOT EXISTS daily_stats (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                date DATE NOT NULL UNIQUE,
-                total_calls INTEGER DEFAULT 0,
-                total_minutes INTEGER DEFAULT 0,
-                unique_clients INTEGER DEFAULT 0,
-                unique_interpreters INTEGER DEFAULT 0,
-                avg_wait_time_seconds REAL DEFAULT 0
-            )`,
-
-            // Interpreter performance table
-            `CREATE TABLE IF NOT EXISTS interpreter_performance (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                interpreter_id TEXT,
-                date DATE NOT NULL,
-                calls_completed INTEGER DEFAULT 0,
-                minutes_logged INTEGER DEFAULT 0,
-                avg_call_duration REAL,
-                UNIQUE(interpreter_id, date)
-            )`,
-
-            // Indexes for performance
-            `CREATE INDEX IF NOT EXISTS idx_calls_client ON calls(client_id)`,
-            `CREATE INDEX IF NOT EXISTS idx_calls_interpreter ON calls(interpreter_id)`,
-            `CREATE INDEX IF NOT EXISTS idx_calls_date ON calls(started_at)`,
-            `CREATE INDEX IF NOT EXISTS idx_queue_status ON queue_requests(status)`,
-            `CREATE INDEX IF NOT EXISTS idx_queue_created ON queue_requests(created_at)`,
-            `CREATE INDEX IF NOT EXISTS idx_activity_type ON activity_log(type)`,
-            `CREATE INDEX IF NOT EXISTS idx_activity_date ON activity_log(created_at)`,
-
-            // Speed dial (client favorites)
-            `CREATE TABLE IF NOT EXISTS speed_dial (
-                id TEXT PRIMARY KEY,
-                client_id TEXT NOT NULL,
-                name TEXT NOT NULL,
-                phone_number TEXT NOT NULL,
-                category TEXT DEFAULT 'personal',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                last_used DATETIME,
-                use_count INTEGER DEFAULT 0,
-                FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
-            )`,
-
-            // Client phone numbers (assigned VRS numbers)
-            `CREATE TABLE IF NOT EXISTS client_phone_numbers (
-                id TEXT PRIMARY KEY,
-                client_id TEXT NOT NULL,
-                phone_number TEXT UNIQUE NOT NULL,
-                is_primary INTEGER DEFAULT 0,
-                assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                active INTEGER DEFAULT 1,
-                FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
-            )`,
-
-            // Interpreter shifts/schedule
-            `CREATE TABLE IF NOT EXISTS interpreter_shifts (
-                id TEXT PRIMARY KEY,
-                interpreter_id TEXT NOT NULL,
-                date DATE NOT NULL,
-                start_time TEXT NOT NULL,
-                end_time TEXT,
-                total_minutes INTEGER DEFAULT 0,
-                status TEXT DEFAULT 'scheduled',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(interpreter_id, date),
-                FOREIGN KEY (interpreter_id) REFERENCES interpreters(id) ON DELETE CASCADE
-            )`,
-
-            // Interpreter earnings
-            `CREATE TABLE IF NOT EXISTS interpreter_earnings (
-                id TEXT PRIMARY KEY,
-                interpreter_id TEXT NOT NULL,
-                period_start DATE NOT NULL,
-                period_end DATE NOT NULL,
-                total_minutes INTEGER DEFAULT 0,
-                total_calls INTEGER DEFAULT 0,
-                hourly_rate REAL DEFAULT 0,
-                total_earnings REAL DEFAULT 0,
-                net_earnings REAL DEFAULT 0,
-                status TEXT DEFAULT 'pending',
-                UNIQUE(interpreter_id, period_start, period_end),
-                FOREIGN KEY (interpreter_id) REFERENCES interpreters(id) ON DELETE CASCADE
-            )`,
-
-            // Additional indexes
-            `CREATE INDEX IF NOT EXISTS idx_speed_dial_client ON speed_dial(client_id)`,
-            `CREATE INDEX IF NOT EXISTS idx_client_phone_client ON client_phone_numbers(client_id)`,
-            `CREATE INDEX IF NOT EXISTS idx_shifts_interpreter ON interpreter_shifts(interpreter_id)`,
-            `CREATE INDEX IF NOT EXISTS idx_shifts_date ON interpreter_shifts(date)`,
-            `CREATE INDEX IF NOT EXISTS idx_earnings_interpreter ON interpreter_earnings(interpreter_id)`,
-
-            // Missed calls (P2P — stored when target is offline)
-            `CREATE TABLE IF NOT EXISTS missed_calls (
-                id TEXT PRIMARY KEY,
-                caller_id TEXT NOT NULL,
-                callee_phone TEXT NOT NULL,
-                callee_client_id TEXT,
-                room_name TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                seen INTEGER DEFAULT 0,
-                FOREIGN KEY (caller_id) REFERENCES clients(id) ON DELETE CASCADE
-            )`,
-            `CREATE INDEX IF NOT EXISTS idx_missed_calls_callee ON missed_calls(callee_client_id, seen)`,
-            `CREATE INDEX IF NOT EXISTS idx_missed_calls_caller ON missed_calls(caller_id)`
-        ];
-
         let completed = 0;
         const total = tables.length;
 
@@ -260,6 +337,12 @@ function createTables() {
 // ============================================
 
 function runQuery(sql, params = []) {
+    if (isPostgres()) {
+        return getPgPool()
+            .query(toParameterizedSql(sql), params)
+            .then(result => result.rows);
+    }
+
     return new Promise((resolve, reject) => {
         db.all(sql, params, (err, rows) => {
             if (err) reject(err);
@@ -269,6 +352,12 @@ function runQuery(sql, params = []) {
 }
 
 function runInsert(sql, params = []) {
+    if (isPostgres()) {
+        return getPgPool()
+            .query(toParameterizedSql(sql), params)
+            .then(result => result.rowCount);
+    }
+
     return new Promise((resolve, reject) => {
         db.run(sql, params, function(err) {
             if (err) reject(err);
@@ -278,6 +367,12 @@ function runInsert(sql, params = []) {
 }
 
 function runUpdate(sql, params = []) {
+    if (isPostgres()) {
+        return getPgPool()
+            .query(toParameterizedSql(sql), params)
+            .then(result => result.rowCount);
+    }
+
     return new Promise((resolve, reject) => {
         db.run(sql, params, function(err) {
             if (err) reject(err);
@@ -315,7 +410,19 @@ async function createAdmin({ username, password, name }) {
 // ============================================
 
 async function getAllInterpreters() {
-    const interpreters = await runQuery(`
+    const interpreters = await runQuery(isPostgres() ? `
+        SELECT
+            i.*,
+            COUNT(DISTINCT c.id) as total_calls,
+            SUM(CASE WHEN c.started_at >= CURRENT_DATE THEN 1 ELSE 0 END) as calls_today,
+            SUM(c.duration_minutes) as total_minutes,
+            SUM(CASE WHEN c.started_at >= CURRENT_DATE - INTERVAL '7 days' THEN c.duration_minutes ELSE 0 END) as minutes_week
+        FROM interpreters i
+        LEFT JOIN calls c ON c.interpreter_id = i.id
+        WHERE i.active = 1
+        GROUP BY i.id
+        ORDER BY i.name
+    ` : `
         SELECT
             i.*,
             COUNT(DISTINCT c.id) as total_calls,
@@ -409,7 +516,21 @@ async function deleteInterpreter(id) {
 }
 
 async function getInterpreterStats() {
-    return await runQuery(`
+    return await runQuery(isPostgres() ? `
+        SELECT
+            i.id,
+            i.name,
+            i.email,
+            i.languages,
+            COUNT(c.id) as total_calls,
+            SUM(c.duration_minutes) as total_minutes,
+            MAX(c.started_at) as last_call
+        FROM interpreters i
+        LEFT JOIN calls c ON c.interpreter_id = i.id AND c.started_at >= CURRENT_DATE - INTERVAL '30 days'
+        WHERE i.active = 1
+        GROUP BY i.id
+        ORDER BY total_calls DESC
+    ` : `
         SELECT
             i.id,
             i.name,
@@ -511,7 +632,7 @@ async function addToQueue({ clientId, clientName, language, roomName, targetPhon
 
     // Get current position
     const count = await runQuery(
-        'SELECT COUNT(*) as count FROM queue_requests WHERE status = "waiting"'
+        "SELECT COUNT(*) as count FROM queue_requests WHERE status = 'waiting'"
     );
 
     await runInsert(
@@ -566,7 +687,7 @@ async function removeFromQueue(requestId) {
 
 async function reorderQueue() {
     const requests = await runQuery(
-        'SELECT id FROM queue_requests WHERE status = "waiting" ORDER BY created_at'
+        "SELECT id FROM queue_requests WHERE status = 'waiting' ORDER BY created_at"
     );
 
     for (let i = 0; i < requests.length; i++) {
@@ -630,7 +751,12 @@ async function getDashboardStats() {
     const today = now.toISOString().split('T')[0];
 
     // Get interpreter count
-    const interpreterCount = await runQuery(`
+    const interpreterCount = await runQuery(isPostgres() ? `
+        SELECT
+            COUNT(*) as total,
+            COALESCE(SUM(CASE WHEN last_active >= CURRENT_TIMESTAMP - INTERVAL '5 minutes' THEN 1 ELSE 0 END), 0) as online
+        FROM interpreters WHERE active = 1
+    ` : `
         SELECT
             COUNT(*) as total,
             COALESCE(SUM(CASE WHEN last_active >= datetime('now', '-5 minutes') THEN 1 ELSE 0 END), 0) as online
@@ -642,12 +768,12 @@ async function getDashboardStats() {
 
     // Get queue count
     const queueCount = await runQuery(
-        'SELECT COUNT(*) as count FROM queue_requests WHERE status = "waiting"'
+        "SELECT COUNT(*) as count FROM queue_requests WHERE status = 'waiting'"
     );
 
     // Get active calls
     const activeCalls = await runQuery(
-        'SELECT COUNT(*) as count FROM calls WHERE status = "active"'
+        "SELECT COUNT(*) as count FROM calls WHERE status = 'active'"
     );
 
     // Get today's stats
@@ -661,7 +787,12 @@ async function getDashboardStats() {
     `, [today]);
 
     // Get week-over-week comparison
-    const weekCompare = await runQuery(`
+    const weekCompare = await runQuery(isPostgres() ? `
+        SELECT
+            COUNT(CASE WHEN date(started_at) >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as this_week,
+            COUNT(CASE WHEN date(started_at) >= CURRENT_DATE - INTERVAL '14 days' AND date(started_at) < CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as last_week
+        FROM calls
+    ` : `
         SELECT
             COUNT(CASE WHEN date(started_at) >= date('now', '-7 days') THEN 1 END) as this_week,
             COUNT(CASE WHEN date(started_at) >= date('now', '-14 days') AND date(started_at) < date('now', '-7 days') THEN 1 END) as last_week
@@ -669,7 +800,12 @@ async function getDashboardStats() {
     `);
 
     // Average wait time
-    const avgWait = await runQuery(`
+    const avgWait = await runQuery(isPostgres() ? `
+        SELECT AVG(EXTRACT(EPOCH FROM (assigned_at - created_at)) / 60.0) as avg_minutes
+        FROM queue_requests
+        WHERE assigned_at IS NOT NULL
+        AND created_at >= CURRENT_DATE - INTERVAL '7 days'
+    ` : `
         SELECT AVG(julianday(created_at) - julianday(assigned_at)) * 24 * 60 as avg_minutes
         FROM queue_requests
         WHERE assigned_at IS NOT NULL
@@ -706,7 +842,18 @@ async function getDashboardStats() {
 
 async function getDailyUsageStats(days = 7) {
     const safeDays = Math.max(1, Math.min(365, Math.floor(Number(days) || 7)));
-    return await runQuery(`
+    return await runQuery(isPostgres() ? `
+        SELECT
+            date(started_at) as date,
+            COUNT(*) as calls,
+            SUM(duration_minutes) as minutes,
+            COUNT(DISTINCT client_id) as unique_clients,
+            COUNT(DISTINCT interpreter_id) as unique_interpreters
+        FROM calls
+        WHERE date(started_at) >= CURRENT_DATE - (?::int * INTERVAL '1 day')
+        GROUP BY date(started_at)
+        ORDER BY date
+    ` : `
         SELECT
             date(started_at) as date,
             COUNT(*) as calls,
@@ -814,6 +961,17 @@ async function getInterpreterShifts(interpreterId, startDate, endDate) {
 
 async function createInterpreterShift({ interpreterId, date, startTime }) {
     const id = uuidv4();
+    if (isPostgres()) {
+        await runInsert(
+            `INSERT INTO interpreter_shifts (id, interpreter_id, date, start_time)
+             VALUES (?, ?, ?, ?)
+             ON CONFLICT (interpreter_id, date)
+             DO UPDATE SET id = EXCLUDED.id, start_time = EXCLUDED.start_time`,
+            [id, interpreterId, date, startTime]
+        );
+        return { id, date };
+    }
+
     await runInsert(
         'INSERT OR REPLACE INTO interpreter_shifts (id, interpreter_id, date, start_time) VALUES (?, ?, ?, ?)',
         [id, interpreterId, date, startTime]
@@ -912,6 +1070,10 @@ async function getInterpreterStats(interpreterId) {
 // ============================================
 
 function runMigrations() {
+    if (isPostgres()) {
+        return Promise.resolve();
+    }
+
     return new Promise((resolve, reject) => {
         db.serialize(() => {
             db.all('PRAGMA table_info(calls)', (callsErr, callColumns) => {
@@ -1123,5 +1285,5 @@ module.exports = {
     getMissedCalls,
     markMissedCallsSeen,
     getActiveP2PRoomsForClient,
-    db: () => db
+    db: () => (isPostgres() ? getPgPool() : db)
 };

@@ -6,6 +6,16 @@ x-common: &common
     - meet.jitsi
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    <<: *common
+    environment:
+      - POSTGRES_DB=${PGDATABASE:-malka_vrs}
+      - POSTGRES_USER=${PGUSER:-malka}
+      - POSTGRES_PASSWORD=${PGPASSWORD:-malka}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
   nginx:
     image: nginx:1.25-alpine
     <<: *common
@@ -83,8 +93,16 @@ services:
       - PORT=3001
       - NODE_ENV=production
       - JITSI_DOMAIN=meet.jitsi
+      - DB_CLIENT=${DB_CLIENT:-sqlite}
+      - PGHOST=${PGHOST:-postgres}
+      - PGPORT=${PGPORT:-5432}
+      - PGDATABASE=${PGDATABASE:-malka_vrs}
+      - PGUSER=${PGUSER:-malka}
+      - PGPASSWORD=${PGPASSWORD:-malka}
     volumes:
       - vrs-data:/app/vrs-server/data
+    depends_on:
+      - postgres
 
   ops:
     build:
@@ -118,3 +136,4 @@ volumes:
   prosody-data:
   vrs-data:
   ops-data:
+  postgres-data:

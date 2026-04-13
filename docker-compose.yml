@@ -21,6 +21,19 @@ x-jitsi-common: &jitsi-common
     - meet.jitsi
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=${PGDATABASE:-malka_vrs}
+      - POSTGRES_USER=${PGUSER:-malka}
+      - POSTGRES_PASSWORD=${PGPASSWORD:-malka}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - meet.jitsi
+
   # ─── Jitsi XMPP Server ────────────────────────────────────
   prosody:
     image: jitsi/prosody:stable-9584
@@ -91,8 +104,15 @@ services:
     environment:
       - PORT=3001
       - JITSI_DOMAIN=meet.jitsi
+      - DB_CLIENT=${DB_CLIENT:-sqlite}
+      - PGHOST=${PGHOST:-postgres}
+      - PGPORT=${PGPORT:-5432}
+      - PGDATABASE=${PGDATABASE:-malka_vrs}
+      - PGUSER=${PGUSER:-malka}
+      - PGPASSWORD=${PGPASSWORD:-malka}
     depends_on:
       - prosody
+      - postgres
     volumes:
       - vrs-data:/app/data
     networks:
@@ -136,3 +156,4 @@ volumes:
   prosody-data:
   vrs-data:
   ops-data:
+  postgres-data:
