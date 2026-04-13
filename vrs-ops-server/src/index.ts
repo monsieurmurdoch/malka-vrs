@@ -80,7 +80,7 @@ type AuthDirectoryRecord = {
     languages?: string[];
     name?: string;
     passwordHash?: string;
-    role?: 'admin' | 'interpreter' | 'superadmin';
+    role?: 'admin' | 'captioner' | 'interpreter' | 'superadmin';
     username?: string;
 };
 
@@ -260,7 +260,7 @@ function recordOpsAudit(event: string, details: Record<string, unknown>) {
     }
 }
 
-function findAuthRecord(identifier: string, role?: 'admin' | 'interpreter' | 'superadmin' | null) {
+function findAuthRecord(identifier: string, role?: 'admin' | 'captioner' | 'interpreter' | 'superadmin' | null) {
     const normalizedIdentifier = normalizeIdentifier(identifier);
 
     return authDirectory.find(candidate => {
@@ -452,7 +452,7 @@ function recordAuthAttempt(key: string, success: boolean) {
     authAttemptStore.set(key, existing);
 }
 
-async function getAuthRecord(identifier: string, password: string, role?: 'admin' | 'interpreter' | 'superadmin' | null) {
+async function getAuthRecord(identifier: string, password: string, role?: 'admin' | 'captioner' | 'interpreter' | 'superadmin' | null) {
     const record = findAuthRecord(identifier, role)
         || (!role ? findAuthRecord(identifier, 'admin') || findAuthRecord(identifier, 'superadmin') : null);
 
@@ -520,6 +520,8 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
         ? 'superadmin'
         : role === 'admin'
             ? 'admin'
+            : role === 'captioner'
+                ? 'captioner'
             : role === 'interpreter'
                 ? 'interpreter'
                 : null;
@@ -568,7 +570,8 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
             languages: authRecord.languages,
             username: authRecord.username,
             iat: Math.floor(Date.now() / 1000),
-            exp: Math.floor(Date.now() / 1000) + (authRecord.role === 'interpreter' ? 8 * 60 * 60 : 12 * 60 * 60)
+            exp: Math.floor(Date.now() / 1000)
+                + ((authRecord.role === 'interpreter' || authRecord.role === 'captioner') ? 8 * 60 * 60 : 12 * 60 * 60)
         },
         JWT_SECRET
     );
@@ -973,6 +976,8 @@ app.post('/api/admin/accounts', authenticateToken, requireRole('superadmin'), as
         ? 'superadmin'
         : role === 'admin'
             ? 'admin'
+            : role === 'captioner'
+                ? 'captioner'
             : role === 'interpreter'
                 ? 'interpreter'
                 : null;
@@ -980,7 +985,7 @@ app.post('/api/admin/accounts', authenticateToken, requireRole('superadmin'), as
     const normalizedUsername = normalizeUsername(username) || (!email ? createUsernameFromName(normalizedName) : '');
 
     if (!normalizedRole) {
-        res.status(400).json({ error: 'Role must be superadmin, admin, or interpreter' });
+        res.status(400).json({ error: 'Role must be superadmin, admin, captioner, or interpreter' });
         return;
     }
 

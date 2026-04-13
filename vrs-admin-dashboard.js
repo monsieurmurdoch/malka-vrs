@@ -134,6 +134,7 @@ function setupEventListeners() {
 
     // Add interpreter button
     document.getElementById('addInterpreterBtn')?.addEventListener('click', showAddInterpreterModal);
+    document.getElementById('addCaptionerBtn')?.addEventListener('click', showAddCaptionerModal);
     document.getElementById('addAccountBtn')?.addEventListener('click', showAddAccountModal);
 
     // Filter changes
@@ -190,6 +191,9 @@ function loadTabData(tab) {
             break;
         case 'interpreters':
             loadInterpreters();
+            break;
+        case 'captioners':
+            loadCaptioners();
             break;
         case 'accounts':
             loadAccounts();
@@ -989,6 +993,138 @@ async function createInterpreter(name, email, languages, username) {
 }
 
 // ============================================
+// CAPTIONERS
+// ============================================
+
+let allCaptioners = [];
+
+async function loadCaptioners() {
+    try {
+        allCaptioners = await apiCall('/admin/captioners');
+        renderCaptionersTable(allCaptioners);
+    } catch (error) {
+        console.error('[Captioners] Error:', error);
+    }
+}
+
+function renderCaptionersTable(captioners) {
+    const tbody = document.getElementById('captionersTableBody');
+    if (!tbody) {
+        return;
+    }
+
+    if (captioners.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    No captioners found
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = captioners.map(captioner => `
+        <tr>
+            <td><div style="font-weight: 500;">${captioner.name}</div></td>
+            <td style="color: var(--text-secondary);">${captioner.email}</td>
+            <td>${Array.isArray(captioner.languages) ? captioner.languages.join(', ') : captioner.languages}</td>
+            <td>
+                <span class="status-badge ${captioner.active === false ? 'status-offline' : 'status-online'}">
+                    <span class="status-dot"></span>
+                    ${captioner.active === false ? 'Disabled' : 'Active'}
+                </span>
+            </td>
+            <td>${formatDate(captioner.created_at)}</td>
+            <td>
+                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="editCaptioner('${captioner.id}')">Edit</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function showAddCaptionerModal() {
+    if (currentAdminRole !== 'superadmin') {
+        alert('Only the superadmin account can create captioner accounts.');
+        return;
+    }
+
+    const name = prompt('Captioner Name:');
+    if (!name) return;
+
+    const email = prompt('Email:', '');
+    if (!email) return;
+
+    const username = prompt('Username (optional if email is supplied):', email ? email.split('@')[0] : '');
+    const languages = prompt('Languages (comma-separated, e.g., English, Spanish):', 'English');
+
+    createCaptioner(name, email, languages.split(',').map(language => language.trim()).filter(Boolean), username);
+}
+
+async function createCaptioner(name, email, languages, username) {
+    try {
+        await opsApiCall('/admin/accounts', {
+            method: 'POST',
+            body: JSON.stringify({
+                email,
+                languages,
+                name,
+                password: 'captioner123!',
+                role: 'captioner',
+                username
+            })
+        });
+
+        await apiCall('/admin/captioners', {
+            method: 'POST',
+            body: JSON.stringify({ name, email, languages, password: 'captioner123!' })
+        });
+
+        alert(`Captioner created successfully.\n${username ? `username: ${username}\n` : ''}${email ? `email: ${email}\n` : ''}password: captioner123!`);
+        loadCaptioners();
+        loadAccounts();
+        loadMonitoringSummary();
+    } catch (error) {
+        alert('Failed to create captioner: ' + error.message);
+    }
+}
+
+async function editCaptioner(captionerId) {
+    const captioner = allCaptioners.find(item => item.id === captionerId);
+    if (!captioner) {
+        return;
+    }
+
+    const name = prompt('Captioner name:', captioner.name);
+    if (!name) return;
+
+    const email = prompt('Email:', captioner.email || '');
+    if (!email) return;
+
+    const languages = prompt(
+        'Languages (comma-separated):',
+        Array.isArray(captioner.languages) ? captioner.languages.join(', ') : (captioner.languages || 'English')
+    );
+    const active = confirm('Should this captioner account remain active?');
+
+    try {
+        await apiCall(`/admin/captioners/${captionerId}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+                active,
+                email,
+                languages: languages.split(',').map(language => language.trim()).filter(Boolean),
+                name
+            })
+        });
+
+        loadCaptioners();
+    } catch (error) {
+        alert('Failed to update captioner: ' + error.message);
+    }
+}
+
+// ============================================
 // ACCOUNTS
 // ============================================
 
@@ -1047,7 +1183,7 @@ function showAddAccountModal() {
         return;
     }
 
-    const role = prompt('Account role (superadmin, admin, interpreter):', 'interpreter');
+    const role = prompt('Account role (superadmin, admin, interpreter, captioner):', 'interpreter');
     if (!role) {
         return;
     }
@@ -1059,13 +1195,16 @@ function showAddAccountModal() {
 
     const username = prompt('Username (optional if email is supplied):', '');
     const email = prompt('Email (optional):', '');
-    const password = prompt('Temporary password:', role === 'interpreter' ? 'interpreter123!' : 'admin123!');
+    const password = prompt(
+        'Temporary password:',
+        role === 'interpreter' ? 'interpreter123!' : role === 'captioner' ? 'captioner123!' : 'admin123!'
+    );
 
     if (!password) {
         return;
     }
 
-    const languages = role === 'interpreter'
+    const languages = role === 'interpreter' || role === 'captioner'
         ? prompt('Languages (comma-separated):', 'ASL, English')
         : '';
 

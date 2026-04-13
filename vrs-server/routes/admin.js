@@ -160,6 +160,79 @@ router.delete('/interpreters/:id', authenticateAdmin, async (req, res) => {
 });
 
 // ============================================
+// CAPTIONERS
+// ============================================
+
+router.get('/captioners', authenticateAdmin, async (req, res) => {
+    try {
+        const captioners = await db.getAllCaptioners();
+        res.json(captioners);
+    } catch (error) {
+        console.error('[Captioners] Error:', error);
+        res.status(500).json({ error: 'Failed to fetch captioners' });
+    }
+});
+
+router.post('/captioners', authenticateAdmin, async (req, res) => {
+    const validationError = validateRequired(req.body, ['name', 'email']);
+    if (validationError) {
+        return res.status(400).json({ error: validationError });
+    }
+
+    const { name, email, languages, password } = req.body;
+
+    try {
+        const captionerId = await db.createCaptioner({
+            name, email, languages: languages || ['en'], password
+        });
+
+        activityLogger.log('captioner_created', {
+            adminId: req.admin.id, captionerId, name, email
+        });
+
+        res.json({ success: true, id: captionerId });
+    } catch (error) {
+        console.error('[Create Captioner] Error:', error);
+        res.status(500).json({ error: 'Failed to create captioner' });
+    }
+});
+
+router.put('/captioners/:id', authenticateAdmin, async (req, res) => {
+    const { id } = req.params;
+    const { name, email, languages, active } = req.body;
+
+    try {
+        await db.updateCaptioner(id, { name, email, languages, active });
+
+        activityLogger.log('captioner_updated', {
+            adminId: req.admin.id, captionerId: id, updates: { name, email, languages, active }
+        });
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[Update Captioner] Error:', error);
+        res.status(500).json({ error: 'Failed to update captioner' });
+    }
+});
+
+router.delete('/captioners/:id', authenticateAdmin, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        await db.deleteCaptioner(id);
+
+        activityLogger.log('captioner_deleted', {
+            adminId: req.admin.id, captionerId: id
+        });
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[Delete Captioner] Error:', error);
+        res.status(500).json({ error: 'Failed to delete captioner' });
+    }
+});
+
+// ============================================
 // CLIENTS
 // ============================================
 
