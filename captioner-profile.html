@@ -125,6 +125,33 @@
             margin-top: 20px;
         }
 
+        .join-form {
+            display: grid;
+            gap: 12px;
+        }
+
+        .join-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .join-input {
+            flex: 1 1 260px;
+            min-width: 0;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text);
+            padding: 12px 14px;
+            font: inherit;
+        }
+
+        .helper {
+            font-size: 13px;
+            color: var(--muted);
+        }
+
         button,
         a.button {
             appearance: none;
@@ -198,7 +225,7 @@
                     <ul class="checklist">
                         <li>Availability toggle for captioning shifts</li>
                         <li>Call queue for requested caption sessions</li>
-                        <li>Live caption editor and publish controls</li>
+                        <li>Hidden transcriber presence for privacy-first joins</li>
                     </ul>
                 </div>
                 <div class="card metric">
@@ -208,6 +235,22 @@
                         <li>Deepgram or another STT provider can feed the same caption surface</li>
                         <li>U.S. VRS transcript retention can stay disabled by default</li>
                     </ul>
+                </div>
+                <div class="card metric">
+                    <strong>Join a live room</strong>
+                    <form class="join-form" id="join-room-form">
+                        <div class="join-row">
+                            <input
+                                class="join-input"
+                                id="room-input"
+                                placeholder="Paste a room name or full invite link"
+                                type="text" />
+                            <button class="primary" type="submit">Join room</button>
+                        </div>
+                        <p class="helper">
+                            Captioners can join active VRS rooms now and publish manual live captions into the in-call overlay.
+                        </p>
+                    </form>
                 </div>
             </section>
         </div>
@@ -245,6 +288,29 @@
             window.location.href = '/';
         }
 
+        function normalizeRoomTarget(value) {
+            const raw = (value || '').trim();
+
+            if (!raw) {
+                return '';
+            }
+
+            try {
+                const url = new URL(raw);
+                const segments = url.pathname.split('/').filter(Boolean);
+
+                return segments[segments.length - 1] || '';
+            } catch (error) {
+                return raw
+                    .replace(/^https?:\/\//i, '')
+                    .replace(/^\/+/, '')
+                    .split(/[?#]/)[0]
+                    .split('/')
+                    .filter(Boolean)
+                    .pop() || '';
+            }
+        }
+
         const role = readStorage('vrs_user_role');
         const rawUser = readStorage('vrs_user_info');
 
@@ -266,6 +332,19 @@
         document.getElementById('logout-button').addEventListener('click', () => {
             clearStorage();
             redirectHome();
+        });
+
+        document.getElementById('join-room-form').addEventListener('submit', (event) => {
+            event.preventDefault();
+
+            const roomValue = document.getElementById('room-input').value;
+            const roomName = normalizeRoomTarget(roomValue);
+
+            if (!roomName) {
+                return;
+            }
+
+            window.location.href = `/${encodeURIComponent(roomName)}?role=captioner`;
         });
     </script>
 </body>
