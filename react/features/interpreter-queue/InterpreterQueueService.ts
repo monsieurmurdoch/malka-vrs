@@ -125,6 +125,10 @@ function hasQueueAuthForRole(role: string): boolean {
         return true;
     }
 
+    if (role === 'captioner') {
+        return false;
+    }
+
     const storedToken = getStoredJson<StoredAuthToken>('vrs_auth_token');
 
     return Boolean(storedToken?.token);

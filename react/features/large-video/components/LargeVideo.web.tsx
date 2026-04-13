@@ -18,6 +18,7 @@ import Captions from '../../subtitles/components/web/Captions';
 import { setTileView } from '../../video-layout/actions.web';
 import Whiteboard from '../../whiteboard/components/web/Whiteboard';
 import { isWhiteboardReady } from '../../whiteboard/functions';
+import CaptionComposer from '../../captioner/components/web/CaptionComposer';
 import { setSeeWhatIsBeingShared } from '../actions.web';
 import { getLargeVideoParticipant } from '../functions';
 
@@ -243,6 +244,7 @@ class LargeVideo extends Component<IProps> {
                 </div>
                 { interfaceConfig.DISABLE_TRANSCRIPTION_SUBTITLES
                     || <Captions /> }
+                <CaptionComposer />
                 {_showDominantSpeakerBadge && <StageParticipantNameLabel />}
             </div>
         );
