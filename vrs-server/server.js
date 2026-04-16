@@ -13,12 +13,18 @@
  *   lib/auth.js             — JWT helpers
  *   lib/queue-service.js    — interpreter queue matching
  *   lib/handoff-service.js  — device handoff token management
+ *   lib/metrics.js          — Prometheus metrics collection
+ *   lib/tracing.js          — OpenTelemetry distributed tracing
  */
+
+// Initialize OpenTelemetry BEFORE other imports so auto-instrumentation works
+const tracing = require('./lib/tracing');
+tracing.initialize();
 
 try {
     require('dotenv').config();
 } catch (error) {
-    console.warn('[Server] dotenv not installed, continuing with process environment only.');
+    // dotenv not installed — continue with process environment only
 }
 
 const express = require('express');
@@ -29,6 +35,15 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+
+// Monitoring
+const metrics = require('./lib/metrics');
+const { httpMetricsMiddleware } = metrics;
+
+// Structured logger & request middleware
+const log = require('./lib/logger').module('server');
+const { requestId, requestLogger } = require('./lib/middleware');
 
 // Services
 const db = require('./database');
@@ -42,8 +57,13 @@ const { router: authRouter, setLegacyFlag } = require('./routes/auth');
 const clientRouter = require('./routes/client');
 const contactsRouter = require('./routes/contacts');
 const interpreterRouter = require('./routes/interpreter');
-const adminRouter = require('./routes/admin');
+const { router: adminRouter, setVoicemailServiceForAdmin } = require('./routes/admin');
 const handoffRouter = require('./routes/handoff');
+const { router: voicemailRouter, setVoicemailService } = require('./routes/voicemail');
+const handoffService = require('./lib/handoff-service');
+const voicemailService = require('./dist/lib/voicemail-service');
+const { validate, nameSchema, emailSchema, organizationSchema, z: zodLib } = require('./lib/validation');
+const { configureStorageService, getStorageService } = require('./dist/lib/storage-service');
 
 // WebSocket handler
 const { handleConnection } = require('./ws/handler');
@@ -61,8 +81,7 @@ const API_RATE_LIMIT_WINDOW_MS = Number(process.env.API_RATE_LIMIT_WINDOW_MS || 
 const API_RATE_LIMIT_MAX = Number(process.env.API_RATE_LIMIT_MAX || 300);
 
 if (!JWT_SECRET) {
-    console.error('FATAL: VRS_SHARED_JWT_SECRET or JWT_SECRET environment variable is required.');
-    console.error('Set it in your .env file before starting the server.');
+    log.fatal('VRS_SHARED_JWT_SECRET or JWT_SECRET environment variable is required. Set it in your .env file before starting the server.');
     process.exit(1);
 }
 
@@ -112,20 +131,22 @@ app.use(cors({
     credentials: true
 }));
 
+// CSP nonce generation (before helmet so nonce is available in directives)
+app.use((req, res, next) => {
+    res.locals.cspNonce = crypto.randomBytes(16).toString('base64');
+    next();
+});
+
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+            scriptSrc: ["'self'", (req, res) => `'nonce-${res.locals.cspNonce}'`],
             styleSrc: ["'self'", "'unsafe-inline'"],
             imgSrc: ["'self'", 'data:'],
             connectSrc: CONNECT_SRC,
             mediaSrc: ["'self'", 'blob:'],
             fontSrc: ["'self'"],
-            // Re-enable this once the public endpoints are served over HTTPS
-            // with valid certificates. It is disabled temporarily so HTTP
-            // smoke-testing against the droplet IP does not auto-upgrade every
-            // asset request to an unavailable https:// origin.
             upgradeInsecureRequests: null
         }
     },
@@ -143,6 +164,13 @@ app.use('/api', rateLimit({
     },
     message: { error: 'Too many requests, please try again later.' }
 }));
+
+// Prometheus HTTP metrics middleware (before body parsing so all routes are tracked)
+app.use(httpMetricsMiddleware);
+
+// Request ID (correlation ID) & HTTP request logging
+app.use(requestId);
+app.use(requestLogger);
 
 // Body parsing
 app.use(express.json({ limit: '1mb' }));
@@ -172,6 +200,8 @@ app.use((req, res, next) => {
             return next();
         }
 
+        const nonce = res.locals.cspNonce || '';
+
         const resolved = data.replace(
             /<!--#include virtual="([^"]+)"\s*-->/g,
             (match, includePath) => {
@@ -185,7 +215,17 @@ app.use((req, res, next) => {
                 }
                 return '';
             }
-        );
+        )
+            // Inject nonce into inline <script> tags (no src attribute)
+            .replace(/<script(?![^>]*\bsrc\b)([^>]*)>/gi, (m, attrs) => {
+                if (/\bnonce=/.test(attrs)) return m;
+                return '<script' + attrs + ' nonce="' + nonce + '">';
+            })
+            // Inject nonce into inline <style> tags
+            .replace(/<style([^>]*)>/gi, (m, attrs) => {
+                if (/\bnonce=/.test(attrs)) return m;
+                return '<style' + attrs + ' nonce="' + nonce + '">';
+            });
 
         res.type('html').send(resolved);
     });
@@ -274,43 +314,75 @@ app.get('/api/readiness', (req, res) => {
     res.status(snapshot.ready ? 200 : 503).json(snapshot);
 });
 
+// Ops health — lightweight endpoint for infrastructure probes (load balancer, DO monitoring)
+app.get('/health', (req, res) => {
+    const ready = isDatabaseReady && Boolean(JWT_SECRET);
+    res.status(ready ? 200 : 503).json({
+        status: ready ? 'ok' : 'not_ready',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    });
+});
+
+// ============================================
+// PROMETHEUS METRICS ENDPOINT
+// ============================================
+
+app.get('/metrics', async (req, res) => {
+    try {
+        // Update gauge metrics from current application state
+        const queueStatus = typeof queueService.getStatus === 'function'
+            ? queueService.getStatus()
+            : { activeInterpreters: [], paused: false, pendingRequests: [], queueSize: 0, totalMatches: 0 };
+
+        const m = metrics.metrics;
+
+        // Queue gauges
+        m.queueDepth.set(queueStatus.queueSize);
+        m.queuePaused.set(queueStatus.paused ? 1 : 0);
+
+        // WebSocket gauges by role
+        m.wsConnections.set({ role: 'interpreter' }, state.clients.interpreters.size);
+        m.wsConnections.set({ role: 'client' }, state.clients.clients.size);
+        m.wsConnections.set({ role: 'admin' }, state.clients.admins.size);
+        m.wsConnections.set({ role: 'total' }, wss.clients.size);
+
+        // Scrape JVB stats if configured
+        const jvbUrl = process.env.JVB_STATS_URL;
+        if (jvbUrl) {
+            await metrics.scrapeJvbStats(jvbUrl);
+        }
+
+        res.set('Content-Type', metrics.register.contentType);
+        res.end(await metrics.register.metrics());
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to collect metrics' });
+    }
+});
+
 // ============================================
 // PUBLIC VRS REGISTRATION (no auth)
 // ============================================
 
-function validateRequired(body, fields) {
-    for (const field of fields) {
-        const value = body[field];
-        if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '')) {
-            return `Missing required field: ${field}`;
-        }
-    }
-    return null;
-}
+const registerSchema = zodLib.object({
+    name: nameSchema,
+    email: emailSchema.optional(),
+    role: zodLib.enum(['client']),
+    organization: organizationSchema
+});
 
-app.post('/api/vrs/register', async (req, res) => {
-    const validationError = validateRequired(req.body, ['name', 'role']);
-    if (validationError) {
-        return res.status(400).json({ error: validationError });
-    }
-
-    const { name, email, role } = req.body;
+app.post('/api/vrs/register', validate(registerSchema), async (req, res) => {
+    const { name, email } = req.body;
 
     try {
-        if (role === 'interpreter') {
-            return res.status(400).json({
-                error: 'Interpreter registration requires approval. Please contact administrator.'
-            });
-        }
-
         const clientId = await db.createClient({
             name, email, organization: req.body.organization || 'Personal'
         });
 
         res.json({ success: true, id: clientId });
     } catch (error) {
-        console.error('[Register] Error:', error);
-        res.status(500).json({ error: 'Registration failed' });
+        req.log.error({ err: error }, 'Registration failed');
+        res.status(500).json({ error: 'Registration failed', code: 'INTERNAL_ERROR' });
     }
 });
 
@@ -324,16 +396,18 @@ app.use('/api/contacts', contactsRouter);
 app.use('/api/interpreter', interpreterRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/handoff', handoffRouter);
+app.use('/api/voicemail', voicemailRouter);
 
 // ============================================
 // ERROR HANDLER
 // ============================================
 
 app.use((error, req, res, next) => {
-    console.error('[Server] Error:', error);
+    req.log.error({ err: error }, 'Unhandled server error');
     res.status(500).json({
         error: 'Internal server error',
-        message: process.env.NODE_ENV === 'development' ? error.message : undefined
+        code: 'INTERNAL_ERROR',
+        ...(process.env.NODE_ENV === 'development' && { details: { message: error.message } })
     });
 });
 
@@ -345,29 +419,57 @@ db.initialize().then(async () => {
     isDatabaseReady = true;
     queueService.broadcastToAdmins = (type, data) => state.broadcastToAdmins({ type, data });
     await queueService.initialize();
+    await handoffService.initialize();
+
+    // Seed voicemail settings
+    await db.seedVoicemailSettings();
+
+    // Initialize MinIO storage service (optional — graceful degradation)
+    if (process.env.MINIO_ENDPOINT) {
+        try {
+            const storage = configureStorageService({
+                endpoint: process.env.MINIO_ENDPOINT,
+                accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
+                secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
+                bucket: process.env.MINIO_BUCKET || 'voicemail'
+            });
+            await storage.initialize();
+            log.info('MinIO storage service initialized');
+        } catch (err) {
+            log.warn({ err }, 'MinIO initialization failed — voicemail storage unavailable');
+        }
+    }
+
+    // Initialize voicemail service
+    const broadcastFn = (userId, message) => {
+        const clientWs = state.clients.clients.get(userId);
+        if (clientWs && clientWs.readyState === 1) {
+            clientWs.send(JSON.stringify(message));
+        }
+    };
+    await voicemailService.initialize(broadcastFn);
+
+    // Wire voicemail service into routes
+    setVoicemailService(voicemailService);
+    setVoicemailServiceForAdmin(voicemailService);
+
     server.listen(PORT, () => {
-        console.log(`
-╔════════════════════════════════════════════════════════════╗
-║           MalkaVRS Server Started Successfully!            ║
-╠════════════════════════════════════════════════════════════╣
-║  HTTP Server:   http://localhost:${PORT}                      ║
-║  WebSocket:     ws://localhost:${PORT}/ws                     ║
-║  API Base:      /api                                          ║
-║  Admin Panel:   /vrs-admin-dashboard.html                     ║
-╠════════════════════════════════════════════════════════════╣
-║  Environment:   ${process.env.NODE_ENV || 'development'}                       ║
-║  Readiness:     http://localhost:${PORT}/api/readiness               ║
-╚════════════════════════════════════════════════════════════╝
-        `);
+        log.info({ port: PORT, env: process.env.NODE_ENV || 'development' }, 'MalkaVRS server started');
+        log.info('  HTTP Server:   http://localhost:%d', PORT);
+        log.info('  WebSocket:     ws://localhost:%d/ws', PORT);
+        log.info('  API Base:      /api');
+        log.info('  Admin Panel:   /vrs-admin-dashboard.html');
+        log.info('  Health (Ops):  http://localhost:%d/health', PORT);
+        log.info('  Metrics:       http://localhost:%d/metrics', PORT);
 
         const warnings = getHealthWarnings();
         if (warnings.length) {
-            console.warn('[Server] Startup warnings:', warnings.join(', '));
+            log.warn({ warnings }, 'Startup warnings detected');
         }
     });
 }).catch(error => {
     isDatabaseReady = false;
-    console.error('Failed to initialize database:', error);
+    log.fatal({ err: error }, 'Failed to initialize database');
     process.exit(1);
 });
 

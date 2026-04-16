@@ -19,6 +19,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import dotenv from 'dotenv';
+import { z, ZodError } from 'zod';
 
 dotenv.config();
 
@@ -59,6 +60,64 @@ app.use(cors({
     origin: CORS_ORIGIN
 }));
 app.use(express.json());
+
+// Validation helper
+function validateRequest(schema: z.ZodSchema) {
+    return (req: Request, res: Response, next: NextFunction): void => {
+        const result = schema.safeParse(req.body);
+        if (!result.success) {
+            const details: Record<string, string> = {};
+            for (const issue of result.error.issues) {
+                const key = issue.path.join('.') || '_root';
+                if (!details[key]) details[key] = issue.message;
+            }
+            res.status(400).json({ error: 'Validation failed', code: 'VALIDATION_ERROR', details });
+            return;
+        }
+        req.body = result.data;
+        next();
+    };
+}
+
+// Schemas
+const loginSchema = z.object({
+    email: z.string().max(254).optional(),
+    identifier: z.string().max(254).optional(),
+    username: z.string().max(254).optional(),
+    password: z.string().min(1),
+    role: z.enum(['admin', 'interpreter', 'superadmin']).optional()
+}).refine(data => data.email || data.identifier || data.username, {
+    message: 'Username or email is required',
+    path: ['identifier']
+});
+
+const createCallSchema = z.object({
+    clientId: z.string().max(100).optional(),
+    clientName: z.string().max(100).optional(),
+    language: z.string().max(20).optional(),
+    roomId: z.string().max(100).optional()
+});
+
+const updateCallSchema = z.object({
+    status: z.enum(['waiting', 'active', 'ended', 'abandoned']).optional(),
+    interpreterId: z.string().max(100).optional(),
+    interpreterName: z.string().max(100).optional()
+}).refine(data => Object.keys(data).length > 0, {
+    message: 'At least one field must be provided'
+});
+
+const updateInterpreterStatusSchema = z.object({
+    status: z.enum(['available', 'busy', 'offline', 'break']).optional()
+});
+
+const createAccountSchema = z.object({
+    name: z.string().min(1).max(100),
+    email: z.string().max(254).optional(),
+    username: z.string().max(100).optional(),
+    password: z.string().min(8).max(128),
+    role: z.enum(['admin', 'interpreter', 'superadmin']),
+    languages: z.array(z.string().max(20)).min(1).optional().default(['ASL'])
+});
 
 // In-memory storage (replace with database in production)
 const interpreters: Map<string, Interpreter> = new Map();
@@ -484,7 +543,7 @@ function authenticateToken(req: Request, res: Response, next: NextFunction): voi
     const token = authHeader?.split(' ')[1];
 
     if (!token) {
-        res.status(401).json({ error: 'No token provided' });
+        res.status(401).json({ error: 'No token provided', code: 'AUTH_REQUIRED' });
         return;
     }
 
@@ -493,7 +552,7 @@ function authenticateToken(req: Request, res: Response, next: NextFunction): voi
         (req as any).user = decoded;
         next();
     } catch (error) {
-        res.status(403).json({ error: 'Invalid or expired token' });
+        res.status(403).json({ error: 'Invalid or expired token', code: 'AUTH_INVALID' });
     }
 }
 
@@ -501,7 +560,7 @@ function requireRole(...roles: string[]): (req: Request, res: Response, next: Ne
     return (req: Request, res: Response, next: NextFunction) => {
         const user = (req as any).user as AuthToken;
         if (!user || !roles.includes(user.role)) {
-            res.status(403).json({ error: 'Insufficient permissions' });
+            res.status(403).json({ error: 'Insufficient permissions', code: 'FORBIDDEN' });
             return;
         }
         next();
@@ -513,7 +572,7 @@ function requireRole(...roles: string[]): (req: Request, res: Response, next: Ne
 /**
  * Login endpoint for interpreters and admins
  */
-app.post('/api/auth/login', async (req: Request, res: Response) => {
+app.post('/api/auth/login', validateRequest(loginSchema), async (req: Request, res: Response) => {
     const { email, identifier, password, role, username } = req.body;
     const loginIdentifier = String(identifier || email || username || '').trim();
     const normalizedRole = role === 'superadmin'
@@ -526,16 +585,11 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
                 ? 'interpreter'
                 : null;
 
-    if (!loginIdentifier || !password) {
-        res.status(400).json({ error: 'Username or email and password are required' });
-        return;
-    }
-
     const rateLimitKey = getRateLimitKey(req, normalizedRole || 'ops', loginIdentifier);
 
     if (isRateLimited(rateLimitKey)) {
         auditAuth('login_rate_limited', { identifier: loginIdentifier, role: normalizedRole || 'ops', ip: req.ip });
-        res.status(429).json({ error: 'Too many failed login attempts. Please try again later.' });
+        res.status(429).json({ error: 'Too many failed login attempts. Please try again later.', code: 'RATE_LIMITED' });
         return;
     }
 
@@ -544,7 +598,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
     if (!authRecord) {
         recordAuthAttempt(rateLimitKey, false);
         auditAuth('login_failed', { identifier: loginIdentifier, role: normalizedRole || 'ops', ip: req.ip });
-        res.status(401).json({ error: 'Invalid credentials' });
+        res.status(401).json({ error: 'Invalid credentials', code: 'AUTH_FAILED' });
         return;
     }
 
@@ -631,7 +685,7 @@ app.get('/api/readiness', (_req: Request, res: Response) => {
 /**
  * Log a new call request
  */
-app.post('/api/calls', authenticateToken, (req: Request, res: Response) => {
+app.post('/api/calls', authenticateToken, validateRequest(createCallSchema), (req: Request, res: Response) => {
     const { clientId, clientName, language, roomId } = req.body;
 
     const callId = uuidv4();
@@ -656,13 +710,13 @@ app.post('/api/calls', authenticateToken, (req: Request, res: Response) => {
 /**
  * Update call status
  */
-app.patch('/api/calls/:callId', authenticateToken, (req: Request, res: Response) => {
+app.patch('/api/calls/:callId', authenticateToken, validateRequest(updateCallSchema), (req: Request, res: Response) => {
     const { callId } = req.params;
     const updates = req.body;
 
     const call = callSessions.get(callId);
     if (!call) {
-        res.status(404).json({ error: 'Call not found' });
+        res.status(404).json({ error: 'Call not found', code: 'NOT_FOUND' });
         return;
     }
 
@@ -751,7 +805,7 @@ app.get('/api/calls/:callId', authenticateToken, (req: Request, res: Response) =
     const call = callSessions.get(callId);
 
     if (!call) {
-        res.status(404).json({ error: 'Call not found' });
+        res.status(404).json({ error: 'Call not found', code: 'NOT_FOUND' });
         return;
     }
 
@@ -778,7 +832,7 @@ app.get('/api/interpreters', authenticateToken, (req: Request, res: Response) =>
 /**
  * Update interpreter status
  */
-app.patch('/api/interpreters/:interpreterId/status', authenticateToken, (req: Request, res: Response) => {
+app.patch('/api/interpreters/:interpreterId/status', authenticateToken, validateRequest(updateInterpreterStatusSchema), (req: Request, res: Response) => {
     const { interpreterId } = req.params;
     const { status } = req.body;
 
@@ -817,7 +871,7 @@ app.get('/api/interpreters/:interpreterId/stats', authenticateToken, (req: Reque
 
     const interpreter = interpreters.get(interpreterId);
     if (!interpreter) {
-        res.status(404).json({ error: 'Interpreter not found' });
+        res.status(404).json({ error: 'Interpreter not found', code: 'NOT_FOUND' });
         return;
     }
 
@@ -969,7 +1023,7 @@ app.get('/api/admin/accounts', authenticateToken, requireRole('superadmin'), (_r
     res.json(accounts);
 });
 
-app.post('/api/admin/accounts', authenticateToken, requireRole('superadmin'), async (req: Request, res: Response) => {
+app.post('/api/admin/accounts', authenticateToken, requireRole('superadmin'), validateRequest(createAccountSchema), async (req: Request, res: Response) => {
     const actor = (req as any).user as AuthToken;
     const { email, languages, name, password, role, username } = req.body;
     const normalizedRole = role === 'superadmin'
@@ -985,19 +1039,20 @@ app.post('/api/admin/accounts', authenticateToken, requireRole('superadmin'), as
     const normalizedUsername = normalizeUsername(username) || (!email ? createUsernameFromName(normalizedName) : '');
 
     if (!normalizedRole) {
-        res.status(400).json({ error: 'Role must be superadmin, admin, captioner, or interpreter' });
+        res.status(400).json({ error: 'Role must be superadmin, admin, captioner, or interpreter', code: 'VALIDATION_ERROR' });
         return;
     }
 
     if (!password || !normalizedName) {
-        res.status(400).json({ error: 'Name and password are required' });
+        res.status(400).json({ error: 'Name and password are required', code: 'VALIDATION_ERROR' });
         return;
     }
 
     if (!email && !normalizedUsername) {
-        res.status(400).json({ error: 'Provide either an email or a username' });
+        res.status(400).json({ error: 'Provide either an email or a username', code: 'VALIDATION_ERROR' });
         return;
     }
+
 
     const nextAccount = normalizeAccountRecord({
         createdBy: actor.userId,
@@ -1010,7 +1065,7 @@ app.post('/api/admin/accounts', authenticateToken, requireRole('superadmin'), as
     });
 
     if (!ensureUniqueAccountFields(nextAccount)) {
-        res.status(409).json({ error: 'An account with that email or username already exists' });
+        res.status(409).json({ error: 'An account with that email or username already exists', code: 'CONFLICT' });
         return;
     }
 
@@ -1161,6 +1216,15 @@ function updateDailyStats(call: CallSession): void {
 }
 
 // ==================== Start Server ====================
+
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+    console.error('[OpsServer] Error:', err);
+    res.status(500).json({
+        error: 'Internal server error',
+        code: 'INTERNAL_ERROR',
+        ...(process.env.NODE_ENV === 'development' && { details: { message: err.message } })
+    });
+});
 
 server.listen(PORT, () => {
     console.log(`🚀 VRS Ops Server running on port ${PORT}`);

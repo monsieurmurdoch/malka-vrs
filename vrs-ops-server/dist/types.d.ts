@@ -1,7 +1,7 @@
 /**
  * VRS Ops Server Types
  */
-export type VRSRole = 'client' | 'interpreter' | 'admin' | 'superadmin';
+export type VRSRole = 'client' | 'interpreter' | 'captioner' | 'admin' | 'superadmin';
 export type CallStatus = 'waiting' | 'connecting' | 'active' | 'on_hold' | 'ended' | 'abandoned' | 'failed';
 export type InterpreterStatus = 'offline' | 'available' | 'busy' | 'break' | 'away';
 export interface User {

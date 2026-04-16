@@ -24,6 +24,7 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const uuid_1 = require("uuid");
 const dotenv_1 = __importDefault(require("dotenv"));
+const zod_1 = require("zod");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 exports.app = app;
@@ -61,6 +62,59 @@ app.use((0, cors_1.default)({
     origin: CORS_ORIGIN
 }));
 app.use(express_1.default.json());
+// Validation helper
+function validateRequest(schema) {
+    return (req, res, next) => {
+        const result = schema.safeParse(req.body);
+        if (!result.success) {
+            const details = {};
+            for (const issue of result.error.issues) {
+                const key = issue.path.join('.') || '_root';
+                if (!details[key])
+                    details[key] = issue.message;
+            }
+            res.status(400).json({ error: 'Validation failed', code: 'VALIDATION_ERROR', details });
+            return;
+        }
+        req.body = result.data;
+        next();
+    };
+}
+// Schemas
+const loginSchema = zod_1.z.object({
+    email: zod_1.z.string().max(254).optional(),
+    identifier: zod_1.z.string().max(254).optional(),
+    username: zod_1.z.string().max(254).optional(),
+    password: zod_1.z.string().min(1),
+    role: zod_1.z.enum(['admin', 'interpreter', 'superadmin']).optional()
+}).refine(data => data.email || data.identifier || data.username, {
+    message: 'Username or email is required',
+    path: ['identifier']
+});
+const createCallSchema = zod_1.z.object({
+    clientId: zod_1.z.string().max(100).optional(),
+    clientName: zod_1.z.string().max(100).optional(),
+    language: zod_1.z.string().max(20).optional(),
+    roomId: zod_1.z.string().max(100).optional()
+});
+const updateCallSchema = zod_1.z.object({
+    status: zod_1.z.enum(['waiting', 'active', 'ended', 'abandoned']).optional(),
+    interpreterId: zod_1.z.string().max(100).optional(),
+    interpreterName: zod_1.z.string().max(100).optional()
+}).refine(data => Object.keys(data).length > 0, {
+    message: 'At least one field must be provided'
+});
+const updateInterpreterStatusSchema = zod_1.z.object({
+    status: zod_1.z.enum(['available', 'busy', 'offline', 'break']).optional()
+});
+const createAccountSchema = zod_1.z.object({
+    name: zod_1.z.string().min(1).max(100),
+    email: zod_1.z.string().max(254).optional(),
+    username: zod_1.z.string().max(100).optional(),
+    password: zod_1.z.string().min(8).max(128),
+    role: zod_1.z.enum(['admin', 'interpreter', 'superadmin']),
+    languages: zod_1.z.array(zod_1.z.string().max(20)).min(1).optional().default(['ASL'])
+});
 // In-memory storage (replace with database in production)
 const interpreters = new Map();
 const clients = new Map();
@@ -377,7 +431,7 @@ function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader?.split(' ')[1];
     if (!token) {
-        res.status(401).json({ error: 'No token provided' });
+        res.status(401).json({ error: 'No token provided', code: 'AUTH_REQUIRED' });
         return;
     }
     try {
@@ -386,14 +440,14 @@ function authenticateToken(req, res, next) {
         next();
     }
     catch (error) {
-        res.status(403).json({ error: 'Invalid or expired token' });
+        res.status(403).json({ error: 'Invalid or expired token', code: 'AUTH_INVALID' });
     }
 }
 function requireRole(...roles) {
     return (req, res, next) => {
         const user = req.user;
         if (!user || !roles.includes(user.role)) {
-            res.status(403).json({ error: 'Insufficient permissions' });
+            res.status(403).json({ error: 'Insufficient permissions', code: 'FORBIDDEN' });
             return;
         }
         next();
@@ -403,31 +457,29 @@ function requireRole(...roles) {
 /**
  * Login endpoint for interpreters and admins
  */
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', validateRequest(loginSchema), async (req, res) => {
     const { email, identifier, password, role, username } = req.body;
     const loginIdentifier = String(identifier || email || username || '').trim();
     const normalizedRole = role === 'superadmin'
         ? 'superadmin'
         : role === 'admin'
             ? 'admin'
-            : role === 'interpreter'
-                ? 'interpreter'
-                : null;
-    if (!loginIdentifier || !password) {
-        res.status(400).json({ error: 'Username or email and password are required' });
-        return;
-    }
+            : role === 'captioner'
+                ? 'captioner'
+                : role === 'interpreter'
+                    ? 'interpreter'
+                    : null;
     const rateLimitKey = getRateLimitKey(req, normalizedRole || 'ops', loginIdentifier);
     if (isRateLimited(rateLimitKey)) {
         auditAuth('login_rate_limited', { identifier: loginIdentifier, role: normalizedRole || 'ops', ip: req.ip });
-        res.status(429).json({ error: 'Too many failed login attempts. Please try again later.' });
+        res.status(429).json({ error: 'Too many failed login attempts. Please try again later.', code: 'RATE_LIMITED' });
         return;
     }
     const authRecord = await getAuthRecord(loginIdentifier, password, normalizedRole);
     if (!authRecord) {
         recordAuthAttempt(rateLimitKey, false);
         auditAuth('login_failed', { identifier: loginIdentifier, role: normalizedRole || 'ops', ip: req.ip });
-        res.status(401).json({ error: 'Invalid credentials' });
+        res.status(401).json({ error: 'Invalid credentials', code: 'AUTH_FAILED' });
         return;
     }
     recordAuthAttempt(rateLimitKey, true);
@@ -448,7 +500,8 @@ app.post('/api/auth/login', async (req, res) => {
         languages: authRecord.languages,
         username: authRecord.username,
         iat: Math.floor(Date.now() / 1000),
-        exp: Math.floor(Date.now() / 1000) + (authRecord.role === 'interpreter' ? 8 * 60 * 60 : 12 * 60 * 60)
+        exp: Math.floor(Date.now() / 1000)
+            + ((authRecord.role === 'interpreter' || authRecord.role === 'captioner') ? 8 * 60 * 60 : 12 * 60 * 60)
     }, JWT_SECRET);
     auditAuth('login_success', {
         identifier: loginIdentifier,
@@ -498,7 +551,7 @@ app.get('/api/readiness', (_req, res) => {
 /**
  * Log a new call request
  */
-app.post('/api/calls', authenticateToken, (req, res) => {
+app.post('/api/calls', authenticateToken, validateRequest(createCallSchema), (req, res) => {
     const { clientId, clientName, language, roomId } = req.body;
     const callId = (0, uuid_1.v4)();
     const call = {
@@ -518,12 +571,12 @@ app.post('/api/calls', authenticateToken, (req, res) => {
 /**
  * Update call status
  */
-app.patch('/api/calls/:callId', authenticateToken, (req, res) => {
+app.patch('/api/calls/:callId', authenticateToken, validateRequest(updateCallSchema), (req, res) => {
     const { callId } = req.params;
     const updates = req.body;
     const call = callSessions.get(callId);
     if (!call) {
-        res.status(404).json({ error: 'Call not found' });
+        res.status(404).json({ error: 'Call not found', code: 'NOT_FOUND' });
         return;
     }
     // Apply updates
@@ -596,7 +649,7 @@ app.get('/api/calls/:callId', authenticateToken, (req, res) => {
     const { callId } = req.params;
     const call = callSessions.get(callId);
     if (!call) {
-        res.status(404).json({ error: 'Call not found' });
+        res.status(404).json({ error: 'Call not found', code: 'NOT_FOUND' });
         return;
     }
     res.json(call);
@@ -616,7 +669,7 @@ app.get('/api/interpreters', authenticateToken, (req, res) => {
 /**
  * Update interpreter status
  */
-app.patch('/api/interpreters/:interpreterId/status', authenticateToken, (req, res) => {
+app.patch('/api/interpreters/:interpreterId/status', authenticateToken, validateRequest(updateInterpreterStatusSchema), (req, res) => {
     const { interpreterId } = req.params;
     const { status } = req.body;
     let interpreter = interpreters.get(interpreterId);
@@ -650,7 +703,7 @@ app.get('/api/interpreters/:interpreterId/stats', authenticateToken, (req, res) 
     const { interpreterId } = req.params;
     const interpreter = interpreters.get(interpreterId);
     if (!interpreter) {
-        res.status(404).json({ error: 'Interpreter not found' });
+        res.status(404).json({ error: 'Interpreter not found', code: 'NOT_FOUND' });
         return;
     }
     // Get calls for this interpreter today
@@ -775,28 +828,30 @@ app.get('/api/admin/accounts', authenticateToken, requireRole('superadmin'), (_r
         .map(sanitizeAccount);
     res.json(accounts);
 });
-app.post('/api/admin/accounts', authenticateToken, requireRole('superadmin'), async (req, res) => {
+app.post('/api/admin/accounts', authenticateToken, requireRole('superadmin'), validateRequest(createAccountSchema), async (req, res) => {
     const actor = req.user;
     const { email, languages, name, password, role, username } = req.body;
     const normalizedRole = role === 'superadmin'
         ? 'superadmin'
         : role === 'admin'
             ? 'admin'
-            : role === 'interpreter'
-                ? 'interpreter'
-                : null;
+            : role === 'captioner'
+                ? 'captioner'
+                : role === 'interpreter'
+                    ? 'interpreter'
+                    : null;
     const normalizedName = normalizeName(name || username || email);
     const normalizedUsername = normalizeUsername(username) || (!email ? createUsernameFromName(normalizedName) : '');
     if (!normalizedRole) {
-        res.status(400).json({ error: 'Role must be superadmin, admin, or interpreter' });
+        res.status(400).json({ error: 'Role must be superadmin, admin, captioner, or interpreter', code: 'VALIDATION_ERROR' });
         return;
     }
     if (!password || !normalizedName) {
-        res.status(400).json({ error: 'Name and password are required' });
+        res.status(400).json({ error: 'Name and password are required', code: 'VALIDATION_ERROR' });
         return;
     }
     if (!email && !normalizedUsername) {
-        res.status(400).json({ error: 'Provide either an email or a username' });
+        res.status(400).json({ error: 'Provide either an email or a username', code: 'VALIDATION_ERROR' });
         return;
     }
     const nextAccount = normalizeAccountRecord({
@@ -809,7 +864,7 @@ app.post('/api/admin/accounts', authenticateToken, requireRole('superadmin'), as
         username: normalizedUsername
     });
     if (!ensureUniqueAccountFields(nextAccount)) {
-        res.status(409).json({ error: 'An account with that email or username already exists' });
+        res.status(409).json({ error: 'An account with that email or username already exists', code: 'CONFLICT' });
         return;
     }
     authDirectory = [nextAccount, ...authDirectory];
@@ -943,6 +998,14 @@ function updateDailyStats(call) {
     dailyStats.set(date, stats);
 }
 // ==================== Start Server ====================
+app.use((err, _req, res, _next) => {
+    console.error('[OpsServer] Error:', err);
+    res.status(500).json({
+        error: 'Internal server error',
+        code: 'INTERNAL_ERROR',
+        ...(process.env.NODE_ENV === 'development' && { details: { message: err.message } })
+    });
+});
 server.listen(PORT, () => {
     console.log(`🚀 VRS Ops Server running on port ${PORT}`);
     console.log(`📊 Dashboard API: http://localhost:${PORT}/api/dashboard/live`);
