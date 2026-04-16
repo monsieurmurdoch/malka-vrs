@@ -40,6 +40,7 @@ const auth = require('./lib/auth');
 // Route modules
 const { router: authRouter, setLegacyFlag } = require('./routes/auth');
 const clientRouter = require('./routes/client');
+const contactsRouter = require('./routes/contacts');
 const interpreterRouter = require('./routes/interpreter');
 const adminRouter = require('./routes/admin');
 const handoffRouter = require('./routes/handoff');
@@ -319,6 +320,7 @@ app.post('/api/vrs/register', async (req, res) => {
 
 app.use('/api/auth', authRouter);
 app.use('/api/client', clientRouter);
+app.use('/api/contacts', contactsRouter);
 app.use('/api/interpreter', interpreterRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/handoff', handoffRouter);
