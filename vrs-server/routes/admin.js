@@ -8,6 +8,11 @@ const activityLogger = require('../lib/activity-logger');
 const { verifyJwtToken, normalizeAuthClaims } = require('../lib/auth');
 const state = require('../lib/state');
 const queueService = require('../lib/queue-service');
+const log = require('../lib/logger').module('admin');
+const {
+    validate, nameSchema, emailSchema, passwordSchema,
+    languagesArraySchema, nonNegativeIntSchema, z
+} = require('../lib/validation');
 
 const router = express.Router();
 
@@ -18,31 +23,58 @@ const router = express.Router();
 function authenticateAdmin(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
-        return res.status(401).json({ error: 'No authorization header' });
+        return res.status(401).json({ error: 'No authorization header', code: 'AUTH_REQUIRED' });
     }
 
     const token = authHeader.replace('Bearer ', '');
     try {
         const decoded = normalizeAuthClaims(verifyJwtToken(token));
         if (decoded.role !== 'admin' && decoded.role !== 'superadmin') {
-            return res.status(403).json({ error: 'Admin role required' });
+            return res.status(403).json({ error: 'Admin role required', code: 'FORBIDDEN' });
         }
         req.admin = decoded;
         next();
     } catch (error) {
-        return res.status(401).json({ error: 'Invalid token' });
+        return res.status(401).json({ error: 'Invalid token', code: 'AUTH_INVALID' });
     }
 }
 
-function validateRequired(body, fields) {
-    for (const field of fields) {
-        const value = body[field];
-        if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '')) {
-            return `Missing required field: ${field}`;
-        }
-    }
-    return null;
-}
+// ============================================
+// ZOD SCHEMAS
+// ============================================
+
+const createInterpreterSchema = z.object({
+    name: nameSchema,
+    email: emailSchema,
+    languages: languagesArraySchema,
+    password: passwordSchema.optional()
+});
+
+const updateInterpreterSchema = z.object({
+    name: nameSchema.optional(),
+    email: emailSchema.optional(),
+    languages: languagesArraySchema,
+    active: z.boolean().optional()
+});
+
+const createClientSchema = z.object({
+    name: nameSchema,
+    email: emailSchema.optional(),
+    organization: z.string().min(1).max(200).optional()
+});
+
+const assignQueueSchema = z.object({
+    interpreterId: z.string().min(1)
+});
+
+const activityQuerySchema = z.object({
+    limit: nonNegativeIntSchema.optional().default(50),
+    type: z.string().max(50).optional()
+});
+
+const usageQuerySchema = z.object({
+    days: nonNegativeIntSchema.optional().default(7)
+});
 
 // ============================================
 // AUTH ENDPOINTS
@@ -69,8 +101,8 @@ router.get('/stats', authenticateAdmin, async (req, res) => {
         const stats = await db.getDashboardStats();
         res.json(stats);
     } catch (error) {
-        console.error('[Stats] Error:', error);
-        res.status(500).json({ error: 'Failed to fetch stats' });
+        req.log.error({ err: error }, 'Stats error');
+        res.status(500).json({ error: 'Failed to fetch stats', code: 'INTERNAL_ERROR' });
     }
 });
 
@@ -95,22 +127,17 @@ router.get('/interpreters', authenticateAdmin, async (req, res) => {
 
         res.json(interpretersWithStatus);
     } catch (error) {
-        console.error('[Interpreters] Error:', error);
-        res.status(500).json({ error: 'Failed to fetch interpreters' });
+        req.log.error({ err: error }, 'Interpreters error');
+        res.status(500).json({ error: 'Failed to fetch interpreters', code: 'INTERNAL_ERROR' });
     }
 });
 
-router.post('/interpreters', authenticateAdmin, async (req, res) => {
-    const validationError = validateRequired(req.body, ['name', 'email']);
-    if (validationError) {
-        return res.status(400).json({ error: validationError });
-    }
-
+router.post('/interpreters', validate(createInterpreterSchema), authenticateAdmin, async (req, res) => {
     const { name, email, languages, password } = req.body;
 
     try {
         const interpreterId = await db.createInterpreter({
-            name, email, languages: languages || ['ASL'], password
+            name, email, languages, password
         });
 
         activityLogger.log('interpreter_created', {
@@ -119,12 +146,12 @@ router.post('/interpreters', authenticateAdmin, async (req, res) => {
 
         res.json({ success: true, id: interpreterId });
     } catch (error) {
-        console.error('[Create Interpreter] Error:', error);
-        res.status(500).json({ error: 'Failed to create interpreter' });
+        req.log.error({ err: error }, 'Create interpreter error');
+        res.status(500).json({ error: 'Failed to create interpreter', code: 'INTERNAL_ERROR' });
     }
 });
 
-router.put('/interpreters/:id', authenticateAdmin, async (req, res) => {
+router.put('/interpreters/:id', validate(updateInterpreterSchema), authenticateAdmin, async (req, res) => {
     const { id } = req.params;
     const { name, email, languages, active } = req.body;
 
@@ -137,8 +164,8 @@ router.put('/interpreters/:id', authenticateAdmin, async (req, res) => {
 
         res.json({ success: true });
     } catch (error) {
-        console.error('[Update Interpreter] Error:', error);
-        res.status(500).json({ error: 'Failed to update interpreter' });
+        req.log.error({ err: error }, 'Update interpreter error');
+        res.status(500).json({ error: 'Failed to update interpreter', code: 'INTERNAL_ERROR' });
     }
 });
 
@@ -154,8 +181,8 @@ router.delete('/interpreters/:id', authenticateAdmin, async (req, res) => {
 
         res.json({ success: true });
     } catch (error) {
-        console.error('[Delete Interpreter] Error:', error);
-        res.status(500).json({ error: 'Failed to delete interpreter' });
+        req.log.error({ err: error }, 'Delete interpreter error');
+        res.status(500).json({ error: 'Failed to delete interpreter', code: 'INTERNAL_ERROR' });
     }
 });
 
@@ -241,17 +268,12 @@ router.get('/clients', authenticateAdmin, async (req, res) => {
         const clients = await db.getAllClients();
         res.json(clients);
     } catch (error) {
-        console.error('[Clients] Error:', error);
-        res.status(500).json({ error: 'Failed to fetch clients' });
+        req.log.error({ err: error }, 'Clients error');
+        res.status(500).json({ error: 'Failed to fetch clients', code: 'INTERNAL_ERROR' });
     }
 });
 
-router.post('/clients', authenticateAdmin, async (req, res) => {
-    const validationError = validateRequired(req.body, ['name']);
-    if (validationError) {
-        return res.status(400).json({ error: validationError });
-    }
-
+router.post('/clients', validate(createClientSchema), authenticateAdmin, async (req, res) => {
     const { name, email, organization } = req.body;
 
     try {
@@ -263,8 +285,8 @@ router.post('/clients', authenticateAdmin, async (req, res) => {
 
         res.json({ success: true, id: clientId });
     } catch (error) {
-        console.error('[Create Client] Error:', error);
-        res.status(500).json({ error: 'Failed to create client' });
+        req.log.error({ err: error }, 'Create client error');
+        res.status(500).json({ error: 'Failed to create client', code: 'INTERNAL_ERROR' });
     }
 });
 
@@ -289,13 +311,8 @@ router.post('/queue/resume', authenticateAdmin, (req, res) => {
     res.json({ success: true, paused: false });
 });
 
-router.post('/queue/:requestId/assign', authenticateAdmin, async (req, res) => {
+router.post('/queue/:requestId/assign', validate(assignQueueSchema), authenticateAdmin, async (req, res) => {
     const { requestId } = req.params;
-    const validationError = validateRequired(req.body, ['interpreterId']);
-    if (validationError) {
-        return res.status(400).json({ error: validationError });
-    }
-
     const { interpreterId } = req.body;
 
     try {
@@ -307,8 +324,8 @@ router.post('/queue/:requestId/assign', authenticateAdmin, async (req, res) => {
 
         res.json(result);
     } catch (error) {
-        console.error('[Assign] Error:', error);
-        res.status(500).json({ error: 'Failed to assign interpreter' });
+        req.log.error({ err: error }, 'Assign error');
+        res.status(500).json({ error: 'Failed to assign interpreter', code: 'INTERNAL_ERROR' });
     }
 });
 
@@ -324,8 +341,8 @@ router.delete('/queue/:requestId', authenticateAdmin, (req, res) => {
             res.json({ success: true });
         })
         .catch(error => {
-            console.error('[Queue Remove] Error:', error);
-            res.status(500).json({ error: 'Failed to remove queue request' });
+            req.log.error({ err: error }, 'Queue remove error');
+            res.status(500).json({ error: 'Failed to remove queue request', code: 'INTERNAL_ERROR' });
         });
 });
 
@@ -338,8 +355,8 @@ router.get('/calls/active', authenticateAdmin, async (req, res) => {
         const calls = await db.getActiveCalls();
         res.json(calls);
     } catch (error) {
-        console.error('[Active Calls] Error:', error);
-        res.status(500).json({ error: 'Failed to fetch active calls' });
+        req.log.error({ err: error }, 'Active calls error');
+        res.status(500).json({ error: 'Failed to fetch active calls', code: 'INTERNAL_ERROR' });
     }
 });
 
@@ -347,17 +364,14 @@ router.get('/calls/active', authenticateAdmin, async (req, res) => {
 // ACTIVITY LOG
 // ============================================
 
-router.get('/activity', authenticateAdmin, async (req, res) => {
-    const { limit = 50, type } = req.query;
-
+router.get('/activity', validate(activityQuerySchema, 'query'), authenticateAdmin, async (req, res) => {
+    const { limit, type } = req.query;
     try {
-        const activity = await db.getActivityLog({
-            limit: parseInt(limit), type
-        });
+        const activity = await db.getActivityLog({ limit, type });
         res.json(activity);
     } catch (error) {
-        console.error('[Activity] Error:', error);
-        res.status(500).json({ error: 'Failed to fetch activity log' });
+        req.log.error({ err: error }, 'Activity error');
+        res.status(500).json({ error: 'Failed to fetch activity log', code: 'INTERNAL_ERROR' });
     }
 });
 
@@ -365,15 +379,14 @@ router.get('/activity', authenticateAdmin, async (req, res) => {
 // USAGE STATS
 // ============================================
 
-router.get('/usage/daily', authenticateAdmin, async (req, res) => {
-    const { days = 7 } = req.query;
-
+router.get('/usage/daily', validate(usageQuerySchema, 'query'), authenticateAdmin, async (req, res) => {
+    const { days } = req.query;
     try {
-        const stats = await db.getDailyUsageStats(parseInt(days));
+        const stats = await db.getDailyUsageStats(days);
         res.json(stats);
     } catch (error) {
-        console.error('[Usage] Error:', error);
-        res.status(500).json({ error: 'Failed to fetch usage stats' });
+        req.log.error({ err: error }, 'Usage error');
+        res.status(500).json({ error: 'Failed to fetch usage stats', code: 'INTERNAL_ERROR' });
     }
 });
 
@@ -382,9 +395,114 @@ router.get('/usage/interpreters', authenticateAdmin, async (req, res) => {
         const stats = await db.getInterpreterStats();
         res.json(stats);
     } catch (error) {
-        console.error('[Interpreter Usage] Error:', error);
-        res.status(500).json({ error: 'Failed to fetch interpreter stats' });
+        req.log.error({ err: error }, 'Interpreter usage error');
+        res.status(500).json({ error: 'Failed to fetch interpreter stats', code: 'INTERNAL_ERROR' });
     }
 });
 
-module.exports = router;
+// ============================================
+// VOICEMAIL ADMIN ENDPOINTS
+// ============================================
+
+// Voicemail service — set via setVoicemailServiceForAdmin()
+let voicemailServiceForAdmin = null;
+
+function setVoicemailServiceForAdmin(service) {
+    voicemailServiceForAdmin = service;
+}
+
+/**
+ * GET /api/admin/voicemail/settings
+ */
+router.get('/voicemail/settings', authenticateAdmin, async (req, res) => {
+    try {
+        if (!voicemailServiceForAdmin) {
+            return res.status(503).json({ error: 'Voicemail service not available', code: 'SERVICE_UNAVAILABLE' });
+        }
+        const settings = await voicemailServiceForAdmin.getSettings();
+        res.json({ settings });
+    } catch (error) {
+        req.log.error({ err: error }, 'Voicemail settings fetch error');
+        res.status(500).json({ error: 'Failed to fetch voicemail settings', code: 'INTERNAL_ERROR' });
+    }
+});
+
+/**
+ * PUT /api/admin/voicemail/settings/:key
+ */
+router.put('/voicemail/settings/:key', authenticateAdmin, async (req, res) => {
+    try {
+        if (!voicemailServiceForAdmin) {
+            return res.status(503).json({ error: 'Voicemail service not available', code: 'SERVICE_UNAVAILABLE' });
+        }
+        const { value } = req.body;
+        if (value === undefined || value === null) {
+            return res.status(400).json({ error: 'Missing required field: value', code: 'VALIDATION_ERROR' });
+        }
+        await voicemailServiceForAdmin.updateSetting(req.params.key, String(value), req.admin.id);
+        res.json({ success: true });
+    } catch (error) {
+        req.log.error({ err: error }, 'Voicemail settings update error');
+        res.status(500).json({ error: 'Failed to update voicemail setting', code: 'INTERNAL_ERROR' });
+    }
+});
+
+/**
+ * GET /api/admin/voicemail/messages
+ */
+router.get('/voicemail/messages', authenticateAdmin, async (req, res) => {
+    try {
+        if (!voicemailServiceForAdmin) {
+            return res.status(503).json({ error: 'Voicemail service not available', code: 'SERVICE_UNAVAILABLE' });
+        }
+        const filters = {
+            status: req.query.status,
+            callerId: req.query.callerId,
+            calleeId: req.query.calleeId,
+            limit: Math.min(parseInt(String(req.query.limit)) || 50, 200),
+            offset: parseInt(String(req.query.offset)) || 0
+        };
+        const messages = await db.getAllVoicemailMessages(filters);
+        res.json({ messages });
+    } catch (error) {
+        req.log.error({ err: error }, 'Voicemail messages fetch error');
+        res.status(500).json({ error: 'Failed to fetch voicemail messages', code: 'INTERNAL_ERROR' });
+    }
+});
+
+/**
+ * DELETE /api/admin/voicemail/messages/:id
+ */
+router.delete('/voicemail/messages/:id', authenticateAdmin, async (req, res) => {
+    try {
+        if (!voicemailServiceForAdmin) {
+            return res.status(503).json({ error: 'Voicemail service not available', code: 'SERVICE_UNAVAILABLE' });
+        }
+        await voicemailServiceForAdmin.adminDeleteMessage(req.params.id);
+        res.json({ success: true });
+    } catch (error) {
+        if (error.message === 'Message not found') {
+            return res.status(404).json({ error: 'Message not found', code: 'NOT_FOUND' });
+        }
+        req.log.error({ err: error }, 'Voicemail admin delete error');
+        res.status(500).json({ error: 'Failed to delete voicemail message', code: 'INTERNAL_ERROR' });
+    }
+});
+
+/**
+ * GET /api/admin/voicemail/stats
+ */
+router.get('/voicemail/stats', authenticateAdmin, async (req, res) => {
+    try {
+        if (!voicemailServiceForAdmin) {
+            return res.status(503).json({ error: 'Voicemail service not available', code: 'SERVICE_UNAVAILABLE' });
+        }
+        const stats = await voicemailServiceForAdmin.getStats();
+        res.json(stats);
+    } catch (error) {
+        req.log.error({ err: error }, 'Voicemail stats fetch error');
+        res.status(500).json({ error: 'Failed to fetch voicemail stats', code: 'INTERNAL_ERROR' });
+    }
+});
+
+module.exports = { router, setVoicemailServiceForAdmin };

@@ -11,8 +11,12 @@ const db = require('../database');
 const activityLogger = require('../lib/activity-logger');
 const queueService = require('../lib/queue-service');
 const handoffService = require('../lib/handoff-service');
+const voicemailService = require('../dist/lib/voicemail-service');
 const state = require('../lib/state');
 const { verifyJwtToken, normalizeAuthClaims, tokenMatchesRequestedRole } = require('../lib/auth');
+const log = require('../lib/logger').module('ws');
+const { validatePayload } = require('../lib/validation');
+const { messageSchemas } = require('./schemas');
 
 // Friendly room name adjectives/nouns used so the Jitsi header shows something
 // human-readable instead of a raw UUID (e.g. "vrs-amber-bridge-4712").
@@ -70,7 +74,7 @@ function requireOwnedUserId(ws, providedUserId, actionLabel) {
 
 function handleConnection(ws, req) {
     const clientId = uuidv4();
-    console.log('[WebSocket] New connection:', clientId);
+    log.info({ clientId }, 'WebSocket client connected');
 
     ws.isAlive = true;
     ws.on('pong', () => { ws.isAlive = true; });
@@ -84,6 +88,22 @@ function handleConnection(ws, req) {
         }
 
         try {
+            // Validate message payload against Zod schemas
+            const schema = messageSchemas[data.type];
+            if (schema) {
+                const payload = data.data || data;
+                const result = validatePayload(schema, payload);
+                if (!result.success) {
+                    ws.send(JSON.stringify({
+                        type: 'validation_error',
+                        data: result.error
+                    }));
+                    return;
+                }
+                // Replace data with sanitized/parsed version
+                data.data = result.data;
+            }
+
             switch (data.type) {
                 case 'auth':
                     handleAuth(ws, data, clientId);
@@ -160,21 +180,37 @@ function handleConnection(ws, req) {
                 case 'p2p_end':
                     await handleP2PEnd(ws, data);
                     break;
+
+                case 'voicemail_start':
+                    await handleVoicemailStart(ws, data);
+                    break;
+
+                case 'voicemail_cancel':
+                    await handleVoicemailCancel(ws, data);
+                    break;
+
+                case 'voicemail_delete':
+                    await handleVoicemailDelete(ws, data);
+                    break;
+
+                case 'voicemail_mark_seen':
+                    await handleVoicemailMarkSeen(ws, data);
+                    break;
             }
         } catch (error) {
-            console.error('[WebSocket] Error:', error);
+            log.error({ err: error, clientId }, 'WebSocket error');
         }
     });
 
     ws.on('close', () => {
-        console.log('[WebSocket] Client disconnected:', clientId);
+        log.info({ clientId }, 'WebSocket client disconnected');
         if (ws.clientInfo) {
             handleDisconnect(ws.clientInfo);
         }
     });
 
     ws.on('error', (error) => {
-        console.error('[WebSocket] Error:', error);
+        log.error({ err: error }, 'WebSocket error');
     });
 
     ws.send(JSON.stringify({ type: 'connected', clientId, timestamp: Date.now() }));
@@ -247,7 +283,16 @@ function handleAuth(ws, data, clientId) {
                     ws.send(JSON.stringify({ type: 'missed_calls', data: missed }));
                 }
             }).catch(err => {
-                console.error('[WebSocket] Failed to deliver missed calls:', err);
+                log.error({ err }, 'Failed to deliver missed calls');
+            });
+
+            // Send voicemail unread count on connect
+            voicemailService.getUnreadCount(clientInfo.userId).then(count => {
+                if (count > 0) {
+                    ws.send(JSON.stringify({ type: 'voicemail_unread_count', data: { count } }));
+                }
+            }).catch(err => {
+                log.error({ err }, 'Failed to deliver voicemail unread count');
             });
         }
 
@@ -449,6 +494,10 @@ async function handleAcceptRequest(ws, data) {
         clientSocket.send(JSON.stringify({ type: 'match_found', data: meetingData }));
         clientSocket.send(JSON.stringify({ type: 'meeting_initiated', data: meetingData }));
     }
+
+    log.info({ requestId, clientId: result.clientId, interpreterId: interpreter.userId }, 'Interpreter matched to request');
+
+    log.info({ callId: result.callId, clientId: result.clientId, interpreterId: interpreter.userId, roomName: result.roomName }, 'Call started');
 
     state.broadcastQueueStatus(queueService);
 }
@@ -693,6 +742,8 @@ async function handleP2PCall(ws, data) {
 
             caller.currentP2PCall = { callId, roomName, calleeId: callee.id, calleeName: callee.name };
 
+            log.info({ callId, clientId: caller.userId, interpreterId: callee.id, roomName }, 'Call started');
+
             ws.send(JSON.stringify({
                 type: 'p2p_ringing',
                 data: { callId, roomName, calleeName: callee.name, calleePhone: phoneNumber }
@@ -709,13 +760,13 @@ async function handleP2PCall(ws, data) {
 
             ws.send(JSON.stringify({
                 type: 'p2p_target_offline',
-                data: { calleeName: callee.name, calleePhone: phoneNumber }
+                data: { calleeName: callee.name, calleePhone: phoneNumber, calleeId: callee.id, voicemailAvailable: true }
             }));
 
             activityLogger.log('p2p_call_missed', { callerId: caller.userId, calleeId: callee.id, calleePhone: phoneNumber });
         }
     } catch (error) {
-        console.error('[P2P Call] Error:', error);
+        log.error({ err: error }, 'P2P call error');
         ws.send(JSON.stringify({ type: 'p2p_call_failed', data: { message: 'Failed to place call.' } }));
     }
 }
@@ -797,8 +848,32 @@ async function handleP2PEnd(ws, data) {
     try {
         await db.endCall(callId, payload.durationMinutes || 0);
     } catch (err) {
-        console.error('[P2P End] Error ending call:', err);
+        log.error({ err }, 'P2P end call error');
     }
+
+    // Create billing CDR (best-effort, non-blocking)
+    try {
+        const call = await db.getCall(callId);
+        if (call && call.status === 'completed') {
+            const { createCdr } = require('../dist/billing/cdr-service');
+            await createCdr({
+                callId: call.id,
+                callType: call.call_type || 'vrs',
+                callerId: call.client_id,
+                interpreterId: call.interpreter_id,
+                startTime: new Date(call.started_at),
+                endTime: call.ended_at ? new Date(call.ended_at) : new Date(),
+                durationSeconds: (call.duration_minutes || 0) * 60,
+                language: call.language,
+            });
+        }
+    } catch (cdrErr) {
+        // Non-fatal: CDR creation failure should not disrupt call flow
+        log.warn({ err: cdrErr, callId }, 'Billing CDR creation failed (non-fatal)');
+    }
+
+    const durationMs = (payload.durationMinutes || 0) * 60 * 1000;
+    log.info({ callId, durationMs }, 'Call ended');
 
     const otherWs = state.findClientSocketByUserId(otherId);
     if (otherWs && otherWs.readyState === WebSocket.OPEN) {
@@ -826,6 +901,73 @@ function notifyInterpreterOfPendingRequests(ws) {
     queueService.getQueue().forEach(request => {
         ws.send(JSON.stringify({ type: 'interpreter_request', data: request }));
     });
+}
+
+// ============================================
+// VOICEMAIL HANDLERS
+// ============================================
+
+async function handleVoicemailStart(ws, data) {
+    const caller = ws.clientInfo;
+    if (!caller || caller.role !== 'client') {
+        return ws.send(JSON.stringify({ type: 'voicemail_error', data: { message: 'Authentication required' } }));
+    }
+
+    const payload = data.data || {};
+    const calleePhone = payload.calleePhone;
+
+    try {
+        let calleeId = null;
+        if (calleePhone) {
+            const callee = await db.getClientByPhoneNumber(calleePhone);
+            if (callee) {
+                calleeId = callee.id;
+            }
+        }
+
+        const result = await voicemailService.startRecording(caller.userId, calleeId, calleePhone || null);
+        ws.send(JSON.stringify({ type: 'voicemail_recording_started', data: result }));
+    } catch (error) {
+        ws.send(JSON.stringify({ type: 'voicemail_error', data: { message: error.message } }));
+    }
+}
+
+async function handleVoicemailCancel(ws, data) {
+    const caller = ws.clientInfo;
+    if (!caller || caller.role !== 'client') return;
+
+    const payload = data.data || {};
+    try {
+        await voicemailService.cancelRecording(payload.messageId, caller.userId);
+        ws.send(JSON.stringify({ type: 'voicemail_recording_cancelled', data: { messageId: payload.messageId } }));
+    } catch (error) {
+        ws.send(JSON.stringify({ type: 'voicemail_error', data: { message: error.message } }));
+    }
+}
+
+async function handleVoicemailDelete(ws, data) {
+    const user = ws.clientInfo;
+    if (!user || user.role !== 'client') return;
+
+    const payload = data.data || {};
+    try {
+        await voicemailService.deleteMessage(payload.messageId, user.userId);
+        ws.send(JSON.stringify({ type: 'voicemail_message_deleted', data: { messageId: payload.messageId } }));
+    } catch (error) {
+        ws.send(JSON.stringify({ type: 'voicemail_error', data: { message: error.message } }));
+    }
+}
+
+async function handleVoicemailMarkSeen(ws, data) {
+    const user = ws.clientInfo;
+    if (!user || user.role !== 'client') return;
+
+    const payload = data.data || {};
+    try {
+        await voicemailService.markMessageSeen(payload.messageId, user.userId);
+    } catch (error) {
+        // Silently ignore — seen status is non-critical
+    }
 }
 
 module.exports = { handleConnection };

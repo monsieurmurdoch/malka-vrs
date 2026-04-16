@@ -8,6 +8,7 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const { z } = require('zod');
 
 // Initialize Express app
 const app = express();
@@ -167,6 +168,38 @@ function validateTwilioWebhook(req) {
     return twilioSdk.validateRequest(TWILIO_AUTH_TOKEN, signature, url, req.body || {});
 }
 
+// ============================================
+// INPUT VALIDATION
+// ============================================
+
+function validateRequest(schema) {
+    return (req, res, next) => {
+        const result = schema.safeParse(req.body);
+        if (!result.success) {
+            const details = {};
+            for (const issue of result.error.issues) {
+                const key = issue.path.join('.') || '_root';
+                if (!details[key]) details[key] = issue.message;
+            }
+            return res.status(400).json({ error: 'Validation failed', code: 'VALIDATION_ERROR', details });
+        }
+        req.body = result.data;
+        next();
+    };
+}
+
+const callSchema = z.object({
+    to: z.string().regex(/^\+?\d{7,16}$/, 'Invalid phone number format'),
+    from: z.string().regex(/^\+?\d{7,16}$/, 'Invalid phone number format').optional(),
+    roomName: z.string().min(1).max(100).optional()
+});
+
+const initiateCallSchema = z.object({
+    phoneNumber: z.string().regex(/^\+?\d{7,16}$/, 'Invalid phone number format'),
+    interpreterId: z.string().min(1),
+    sessionId: z.string().optional()
+});
+
 /**
  * ROUTES
  */
@@ -183,20 +216,15 @@ app.get('/api/readiness', (req, res) => {
 });
 
 // Initiate outbound call
-app.post('/api/voice/call', async (req, res) => {
+app.post('/api/voice/call', validateRequest(initiateCallSchema), async (req, res) => {
     try {
         const { phoneNumber, interpreterId, sessionId } = req.body;
-
-        if (!phoneNumber || !interpreterId) {
-            return res.status(400).json({
-                error: 'Missing required fields: phoneNumber, interpreterId'
-            });
-        }
 
         const readiness = getTwilioHealthSnapshot();
         if (!readiness.ready) {
             return res.status(503).json({
                 error: 'Twilio service is not ready for outbound calling',
+                code: 'SERVICE_NOT_READY',
                 blockers: readiness.blockers
             });
         }
@@ -204,14 +232,16 @@ app.post('/api/voice/call', async (req, res) => {
         const rateLimitKey = getRateLimitKey(req);
         if (isCallRateLimited(rateLimitKey)) {
             return res.status(429).json({
-                error: 'Too many call attempts. Please try again shortly.'
+                error: 'Too many call attempts. Please try again shortly.',
+                code: 'RATE_LIMIT_EXCEEDED'
             });
         }
         registerCallAttempt(rateLimitKey);
 
         if (!twilio) {
             return res.status(500).json({
-                error: 'Twilio not configured. Please set environment variables.'
+                error: 'Twilio not configured. Please set environment variables.',
+                code: 'TWILIO_NOT_CONFIGURED'
             });
         }
 
@@ -273,7 +303,8 @@ app.post('/api/voice/call', async (req, res) => {
         log(`Error initiating call: ${error.message}`);
         res.status(500).json({
             error: 'Failed to initiate call',
-            message: error.message
+            code: 'CALL_INITIATION_FAILED',
+            details: { message: error.message }
         });
     }
 });
@@ -285,13 +316,15 @@ app.post('/api/voice/hangup', async (req, res) => {
 
         if (!callSid) {
             return res.status(400).json({
-                error: 'Missing required field: callSid'
+                error: 'Missing required field: callSid',
+                code: 'MISSING_CALL_SID'
             });
         }
 
         if (!twilio) {
             return res.status(500).json({
-                error: 'Twilio not configured'
+                error: 'Twilio not configured',
+                code: 'TWILIO_NOT_CONFIGURED'
             });
         }
 
@@ -319,7 +352,8 @@ app.post('/api/voice/hangup', async (req, res) => {
         log(`Error hanging up call: ${error.message}`);
         res.status(500).json({
             error: 'Failed to end call',
-            message: error.message
+            code: 'HANGUP_FAILED',
+            details: { message: error.message }
         });
     }
 });
@@ -350,7 +384,8 @@ app.get('/api/voice/status/:callSid', async (req, res) => {
 
         if (!callData) {
             return res.status(404).json({
-                error: 'Call not found'
+                error: 'Call not found',
+                code: 'CALL_NOT_FOUND'
             });
         }
 
@@ -366,7 +401,8 @@ app.get('/api/voice/status/:callSid', async (req, res) => {
         log(`Error getting call status: ${error.message}`);
         res.status(500).json({
             error: 'Failed to get call status',
-            message: error.message
+            code: 'STATUS_FETCH_FAILED',
+            details: { message: error.message }
         });
     }
 });
@@ -375,7 +411,10 @@ app.get('/api/voice/status/:callSid', async (req, res) => {
 app.post('/api/voice/webhook/:sessionId?', (req, res) => {
     if (twilio && !validateTwilioWebhook(req)) {
         log('Rejected webhook with invalid Twilio signature');
-        return res.status(403).json({ error: 'Invalid Twilio webhook signature' });
+        return res.status(403).json({
+            error: 'Invalid Twilio webhook signature',
+            code: 'INVALID_SIGNATURE'
+        });
     }
 
     const sessionId = req.params.sessionId;
@@ -434,7 +473,8 @@ app.use((error, req, res, next) => {
     log(`Server error: ${error.message}`);
     res.status(500).json({
         error: 'Internal server error',
-        message: error.message
+        code: 'INTERNAL_ERROR',
+        details: { message: error.message }
     });
 });
 

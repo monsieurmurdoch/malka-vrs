@@ -8,6 +8,8 @@ const rateLimit = require('express-rate-limit');
 const db = require('../database');
 const activityLogger = require('../lib/activity-logger');
 const { signToken, normalizeAuthClaims, verifyJwtToken } = require('../lib/auth');
+const log = require('../lib/logger').module('auth');
+const { validate, emailSchema, passwordSchema, nameSchema, organizationSchema, z } = require('../lib/validation');
 
 const router = express.Router();
 
@@ -16,7 +18,7 @@ const authLimiter = rateLimit({
     max: 10,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: 'Too many login attempts, please try again later.' }
+    message: { error: 'Too many login attempts, please try again later.', code: 'RATE_LIMITED' }
 });
 
 let LEGACY_ADMIN_LOGIN_ENABLED = false;
@@ -25,29 +27,32 @@ function setLegacyFlag(val) {
     LEGACY_ADMIN_LOGIN_ENABLED = val;
 }
 
-function validateRequired(body, fields) {
-    for (const field of fields) {
-        const value = body[field];
-        if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '')) {
-            return `Missing required field: ${field}`;
-        }
-    }
-    return null;
-}
+const clientRegisterSchema = z.object({
+    name: nameSchema,
+    email: emailSchema,
+    password: passwordSchema,
+    organization: organizationSchema
+});
+
+const loginSchema = z.object({
+    email: emailSchema,
+    password: z.string().min(1)
+});
+
+const adminLoginSchema = z.object({
+    username: z.string().min(1).max(100),
+    password: z.string().min(1)
+});
 
 // --- Client registration ---
-router.post('/client/register', authLimiter, async (req, res) => {
-    const validationError = validateRequired(req.body, ['name', 'email', 'password']);
-    if (validationError) {
-        return res.status(400).json({ error: validationError });
-    }
+router.post('/client/register', authLimiter, validate(clientRegisterSchema), async (req, res) => {
 
     const { name, email, password, organization } = req.body;
 
     try {
         const existing = await db.getClientByEmail(email);
         if (existing) {
-            return res.status(409).json({ error: 'Email already registered' });
+            return res.status(409).json({ error: 'Email already registered', code: 'CONFLICT' });
         }
 
         const client = await db.createClient({ name, email, password, organization });
@@ -78,29 +83,24 @@ router.post('/client/register', authLimiter, async (req, res) => {
             user: { id: client.id, name, email, role: 'client', phoneNumber: phoneNum }
         });
     } catch (error) {
-        console.error('[Client Register] Error:', error);
-        res.status(500).json({ error: 'Registration failed' });
+        req.log.error({ err: error }, 'Client registration failed');
+        res.status(500).json({ error: 'Registration failed', code: 'INTERNAL_ERROR' });
     }
 });
 
 // --- Client login ---
-router.post('/client/login', authLimiter, async (req, res) => {
-    const validationError = validateRequired(req.body, ['email', 'password']);
-    if (validationError) {
-        return res.status(400).json({ error: validationError });
-    }
-
+router.post('/client/login', authLimiter, validate(loginSchema), async (req, res) => {
     const { email, password } = req.body;
 
     try {
         const client = await db.getClientByEmail(email);
         if (!client || !client.password_hash) {
-            return res.status(401).json({ error: 'Invalid email or password' });
+            return res.status(401).json({ error: 'Invalid email or password', code: 'AUTH_FAILED' });
         }
 
         const isMatch = await bcrypt.compare(password, client.password_hash);
         if (!isMatch) {
-            return res.status(401).json({ error: 'Invalid email or password' });
+            return res.status(401).json({ error: 'Invalid email or password', code: 'AUTH_FAILED' });
         }
 
         const phones = await db.getClientPhoneNumbers(client.id);
@@ -122,34 +122,29 @@ router.post('/client/login', authLimiter, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('[Client Login] Error:', error);
-        res.status(500).json({ error: 'Login failed' });
+        req.log.error({ err: error }, 'Client login failed');
+        res.status(500).json({ error: 'Login failed', code: 'INTERNAL_ERROR' });
     }
 });
 
 // --- Interpreter login ---
-router.post('/interpreter/login', authLimiter, async (req, res) => {
-    const validationError = validateRequired(req.body, ['email', 'password']);
-    if (validationError) {
-        return res.status(400).json({ error: validationError });
-    }
-
+router.post('/interpreter/login', authLimiter, validate(loginSchema), async (req, res) => {
     const { email, password } = req.body;
 
     try {
         const interpreter = await db.getInterpreterByEmail(email);
 
         if (!interpreter || !interpreter.password_hash) {
-            return res.status(401).json({ error: 'Invalid email or password' });
+            return res.status(401).json({ error: 'Invalid email or password', code: 'AUTH_FAILED' });
         }
 
         const isMatch = await bcrypt.compare(password, interpreter.password_hash);
         if (!isMatch) {
-            return res.status(401).json({ error: 'Invalid email or password' });
+            return res.status(401).json({ error: 'Invalid email or password', code: 'AUTH_FAILED' });
         }
 
         if (!interpreter.active) {
-            return res.status(403).json({ error: 'Account is inactive' });
+            return res.status(403).json({ error: 'Account is inactive', code: 'ACCOUNT_INACTIVE' });
         }
 
         const token = signToken({
@@ -170,8 +165,8 @@ router.post('/interpreter/login', authLimiter, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('[Interpreter Login] Error:', error);
-        res.status(500).json({ error: 'Login failed' });
+        req.log.error({ err: error }, 'Interpreter login failed');
+        res.status(500).json({ error: 'Login failed', code: 'INTERNAL_ERROR' });
     }
 });
 
@@ -224,16 +219,12 @@ router.post('/captioner/login', authLimiter, async (req, res) => {
 });
 
 // --- Legacy admin login ---
-router.post('/admin/login', authLimiter, async (req, res) => {
+router.post('/admin/login', authLimiter, validate(adminLoginSchema), async (req, res) => {
     if (!LEGACY_ADMIN_LOGIN_ENABLED) {
         return res.status(410).json({
-            error: 'Legacy admin login is disabled. Use the ops authentication service.'
+            error: 'Legacy admin login is disabled. Use the ops authentication service.',
+            code: 'ENDPOINT_RETIRED'
         });
-    }
-
-    const validationError = validateRequired(req.body, ['username', 'password']);
-    if (validationError) {
-        return res.status(400).json({ error: validationError });
     }
 
     const { username, password } = req.body;
@@ -241,12 +232,12 @@ router.post('/admin/login', authLimiter, async (req, res) => {
     try {
         const admin = await db.getAdminByUsername(username);
         if (!admin) {
-            return res.status(401).json({ error: 'Invalid credentials' });
+            return res.status(401).json({ error: 'Invalid credentials', code: 'AUTH_FAILED' });
         }
 
         const isMatch = await bcrypt.compare(password, admin.password_hash);
         if (!isMatch) {
-            return res.status(401).json({ error: 'Invalid credentials' });
+            return res.status(401).json({ error: 'Invalid credentials', code: 'AUTH_FAILED' });
         }
 
         const token = signToken(
@@ -261,8 +252,8 @@ router.post('/admin/login', authLimiter, async (req, res) => {
             admin: { id: admin.id, username: admin.username, name: admin.name }
         });
     } catch (error) {
-        console.error('[Login] Error:', error);
-        res.status(500).json({ error: 'Server error' });
+        req.log.error({ err: error }, 'Login failed');
+        res.status(500).json({ error: 'Server error', code: 'INTERNAL_ERROR' });
     }
 });
 

@@ -5,8 +5,35 @@
 const express = require('express');
 const db = require('../database');
 const { verifyJwtToken, normalizeAuthClaims } = require('../lib/auth');
+const log = require('../lib/logger').module('client');
+const { validate, nameSchema, phoneNumberSchema, nonNegativeIntSchema, z } = require('../lib/validation');
 
 const router = express.Router();
+
+// ============================================
+// SCHEMAS
+// ============================================
+
+const addSpeedDialSchema = z.object({
+    name: nameSchema,
+    phoneNumber: phoneNumberSchema,
+    category: z.string().max(50).optional()
+});
+
+const updateSpeedDialSchema = z.object({
+    name: nameSchema.optional(),
+    phoneNumber: phoneNumberSchema.optional(),
+    category: z.string().max(50).optional()
+});
+
+const lookupPhoneQuerySchema = z.object({
+    phone: phoneNumberSchema
+});
+
+const callHistoryQuerySchema = z.object({
+    limit: nonNegativeIntSchema.optional().default(20),
+    offset: nonNegativeIntSchema.optional().default(0)
+});
 
 // ============================================
 // MIDDLEWARE
@@ -15,7 +42,7 @@ const router = express.Router();
 function authenticateUser(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'Authorization required' });
+        return res.status(401).json({ error: 'Authorization required', code: 'AUTH_REQUIRED' });
     }
 
     const token = authHeader.replace('Bearer ', '');
@@ -23,15 +50,8 @@ function authenticateUser(req, res, next) {
         req.user = normalizeAuthClaims(verifyJwtToken(token));
         next();
     } catch (error) {
-        return res.status(401).json({ error: 'Invalid token' });
+        return res.status(401).json({ error: 'Invalid token', code: 'AUTH_INVALID' });
     }
-}
-
-function sanitizePhoneNumber(raw) {
-    if (typeof raw !== 'string') return null;
-    const cleaned = raw.replace(/[^\d+]/g, '');
-    if (cleaned.length < 7 || cleaned.length > 16) return null;
-    return cleaned;
 }
 
 // ============================================
@@ -40,13 +60,13 @@ function sanitizePhoneNumber(raw) {
 
 router.get('/profile', authenticateUser, async (req, res) => {
     if (req.user.role !== 'client') {
-        return res.status(403).json({ error: 'Client access required' });
+        return res.status(403).json({ error: 'Client access required', code: 'FORBIDDEN' });
     }
 
     try {
         const client = await db.getClient(req.user.id);
         if (!client) {
-            return res.status(404).json({ error: 'Client not found' });
+            return res.status(404).json({ error: 'Client not found', code: 'NOT_FOUND' });
         }
 
         const phones = await db.getClientPhoneNumbers(req.user.id);
@@ -61,8 +81,8 @@ router.get('/profile', authenticateUser, async (req, res) => {
             phoneNumbers: phones
         });
     } catch (error) {
-        console.error('[Client Profile] Error:', error);
-        res.status(500).json({ error: 'Failed to fetch profile' });
+        req.log.error({ err: error }, 'Client profile error');
+        res.status(500).json({ error: 'Failed to fetch profile', code: 'INTERNAL_ERROR' });
     }
 });
 
@@ -70,20 +90,19 @@ router.get('/profile', authenticateUser, async (req, res) => {
 // CALL HISTORY
 // ============================================
 
-router.get('/call-history', authenticateUser, async (req, res) => {
+router.get('/call-history', authenticateUser, validate(callHistoryQuerySchema, 'query'), async (req, res) => {
     if (req.user.role !== 'client') {
-        return res.status(403).json({ error: 'Client access required' });
+        return res.status(403).json({ error: 'Client access required', code: 'FORBIDDEN' });
     }
 
-    const limit = parseInt(String(req.query.limit)) || 20;
-    const offset = parseInt(String(req.query.offset)) || 0;
+    const { limit, offset } = req.query;
 
     try {
         const calls = await db.getClientCallHistory(req.user.id, limit, offset);
         res.json({ calls });
     } catch (error) {
-        console.error('[Client Call History] Error:', error);
-        res.status(500).json({ error: 'Failed to fetch call history' });
+        req.log.error({ err: error }, 'Client call history error');
+        res.status(500).json({ error: 'Failed to fetch call history', code: 'INTERNAL_ERROR' });
     }
 });
 
@@ -93,91 +112,75 @@ router.get('/call-history', authenticateUser, async (req, res) => {
 
 router.get('/speed-dial', authenticateUser, async (req, res) => {
     if (req.user.role !== 'client') {
-        return res.status(403).json({ error: 'Client access required' });
+        return res.status(403).json({ error: 'Client access required', code: 'FORBIDDEN' });
     }
 
     try {
         const entries = await db.getSpeedDialEntries(req.user.id);
         res.json({ entries });
     } catch (error) {
-        console.error('[Speed Dial Get] Error:', error);
-        res.status(500).json({ error: 'Failed to fetch speed dial' });
+        req.log.error({ err: error }, 'Speed dial get error');
+        res.status(500).json({ error: 'Failed to fetch speed dial', code: 'INTERNAL_ERROR' });
     }
 });
 
-router.post('/speed-dial', authenticateUser, async (req, res) => {
+router.post('/speed-dial', authenticateUser, validate(addSpeedDialSchema), async (req, res) => {
     if (req.user.role !== 'client') {
-        return res.status(403).json({ error: 'Client access required' });
+        return res.status(403).json({ error: 'Client access required', code: 'FORBIDDEN' });
     }
 
     const { name, phoneNumber, category } = req.body;
-    if (!name || !phoneNumber) {
-        return res.status(400).json({ error: 'Missing required field: name or phoneNumber' });
-    }
-
-    const sanitized = sanitizePhoneNumber(phoneNumber);
-    if (!sanitized) {
-        return res.status(400).json({ error: 'Invalid phone number' });
-    }
 
     try {
         const entry = await db.addSpeedDialEntry({
             clientId: req.user.id,
             name,
-            phoneNumber: sanitized,
+            phoneNumber,
             category
         });
         res.status(201).json({ entry });
     } catch (error) {
-        console.error('[Speed Dial Add] Error:', error);
-        res.status(500).json({ error: 'Failed to add speed dial entry' });
+        req.log.error({ err: error }, 'Speed dial add error');
+        res.status(500).json({ error: 'Failed to add speed dial entry', code: 'INTERNAL_ERROR' });
     }
 });
 
-router.put('/speed-dial/:id', authenticateUser, async (req, res) => {
+router.put('/speed-dial/:id', authenticateUser, validate(updateSpeedDialSchema), async (req, res) => {
     if (req.user.role !== 'client') {
-        return res.status(403).json({ error: 'Client access required' });
+        return res.status(403).json({ error: 'Client access required', code: 'FORBIDDEN' });
     }
-
-    const { name, phoneNumber, category } = req.body;
 
     try {
         const updates = {};
-        if (name !== undefined) updates.name = name;
-        if (phoneNumber !== undefined) {
-            const sanitized = sanitizePhoneNumber(phoneNumber);
-            if (!sanitized) {
-                return res.status(400).json({ error: 'Invalid phone number' });
-            }
-            updates.phoneNumber = sanitized;
-        }
-        if (category !== undefined) updates.category = category;
+        if (req.body.name !== undefined) updates.name = req.body.name;
+        if (req.body.phoneNumber !== undefined) updates.phoneNumber = req.body.phoneNumber;
+        if (req.body.category !== undefined) updates.category = req.body.category;
 
         const changes = await db.updateSpeedDialEntry(req.params.id, req.user.id, updates);
         if (changes === 0) {
-            return res.status(404).json({ error: 'Entry not found' });
+            return res.status(404).json({ error: 'Entry not found', code: 'NOT_FOUND' });
         }
         res.json({ success: true });
     } catch (error) {
-        console.error('[Speed Dial Update] Error:', error);
-        res.status(500).json({ error: 'Failed to update speed dial entry' });
+        req.log.error({ err: error }, 'Speed dial update error');
+        res.status(500).json({ error: 'Failed to update speed dial entry', code: 'INTERNAL_ERROR' });
     }
 });
 
 router.delete('/speed-dial/:id', authenticateUser, async (req, res) => {
     if (req.user.role !== 'client') {
-        return res.status(403).json({ error: 'Client access required' });
+        return res.status(403).json({ error: 'Client access required', code: 'FORBIDDEN' });
     }
 
     try {
         const changes = await db.deleteSpeedDialEntry(req.params.id, req.user.id);
         if (changes === 0) {
-            return res.status(404).json({ error: 'Entry not found' });
+            return res.status(404).json({ error: 'Entry not found', code: 'NOT_FOUND' });
         }
         res.json({ success: true });
     } catch (error) {
-        console.error('[Speed Dial Delete] Error:', error);
-        res.status(500).json({ error: 'Failed to delete speed dial entry' });
+        req.log.error({ err: error }, 'Speed dial delete error');
+        res.status(500).json({ error: 'Failed to delete speed dial entry', code: 'INTERNAL_ERROR' });
     }
 });
 
@@ -187,7 +190,7 @@ router.delete('/speed-dial/:id', authenticateUser, async (req, res) => {
 
 router.get('/missed-calls', authenticateUser, async (req, res) => {
     if (req.user.role !== 'client') {
-        return res.status(403).json({ error: 'Client access required' });
+        return res.status(403).json({ error: 'Client access required', code: 'FORBIDDEN' });
     }
 
     try {
@@ -195,42 +198,34 @@ router.get('/missed-calls', authenticateUser, async (req, res) => {
         // Preserve the legacy response field while keeping the newer name.
         res.json({ missed, missedCalls: missed });
     } catch (error) {
-        console.error('[Missed Calls] Error:', error);
-        res.status(500).json({ error: 'Failed to fetch missed calls' });
+        req.log.error({ err: error }, 'Missed calls error');
+        res.status(500).json({ error: 'Failed to fetch missed calls', code: 'INTERNAL_ERROR' });
     }
 });
 
 router.post('/missed-calls/mark-seen', authenticateUser, async (req, res) => {
     if (req.user.role !== 'client') {
-        return res.status(403).json({ error: 'Client access required' });
+        return res.status(403).json({ error: 'Client access required', code: 'FORBIDDEN' });
     }
 
     try {
         await db.markMissedCallsSeen(req.user.id);
         res.json({ success: true });
     } catch (error) {
-        console.error('[Mark Seen] Error:', error);
-        res.status(500).json({ error: 'Failed to mark missed calls as seen' });
+        req.log.error({ err: error }, 'Mark seen error');
+        res.status(500).json({ error: 'Failed to mark missed calls as seen', code: 'INTERNAL_ERROR' });
     }
 });
 
-router.get('/lookup-phone', authenticateUser, async (req, res) => {
+router.get('/lookup-phone', authenticateUser, validate(lookupPhoneQuerySchema, 'query'), async (req, res) => {
     if (req.user.role !== 'client') {
-        return res.status(403).json({ error: 'Client access required' });
+        return res.status(403).json({ error: 'Client access required', code: 'FORBIDDEN' });
     }
 
     const { phone } = req.query;
-    if (!phone) {
-        return res.status(400).json({ error: 'phone query parameter required' });
-    }
-
-    const sanitized = sanitizePhoneNumber(phone);
-    if (!sanitized) {
-        return res.status(400).json({ error: 'Invalid phone number' });
-    }
 
     try {
-        const target = await db.getClientByPhoneNumber(sanitized);
+        const target = await db.getClientByPhoneNumber(phone);
         if (!target) {
             return res.json({ found: false });
         }
@@ -239,25 +234,25 @@ router.get('/lookup-phone', authenticateUser, async (req, res) => {
             found: true,
             id: target.id,
             name: target.name,
-            phone: sanitized
+            phone
         });
     } catch (error) {
-        console.error('[Lookup Phone] Error:', error);
-        res.status(500).json({ error: 'Lookup failed' });
+        req.log.error({ err: error }, 'Lookup phone error');
+        res.status(500).json({ error: 'Lookup failed', code: 'INTERNAL_ERROR' });
     }
 });
 
 router.get('/active-rooms', authenticateUser, async (req, res) => {
     if (req.user.role !== 'client') {
-        return res.status(403).json({ error: 'Client access required' });
+        return res.status(403).json({ error: 'Client access required', code: 'FORBIDDEN' });
     }
 
     try {
         const rooms = await db.getActiveP2PRoomsForClient(req.user.id);
         res.json({ rooms });
     } catch (error) {
-        console.error('[Active Rooms] Error:', error);
-        res.status(500).json({ error: 'Failed to fetch active rooms' });
+        req.log.error({ err: error }, 'Active rooms error');
+        res.status(500).json({ error: 'Failed to fetch active rooms', code: 'INTERNAL_ERROR' });
     }
 });
 

@@ -5,13 +5,30 @@
 const express = require('express');
 const db = require('../database');
 const { verifyJwtToken, normalizeAuthClaims } = require('../lib/auth');
+const log = require('../lib/logger').module('interpreter');
+const { validate, nonNegativeIntSchema, z } = require('../lib/validation');
 
 const router = express.Router();
+
+const callHistoryQuerySchema = z.object({
+    limit: nonNegativeIntSchema.optional().default(20),
+    offset: nonNegativeIntSchema.optional().default(0)
+});
+
+const shiftsQuerySchema = z.object({
+    startDate: z.string().min(1).optional(),
+    endDate: z.string().min(1).optional()
+});
+
+const earningsQuerySchema = z.object({
+    periodStart: z.string().min(1).optional(),
+    periodEnd: z.string().min(1).optional()
+});
 
 function authenticateUser(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'Authorization required' });
+        return res.status(401).json({ error: 'Authorization required', code: 'AUTH_REQUIRED' });
     }
 
     const token = authHeader.replace('Bearer ', '');
@@ -19,7 +36,7 @@ function authenticateUser(req, res, next) {
         req.user = normalizeAuthClaims(verifyJwtToken(token));
         next();
     } catch (error) {
-        return res.status(401).json({ error: 'Invalid token' });
+        return res.status(401).json({ error: 'Invalid token', code: 'AUTH_INVALID' });
     }
 }
 
@@ -29,13 +46,13 @@ function authenticateUser(req, res, next) {
 
 router.get('/profile', authenticateUser, async (req, res) => {
     if (req.user.role !== 'interpreter') {
-        return res.status(403).json({ error: 'Interpreter access required' });
+        return res.status(403).json({ error: 'Interpreter access required', code: 'FORBIDDEN' });
     }
 
     try {
         const interpreter = await db.getInterpreter(req.user.id);
         if (!interpreter) {
-            return res.status(404).json({ error: 'Interpreter not found' });
+            return res.status(404).json({ error: 'Interpreter not found', code: 'NOT_FOUND' });
         }
 
         res.json({
@@ -46,8 +63,8 @@ router.get('/profile', authenticateUser, async (req, res) => {
             active: interpreter.active
         });
     } catch (error) {
-        console.error('[Interpreter Profile] Error:', error);
-        res.status(500).json({ error: 'Failed to fetch profile' });
+        req.log.error({ err: error }, 'Interpreter profile error');
+        res.status(500).json({ error: 'Failed to fetch profile', code: 'INTERNAL_ERROR' });
     }
 });
 
@@ -55,20 +72,19 @@ router.get('/profile', authenticateUser, async (req, res) => {
 // CALL HISTORY
 // ============================================
 
-router.get('/call-history', authenticateUser, async (req, res) => {
+router.get('/call-history', authenticateUser, validate(callHistoryQuerySchema, 'query'), async (req, res) => {
     if (req.user.role !== 'interpreter') {
-        return res.status(403).json({ error: 'Interpreter access required' });
+        return res.status(403).json({ error: 'Interpreter access required', code: 'FORBIDDEN' });
     }
 
-    const limit = parseInt(String(req.query.limit)) || 20;
-    const offset = parseInt(String(req.query.offset)) || 0;
+    const { limit, offset } = req.query;
 
     try {
         const calls = await db.getInterpreterCallHistory(req.user.id, limit, offset);
         res.json({ calls });
     } catch (error) {
-        console.error('[Interpreter Call History] Error:', error);
-        res.status(500).json({ error: 'Failed to fetch call history' });
+        req.log.error({ err: error }, 'Interpreter call history error');
+        res.status(500).json({ error: 'Failed to fetch call history', code: 'INTERNAL_ERROR' });
     }
 });
 
@@ -76,9 +92,9 @@ router.get('/call-history', authenticateUser, async (req, res) => {
 // SHIFTS
 // ============================================
 
-router.get('/shifts', authenticateUser, async (req, res) => {
+router.get('/shifts', authenticateUser, validate(shiftsQuerySchema, 'query'), async (req, res) => {
     if (req.user.role !== 'interpreter') {
-        return res.status(403).json({ error: 'Interpreter access required' });
+        return res.status(403).json({ error: 'Interpreter access required', code: 'FORBIDDEN' });
     }
 
     const { startDate, endDate } = req.query;
@@ -87,8 +103,8 @@ router.get('/shifts', authenticateUser, async (req, res) => {
         const shifts = await db.getInterpreterShifts(req.user.id, String(startDate), String(endDate));
         res.json({ shifts });
     } catch (error) {
-        console.error('[Interpreter Shifts] Error:', error);
-        res.status(500).json({ error: 'Failed to fetch shifts' });
+        req.log.error({ err: error }, 'Interpreter shifts error');
+        res.status(500).json({ error: 'Failed to fetch shifts', code: 'INTERNAL_ERROR' });
     }
 });
 
@@ -96,9 +112,9 @@ router.get('/shifts', authenticateUser, async (req, res) => {
 // EARNINGS
 // ============================================
 
-router.get('/earnings', authenticateUser, async (req, res) => {
+router.get('/earnings', authenticateUser, validate(earningsQuerySchema, 'query'), async (req, res) => {
     if (req.user.role !== 'interpreter') {
-        return res.status(403).json({ error: 'Interpreter access required' });
+        return res.status(403).json({ error: 'Interpreter access required', code: 'FORBIDDEN' });
     }
 
     const now = new Date();
@@ -111,8 +127,8 @@ router.get('/earnings', authenticateUser, async (req, res) => {
         const earnings = await db.getInterpreterEarnings(req.user.id, periodStart, periodEnd);
         res.json({ earnings });
     } catch (error) {
-        console.error('[Interpreter Earnings] Error:', error);
-        res.status(500).json({ error: 'Failed to fetch earnings' });
+        req.log.error({ err: error }, 'Interpreter earnings error');
+        res.status(500).json({ error: 'Failed to fetch earnings', code: 'INTERNAL_ERROR' });
     }
 });
 
@@ -122,15 +138,15 @@ router.get('/earnings', authenticateUser, async (req, res) => {
 
 router.get('/stats', authenticateUser, async (req, res) => {
     if (req.user.role !== 'interpreter') {
-        return res.status(403).json({ error: 'Interpreter access required' });
+        return res.status(403).json({ error: 'Interpreter access required', code: 'FORBIDDEN' });
     }
 
     try {
         const stats = await db.getInterpreterStats(req.user.id);
         res.json(stats);
     } catch (error) {
-        console.error('[Interpreter Stats] Error:', error);
-        res.status(500).json({ error: 'Failed to fetch stats' });
+        req.log.error({ err: error }, 'Interpreter stats error');
+        res.status(500).json({ error: 'Failed to fetch stats', code: 'INTERNAL_ERROR' });
     }
 });
 
