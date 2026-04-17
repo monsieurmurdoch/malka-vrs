@@ -219,6 +219,13 @@ async function createTables() {
             seen BOOLEAN DEFAULT false
         );
 
+        -- Lightweight schema upgrades for existing PostgreSQL volumes
+        ALTER TABLE calls ADD COLUMN IF NOT EXISTS callee_id TEXT;
+        ALTER TABLE queue_requests ADD COLUMN IF NOT EXISTS target_phone TEXT;
+        ALTER TABLE missed_calls ADD COLUMN IF NOT EXISTS callee_client_id TEXT;
+        ALTER TABLE missed_calls ADD COLUMN IF NOT EXISTS room_name TEXT;
+        ALTER TABLE missed_calls ADD COLUMN IF NOT EXISTS seen BOOLEAN DEFAULT false;
+
         -- Indexes for performance
         CREATE INDEX IF NOT EXISTS idx_calls_client ON calls(client_id);
         CREATE INDEX IF NOT EXISTS idx_calls_interpreter ON calls(interpreter_id);
@@ -289,13 +296,6 @@ async function createTables() {
         CREATE INDEX IF NOT EXISTS idx_blocked_client ON blocked_contacts(client_id);
         CREATE INDEX IF NOT EXISTS idx_blocked_phone ON blocked_contacts(client_id, blocked_phone);
         CREATE INDEX IF NOT EXISTS idx_blocked_email ON blocked_contacts(client_id, blocked_email);
-
-        -- Lightweight schema upgrades for existing PostgreSQL volumes
-        ALTER TABLE calls ADD COLUMN IF NOT EXISTS callee_id TEXT;
-        ALTER TABLE queue_requests ADD COLUMN IF NOT EXISTS target_phone TEXT;
-        ALTER TABLE missed_calls ADD COLUMN IF NOT EXISTS callee_client_id TEXT;
-        ALTER TABLE missed_calls ADD COLUMN IF NOT EXISTS room_name TEXT;
-        ALTER TABLE missed_calls ADD COLUMN IF NOT EXISTS seen BOOLEAN DEFAULT false;
     `;
 
     await pool.query(ddl);
