@@ -1,0 +1,49 @@
+{
+  "tenantId": "maple",
+  "brand": {
+    "appName": "MapleVRS",
+    "providerName": "Maple Communications Group",
+    "tagline": "Canadian Interpreting Services",
+    "description": "Join a video interpretation session powered by Maple Communications Group",
+    "supportUrl": "https://maplecommunications.ca/support",
+    "inviteDomain": ""
+  },
+  "theme": {
+    "primary": "#A31B1A",
+    "primaryLight": "#D4342E",
+    "primaryDark": "#7A1210",
+    "accent": "#F47D22",
+    "success": "#2E7D32",
+    "warning": "#F9A825",
+    "error": "#C62828",
+    "errorDark": "#8E0000",
+    "surfaceDark": "#1A1A1A",
+    "surfaceMid": "#2D2D2D",
+    "surfaceLight": "#F5F5F5",
+    "textPrimary": "#FFFFFF",
+    "textSecondary": "#B0B0B0",
+    "toolbarBg": "#A31B1A",
+    "chatBg": "#A31B1A"
+  },
+  "assets": {
+    "logo": "logo.png",
+    "logoWhite": "logo-white.png",
+    "favicon": "favicon.ico",
+    "faviconSvg": "favicon.svg",
+    "favicon16": "favicon-16x16.png",
+    "favicon32": "favicon-32x32.png",
+    "appleTouchIcon": "apple-touch-icon.png",
+    "welcomeBackground": ""
+  },
+  "features": {
+    "vrs": { "enabled": true },
+    "vri": { "enabled": true },
+    "voicemail": { "enabled": true },
+    "recording": { "enabled": true },
+    "phoneDialOut": { "enabled": true },
+    "languages": {
+      "enabled": ["en", "fr", "asl", "lsq"],
+      "default": "en"
+    }
+  }
+}

@@ -8,8 +8,21 @@ import { SETTINGS_TABS } from '../../settings/constants';
 import { AbstractWelcomePage, IProps, _mapStateToProps } from './AbstractWelcomePage';
 import { LanguageSwitcher } from '../../vrs-layout/components';
 import { consumePendingRoomRedirect, setPersistentItem } from '../../vrs-auth/storage';
+import { isFeatureEnabled, getAppName, getLogoWhiteUrl } from '../../base/whitelabel/functions';
 
 declare var config: any;
+
+function getInitialSelectedTab(): 'client' | 'interpreter' | 'captioner' {
+    if (isFeatureEnabled('vrs')) {
+        return 'client';
+    }
+
+    if (isFeatureEnabled('vri')) {
+        return 'interpreter';
+    }
+
+    return 'captioner';
+}
 
 /**
  * The Web container rendering the welcome page — a single centered auth box
@@ -40,7 +53,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
             generateRoomNames:
                 interfaceConfig.GENERATE_ROOMNAMES_ON_WELCOME_PAGE,
             recentMeetingsCollapsed: true,
-            selectedTab: 'client' as 'client' | 'interpreter' | 'captioner',
+            selectedTab: getInitialSelectedTab(),
             email: '',
             password: '',
             name: '',
@@ -335,9 +348,9 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                         {/* Logo */}
                         <div className = 'vrs-auth-logo'>
                             <img
-                                alt = 'MalkaVRI'
+                                alt = { getAppName() }
                                 className = 'vrs-auth-logo-img'
-                                src = 'images/malka-logo-white.png' />
+                                src = { getLogoWhiteUrl() } />
                             <span className = { `vrs-auth-logo-text ${themeClass}` }>
                                 VRS
                             </span>
@@ -346,18 +359,22 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                         {/* Tab toggle */}
                         <div className = 'vrs-auth-tabs'>
                             <div className = { `vrs-auth-tab-indicator ${tabIndicatorClass}` } />
-                            <button
-                                className = { `vrs-auth-tab ${isClient ? 'active' : ''}` }
-                                onClick = { () => this._handleTabSwitch('client') }
-                                type = 'button'>
-                                Client
-                            </button>
-                            <button
-                                className = { `vrs-auth-tab ${isInterpreter ? 'active' : ''}` }
-                                onClick = { () => this._handleTabSwitch('interpreter') }
-                                type = 'button'>
-                                Interpreter
-                            </button>
+                            {isFeatureEnabled('vrs') && (
+                                <button
+                                    className = { `vrs-auth-tab ${isClient ? 'active' : ''}` }
+                                    onClick = { () => this._handleTabSwitch('client') }
+                                    type = 'button'>
+                                    Client
+                                </button>
+                            )}
+                            {isFeatureEnabled('vri') && (
+                                <button
+                                    className = { `vrs-auth-tab ${isInterpreter ? 'active' : ''}` }
+                                    onClick = { () => this._handleTabSwitch('interpreter') }
+                                    type = 'button'>
+                                    Interpreter
+                                </button>
+                            )}
                             <button
                                 className = { `vrs-auth-tab ${isCaptioner ? 'active' : ''}` }
                                 onClick = { () => this._handleTabSwitch('captioner') }
