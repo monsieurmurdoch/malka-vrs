@@ -221,6 +221,60 @@ async function createTables() {
         CREATE INDEX IF NOT EXISTS idx_earnings_interpreter ON interpreter_earnings(interpreter_id);
         CREATE INDEX IF NOT EXISTS idx_missed_calls_callee ON missed_calls(callee_client_id, seen);
         CREATE INDEX IF NOT EXISTS idx_missed_calls_caller ON missed_calls(caller_id);
+
+        -- Contacts & Address Book
+        CREATE TABLE IF NOT EXISTS contacts (
+            id TEXT PRIMARY KEY,
+            client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            email TEXT,
+            phone_number TEXT,
+            organization TEXT,
+            notes TEXT,
+            avatar_color TEXT,
+            is_favorite BOOLEAN DEFAULT false,
+            linked_client_id TEXT,
+            merged_into TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_contacts_client ON contacts(client_id);
+        CREATE INDEX IF NOT EXISTS idx_contacts_phone ON contacts(client_id, phone_number);
+        CREATE INDEX IF NOT EXISTS idx_contacts_email ON contacts(client_id, email);
+        CREATE INDEX IF NOT EXISTS idx_contacts_favorite ON contacts(client_id, is_favorite);
+
+        CREATE TABLE IF NOT EXISTS contact_groups (
+            id TEXT PRIMARY KEY,
+            client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            color TEXT,
+            sort_order INTEGER DEFAULT 0,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            UNIQUE(client_id, name)
+        );
+        CREATE INDEX IF NOT EXISTS idx_contact_groups_client ON contact_groups(client_id);
+
+        CREATE TABLE IF NOT EXISTS contact_group_members (
+            id TEXT PRIMARY KEY,
+            contact_id TEXT NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+            group_id TEXT NOT NULL REFERENCES contact_groups(id) ON DELETE CASCADE,
+            UNIQUE(contact_id, group_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_cgm_contact ON contact_group_members(contact_id);
+        CREATE INDEX IF NOT EXISTS idx_cgm_group ON contact_group_members(group_id);
+
+        CREATE TABLE IF NOT EXISTS blocked_contacts (
+            id TEXT PRIMARY KEY,
+            client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+            blocked_phone TEXT,
+            blocked_email TEXT,
+            blocked_client_id TEXT,
+            reason TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_blocked_client ON blocked_contacts(client_id);
+        CREATE INDEX IF NOT EXISTS idx_blocked_phone ON blocked_contacts(client_id, blocked_phone);
+        CREATE INDEX IF NOT EXISTS idx_blocked_email ON blocked_contacts(client_id, blocked_email);
     `;
 
     await pool.query(ddl);
@@ -230,15 +284,25 @@ async function createTables() {
 // HELPER FUNCTIONS
 // ============================================
 
+/**
+ * Run a SELECT query. Returns array of row objects.
+ * Use $1, $2, ... placeholders in SQL.
+ */
 async function runQuery(sql, params = []) {
     const { rows } = await pool.query(sql, params);
     return rows;
 }
 
+/**
+ * Run an INSERT query.
+ */
 async function runInsert(sql, params = []) {
     await pool.query(sql, params);
 }
 
+/**
+ * Run an UPDATE/DELETE query. Returns number of affected rows.
+ */
 async function runUpdate(sql, params = []) {
     const { rowCount } = await pool.query(sql, params);
     return rowCount;
@@ -287,6 +351,7 @@ async function getAllInterpreters() {
         ORDER BY i.name
     `);
 
+    // Parse languages (JSONB comes back as object in PG, but handle string fallback)
     return interpreters.map(i => ({
         ...i,
         languages: typeof i.languages === 'string' ? JSON.parse(i.languages) : (i.languages || []),
@@ -367,6 +432,7 @@ async function deleteInterpreter(id) {
 }
 
 async function getInterpreterStats(interpreterId) {
+    // Per-interpreter stats (called with an ID)
     if (interpreterId) {
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
@@ -396,6 +462,7 @@ async function getInterpreterStats(interpreterId) {
         };
     }
 
+    // All-interpreter stats (dashboard)
     return await runQuery(`
         SELECT
             i.id,
@@ -496,6 +563,7 @@ async function getActiveCalls() {
 async function addToQueue({ clientId, clientName, language, roomName, targetPhone = null }) {
     const id = uuidv4();
 
+    // Get current position
     const count = await runQuery(
         "SELECT COUNT(*) as count FROM queue_requests WHERE status = 'waiting'"
     );
@@ -514,6 +582,7 @@ async function getQueueRequests(status = 'waiting') {
         [status]
     );
 
+    // Calculate wait times
     return requests.map(r => {
         const createdAt = new Date(r.created_at);
         const now = new Date();
@@ -533,6 +602,7 @@ async function assignInterpreter(requestId, interpreterId) {
         ['assigned', interpreterId, requestId]
     );
 
+    // Reorder remaining queue
     await reorderQueue();
 }
 
@@ -616,6 +686,7 @@ async function getDashboardStats() {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
 
+    // Get interpreter count
     const interpreterCount = await runQuery(`
         SELECT
             COUNT(*) as total,
@@ -623,16 +694,20 @@ async function getDashboardStats() {
         FROM interpreters WHERE active = true
     `);
 
+    // Get client count
     const clientCount = await runQuery('SELECT COUNT(*) as total FROM clients');
 
+    // Get queue count
     const queueCount = await runQuery(
         "SELECT COUNT(*) as count FROM queue_requests WHERE status = 'waiting'"
     );
 
+    // Get active calls
     const activeCalls = await runQuery(
         "SELECT COUNT(*) as count FROM calls WHERE status = 'active'"
     );
 
+    // Get today's stats
     const todayStats = await runQuery(`
         SELECT
             COUNT(*) as total_calls,
@@ -642,6 +717,7 @@ async function getDashboardStats() {
         FROM calls WHERE started_at::date = $1
     `, [today]);
 
+    // Get week-over-week comparison
     const weekCompare = await runQuery(`
         SELECT
             COUNT(CASE WHEN started_at::date >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as this_week,
@@ -649,6 +725,7 @@ async function getDashboardStats() {
         FROM calls
     `);
 
+    // Average wait time
     const avgWait = await runQuery(`
         SELECT AVG(EXTRACT(EPOCH FROM (assigned_at - created_at)) / 60.0) as avg_minutes
         FROM queue_requests
@@ -939,6 +1016,377 @@ async function getActiveP2PRoomsForClient(clientId) {
 }
 
 // ============================================
+// CONTACTS & ADDRESS BOOK OPERATIONS
+// ============================================
+
+function sanitizePhoneNumberRaw(raw) {
+    if (typeof raw !== 'string') return null;
+    const cleaned = raw.replace(/[^\d+]/g, '');
+    if (cleaned.length < 7 || cleaned.length > 16) return null;
+    return cleaned;
+}
+
+async function getContacts(clientId, { search, groupId, favoritesOnly } = {}) {
+    let sql = `
+        SELECT c.*,
+            STRING_AGG(cg.id::text, ',') AS group_ids,
+            STRING_AGG(cg.name, ',') AS group_names,
+            (SELECT MAX(started_at) FROM calls
+             WHERE (client_id = $1 AND callee_id = c.linked_client_id)
+                OR (client_id = $1 AND room_name IN
+                    (SELECT room_name FROM calls cc WHERE cc.client_id = c.linked_client_id)))
+                AS last_call_date
+        FROM contacts c
+        LEFT JOIN contact_group_members cgm ON cgm.contact_id = c.id
+        LEFT JOIN contact_groups cg ON cg.id = cgm.group_id
+        WHERE c.client_id = $1 AND c.merged_into IS NULL
+    `;
+    const params = [clientId];
+    let idx = 2;
+
+    if (search) {
+        sql += ` AND (c.name ILIKE $${idx} OR c.email ILIKE $${idx} OR c.phone_number ILIKE $${idx} OR c.organization ILIKE $${idx})`;
+        params.push(`%${search}%`);
+        idx++;
+    }
+    if (favoritesOnly) {
+        sql += ' AND c.is_favorite = true';
+    }
+
+    sql += ' GROUP BY c.id ORDER BY c.name';
+
+    return await runQuery(sql, params);
+}
+
+async function getContact(clientId, contactId) {
+    const rows = await runQuery(
+        'SELECT c.* FROM contacts c WHERE c.id = $1 AND c.client_id = $2 AND c.merged_into IS NULL',
+        [contactId, clientId]
+    );
+    if (!rows.length) return null;
+
+    const contact = rows[0];
+    const groups = await runQuery(
+        `SELECT cg.* FROM contact_groups cg
+         JOIN contact_group_members cgm ON cgm.group_id = cg.id
+         WHERE cgm.contact_id = $1`,
+        [contactId]
+    );
+    contact.groups = groups;
+
+    return contact;
+}
+
+async function createContact({ clientId, name, email, phoneNumber, organization, notes, avatarColor, isFavorite, linkedClientId }) {
+    const id = uuidv4();
+    const sanitized = phoneNumber ? sanitizePhoneNumberRaw(phoneNumber) : null;
+
+    await runInsert(
+        `INSERT INTO contacts (id, client_id, name, email, phone_number, organization, notes, avatar_color, is_favorite, linked_client_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [id, clientId, name, email || null, sanitized, organization || null, notes || null, avatarColor || null, !!isFavorite, linkedClientId || null]
+    );
+
+    return { id, name };
+}
+
+async function updateContact(clientId, contactId, updates) {
+    const fields = [];
+    const params = [];
+    const allowed = ['name', 'email', 'phone_number', 'organization', 'notes', 'avatar_color', 'is_favorite', 'linked_client_id'];
+    let idx = 1;
+
+    for (const key of allowed) {
+        if (updates[key] !== undefined) {
+            if (key === 'phone_number' && updates[key]) {
+                const sanitized = sanitizePhoneNumberRaw(updates[key]);
+                if (!sanitized) continue;
+                fields.push(`${key} = $${idx++}`);
+                params.push(sanitized);
+            } else if (key === 'is_favorite') {
+                fields.push(`${key} = $${idx++}`);
+                params.push(!!updates[key]);
+            } else {
+                fields.push(`${key} = $${idx++}`);
+                params.push(updates[key]);
+            }
+        }
+    }
+
+    if (fields.length === 0) return 0;
+
+    fields.push('updated_at = NOW()');
+    params.push(contactId, clientId);
+
+    return await runUpdate(
+        `UPDATE contacts SET ${fields.join(', ')} WHERE id = $${idx++} AND client_id = $${idx}`,
+        params
+    );
+}
+
+async function deleteContact(clientId, contactId) {
+    await runUpdate('DELETE FROM contact_group_members WHERE contact_id = $1', [contactId]);
+    return await runUpdate('DELETE FROM contacts WHERE id = $1 AND client_id = $2', [contactId, clientId]);
+}
+
+// --- Contact Groups ---
+
+async function getContactGroups(clientId) {
+    return await runQuery(
+        `SELECT cg.*, COUNT(cgm.contact_id)::int AS member_count
+         FROM contact_groups cg
+         LEFT JOIN contact_group_members cgm ON cgm.group_id = cg.id
+         WHERE cg.client_id = $1
+         GROUP BY cg.id
+         ORDER BY cg.sort_order, cg.name`,
+        [clientId]
+    );
+}
+
+async function createContactGroup({ clientId, name, color, sortOrder }) {
+    const id = uuidv4();
+    await runInsert(
+        'INSERT INTO contact_groups (id, client_id, name, color, sort_order) VALUES ($1, $2, $3, $4, $5)',
+        [id, clientId, name, color || null, sortOrder || 0]
+    );
+    return { id, name };
+}
+
+async function updateContactGroup(clientId, groupId, { name, color, sortOrder }) {
+    const fields = [];
+    const params = [];
+    let idx = 1;
+    if (name !== undefined) { fields.push(`name = $${idx++}`); params.push(name); }
+    if (color !== undefined) { fields.push(`color = $${idx++}`); params.push(color); }
+    if (sortOrder !== undefined) { fields.push(`sort_order = $${idx++}`); params.push(sortOrder); }
+    if (!fields.length) return 0;
+    params.push(groupId, clientId);
+    return await runUpdate(`UPDATE contact_groups SET ${fields.join(', ')} WHERE id = $${idx++} AND client_id = $${idx}`, params);
+}
+
+async function deleteContactGroup(clientId, groupId) {
+    await runUpdate('DELETE FROM contact_group_members WHERE group_id = $1', [groupId]);
+    return await runUpdate('DELETE FROM contact_groups WHERE id = $1 AND client_id = $2', [groupId, clientId]);
+}
+
+async function setContactGroups(clientId, contactId, groupIds) {
+    await runUpdate('DELETE FROM contact_group_members WHERE contact_id = $1', [contactId]);
+    for (const gid of groupIds) {
+        const id = uuidv4();
+        await runInsert(
+            'INSERT INTO contact_group_members (id, contact_id, group_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+            [id, contactId, gid]
+        );
+    }
+}
+
+// --- Block List ---
+
+async function getBlockedContacts(clientId) {
+    return await runQuery(
+        'SELECT * FROM blocked_contacts WHERE client_id = $1 ORDER BY created_at DESC',
+        [clientId]
+    );
+}
+
+async function blockContact({ clientId, blockedPhone, blockedEmail, blockedClientId, reason }) {
+    const id = uuidv4();
+    await runInsert(
+        `INSERT INTO blocked_contacts (id, client_id, blocked_phone, blocked_email, blocked_client_id, reason)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [id, clientId, blockedPhone || null, blockedEmail || null, blockedClientId || null, reason || null]
+    );
+    return { id };
+}
+
+async function unblockContact(clientId, blockId) {
+    return await runUpdate('DELETE FROM blocked_contacts WHERE id = $1 AND client_id = $2', [blockId, clientId]);
+}
+
+async function isContactBlocked(clientId, phoneNumber, email) {
+    const conditions = [];
+    const params = [clientId];
+    let idx = 2;
+    if (phoneNumber) { conditions.push(`blocked_phone = $${idx++}`); params.push(phoneNumber); }
+    if (email) { conditions.push(`blocked_email = $${idx++}`); params.push(email); }
+    if (!conditions.length) return false;
+    const rows = await runQuery(
+        `SELECT id FROM blocked_contacts WHERE client_id = $1 AND (${conditions.join(' OR ')}) LIMIT 1`,
+        params
+    );
+    return rows.length > 0;
+}
+
+// --- Merge / Dedup ---
+
+async function findDuplicateContacts(clientId) {
+    const byPhone = await runQuery(
+        `SELECT phone_number, COUNT(*) AS cnt FROM contacts
+         WHERE client_id = $1 AND phone_number IS NOT NULL AND merged_into IS NULL
+         GROUP BY phone_number HAVING COUNT(*) > 1`,
+        [clientId]
+    );
+    const byEmail = await runQuery(
+        `SELECT email, COUNT(*) AS cnt FROM contacts
+         WHERE client_id = $1 AND email IS NOT NULL AND merged_into IS NULL
+         GROUP BY email HAVING COUNT(*) > 1`,
+        [clientId]
+    );
+
+    const duplicates = [];
+    for (const row of byPhone) {
+        const contacts = await runQuery(
+            'SELECT * FROM contacts WHERE client_id = $1 AND phone_number = $2 AND merged_into IS NULL',
+            [clientId, row.phone_number]
+        );
+        duplicates.push({ field: 'phone_number', value: row.phone_number, contacts });
+    }
+    for (const row of byEmail) {
+        const contacts = await runQuery(
+            'SELECT * FROM contacts WHERE client_id = $1 AND email = $2 AND merged_into IS NULL',
+            [clientId, row.email]
+        );
+        duplicates.push({ field: 'email', value: row.email, contacts });
+    }
+    return duplicates;
+}
+
+async function mergeContacts(clientId, { primaryId, secondaryIds }) {
+    if (!Array.isArray(secondaryIds) || !secondaryIds.length) return 0;
+
+    const placeholders = secondaryIds.map((_, i) => `$${i + 2}`).join(',');
+
+    await runUpdate(
+        `UPDATE contact_group_members SET contact_id = $1 WHERE contact_id IN (${placeholders}) ON CONFLICT DO NOTHING`,
+        [primaryId, ...secondaryIds]
+    );
+
+    const mergePlaceholders = secondaryIds.map((_, i) => `$${i + 2}`).join(',');
+
+    await runUpdate(
+        `UPDATE contacts SET merged_into = $1, updated_at = NOW() WHERE id IN (${mergePlaceholders}) AND client_id = $${secondaryIds.length + 2}`,
+        [primaryId, ...secondaryIds, clientId]
+    );
+
+    return secondaryIds.length;
+}
+
+// --- Import ---
+
+async function importContacts(clientId, contactsList) {
+    const results = { imported: 0, skipped: 0, errors: [] };
+
+    await ensureDefaultGroups(clientId);
+
+    for (const entry of contactsList) {
+        try {
+            if (!entry.name) { results.skipped++; continue; }
+
+            const sanitized = entry.phone_number ? sanitizePhoneNumberRaw(entry.phone_number) : null;
+
+            if (sanitized) {
+                const existing = await runQuery(
+                    'SELECT id FROM contacts WHERE client_id = $1 AND phone_number = $2 AND merged_into IS NULL LIMIT 1',
+                    [clientId, sanitized]
+                );
+                if (existing.length) { results.skipped++; continue; }
+            }
+
+            const id = uuidv4();
+            await runInsert(
+                `INSERT INTO contacts (id, client_id, name, email, phone_number, organization, notes, avatar_color, is_favorite)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+                [id, clientId, entry.name, entry.email || null, sanitized, entry.organization || null,
+                 entry.notes || null, entry.avatar_color || null, !!entry.is_favorite]
+            );
+
+            if (entry.group_ids?.length) {
+                for (const gid of entry.group_ids) {
+                    const mid = uuidv4();
+                    await runInsert(
+                        'INSERT INTO contact_group_members (id, contact_id, group_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+                        [mid, id, gid]
+                    );
+                }
+            }
+            results.imported++;
+        } catch (err) {
+            results.errors.push({ name: entry.name, error: err.message });
+        }
+    }
+    return results;
+}
+
+async function migrateSpeedDialToContacts(clientId) {
+    const entries = await runQuery('SELECT * FROM speed_dial WHERE client_id = $1', [clientId]);
+    let migrated = 0;
+
+    for (const entry of entries) {
+        const existing = await runQuery(
+            'SELECT id FROM contacts WHERE client_id = $1 AND phone_number = $2 AND merged_into IS NULL LIMIT 1',
+            [clientId, entry.phone_number]
+        );
+        if (existing.length) continue;
+
+        const id = uuidv4();
+        await runInsert(
+            `INSERT INTO contacts (id, client_id, name, phone_number, organization, is_favorite)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [id, clientId, entry.name, entry.phone_number, 'Personal', true]
+        );
+        migrated++;
+    }
+    return migrated;
+}
+
+async function ensureDefaultGroups(clientId) {
+    const defaults = ['Personal', 'Work', 'Family', 'Favorites'];
+    for (let i = 0; i < defaults.length; i++) {
+        try {
+            const id = uuidv4();
+            await runInsert(
+                'INSERT INTO contact_groups (id, client_id, name, sort_order) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING',
+                [id, clientId, defaults[i], i]
+            );
+        } catch (_) { /* already exists */ }
+    }
+}
+
+async function getContactCallHistory(clientId, contactId) {
+    const contact = await getContact(clientId, contactId);
+    if (!contact) return [];
+
+    const conditions = ['c.client_id = $1'];
+    const params = [clientId];
+    let idx = 2;
+
+    if (contact.linked_client_id) {
+        conditions.push(`(c.callee_id = $${idx} OR c.client_id = $${idx})`);
+        params.push(contact.linked_client_id);
+        idx++;
+    }
+    if (contact.phone_number) {
+        conditions.push(`c.room_name IN (SELECT room_name FROM queue_requests WHERE target_phone = $${idx})`);
+        params.push(contact.phone_number);
+        idx++;
+    }
+
+    if (conditions.length <= 1) return [];
+
+    params.push(50);
+
+    return await runQuery(
+        `SELECT c.*, cl.name AS caller_name, callee.name AS callee_name
+         FROM calls c
+         LEFT JOIN clients cl ON cl.id = c.client_id
+         LEFT JOIN clients callee ON callee.id = c.callee_id
+         WHERE ${conditions.join(' AND ')}
+         ORDER BY c.started_at DESC LIMIT $${idx}`,
+        params
+    );
+}
+
+// ============================================
 // EXPORT
 // ============================================
 
@@ -995,5 +1443,26 @@ module.exports = {
     getMissedCalls,
     markMissedCallsSeen,
     getActiveP2PRoomsForClient,
+    // Contacts & Address Book
+    getContacts,
+    getContact,
+    createContact,
+    updateContact,
+    deleteContact,
+    getContactGroups,
+    createContactGroup,
+    updateContactGroup,
+    deleteContactGroup,
+    setContactGroups,
+    getBlockedContacts,
+    blockContact,
+    unblockContact,
+    isContactBlocked,
+    findDuplicateContacts,
+    mergeContacts,
+    importContacts,
+    migrateSpeedDialToContacts,
+    ensureDefaultGroups,
+    getContactCallHistory,
     pool: () => pool
 };

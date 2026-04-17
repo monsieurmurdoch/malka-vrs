@@ -11,6 +11,8 @@ import { queueService, QueueStatus } from '../../../interpreter-queue/Interprete
 import InterpreterRequestPopup, { InterpreterRequest } from '../../../interpreter-queue/components/web/InterpreterRequestPopup';
 import MinimizedRequestList from '../../../interpreter-queue/components/web/MinimizedRequestList';
 import { getPersistentJson } from '../../../vrs-auth/storage';
+import { ContactsDrawer } from '../../../contacts';
+import type { ContactEntry } from '../../../contacts';
 
 import { IReduxState } from '../../../app/types';
 import Avatar from '../../../base/avatar/components/Avatar';
@@ -439,6 +441,7 @@ const Prejoin = ({
     const [ contactsLoading, setContactsLoading ] = useState(false);
     const [ contactsError, setContactsError ] = useState('');
     const [ copiedInviteLabel, setCopiedInviteLabel ] = useState<string | null>(null);
+    const [ showFullContacts, setShowFullContacts ] = useState(false);
     const { classes } = useStyles();
     const { t } = useTranslation();
     const dispatch = useDispatch();
@@ -944,29 +947,29 @@ const Prejoin = ({
                 )}
                 {isClient() && currentRoomName && (
                     <div
-                        aria-label = 'Invite friends'
+                        aria-label = 'Contacts & invite'
                         className = { classes.contactsPanel }>
                         <div className = { classes.contactsPanelHeader }>
                             <div>
-                                <div className = { classes.contactsPanelTitle }>Invite friends</div>
+                                <div className = { classes.contactsPanelTitle }>Contacts & Invite</div>
                                 <div className = { classes.contactsPanelHint }>
-                                    Secure room links now require a Malka login before joining.
+                                    Secure room links require a Malka login before joining.
                                 </div>
                             </div>
-                            <Button
-                                label = { contactsOpen ? 'Hide' : 'Show' }
-                                onClick = { () => setContactsOpen(open => !open) }
-                                type = { BUTTON_TYPES.SECONDARY } />
+                            <div className = { classes.inviteButtonRow }>
+                                <Button
+                                    label = { copiedInviteLabel === 'general' ? 'Copied' : 'Copy invite link' }
+                                    onClick = { () => copyInviteLink('general') }
+                                    type = { BUTTON_TYPES.SECONDARY } />
+                                <Button
+                                    label = { showFullContacts ? 'Hide contacts' : 'Address Book' }
+                                    onClick = { () => setShowFullContacts(open => !open) }
+                                    type = { showFullContacts ? BUTTON_TYPES.PRIMARY : BUTTON_TYPES.SECONDARY } />
+                            </div>
                         </div>
-                        {contactsOpen && (
+                        {/* Quick favorites (compact speed-dial view) */}
+                        {!showFullContacts && contactsOpen && (
                             <div className = { classes.contactsPanelBody }>
-                                <div className = { classes.inviteButtonRow }>
-                                    <Button
-                                        fullWidth = { true }
-                                        label = { copiedInviteLabel === 'general' ? 'Copied invite link' : 'Copy secure invite link' }
-                                        onClick = { () => copyInviteLink('general') }
-                                        type = { BUTTON_TYPES.SECONDARY } />
-                                </div>
                                 {contactsLoading && (
                                     <div className = { classes.contactsPanelHint }>Loading favorite contacts...</div>
                                 )}
@@ -995,9 +998,19 @@ const Prejoin = ({
                                 )}
                                 {!contactsLoading && !contactsError && !speedDialEntries.length && (
                                     <div className = { classes.contactsPanelHint }>
-                                        Add speed-dial contacts in your profile and they’ll appear here as quick invite suggestions.
+                                        Open the Address Book to manage contacts, import, and more.
                                     </div>
                                 )}
+                            </div>
+                        )}
+                        {/* Full contacts drawer */}
+                        {showFullContacts && (
+                            <div style = {{ marginTop: '8px' }}>
+                                <ContactsDrawer
+                                    onInviteContact = { (contact: ContactEntry) => {
+                                        copyInviteLink(String(contact.id));
+                                    } }
+                                    showInviteActions = { true } />
                             </div>
                         )}
                     </div>
