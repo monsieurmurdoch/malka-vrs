@@ -104,6 +104,7 @@ services:
       postgres:
         condition: service_healthy
       prosody:
+        condition: service_started
 
   ops:
     build:
