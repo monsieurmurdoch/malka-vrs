@@ -3,26 +3,30 @@ import { ToolbarButton } from './types';
 /**
  * Thresholds for displaying toolbox buttons.
  */
+// `requestInterpreter` is promoted to the main toolbar at every width wide
+// enough to fit it. It is visibility-gated to clients in its mapStateToProps,
+// so it only surfaces on client devices — meaning interpreters and guests see
+// exactly the same main bar as before.
 export const THRESHOLDS = [
     {
         width: 565,
-        order: [ 'microphone', 'camera', 'desktop', 'chat', 'raisehand', 'reactions', 'participants', 'tileview' ]
+        order: [ 'microphone', 'camera', 'desktop', 'chat', 'requestInterpreter', 'raisehand', 'reactions', 'participants', 'tileview' ]
     },
     {
         width: 520,
-        order: [ 'microphone', 'camera', 'desktop', 'chat', 'raisehand', 'participants', 'tileview' ]
+        order: [ 'microphone', 'camera', 'desktop', 'chat', 'requestInterpreter', 'raisehand', 'participants', 'tileview' ]
     },
     {
         width: 470,
-        order: [ 'microphone', 'camera', 'desktop', 'chat', 'raisehand', 'participants' ]
+        order: [ 'microphone', 'camera', 'desktop', 'chat', 'requestInterpreter', 'raisehand', 'participants' ]
     },
     {
         width: 420,
-        order: [ 'microphone', 'camera', 'desktop', 'chat', 'participants' ]
+        order: [ 'microphone', 'camera', 'desktop', 'chat', 'requestInterpreter', 'participants' ]
     },
     {
         width: 370,
-        order: [ 'microphone', 'camera', 'chat', 'participants' ]
+        order: [ 'microphone', 'camera', 'chat', 'requestInterpreter', 'participants' ]
     },
     {
         width: 225,

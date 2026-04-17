@@ -606,11 +606,15 @@ export default class LargeVideoManager {
                 && (isTrackStreamingStatusInterrupted(videoTrack) || isTrackStreamingStatusInactive(videoTrack));
         }
 
-        if (show) {
-            document.getElementById('remoteConnectionMessage').style.display = 'block';
-        } else {
-            document.getElementById('remoteConnectionMessage').style.display = 'none';
+        // VRS mode swaps out the standard large-video DOM for VRSLayout, so
+        // the #remoteConnectionMessage element may not exist. Skip quietly.
+        const remoteMsgEl = document.getElementById('remoteConnectionMessage');
+
+        if (!remoteMsgEl) {
+            return;
         }
+
+        remoteMsgEl.style.display = show ? 'block' : 'none';
     }
 
     /**

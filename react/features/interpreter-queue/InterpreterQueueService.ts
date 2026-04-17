@@ -262,12 +262,17 @@ class InterpreterQueueService {
         const fallbackUserId = storedUser?.id || storedToken?.userId || `${this.userRole}-${Date.now()}`;
         const fallbackName = storedUser?.name || storedToken?.name || (this.userRole === 'interpreter' ? 'Interpreter' : 'Guest');
 
+        // Always forward the stored token when we have one. The server only
+        // marks the session `authenticated` if the token verifies, and
+        // protected actions (request/cancel, handoff, etc.) require that.
+        // Without this, a logged-in client's actions fail with
+        // "Client authentication required...".
         this.send({
             type: 'auth',
             role: this.userRole,
             userId: fallbackUserId,
             name: fallbackName,
-            token: this.userRole === 'client' ? undefined : storedToken?.token
+            token: storedToken?.token
         });
     }
 

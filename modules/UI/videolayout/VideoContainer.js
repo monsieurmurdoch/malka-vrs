@@ -659,6 +659,14 @@ export class VideoContainer extends LargeContainer {
             return;
         }
 
+        // VRS mode replaces the standard large-video DOM with VRSLayout, so
+        // the background container may not exist. Guard against React #200.
+        const bgContainer = document.getElementById('largeVideoBackgroundContainer');
+
+        if (!bgContainer) {
+            return;
+        }
+
         ReactDOM.render(
             <LargeVideoBackground
                 hidden = { this._hideBackground || this._isHidden }
@@ -670,7 +678,7 @@ export class VideoContainer extends LargeContainer {
                 orientationFit = { this._backgroundOrientation }
                 videoElement = { this.video }
                 videoTrack = { this.stream } />,
-            document.getElementById('largeVideoBackgroundContainer')
+            bgContainer
         );
     }
 }
