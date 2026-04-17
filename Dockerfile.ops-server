@@ -7,6 +7,7 @@ COPY vrs-ops-server/package*.json ./
 RUN npm install
 
 # Copy source and build TypeScript
+COPY tsconfig.base.json /tsconfig.base.json
 COPY vrs-ops-server/tsconfig.json ./
 COPY vrs-ops-server/src/ ./src/
 RUN npm run build
