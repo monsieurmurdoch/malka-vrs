@@ -383,6 +383,83 @@ class InterpreterQueueService {
                 this.emit('session_unregistered', message.data);
                 break;
 
+            // Call Management & UX
+            case 'p2p_incoming_call_waiting':
+                this.emit('callWaitingIncoming', message.data);
+                break;
+
+            case 'call_waiting_responded':
+                this.emit('callWaitingResponded', message.data);
+                break;
+
+            case 'call_on_hold':
+                this.emit('callOnHold', message.data);
+                break;
+
+            case 'call_off_hold':
+                this.emit('callOffHold', message.data);
+                break;
+
+            case 'call_hold_updated':
+                this.emit('callHoldUpdated', message.data);
+                break;
+
+            case 'call_transfer_initiated':
+                this.emit('callTransferInitiated', message.data);
+                break;
+
+            case 'call_transfer_pending':
+                this.emit('callTransferPending', message.data);
+                break;
+
+            case 'call_transfer_accepted':
+                this.emit('callTransferAccepted', message.data);
+                break;
+
+            case 'call_transfer_cancelled':
+                this.emit('callTransferCancelled', message.data);
+                break;
+
+            case 'conference_invite':
+                this.emit('conferenceInvite', message.data);
+                break;
+
+            case 'conference_add_ringing':
+                this.emit('conferenceAddRinging', message.data);
+                break;
+
+            case 'conference_add_offline':
+                this.emit('conferenceAddOffline', message.data);
+                break;
+
+            case 'conference_removed':
+                this.emit('conferenceRemoved', message.data);
+                break;
+
+            case 'conference_participant_removed':
+                this.emit('conferenceParticipantRemoved', message.data);
+                break;
+
+            case 'chat_message':
+                this.emit('chatMessage', message.data);
+                break;
+
+            case 'chat_message_sent':
+                this.emit('chatMessageSent', message.data);
+                break;
+
+            case 'chat_history':
+                this.emit('chatHistory', message.data);
+                break;
+
+            case 'preferences_updated':
+                this.emit('preferencesUpdated', message.data);
+                break;
+
+            case 'p2p_target_dnd':
+                this.emit('p2pTargetDnd', message.data);
+                break;
+
             default:
                 console.warn('Unknown queue message type:', message.type, message);
         }

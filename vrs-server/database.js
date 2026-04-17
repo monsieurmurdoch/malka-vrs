@@ -296,6 +296,99 @@ async function createTables() {
         CREATE INDEX IF NOT EXISTS idx_blocked_client ON blocked_contacts(client_id);
         CREATE INDEX IF NOT EXISTS idx_blocked_phone ON blocked_contacts(client_id, blocked_phone);
         CREATE INDEX IF NOT EXISTS idx_blocked_email ON blocked_contacts(client_id, blocked_email);
+
+        -- ================================================
+        -- Call Management & UX (1I features)
+        -- ================================================
+
+        -- Client preferences (DND, media permissions, dark mode, etc.)
+        CREATE TABLE IF NOT EXISTS client_preferences (
+            client_id TEXT PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
+            dnd_enabled BOOLEAN DEFAULT false,
+            dnd_message TEXT,
+            dark_mode TEXT DEFAULT 'system',  -- 'light', 'dark', 'system'
+            camera_default_off BOOLEAN DEFAULT true,
+            mic_default_off BOOLEAN DEFAULT true,
+            skip_waiting_room BOOLEAN DEFAULT false,
+            remember_media_permissions BOOLEAN DEFAULT true,
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        -- Call transfers (interpreter transfers to another number)
+        CREATE TABLE IF NOT EXISTS call_transfers (
+            id TEXT PRIMARY KEY,
+            call_id TEXT NOT NULL,
+            from_interpreter_id TEXT,
+            to_phone_number TEXT,
+            to_interpreter_id TEXT,
+            transfer_type TEXT DEFAULT 'blind',  -- 'blind' or 'attended'
+            status TEXT DEFAULT 'pending',        -- 'pending', 'accepted', 'completed', 'failed', 'cancelled'
+            reason TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            completed_at TIMESTAMPTZ
+        );
+        CREATE INDEX IF NOT EXISTS idx_transfers_call ON call_transfers(call_id);
+        CREATE INDEX IF NOT EXISTS idx_transfers_status ON call_transfers(status);
+
+        -- Conference calls (3-way calling)
+        CREATE TABLE IF NOT EXISTS conference_participants (
+            id TEXT PRIMARY KEY,
+            call_id TEXT NOT NULL,
+            participant_id TEXT NOT NULL,
+            participant_role TEXT DEFAULT 'party',  -- 'host', 'party'
+            joined_at TIMESTAMPTZ DEFAULT NOW(),
+            left_at TIMESTAMPTZ,
+            status TEXT DEFAULT 'active'
+        );
+        CREATE INDEX IF NOT EXISTS idx_conf_call ON conference_participants(call_id);
+        CREATE INDEX IF NOT EXISTS idx_conf_participant ON conference_participants(participant_id);
+
+        -- In-call text chat messages
+        CREATE TABLE IF NOT EXISTS call_chat_messages (
+            id TEXT PRIMARY KEY,
+            call_id TEXT NOT NULL,
+            sender_id TEXT NOT NULL,
+            sender_name TEXT NOT NULL,
+            message TEXT NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_chat_call ON call_chat_messages(call_id);
+        CREATE INDEX IF NOT EXISTS idx_chat_created ON call_chat_messages(call_id, created_at);
+
+        -- Extend calls table with transfer and conference columns
+        ALTER TABLE calls ADD COLUMN IF NOT EXISTS is_conference BOOLEAN DEFAULT false;
+        ALTER TABLE calls ADD COLUMN IF NOT EXISTS parent_call_id TEXT;
+        ALTER TABLE calls ADD COLUMN IF NOT EXISTS on_hold BOOLEAN DEFAULT false;
+        ALTER TABLE calls ADD COLUMN IF NOT EXISTS call_type TEXT DEFAULT 'vrs';  -- 'vrs', 'p2p', 'transfer', 'conference', 'vco'
+        ALTER TABLE calls ADD COLUMN IF NOT EXISTS call_mode TEXT DEFAULT 'vrs'; -- 'vrs', 'vco'
+
+        -- ================================================
+        -- TTS Fallback (1H features)
+        -- ================================================
+
+        -- TTS voice settings (per-client)
+        CREATE TABLE IF NOT EXISTS tts_settings (
+            id TEXT PRIMARY KEY,
+            client_id TEXT NOT NULL UNIQUE REFERENCES clients(id) ON DELETE CASCADE,
+            voice_name TEXT NOT NULL DEFAULT '',
+            voice_gender TEXT NOT NULL DEFAULT 'female',
+            voice_speed REAL NOT NULL DEFAULT 1.0,
+            voice_pitch REAL NOT NULL DEFAULT 1.0,
+            sts_mode BOOLEAN NOT NULL DEFAULT false,
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_tts_settings_client ON tts_settings(client_id);
+
+        -- Quick phrases (saved by client for TTS)
+        CREATE TABLE IF NOT EXISTS quick_phrases (
+            id TEXT PRIMARY KEY,
+            client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+            text TEXT NOT NULL,
+            label TEXT,
+            sort_order INTEGER DEFAULT 0,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_quick_phrases_client ON quick_phrases(client_id);
     `;
 
     await pool.query(ddl);
@@ -1489,6 +1582,329 @@ async function getContactCallHistory(clientId, contactId) {
 }
 
 // ============================================
+// CLIENT PREFERENCES OPERATIONS
+// ============================================
+
+async function getClientPreferences(clientId) {
+    const rows = await runQuery(
+        'SELECT * FROM client_preferences WHERE client_id = $1',
+        [clientId]
+    );
+    if (rows.length === 0) {
+        // Create default preferences
+        await runInsert(
+            `INSERT INTO client_preferences (client_id) VALUES ($1) ON CONFLICT DO NOTHING`,
+            [clientId]
+        );
+        return {
+            client_id: clientId,
+            dnd_enabled: false,
+            dnd_message: null,
+            dark_mode: 'system',
+            camera_default_off: true,
+            mic_default_off: true,
+            skip_waiting_room: false,
+            remember_media_permissions: true
+        };
+    }
+    return rows[0];
+}
+
+async function updateClientPreferences(clientId, updates) {
+    const allowed = ['dnd_enabled', 'dnd_message', 'dark_mode', 'camera_default_off',
+                     'mic_default_off', 'skip_waiting_room', 'remember_media_permissions'];
+    const fields = [];
+    const params = [];
+    let idx = 1;
+
+    for (const key of allowed) {
+        if (updates[key] !== undefined) {
+            fields.push(`${key} = $${idx++}`);
+            params.push(updates[key]);
+        }
+    }
+
+    if (fields.length === 0) return 0;
+
+    fields.push('updated_at = NOW()');
+    params.push(clientId);
+
+    return await runUpdate(
+        `UPDATE client_preferences SET ${fields.join(', ')} WHERE client_id = $${idx}`,
+        params
+    );
+}
+
+async function isClientDND(clientId) {
+    const rows = await runQuery(
+        'SELECT dnd_enabled FROM client_preferences WHERE client_id = $1',
+        [clientId]
+    );
+    return rows.length > 0 && rows[0].dnd_enabled;
+}
+
+// ============================================
+// CALL TRANSFER OPERATIONS
+// ============================================
+
+async function createCallTransfer({ callId, fromInterpreterId, toPhoneNumber, toInterpreterId, transferType, reason }) {
+    const id = uuidv4();
+    await runInsert(
+        `INSERT INTO call_transfers (id, call_id, from_interpreter_id, to_phone_number, to_interpreter_id, transfer_type, reason)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [id, callId, fromInterpreterId || null, toPhoneNumber || null,
+         toInterpreterId || null, transferType || 'blind', reason || null]
+    );
+    return { id };
+}
+
+async function updateCallTransferStatus(transferId, status) {
+    const updates = ['status = $1'];
+    const params = [status];
+    let idx = 2;
+
+    if (status === 'completed') {
+        updates.push(`completed_at = NOW()`);
+    }
+
+    params.push(transferId);
+    return await runUpdate(
+        `UPDATE call_transfers SET ${updates.join(', ')} WHERE id = $${idx}`,
+        params
+    );
+}
+
+async function getCallTransfers(callId) {
+    return await runQuery(
+        'SELECT * FROM call_transfers WHERE call_id = $1 ORDER BY created_at DESC',
+        [callId]
+    );
+}
+
+async function getPendingTransferForCall(callId) {
+    const rows = await runQuery(
+        "SELECT * FROM call_transfers WHERE call_id = $1 AND status = 'pending' LIMIT 1",
+        [callId]
+    );
+    return rows[0] || null;
+}
+
+// ============================================
+// CONFERENCE CALL OPERATIONS
+// ============================================
+
+async function addConferenceParticipant({ callId, participantId, participantRole }) {
+    const id = uuidv4();
+    await runInsert(
+        `INSERT INTO conference_participants (id, call_id, participant_id, participant_role)
+         VALUES ($1, $2, $3, $4)`,
+        [id, callId, participantId, participantRole || 'party']
+    );
+    return { id };
+}
+
+async function removeConferenceParticipant(callId, participantId) {
+    await runUpdate(
+        "UPDATE conference_participants SET left_at = NOW(), status = 'left' WHERE call_id = $1 AND participant_id = $2 AND status = 'active'",
+        [callId, participantId]
+    );
+}
+
+async function getConferenceParticipants(callId) {
+    return await runQuery(
+        "SELECT * FROM conference_participants WHERE call_id = $1 AND status = 'active'",
+        [callId]
+    );
+}
+
+// ============================================
+// IN-CALL CHAT OPERATIONS
+// ============================================
+
+async function addChatMessage({ callId, senderId, senderName, message }) {
+    const id = uuidv4();
+    await runInsert(
+        `INSERT INTO call_chat_messages (id, call_id, sender_id, sender_name, message)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [id, callId, senderId, senderName, message]
+    );
+    return { id };
+}
+
+async function getChatMessages(callId, limit = 100, offset = 0) {
+    return await runQuery(
+        `SELECT * FROM call_chat_messages WHERE call_id = $1 ORDER BY created_at ASC LIMIT $2 OFFSET $3`,
+        [callId, limit, offset]
+    );
+}
+
+// ============================================
+// CALL HELPER OPERATIONS
+// ============================================
+
+async function getCall(callId) {
+    const rows = await runQuery('SELECT * FROM calls WHERE id = $1', [callId]);
+    return rows[0] || null;
+}
+
+async function setCallOnHold(callId, onHold) {
+    return await runUpdate(
+        'UPDATE calls SET on_hold = $1 WHERE id = $2',
+        [onHold, callId]
+    );
+}
+
+async function getActiveCallForClient(clientId) {
+    const rows = await runQuery(
+        "SELECT * FROM calls WHERE (client_id = $1 OR callee_id = $1) AND status IN ('active', 'p2p_active') ORDER BY started_at DESC LIMIT 1",
+        [clientId]
+    );
+    return rows[0] || null;
+}
+
+// ============================================
+// TTS SETTINGS OPERATIONS
+// ============================================
+
+async function getTtsSettings(clientId) {
+    const rows = await runQuery(
+        'SELECT * FROM tts_settings WHERE client_id = $1',
+        [clientId]
+    );
+    if (rows.length === 0) {
+        return {
+            client_id: clientId,
+            voice_name: '',
+            voice_gender: 'female',
+            voice_speed: 1.0,
+            voice_pitch: 1.0,
+            sts_mode: false
+        };
+    }
+    return rows[0];
+}
+
+async function upsertTtsSettings(clientId, settings) {
+    const allowed = ['voice_name', 'voice_gender', 'voice_speed', 'voice_pitch', 'sts_mode'];
+    const fields = [];
+    const params = [];
+    let idx = 1;
+
+    for (const key of allowed) {
+        if (settings[key] !== undefined) {
+            fields.push(`${key} = $${idx++}`);
+            params.push(settings[key]);
+        }
+    }
+
+    if (fields.length === 0) return 0;
+
+    fields.push('updated_at = NOW()');
+    params.push(clientId);
+
+    return await runUpdate(
+        `INSERT INTO tts_settings (id, client_id, ${allowed.filter(k => settings[k] !== undefined).join(', ')})
+         VALUES ($${idx + 1}, $${idx}, ${allowed.filter(k => settings[k] !== undefined).map((_, i) => `$${idx + 2 + i}`).join(', ')})
+         ON CONFLICT (client_id) DO UPDATE SET ${fields.join(', ')}`,
+        [...params, uuidv4(), clientId, ...allowed.filter(k => settings[k] !== undefined).map(k => settings[k])]
+    );
+}
+
+async function updateTtsSettings(clientId, settings) {
+    const allowed = ['voice_name', 'voice_gender', 'voice_speed', 'voice_pitch', 'sts_mode'];
+    const fields = [];
+    const params = [];
+    let idx = 1;
+
+    for (const key of allowed) {
+        if (settings[key] !== undefined) {
+            fields.push(`${key} = $${idx++}`);
+            params.push(settings[key]);
+        }
+    }
+
+    if (fields.length === 0) return 0;
+
+    fields.push('updated_at = NOW()');
+    params.push(clientId);
+
+    const result = await runUpdate(
+        `UPDATE tts_settings SET ${fields.join(', ')} WHERE client_id = $${idx}`,
+        params
+    );
+
+    if (result === 0) {
+        const id = uuidv4();
+        await runInsert(
+            `INSERT INTO tts_settings (id, client_id, voice_name, voice_gender, voice_speed, voice_pitch, sts_mode)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [id, clientId,
+             settings.voice_name || '',
+             settings.voice_gender || 'female',
+             settings.voice_speed ?? 1.0,
+             settings.voice_pitch ?? 1.0,
+             settings.sts_mode ?? false]
+        );
+        return 1;
+    }
+
+    return result;
+}
+
+// ============================================
+// QUICK PHRASES OPERATIONS
+// ============================================
+
+async function getQuickPhrases(clientId) {
+    return await runQuery(
+        'SELECT * FROM quick_phrases WHERE client_id = $1 ORDER BY sort_order, created_at',
+        [clientId]
+    );
+}
+
+async function addQuickPhrase({ clientId, text, label, sortOrder }) {
+    const id = uuidv4();
+    await runInsert(
+        'INSERT INTO quick_phrases (id, client_id, text, label, sort_order) VALUES ($1, $2, $3, $4, $5)',
+        [id, clientId, text, label || null, sortOrder || 0]
+    );
+    return { id, text, label };
+}
+
+async function updateQuickPhrase(id, clientId, { text, label, sortOrder }) {
+    const fields = [];
+    const params = [];
+    let idx = 1;
+    if (text !== undefined) { fields.push(`text = $${idx++}`); params.push(text); }
+    if (label !== undefined) { fields.push(`label = $${idx++}`); params.push(label); }
+    if (sortOrder !== undefined) { fields.push(`sort_order = $${idx++}`); params.push(sortOrder); }
+    if (fields.length === 0) return 0;
+    params.push(id, clientId);
+    return await runUpdate(
+        `UPDATE quick_phrases SET ${fields.join(', ')} WHERE id = $${idx++} AND client_id = $${idx}`,
+        params
+    );
+}
+
+async function deleteQuickPhrase(id, clientId) {
+    return await runUpdate('DELETE FROM quick_phrases WHERE id = $1 AND client_id = $2', [id, clientId]);
+}
+
+// ============================================
+// VCO CALL OPERATIONS
+// ============================================
+
+async function createVCOCall({ clientId, roomName, targetPhone }) {
+    const id = uuidv4();
+    await runInsert(
+        `INSERT INTO calls (id, client_id, interpreter_id, room_name, language, status, call_type, call_mode, callee_id)
+         VALUES ($1, $2, NULL, $3, NULL, $4, $5, $6, NULL)`,
+        [id, clientId, roomName, 'active', 'vco', 'vco']
+    );
+    return id;
+}
+
+// ============================================
 // EXPORT
 // ============================================
 
@@ -1572,5 +1988,35 @@ module.exports = {
     migrateSpeedDialToContacts,
     ensureDefaultGroups,
     getContactCallHistory,
+    // Client preferences
+    getClientPreferences,
+    updateClientPreferences,
+    isClientDND,
+    // Call transfers
+    createCallTransfer,
+    updateCallTransferStatus,
+    getCallTransfers,
+    getPendingTransferForCall,
+    // Conference calls
+    addConferenceParticipant,
+    removeConferenceParticipant,
+    getConferenceParticipants,
+    // In-call chat
+    addChatMessage,
+    getChatMessages,
+    // Call helpers
+    getCall,
+    setCallOnHold,
+    getActiveCallForClient,
+    // TTS settings
+    getTtsSettings,
+    updateTtsSettings,
+    // Quick phrases
+    getQuickPhrases,
+    addQuickPhrase,
+    updateQuickPhrase,
+    deleteQuickPhrase,
+    // VCO calls
+    createVCOCall,
     pool: () => pool
 };
