@@ -1,26 +1,3 @@
-# ============================================================================
-# Stage 1 — CSS build
-# ----------------------------------------------------------------------------
-# Compile css/main.scss -> css/all.css inside the image so runtime no longer
-# depends on a host-side `make deploy-css` having been run first.
-# ============================================================================
-FROM node:18-alpine AS css-builder
-
-WORKDIR /build
-
-RUN npm install --no-audit --no-fund --no-save \
-        sass@1.26.8 \
-        clean-css-cli@4.3.0
-
-COPY css ./css
-
-RUN ./node_modules/.bin/sass css/main.scss css/all.bundle.css \
- && ./node_modules/.bin/cleancss --skip-rebase css/all.bundle.css > css/all.css \
- && rm css/all.bundle.css
-
-# ============================================================================
-# Stage 2 — Runtime
-# ============================================================================
 FROM node:18-alpine
 
 WORKDIR /app
@@ -52,10 +29,6 @@ COPY sounds ./sounds
 COPY libs ./libs
 COPY static ./static
 COPY manifest.json ./manifest.json
-
-# Overwrite css/all.css with the image-built version so planets/background
-# styling is present even when the host repo didn't precompile CSS.
-COPY --from=css-builder /build/css/all.css /app/css/all.css
 
 # Create data directory
 RUN mkdir -p /app/vrs-server/data
