@@ -39,11 +39,26 @@ function sanitizePhoneNumber(raw) {
     return cleaned;
 }
 
+function sendWsMessage(ws, type, data = {}) {
+    if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type, data }));
+    }
+}
+
+function sendWsError(ws, message, code = 'BAD_REQUEST', type = 'error', details) {
+    const data = { message, code };
+    if (details) {
+        data.details = details;
+    }
+
+    sendWsMessage(ws, type, data);
+}
+
 function requireAuthenticatedRole(ws, roles, message = 'Authentication required.') {
     const client = ws.clientInfo;
     const allowedRoles = Array.isArray(roles) ? roles : [roles];
     if (!client || !client.authenticated || (allowedRoles[0] && !allowedRoles.includes(client.role))) {
-        ws.send(JSON.stringify({ type: 'error', data: { message } }));
+        sendWsError(ws, message, 'AUTH_REQUIRED');
         return null;
     }
     return client;
@@ -56,12 +71,12 @@ function requireOwnedUserId(ws, providedUserId, actionLabel) {
     }
 
     if (!providedUserId) {
-        ws.send(JSON.stringify({ type: 'error', data: { message: `${actionLabel} requires userId` } }));
+        sendWsError(ws, `${actionLabel} requires userId`, 'VALIDATION_ERROR');
         return null;
     }
 
     if (String(providedUserId) !== String(client.userId)) {
-        ws.send(JSON.stringify({ type: 'error', data: { message: 'You can only manage your own session.' } }));
+        sendWsError(ws, 'You can only manage your own session.', 'FORBIDDEN');
         return null;
     }
 
@@ -84,6 +99,7 @@ function handleConnection(ws, req) {
         try {
             data = JSON.parse(raw);
         } catch (e) {
+            sendWsError(ws, 'Invalid JSON payload.', 'INVALID_JSON');
             return;
         }
 
@@ -94,10 +110,7 @@ function handleConnection(ws, req) {
                 const payload = data.data || data;
                 const result = validatePayload(schema, payload);
                 if (!result.success) {
-                    ws.send(JSON.stringify({
-                        type: 'validation_error',
-                        data: result.error
-                    }));
+                    sendWsMessage(ws, 'validation_error', result.error);
                     return;
                 }
                 // Replace data with sanitized/parsed version
@@ -196,9 +209,14 @@ function handleConnection(ws, req) {
                 case 'voicemail_mark_seen':
                     await handleVoicemailMarkSeen(ws, data);
                     break;
+
+                default:
+                    sendWsError(ws, `Unsupported message type: ${String(data.type || 'unknown')}`, 'UNSUPPORTED_MESSAGE');
+                    break;
             }
         } catch (error) {
             log.error({ err: error, clientId }, 'WebSocket error');
+            sendWsError(ws, 'WebSocket request failed.', 'INTERNAL_ERROR');
         }
     });
 

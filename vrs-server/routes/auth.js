@@ -44,6 +44,8 @@ const adminLoginSchema = z.object({
     password: z.string().min(1)
 });
 
+const captionerLoginSchema = loginSchema;
+
 // --- Client registration ---
 router.post('/client/register', authLimiter, validate(clientRegisterSchema), async (req, res) => {
 
@@ -171,28 +173,23 @@ router.post('/interpreter/login', authLimiter, validate(loginSchema), async (req
 });
 
 // --- Captioner login ---
-router.post('/captioner/login', authLimiter, async (req, res) => {
-    const validationError = validateRequired(req.body, ['email', 'password']);
-    if (validationError) {
-        return res.status(400).json({ error: validationError });
-    }
-
+router.post('/captioner/login', authLimiter, validate(captionerLoginSchema), async (req, res) => {
     const { email, password } = req.body;
 
     try {
         const captioner = await db.getCaptionerByEmail(email);
 
         if (!captioner || !captioner.password_hash) {
-            return res.status(401).json({ error: 'Invalid email or password' });
+            return res.status(401).json({ error: 'Invalid email or password', code: 'AUTH_FAILED' });
         }
 
         const isMatch = await bcrypt.compare(password, captioner.password_hash);
         if (!isMatch) {
-            return res.status(401).json({ error: 'Invalid email or password' });
+            return res.status(401).json({ error: 'Invalid email or password', code: 'AUTH_FAILED' });
         }
 
         if (!captioner.active) {
-            return res.status(403).json({ error: 'Account is inactive' });
+            return res.status(403).json({ error: 'Account is inactive', code: 'ACCOUNT_INACTIVE' });
         }
 
         const token = signToken({
@@ -213,8 +210,8 @@ router.post('/captioner/login', authLimiter, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('[Captioner Login] Error:', error);
-        res.status(500).json({ error: 'Login failed' });
+        req.log.error({ err: error }, 'Captioner login failed');
+        res.status(500).json({ error: 'Login failed', code: 'INTERNAL_ERROR' });
     }
 });
 

@@ -5,7 +5,12 @@
 // Service
 export { handoffService, default as DeviceHandoffService }
     from './DeviceHandoffService';
-export type { CompanionDevice, HandoffProgress, HandoffEventType, HandoffEventListener }
+export type {
+    CompanionDevice,
+    HandoffProgress as HandoffProgressState,
+    HandoffEventType,
+    HandoffEventListener
+}
     from './DeviceHandoffService';
 
 // Actions

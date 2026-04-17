@@ -1,5 +1,8 @@
 /* eslint-disable comma-dangle, no-unused-vars, no-var, prefer-template, vars-on-top */
 
+// Whitelabel support: read tenant config injected by whitelabel-runtime.js
+var __wlConfig = window.__WHITELABEL__ || {};
+
 /*
  * NOTE: If you add a new option please remember to document it here:
  * https://jitsi.github.io/handbook/docs/dev-guide/dev-guide-configuration
@@ -1752,7 +1755,7 @@ var config = {
     // },
 
     // Application logo url
-    defaultLogoUrl: 'images/malka-logo-white.png',
+    defaultLogoUrl: (__wlConfig.assets && __wlConfig.assets.logoWhite) || 'images/malka-logo-white.png',
 
     // VRS (Video Relay Service) Configuration
     vrs: {

@@ -1,0 +1,197 @@
+# MalkaVRS Alerting Rules
+#
+# Groups:
+#   1. Queue & Call Alerts
+#   2. Infrastructure Alerts (JVB, DB, Redis)
+#   3. Service Health Alerts
+#   4. Call Quality Alerts
+
+groups:
+  # ─── Queue & Call Alerts ─────────────────────────────────
+  - name: vrs_queue_calls
+    rules:
+      # Queue wait time > 5 minutes
+      - alert: VRSQueueWaitTimeTooHigh
+        expr: vrs_queue_wait_time_seconds{quantile="0.5"} > 300
+        for: 2m
+        labels:
+          severity: warning
+          component: queue
+        annotations:
+          summary: "Queue wait time exceeds 5 minutes"
+          description: "The median queue wait time is {{ $value | printf \"%.0f\" }} seconds (> 5 min). Clients are waiting too long for interpreters."
+          runbook: "Check interpreter availability and consider adding more interpreters to the pool."
+
+      # Active calls > 80% of interpreter capacity
+      - alert: VRSCallCapacityNearLimit
+        expr: vrs_active_calls / (vrs_active_interpreters + vrs_active_calls) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: calls
+        annotations:
+          summary: "Active calls approaching capacity limit"
+          description: "{{ $value | printf \"%.0f\" }}% of interpreter capacity is in use. Consider scaling interpreter availability."
+          runbook: "Check if additional interpreters can be brought online or if queue management needs adjustment."
+
+      # Queue depth growing rapidly
+      - alert: VRSQueueDepthSpike
+        expr: increase(vrs_queue_depth[5m]) > 10
+        for: 1m
+        labels:
+          severity: warning
+          component: queue
+        annotations:
+          summary: "Queue depth spike detected"
+          description: "Queue depth increased by {{ $value | printf \"%.0f\" }} in the last 5 minutes."
+
+  # ─── JVB Infrastructure Alerts ──────────────────────────
+  - name: vrs_jvb_infrastructure
+    rules:
+      # JVB CPU > 80%
+      - alert: VRSJvbCpuHigh
+        expr: vrs_jvb_cpu_usage_percent > 80
+        for: 5m
+        labels:
+          severity: critical
+          component: jvb
+        annotations:
+          summary: "JVB CPU usage is above 80%"
+          description: "JVB {{ $labels.bridge_id }} CPU usage is {{ $value | printf \"%.1f\" }}%. This may cause call quality degradation."
+          runbook: "Consider adding another JVB instance or reducing conference load."
+
+      # JVB memory high
+      - alert: VRSJvbMemoryHigh
+        expr: vrs_jvb_memory_usage_bytes / (1024 * 1024 * 1024) > 4
+        for: 10m
+        labels:
+          severity: warning
+          component: jvb
+        annotations:
+          summary: "JVB memory usage exceeds 4 GB"
+          description: "JVB {{ $labels.bridge_id }} is using {{ $value | printf \"%.1f\" }} GB of memory."
+
+      # JVB down
+      - alert: VRSJvbDown
+        expr: up{job="jvb"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          component: jvb
+        annotations:
+          summary: "JVB is down"
+          description: "JVB has been unreachable for more than 30 seconds. All video calls will fail."
+          runbook: "Check JVB container status: docker compose logs jvb"
+
+  # ─── Database Alerts ────────────────────────────────────
+  - name: vrs_database
+    rules:
+      # PostgreSQL replication lag > 10 seconds
+      - alert: VRSDatabaseReplicationLag
+        expr: pg_replication_lag_seconds > 10
+        for: 1m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "PostgreSQL replication lag exceeds 10 seconds"
+          description: "Replication lag is {{ $value | printf \"%.1f\" }} seconds. Data may be stale on replicas."
+          runbook: "Check replica connectivity and network latency between database nodes."
+
+      # PostgreSQL query latency
+      - alert: VRSDatabaseSlowQueries
+        expr: histogram_quantile(0.99, rate(vrs_db_query_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Database p99 latency exceeds 1 second"
+          description: "The p99 query latency for operation {{ $labels.operation }} is {{ $value | printf \"%.2f\" }} seconds."
+          runbook: "Check for slow queries, missing indexes, or connection pool exhaustion."
+
+      # PostgreSQL down
+      - alert: VRSDatabaseDown
+        expr: pg_up == 0
+        for: 30s
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL has been unreachable for more than 30 seconds."
+
+  # ─── Service Health Alerts ──────────────────────────────
+  - name: vrs_service_health
+    rules:
+      # Any service down > 30 seconds
+      - alert: VRSServiceDown
+        expr: up{job=~"vrs-server|ops-server|twilio-server"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          component: service
+        annotations:
+          summary: "{{ $labels.job }} is down"
+          description: "Service {{ $labels.job }} has been unreachable for more than 30 seconds."
+          runbook: "Check service container: docker compose logs {{ $labels.job }}"
+
+      # High error rate
+      - alert: VRSHighErrorRate
+        expr: rate(vrs_http_requests_total{status_code=~"5.."}[5m]) / rate(vrs_http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "Error rate above 5%"
+          description: "{{ $labels.route }} is returning 5xx errors at {{ $value | printf \"%.1f\" }}% rate."
+
+      # WebSocket connection errors
+      - alert: VRSWebSocketErrors
+        expr: increase(vrs_websocket_connection_errors_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          component: websocket
+        annotations:
+          summary: "High WebSocket connection error rate"
+          description: "{{ $value | printf \"%.0f\" }} WebSocket connection errors in the last 5 minutes."
+
+  # ─── Call Quality Alerts ────────────────────────────────
+  - name: vrs_call_quality
+    rules:
+      # High packet loss
+      - alert: VRSHighPacketLoss
+        expr: histogram_quantile(0.5, rate(vrs_call_packet_loss_percent_bucket[5m])) > 5
+        for: 3m
+        labels:
+          severity: warning
+          component: call-quality
+        annotations:
+          summary: "Median packet loss exceeds 5%"
+          description: "The median packet loss is {{ $value | printf \"%.1f\" }}%. Calls may be experiencing quality issues."
+          runbook: "Check JVB health, network conditions, and client connectivity."
+
+      # High jitter
+      - alert: VRSHighJitter
+        expr: histogram_quantile(0.5, rate(vrs_call_jitter_milliseconds_bucket[5m])) > 50
+        for: 3m
+        labels:
+          severity: warning
+          component: call-quality
+        annotations:
+          summary: "Median jitter exceeds 50ms"
+          description: "The median call jitter is {{ $value | printf \"%.0f\" }}ms. This may cause audio/video stuttering."
+          runbook: "Investigate network latency and JVB load."
+
+      # Calls flagged below quality threshold
+      - alert: VRSCallsBelowQualityThreshold
+        expr: increase(vrs_calls_below_quality_threshold_total[15m]) > 5
+        for: 1m
+        labels:
+          severity: warning
+          component: call-quality
+        annotations:
+          summary: "Multiple calls flagged below quality threshold"
+          description: "{{ $value | printf \"%.0f\" }} calls flagged for {{ $labels.reason }} in the last 15 minutes."

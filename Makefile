@@ -16,6 +16,10 @@ OUTPUT_DIR = .
 STYLES_BUNDLE = css/all.bundle.css
 STYLES_DESTINATION = css/all.css
 STYLES_MAIN = css/main.scss
+
+# Whitelabel tenant (defaults to malka)
+TENANT ?= malka
+
 ifeq ($(OS),Windows_NT)
 	WEBPACK = .\node_modules\.bin\webpack
 	WEBPACK_DEV_SERVER = .\node_modules\.bin\webpack serve --mode development
@@ -26,8 +30,12 @@ endif
 
 all: compile deploy clean
 
-compile:
+whitelabel-prebuild:
+	TENANT=$(TENANT) node scripts/whitelabel-prebuild.js
+
+compile: whitelabel-prebuild
 	NODE_OPTIONS=--max-old-space-size=8192 \
+	TENANT=$(TENANT) \
 	$(WEBPACK)
 
 clean:
@@ -111,7 +119,7 @@ deploy-face-landmarks:
 		$(FACE_MODELS_DIR)/emotion.json \
 		$(DEPLOY_DIR)
 
-deploy-css:
+deploy-css: whitelabel-prebuild
 	$(NODE_SASS) $(STYLES_MAIN) $(STYLES_BUNDLE) && \
 	$(CLEANCSS) --skip-rebase $(STYLES_BUNDLE) > $(STYLES_DESTINATION) && \
 	rm $(STYLES_BUNDLE)
@@ -120,8 +128,8 @@ deploy-local:
 	([ ! -x deploy-local.sh ] || ./deploy-local.sh)
 
 .NOTPARALLEL:
-dev: deploy-init deploy-css deploy-rnnoise-binary deploy-tflite deploy-meet-models deploy-lib-jitsi-meet deploy-olm deploy-tf-wasm deploy-excalidraw-dev deploy-face-landmarks
-	$(WEBPACK_DEV_SERVER)
+dev: whitelabel-prebuild deploy-init deploy-css deploy-rnnoise-binary deploy-tflite deploy-meet-models deploy-lib-jitsi-meet deploy-olm deploy-tf-wasm deploy-excalidraw-dev deploy-face-landmarks
+	TENANT=$(TENANT) $(WEBPACK_DEV_SERVER)
 
 source-package:
 	mkdir -p source_package/jitsi-meet/css && \

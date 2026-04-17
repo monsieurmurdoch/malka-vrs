@@ -9,6 +9,8 @@
  */
 
 const db = require('../database');
+const { metrics } = require('./metrics');
+const log = require('./logger').module('queue');
 
 // Queue state
 const queue = new Map(); // requestId -> request data
@@ -19,6 +21,9 @@ let totalMatches = 0;
 // In-flight matching lock to prevent double-booking.
 // Maps requestId -> true while a match is being processed.
 const matchingLocks = new Map();
+
+const SERVER_STATE_KEY_PAUSED = 'queue.paused';
+const SERVER_STATE_KEY_MATCHES = 'queue.totalMatches';
 
 // ============================================
 // DATABASE RETRY HELPER
@@ -39,7 +44,7 @@ async function withRetry(fn, retries = MAX_DB_RETRIES) {
                 throw error;
             }
             const delay = DB_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
-            console.warn(`[Queue] DB operation failed (attempt ${attempt}/${retries}), retrying in ${delay}ms…`, error.message);
+            log.warn({ attempt, retries, delay, err: error.message }, 'DB operation failed, retrying');
             await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
@@ -48,6 +53,13 @@ async function withRetry(fn, retries = MAX_DB_RETRIES) {
 async function initialize() {
     queue.clear();
     matchingLocks.clear();
+
+    try {
+        const savedPaused = await db.getServerState(SERVER_STATE_KEY_PAUSED);
+        paused = savedPaused === 'true';
+        const savedMatches = await db.getServerState(SERVER_STATE_KEY_MATCHES);
+        totalMatches = savedMatches ? parseInt(savedMatches, 10) : 0;
+    } catch (err) { /* use defaults */ }
 
     const waitingRequests = await withRetry(() => db.getQueueRequests('waiting'));
 
@@ -68,7 +80,7 @@ async function initialize() {
 
     reorderQueue();
 
-    console.log(`[Queue] Rehydrated ${queue.size} waiting request${queue.size === 1 ? '' : 's'} from database`);
+    log.info({ count: queue.size }, 'Rehydrated waiting requests from database');
 
     return {
         success: true,
@@ -112,6 +124,9 @@ async function requestInterpreter({ clientId, clientName, language, roomName, ta
 
     queue.set(id, request);
 
+    // Track queue depth
+    metrics.queueDepth.set(queue.size);
+
     // Notify admins
     notifyAdmins('queue_request_added', request);
 
@@ -133,6 +148,9 @@ async function cancelRequest(requestId) {
         await withRetry(() => db.removeFromQueue(requestId));
         reorderQueue();
 
+        metrics.queueCancellationsTotal.inc();
+        metrics.queueDepth.set(queue.size);
+
         notifyAdmins('queue_request_cancelled', { requestId });
 
         return { success: true };
@@ -153,7 +171,7 @@ function interpreterAvailable(interpreterId, interpreterName, languages = ['ASL'
         availableAt: new Date()
     });
 
-    console.log(`[Queue] Interpreter ${interpreterName} (${languages.join(', ')}) is now available`);
+    log.info({ interpreterId, interpreterName, languages }, 'Interpreter now available');
 
     return { success: true };
 }
@@ -161,7 +179,7 @@ function interpreterAvailable(interpreterId, interpreterName, languages = ['ASL'
 function interpreterUnavailable(interpreterId) {
     availableInterpreters.delete(interpreterId);
 
-    console.log(`[Queue] Interpreter ${interpreterId} is now unavailable`);
+    log.info({ interpreterId }, 'Interpreter now unavailable');
 
     return { success: true };
 }
@@ -203,11 +221,13 @@ function getQueue() {
 
 function pause() {
     paused = true;
+    db.setServerState(SERVER_STATE_KEY_PAUSED, 'true').catch(() => {});
     notifyAdmins('queue_paused', { timestamp: new Date() });
 }
 
 function resume() {
     paused = false;
+    db.setServerState(SERVER_STATE_KEY_PAUSED, 'false').catch(() => {});
     notifyAdmins('queue_resumed', { timestamp: new Date() });
 }
 
@@ -227,7 +247,7 @@ async function tryMatch() {
     const interpreters = Array.from(availableInterpreters.values());
 
     if (interpreters.length === 0) {
-        console.log('[Queue] No interpreters available,', waitingRequests.length, 'requests waiting');
+        log.info({ waiting: waitingRequests.length }, 'No interpreters available, requests waiting');
         return;
     }
 
@@ -252,7 +272,7 @@ async function tryMatch() {
             try {
                 await completeMatch(request, matched);
             } catch (error) {
-                console.error(`[Queue] Error completing match for request ${request.id}:`, error);
+                log.error({ err: error, requestId: request.id }, 'Error completing match');
                 matchingLocks.delete(request.id);
                 continue;
             }
@@ -305,11 +325,24 @@ async function completeMatch(request, interpreter) {
     }));
 
     totalMatches += 1;
+    db.setServerState(SERVER_STATE_KEY_MATCHES, String(totalMatches)).catch(() => {});
+
+    // Track metrics
+    const language = request.language || 'unknown';
+    metrics.queueMatchesTotal.inc({ language });
+    metrics.queueDepth.set(queue.size);
+
+    // Track queue wait time (time from request creation to match)
+    const waitSeconds = (Date.now() - new Date(request.createdAt).getTime()) / 1000;
+    metrics.queueWaitTime.observe({ language }, waitSeconds);
+
+    // Track call setup time
+    metrics.callSetupTime.observe({ language }, waitSeconds);
 
     // Notify participants
     // In production: this would trigger WebSocket messages to both parties
 
-    console.log(`[Queue] Matched: ${clientName} -> ${interpreter.name}`);
+    log.info({ clientName, interpreterName: interpreter.name, callId, roomName }, 'Client-interpreter match completed');
 
     // Notify admins
     notifyAdmins('queue_match_complete', {
@@ -365,7 +398,7 @@ async function assignInterpreter(requestId, interpreterId) {
 
         return result;
     } catch (error) {
-        console.error(`[Queue] Error assigning interpreter for request ${requestId}:`, error);
+        log.error({ err: error, requestId }, 'Error assigning interpreter');
 
         return { success: false, message: 'Failed to complete assignment' };
     } finally {

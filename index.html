@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta http-equiv="content-type" content="text/html;charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-    <meta name="theme-color" content="#0D1A38">
+    <meta name="theme-color" id="theme-color-meta" content="#0D1A38">
     <!--#include virtual="base.html" -->
 
     <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
@@ -189,6 +189,17 @@
         };
         window.addEventListener(
             'error', loadErrHandler, true /* capture phase type of listener */);
+    </script>
+    <script src="whitelabel-runtime.js"></script>
+    <script>
+        // Apply tenant theme-color from whitelabel config
+        (function() {
+            var wl = window.__WHITELABEL__;
+            if (wl && wl.theme && wl.theme.primary) {
+                var meta = document.getElementById('theme-color-meta');
+                if (meta) meta.setAttribute('content', wl.theme.primary);
+            }
+        })();
     </script>
     <script src="config.js"></script><!-- adapt to your needs, i.e. set hosts and bosh path -->
     <script src="interface_config.js"></script>

@@ -1,5 +1,8 @@
 FROM node:18-alpine
 
+# Whitelabel tenant — set at build time (e.g. docker build --build-arg TENANT=maple)
+ARG TENANT=malka
+
 WORKDIR /app
 
 # Copy dependency manifests first (layer caching)
@@ -16,6 +19,7 @@ COPY vrs-server/scripts ./vrs-server/scripts
 # Copy frontend assets (server.js serves them from /app)
 COPY *.html ./
 COPY *.js ./
+COPY whitelabel-runtime.js ./whitelabel-runtime.js
 COPY css ./css
 COPY images ./images
 COPY fonts ./fonts

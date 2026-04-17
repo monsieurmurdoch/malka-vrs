@@ -1,0 +1,71 @@
+# Alertmanager Configuration for MalkaVRS
+#
+# Routes alerts to appropriate channels:
+#   - Critical: PagerDuty / SMS (immediate)
+#   - Warning: Slack #ops-alerts (batched)
+#   - Info: Slack #ops-info (daily digest)
+
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname', 'component', 'severity']
+  group_wait: 10s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'slack-ops'
+
+  routes:
+    # Critical alerts go to PagerDuty and Slack immediately
+    - match:
+        severity: critical
+      receiver: 'slack-critical'
+      group_wait: 5s
+      repeat_interval: 1h
+
+    # Warning alerts batched to Slack
+    - match:
+        severity: warning
+      receiver: 'slack-ops'
+      group_wait: 30s
+      repeat_interval: 4h
+
+receivers:
+  # Slack - ops channel
+  - name: 'slack-ops'
+    slack_configs:
+      - api_url: '{{ .SlackWebhookURL }}'
+        channel: '#ops-alerts'
+        title: '[MalkaVRS] {{ .GroupLabels.alertname }}'
+        text: >-
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Severity:* {{ .Labels.severity }}
+          *Component:* {{ .Labels.component }}
+          {{ .Annotations.description }}
+          {{ end }}
+        send_resolved: true
+
+  # Slack - critical channel
+  - name: 'slack-critical'
+    slack_configs:
+      - api_url: '{{ .SlackWebhookURL }}'
+        channel: '#ops-critical'
+        title: ':rotating_light: [MalkaVRS CRITICAL] {{ .GroupLabels.alertname }}'
+        text: >-
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Severity:* {{ .Labels.severity }}
+          *Component:* {{ .Labels.component }}
+          *Description:* {{ .Annotations.description }}
+          *Runbook:* {{ .Annotations.runbook }}
+          {{ end }}
+        send_resolved: true
+
+# Inhibition rules — suppress warning if critical is already firing for same component
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'component']

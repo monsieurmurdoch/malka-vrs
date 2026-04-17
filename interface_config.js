@@ -8,8 +8,11 @@
  * config.js, and no new options should be added here.
  */
 
+// Whitelabel support: read tenant config injected by whitelabel-runtime.js
+var __wl = window.__WHITELABEL__ || {};
+
 var interfaceConfig = {
-    APP_NAME: 'MalkaVRS',
+    APP_NAME: __wl.appName || 'MalkaVRS',
     AUDIO_LEVEL_PRIMARY_COLOR: 'rgba(255,255,255,0.4)',
     AUDIO_LEVEL_SECONDARY_COLOR: 'rgba(255,255,255,0.2)',
 
@@ -27,7 +30,7 @@ var interfaceConfig = {
     CLOSE_PAGE_GUEST_HINT: false, // A html text to be shown to guests on the close page, false disables it
 
     DEFAULT_BACKGROUND: '#040404',
-    DEFAULT_WELCOME_PAGE_LOGO_URL: 'images/malka-logo.png',
+    DEFAULT_WELCOME_PAGE_LOGO_URL: (__wl.assets && __wl.assets.logo) || 'images/malka-logo.png',
 
     DISABLE_DOMINANT_SPEAKER_INDICATOR: false,
 

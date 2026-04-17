@@ -80,6 +80,7 @@
 ### 1E — Visual Voicemail (Video Messaging)
 > Deaf users communicate in sign language — voicemail must be video-based, not audio
 
+- [x] **Voicemail foundation** — DB tables, API routes, Redux/UI shell, recording lifecycle, and storage hooks are now in place
 - [ ] **Video mailbox** — callers can leave a short video message (ASL) when callee is offline
 - [ ] **Missed call → video message prompt** — if callee doesn't answer, offer "leave a video message"
 - [ ] **Voicemail inbox UI** — thumbnail grid of video messages with sender name, timestamp, duration
@@ -92,6 +93,7 @@
 ### 1F — Auto-Captioning (Speech-to-Text)
 > Live captions alongside the interpreter — for transparency, accessibility, and call documentation
 
+- [x] **Transcription plumbing foundation** — existing transcribing/subtitles pipeline can already render injected caption events and supports a transcriber-style participant flow
 - [x] **Captioner role foundation** — captioner auth path + stub profile so human live captioning has a first-class home
 - [x] **Manual human caption publishing** — captioners can join live rooms and publish manual captions into the existing subtitle overlay
 - [ ] **Human captioner workflow** — let captioners join calls as hidden transcribers with privacy-first session routing
@@ -188,6 +190,7 @@
 - [ ] Enable strict mode (`strict: true` in tsconfig) for new files
 
 ### 2C — Input Validation Layer
+- [x] Initial Zod validation scaffolding landed on the VRS server
 - [ ] Add Zod (or Joi) as validation library across all API endpoints
 - [ ] Define request schemas for every POST/PUT/PATCH endpoint
 - [ ] Validate all WebSocket message payloads
@@ -204,6 +207,9 @@
 - [ ] Audit npm dependencies for known vulnerabilities (`npm audit`)
 
 ### 2E — Structured Logging & Monitoring
+- [x] Structured logger foundation (Pino) with redaction and module-scoped child loggers
+- [x] Health/readiness endpoints (`/api/health`, `/api/readiness`, `/health`)
+- [x] Prometheus/monitoring foundation (`/metrics` endpoint plus checked-in Prometheus/Grafana config)
 - [ ] Replace `console.log` with structured logger (Pino or Winston)
 - [ ] Log levels: error, warn, info, debug — configurable via `LOG_LEVEL` env var
 - [ ] Structured JSON output in production (parseable by log aggregators)
@@ -213,6 +219,8 @@
 - [ ] DigitalOcean monitoring integration or external APM (Datadog, New Relic)
 
 ### 2F — Testing
+- [x] Test framework established for `vrs-server` (Jest + ts-jest)
+- [x] Initial server coverage for auth, queue, handoff, voicemail, and billing modules
 - [ ] Set up test framework (Jest for both servers)
 - [ ] Unit tests: queue logic (priority, matching, state transitions)
 - [ ] Unit tests: authentication (JWT generation, validation, expiry)
@@ -400,6 +408,7 @@
 > Goal: Deploy branded instances for other providers (e.g., Canadian company)
 
 ### 5A — White-Label System
+- [x] Build-time white-label scaffolding (tenant config, generated runtime, feature flags, branding hooks)
 - [ ] `whitelabel.json` configuration (brand name, colors, logos, feature flags)
 - [ ] CSS custom properties for theme switching at build time
 - [ ] Splash screens, app icons, and marketing assets per tenant
