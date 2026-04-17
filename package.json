@@ -76,6 +76,8 @@
     "moment-duration-format": "2.2.2",
     "null-loader": "4.0.1",
     "optional-require": "1.0.3",
+    "pino": "^10.3.1",
+    "pino-pretty": "^13.1.3",
     "pixelmatch": "5.3.0",
     "promise.allsettled": "1.0.4",
     "punycode": "2.3.0",
@@ -130,6 +132,7 @@
     "webm-duration-fix": "1.0.4",
     "windows-iana": "3.1.0",
     "ws": "^8.18.3",
+    "zod": "^4.3.6",
     "zxcvbn": "4.4.2"
   },
   "devDependencies": {
@@ -174,6 +177,7 @@
     "eslint-plugin-react": "7.32.2",
     "eslint-plugin-react-native": "4.0.0",
     "eslint-plugin-typescript-sort-keys": "2.3.0",
+    "jest": "^30.3.0",
     "jetifier": "1.6.4",
     "metro-react-native-babel-preset": "0.75.1",
     "patch-package": "6.4.7",
@@ -211,6 +215,9 @@
     "tsc-test:web": "tsc --project tsconfig.web.json --listFilesOnly | grep -v node_modules | grep native",
     "tsc-test:native": "tsc --project tsconfig.native.json --listFilesOnly | grep -v node_modules | grep web",
     "start": "make dev",
+    "build:malka": "TENANT=malka make all",
+    "build:maple": "TENANT=maple make all",
+    "whitelabel-prebuild": "node scripts/whitelabel-prebuild.js",
     "validate:vrs-stack": "node scripts/validate-vrs-stack.mjs",
     "seed:vrs-admin-smoke": "node scripts/seed-vrs-admin-smoke.mjs",
     "smoke:vrs-pages": "node scripts/smoke-vrs-pages.mjs"

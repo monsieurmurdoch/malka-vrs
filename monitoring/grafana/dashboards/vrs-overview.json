@@ -1,0 +1,333 @@
+{
+  "annotations": { "list": [] },
+  "description": "MalkaVRS system overview — calls, queue, WebSocket, API, infrastructure",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "title": "Active Calls",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "targets": [{ "expr": "vrs_active_calls", "legendFormat": "Active Calls" }],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 20 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Queue Depth",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "targets": [{ "expr": "vrs_queue_depth", "legendFormat": "Waiting" }],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 15 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Available Interpreters",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "targets": [{ "expr": "sum(vrs_active_interpreters)", "legendFormat": "Available" }]
+    },
+    {
+      "title": "WebSocket Connections",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "targets": [{ "expr": "vrs_websocket_connections{role=\"total\"}", "legendFormat": "Total" }]
+    },
+    {
+      "title": "JVB CPU",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "targets": [{ "expr": "vrs_jvb_cpu_usage_percent", "legendFormat": "{{bridge_id}}" }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0, "max": 100,
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 60 },
+              { "color": "red", "value": 80 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "DB Query Latency (p95)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "targets": [{
+        "expr": "histogram_quantile(0.95, sum(rate(vrs_db_query_duration_seconds_bucket[5m])) by (le))",
+        "legendFormat": "p95"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.1 },
+              { "color": "red", "value": 0.5 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Calls Over Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        { "expr": "vrs_active_calls", "legendFormat": "Active Calls" },
+        { "expr": "vrs_queue_depth", "legendFormat": "Queue Depth" },
+        { "expr": "sum(vrs_active_interpreters)", "legendFormat": "Interpreters" }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "fillOpacity": 10 } }
+      }
+    },
+    {
+      "title": "API Response Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(vrs_http_request_duration_seconds_bucket[5m])) by (le, route))",
+          "legendFormat": "p50 {{route}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(vrs_http_request_duration_seconds_bucket[5m])) by (le, route))",
+          "legendFormat": "p95 {{route}}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(vrs_http_request_duration_seconds_bucket[5m])) by (le, route))",
+          "legendFormat": "p99 {{route}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      }
+    },
+    {
+      "title": "Queue Wait Time Distribution",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(vrs_queue_wait_time_seconds_bucket[5m])) by (le, language))",
+          "legendFormat": "p50 {{language}}"
+        },
+        {
+          "expr": "histogram_quantile(0.90, sum(rate(vrs_queue_wait_time_seconds_bucket[5m])) by (le, language))",
+          "legendFormat": "p90 {{language}}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(vrs_queue_wait_time_seconds_bucket[5m])) by (le, language))",
+          "legendFormat": "p99 {{language}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      }
+    },
+    {
+      "title": "Call Setup Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 12 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(vrs_call_setup_time_seconds_bucket[5m])) by (le, language))",
+          "legendFormat": "p50 {{language}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(vrs_call_setup_time_seconds_bucket[5m])) by (le, language))",
+          "legendFormat": "p95 {{language}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      }
+    },
+    {
+      "title": "Matches & Cancellations",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 12 },
+      "targets": [
+        {
+          "expr": "rate(vrs_queue_matches_total[5m])",
+          "legendFormat": "Matches/min {{language}}"
+        },
+        {
+          "expr": "rate(vrs_queue_cancellations_total[5m])",
+          "legendFormat": "Cancellations/min"
+        }
+      ]
+    },
+    {
+      "title": "WebSocket Connections by Role",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 20 },
+      "targets": [
+        { "expr": "vrs_websocket_connections", "legendFormat": "{{role}}" }
+      ]
+    },
+    {
+      "title": "JVB Conferences & Participants",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 20 },
+      "targets": [
+        { "expr": "vrs_jvb_conferences", "legendFormat": "Conferences {{bridge_id}}" },
+        { "expr": "vrs_jvb_participants", "legendFormat": "Participants {{bridge_id}}" }
+      ]
+    },
+    {
+      "title": "JVB Bandwidth",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 20 },
+      "targets": [
+        { "expr": "vrs_jvb_bandwidth_bits_per_second{direction=\"in\"}", "legendFormat": "Inbound {{bridge_id}}" },
+        { "expr": "vrs_jvb_bandwidth_bits_per_second{direction=\"out\"}", "legendFormat": "Outbound {{bridge_id}}" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bps" }
+      }
+    },
+    {
+      "title": "Database Query Latency by Operation",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(vrs_db_query_duration_seconds_bucket[5m])) by (le, operation))",
+          "legendFormat": "p95 {{operation}}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(vrs_db_query_duration_seconds_bucket[5m])) by (le, operation))",
+          "legendFormat": "p99 {{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      }
+    },
+    {
+      "title": "Redis Memory & Hit Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+      "targets": [
+        { "expr": "vrs_redis_memory_used_bytes", "legendFormat": "Memory Used" },
+        { "expr": "vrs_redis_keyspace_hit_rate * 100", "legendFormat": "Hit Rate %" }
+      ],
+      "fieldConfig": {
+        "defaults": [
+          { "unit": "bytes" },
+          { "unit": "percent", "decimals": 1 }
+        ]
+      }
+    },
+    {
+      "title": "Call Quality — Packet Loss",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 36 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(vrs_call_packet_loss_percent_bucket[5m])) by (le, direction))",
+          "legendFormat": "p50 {{direction}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(vrs_call_packet_loss_percent_bucket[5m])) by (le, direction))",
+          "legendFormat": "p95 {{direction}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "min": 0 }
+      }
+    },
+    {
+      "title": "Call Quality — Jitter",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 36 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(vrs_call_jitter_milliseconds_bucket[5m])) by (le, direction))",
+          "legendFormat": "p50 {{direction}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(vrs_call_jitter_milliseconds_bucket[5m])) by (le, direction))",
+          "legendFormat": "p95 {{direction}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ms", "min": 0 }
+      }
+    },
+    {
+      "title": "Calls Below Quality Threshold",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 36 },
+      "targets": [
+        {
+          "expr": "increase(vrs_calls_below_quality_threshold_total[15m])",
+          "legendFormat": "{{reason}}"
+        }
+      ]
+    },
+    {
+      "title": "HTTP Requests by Status Code",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 44 },
+      "targets": [
+        {
+          "expr": "sum by (status_code) (rate(vrs_http_requests_total[5m]))",
+          "legendFormat": "{{status_code}}"
+        }
+      ]
+    },
+    {
+      "title": "Node.js Process Memory",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 44 },
+      "targets": [
+        { "expr": "vrs_nodejs_heap_size_used_bytes", "legendFormat": "Heap Used" },
+        { "expr": "vrs_nodejs_heap_size_total_bytes", "legendFormat": "Heap Total" },
+        { "expr": "vrs_process_resident_memory_bytes", "legendFormat": "RSS" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" }
+      }
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["malka-vrs", "overview"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "MalkaVRS Overview",
+  "uid": "malka-vrs-overview",
+  "version": 1
+}

@@ -1,0 +1,280 @@
+/**
+ * Handoff Service
+ *
+ * Manages seamless device-to-device call transfers via Bluetooth proximity.
+ *
+ * Responsibilities:
+ * - Track active VRS sessions per user (which device is in which room)
+ * - Issue one-time handoff tokens for secure transfers
+ * - Coordinate the overlap window (both devices briefly in room)
+ * - Notify interpreters during handoff
+ * - Clean up expired tokens and stale sessions
+ */
+
+import crypto from 'crypto';
+import { WebSocket } from 'ws';
+
+interface Session {
+    userId: string;
+    roomName: string;
+    interpreterId: string | null;
+    deviceId: string;
+    ws: WebSocket;
+    registeredAt: Date;
+}
+
+interface HandoffTokenData {
+    userId: string;
+    roomName: string;
+    interpreterId: string | null;
+    fromDeviceId: string;
+    targetDeviceId: string;
+    createdAt: Date;
+    expiresAt: number;
+}
+
+interface HandoffStatus {
+    inProgress: boolean;
+    targetDeviceId?: string;
+    roomName?: string;
+    expiresAt?: number;
+}
+
+// Active VRS sessions: userId → Session
+const activeSessions = new Map<string, Session>();
+
+// One-time handoff tokens: token → HandoffTokenData
+const handoffTokens = new Map<string, HandoffTokenData>();
+
+const TOKEN_EXPIRY_MS = 60 * 1000;  // 60 seconds to complete handoff
+const CLEANUP_INTERVAL_MS = 60 * 1000;
+
+// ============================================
+// SESSION MANAGEMENT
+// ============================================
+
+/**
+ * Register that a device is actively in a VRS call.
+ */
+function registerSession(userId: string, roomName: string, deviceId: string, ws: WebSocket): void {
+    activeSessions.set(userId, {
+        userId,
+        roomName,
+        interpreterId: null,   // filled in by caller
+        deviceId,
+        ws,
+        registeredAt: new Date()
+    });
+
+    console.log(`[Handoff] Session registered: ${userId} on device ${deviceId} in room ${roomName}`);
+}
+
+/**
+ * Unregister a device's active session.
+ */
+function unregisterSession(userId: string): void {
+    const session = activeSessions.get(userId);
+    if (session) {
+        console.log(`[Handoff] Session unregistered: ${userId} from device ${session.deviceId}`);
+        activeSessions.delete(userId);
+    }
+}
+
+/**
+ * Get the active session for a user.
+ */
+function getActiveSession(userId: string): Session | null {
+    return activeSessions.get(userId) || null;
+}
+
+/**
+ * Update the WebSocket connection for an existing session.
+ */
+function updateSessionWs(userId: string, ws: WebSocket): void {
+    const session = activeSessions.get(userId);
+    if (session) {
+        session.ws = ws;
+    }
+}
+
+// ============================================
+// HANDOFF TOKEN MANAGEMENT
+// ============================================
+
+interface PrepareHandoffResult {
+    token: string;
+    roomName: string;
+    interpreterId: string | null;
+}
+
+interface PrepareHandoffError {
+    error: string;
+}
+
+/**
+ * Prepare a handoff by creating a one-time token.
+ * Called by the sending device when the user confirms transfer.
+ */
+function prepareHandoff(userId: string, targetDeviceId: string): PrepareHandoffResult | PrepareHandoffError {
+    const session = activeSessions.get(userId);
+    if (!session) {
+        return { error: 'No active session found for this user' };
+    }
+
+    // Invalidate any existing pending handoff for this user
+    for (const [token, data] of handoffTokens) {
+        if (data.userId === userId) {
+            handoffTokens.delete(token);
+        }
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+
+    handoffTokens.set(token, {
+        userId,
+        roomName: session.roomName,
+        interpreterId: session.interpreterId,
+        fromDeviceId: session.deviceId,
+        targetDeviceId,
+        createdAt: new Date(),
+        expiresAt: Date.now() + TOKEN_EXPIRY_MS
+    });
+
+    console.log(`[Handoff] Token created for ${userId} → ${targetDeviceId}, room ${session.roomName}`);
+
+    return {
+        token,
+        roomName: session.roomName,
+        interpreterId: session.interpreterId
+    };
+}
+
+interface ExecuteHandoffResult {
+    roomName: string;
+    interpreterId: string | null;
+    userId: string;
+    fromDeviceId: string;
+}
+
+/**
+ * Execute a handoff by redeeming a one-time token.
+ * Called by the receiving device when it's ready to join.
+ */
+function executeHandoff(token: string, newDeviceId: string): ExecuteHandoffResult | PrepareHandoffError {
+    const data = handoffTokens.get(token);
+
+    if (!data) {
+        return { error: 'Invalid or expired handoff token' };
+    }
+
+    if (Date.now() > data.expiresAt) {
+        handoffTokens.delete(token);
+        return { error: 'Handoff token has expired' };
+    }
+
+    // One-time use — remove immediately
+    handoffTokens.delete(token);
+
+    // Update the active session to point to the new device
+    const session = activeSessions.get(data.userId);
+    if (session) {
+        session.deviceId = newDeviceId;
+    }
+
+    console.log(`[Handoff] Executed: ${data.userId} moved from ${data.fromDeviceId} to ${newDeviceId}, room ${data.roomName}`);
+
+    return {
+        roomName: data.roomName,
+        interpreterId: data.interpreterId,
+        userId: data.userId,
+        fromDeviceId: data.fromDeviceId
+    };
+}
+
+/**
+ * Check if a handoff is in progress for a user.
+ */
+function getHandoffStatus(userId: string): HandoffStatus {
+    for (const [, data] of handoffTokens) {
+        if (data.userId === userId && Date.now() <= data.expiresAt) {
+            return {
+                inProgress: true,
+                targetDeviceId: data.targetDeviceId,
+                roomName: data.roomName,
+                expiresAt: data.expiresAt
+            };
+        }
+    }
+
+    return { inProgress: false };
+}
+
+function getHandoffByToken(token: string): Omit<HandoffTokenData, never> | null {
+    const data = handoffTokens.get(token);
+    if (!data) {
+        return null;
+    }
+
+    if (Date.now() > data.expiresAt) {
+        handoffTokens.delete(token);
+        return null;
+    }
+
+    return { ...data };
+}
+
+/**
+ * Cancel a pending handoff.
+ */
+function cancelHandoff(userId: string): boolean {
+    for (const [token, data] of handoffTokens) {
+        if (data.userId === userId) {
+            handoffTokens.delete(token);
+            console.log(`[Handoff] Cancelled for ${userId}`);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// ============================================
+// CLEANUP
+// ============================================
+
+function cleanup(): void {
+    const now = Date.now();
+
+    // Remove expired tokens
+    for (const [token, data] of handoffTokens) {
+        if (now > data.expiresAt) {
+            handoffTokens.delete(token);
+            console.log(`[Handoff] Cleaned up expired token for ${data.userId}`);
+        }
+    }
+
+    // Remove sessions with dead WebSocket connections
+    for (const [userId, session] of activeSessions) {
+        if (session.ws && session.ws.readyState !== 1) { // not OPEN
+            activeSessions.delete(userId);
+            console.log(`[Handoff] Cleaned up dead session for ${userId}`);
+        }
+    }
+}
+
+const cleanupInterval = setInterval(cleanup, CLEANUP_INTERVAL_MS);
+
+export {
+    registerSession,
+    unregisterSession,
+    getActiveSession,
+    updateSessionWs,
+    prepareHandoff,
+    executeHandoff,
+    getHandoffStatus,
+    getHandoffByToken,
+    cancelHandoff,
+    cleanup
+};
+
+export type { Session, HandoffTokenData };
