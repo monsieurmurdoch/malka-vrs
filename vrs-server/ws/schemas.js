@@ -97,6 +97,16 @@ const p2pEndSchema = z.object({
     durationMinutes: z.number().nonnegative().optional()
 });
 
+const voicemailStartSchema = z.object({
+    calleePhone: phoneNumberSchema.optional()
+});
+
+const voicemailMessageSchema = z.object({
+    messageId: z.string().min(1)
+});
+
+const adminSubscribeSchema = z.object({}).passthrough();
+
 // Map message type → schema for the `data` payload
 const messageSchemas = {
     auth: authMessageSchema,
@@ -115,7 +125,12 @@ const messageSchemas = {
     p2p_accept: p2pAcceptSchema,
     p2p_decline: p2pDeclineSchema,
     p2p_cancel: p2pCancelSchema,
-    p2p_end: p2pEndSchema
+    p2p_end: p2pEndSchema,
+    voicemail_start: voicemailStartSchema,
+    voicemail_cancel: voicemailMessageSchema,
+    voicemail_delete: voicemailMessageSchema,
+    voicemail_mark_seen: voicemailMessageSchema,
+    admin_subscribe: adminSubscribeSchema
 };
 
 module.exports = { messageSchemas };

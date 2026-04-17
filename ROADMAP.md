@@ -93,6 +93,7 @@
 ### 1F — Auto-Captioning (Speech-to-Text)
 > Live captions alongside the interpreter — for transparency, accessibility, and call documentation
 
+- [x] **Transcription plumbing foundation** — existing transcribing/subtitles pipeline can already render injected caption events and supports a transcriber-style participant flow
 - [x] **Captioner role foundation** — captioner auth path + stub profile so human live captioning has a first-class home
 - [x] **Manual human caption publishing** — captioners can join live rooms and publish manual captions into the existing subtitle overlay
 - [ ] **Human captioner workflow** — let captioners join calls as hidden transcribers with privacy-first session routing

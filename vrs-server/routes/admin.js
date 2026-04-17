@@ -63,6 +63,20 @@ const createClientSchema = z.object({
     organization: z.string().min(1).max(200).optional()
 });
 
+const createCaptionerSchema = z.object({
+    name: nameSchema,
+    email: emailSchema,
+    languages: languagesArraySchema.optional().default(['en']),
+    password: passwordSchema.optional()
+});
+
+const updateCaptionerSchema = z.object({
+    name: nameSchema.optional(),
+    email: emailSchema.optional(),
+    languages: languagesArraySchema.optional(),
+    active: z.boolean().optional()
+});
+
 const assignQueueSchema = z.object({
     interpreterId: z.string().min(1)
 });
@@ -195,17 +209,12 @@ router.get('/captioners', authenticateAdmin, async (req, res) => {
         const captioners = await db.getAllCaptioners();
         res.json(captioners);
     } catch (error) {
-        console.error('[Captioners] Error:', error);
-        res.status(500).json({ error: 'Failed to fetch captioners' });
+        req.log.error({ err: error }, 'Captioners error');
+        res.status(500).json({ error: 'Failed to fetch captioners', code: 'INTERNAL_ERROR' });
     }
 });
 
-router.post('/captioners', authenticateAdmin, async (req, res) => {
-    const validationError = validateRequired(req.body, ['name', 'email']);
-    if (validationError) {
-        return res.status(400).json({ error: validationError });
-    }
-
+router.post('/captioners', validate(createCaptionerSchema), authenticateAdmin, async (req, res) => {
     const { name, email, languages, password } = req.body;
 
     try {
@@ -219,12 +228,12 @@ router.post('/captioners', authenticateAdmin, async (req, res) => {
 
         res.json({ success: true, id: captionerId });
     } catch (error) {
-        console.error('[Create Captioner] Error:', error);
-        res.status(500).json({ error: 'Failed to create captioner' });
+        req.log.error({ err: error }, 'Create captioner error');
+        res.status(500).json({ error: 'Failed to create captioner', code: 'INTERNAL_ERROR' });
     }
 });
 
-router.put('/captioners/:id', authenticateAdmin, async (req, res) => {
+router.put('/captioners/:id', validate(updateCaptionerSchema), authenticateAdmin, async (req, res) => {
     const { id } = req.params;
     const { name, email, languages, active } = req.body;
 
@@ -237,8 +246,8 @@ router.put('/captioners/:id', authenticateAdmin, async (req, res) => {
 
         res.json({ success: true });
     } catch (error) {
-        console.error('[Update Captioner] Error:', error);
-        res.status(500).json({ error: 'Failed to update captioner' });
+        req.log.error({ err: error }, 'Update captioner error');
+        res.status(500).json({ error: 'Failed to update captioner', code: 'INTERNAL_ERROR' });
     }
 });
 
@@ -254,8 +263,8 @@ router.delete('/captioners/:id', authenticateAdmin, async (req, res) => {
 
         res.json({ success: true });
     } catch (error) {
-        console.error('[Delete Captioner] Error:', error);
-        res.status(500).json({ error: 'Failed to delete captioner' });
+        req.log.error({ err: error }, 'Delete captioner error');
+        res.status(500).json({ error: 'Failed to delete captioner', code: 'INTERNAL_ERROR' });
     }
 });
 
