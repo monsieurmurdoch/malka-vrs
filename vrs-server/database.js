@@ -219,8 +219,65 @@ async function createTables() {
             seen BOOLEAN DEFAULT false
         );
 
+        -- Voicemail messages
+        CREATE TABLE IF NOT EXISTS voicemail_messages (
+            id TEXT PRIMARY KEY,
+            caller_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+            callee_id TEXT REFERENCES clients(id) ON DELETE CASCADE,
+            callee_phone TEXT,
+            room_name TEXT NOT NULL,
+            recording_filename TEXT NOT NULL,
+            storage_key TEXT NOT NULL,
+            thumbnail_key TEXT,
+            file_size_bytes BIGINT,
+            duration_seconds INTEGER,
+            content_type TEXT DEFAULT 'video/mp4',
+            status TEXT DEFAULT 'recording',
+            seen BOOLEAN DEFAULT false,
+            expires_at TIMESTAMPTZ NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS voicemail_settings (
+            id TEXT PRIMARY KEY,
+            setting_key TEXT UNIQUE NOT NULL,
+            setting_value TEXT NOT NULL,
+            updated_by TEXT,
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        -- Device handoff: active sessions (rehydrated after restart)
+        CREATE TABLE IF NOT EXISTS active_sessions (
+            user_id TEXT PRIMARY KEY,
+            room_name TEXT NOT NULL,
+            interpreter_id TEXT,
+            device_id TEXT,
+            registered_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        -- Device handoff: short-lived tokens
+        CREATE TABLE IF NOT EXISTS handoff_tokens (
+            token TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            room_name TEXT NOT NULL,
+            interpreter_id TEXT,
+            from_device_id TEXT,
+            target_device_id TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            expires_at TIMESTAMPTZ NOT NULL
+        );
+
+        -- Server-side key/value state (queue paused flag, totals, etc.)
+        CREATE TABLE IF NOT EXISTS server_state (
+            key TEXT PRIMARY KEY,
+            value TEXT,
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
         -- Lightweight schema upgrades for existing PostgreSQL volumes
         ALTER TABLE calls ADD COLUMN IF NOT EXISTS callee_id TEXT;
+        ALTER TABLE calls ADD COLUMN IF NOT EXISTS call_type TEXT;
         ALTER TABLE queue_requests ADD COLUMN IF NOT EXISTS target_phone TEXT;
         ALTER TABLE missed_calls ADD COLUMN IF NOT EXISTS callee_client_id TEXT;
         ALTER TABLE missed_calls ADD COLUMN IF NOT EXISTS room_name TEXT;
@@ -242,6 +299,18 @@ async function createTables() {
         CREATE INDEX IF NOT EXISTS idx_missed_calls_callee ON missed_calls(callee_client_id, seen);
         CREATE INDEX IF NOT EXISTS idx_missed_calls_caller ON missed_calls(caller_id);
         CREATE INDEX IF NOT EXISTS idx_captioners_email ON captioners(email);
+
+        -- Voicemail indexes
+        CREATE INDEX IF NOT EXISTS idx_voicemail_callee ON voicemail_messages(callee_id, seen, created_at);
+        CREATE INDEX IF NOT EXISTS idx_voicemail_caller ON voicemail_messages(caller_id);
+        CREATE INDEX IF NOT EXISTS idx_voicemail_expires ON voicemail_messages(expires_at);
+        CREATE INDEX IF NOT EXISTS idx_voicemail_status ON voicemail_messages(status);
+        CREATE INDEX IF NOT EXISTS idx_voicemail_room ON voicemail_messages(room_name);
+
+        -- Handoff / session indexes
+        CREATE INDEX IF NOT EXISTS idx_active_sessions_device ON active_sessions(device_id);
+        CREATE INDEX IF NOT EXISTS idx_handoff_tokens_user ON handoff_tokens(user_id);
+        CREATE INDEX IF NOT EXISTS idx_handoff_tokens_expires ON handoff_tokens(expires_at);
 
         -- Contacts & Address Book
         CREATE TABLE IF NOT EXISTS contacts (
@@ -646,6 +715,11 @@ async function endCall(callId, durationMinutes) {
         'UPDATE calls SET ended_at = NOW(), duration_minutes = $1, status = $2 WHERE id = $3',
         [durationMinutes, 'completed', callId]
     );
+}
+
+async function getCall(callId) {
+    const rows = await runQuery('SELECT * FROM calls WHERE id = $1', [callId]);
+    return rows[0] || null;
 }
 
 async function getActiveCalls() {
@@ -1489,6 +1563,274 @@ async function getContactCallHistory(clientId, contactId) {
 }
 
 // ============================================
+// VOICEMAIL OPERATIONS
+// ============================================
+
+async function createVoicemailMessage({ id, callerId, calleeId, calleePhone, roomName, recordingFilename, storageKey, expiresAt }) {
+    await runInsert(
+        `INSERT INTO voicemail_messages (id, caller_id, callee_id, callee_phone, room_name, recording_filename, storage_key, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [id, callerId, calleeId || null, calleePhone || null, roomName, recordingFilename, storageKey, expiresAt]
+    );
+    return { id };
+}
+
+async function getVoicemailMessage(id) {
+    const rows = await runQuery('SELECT * FROM voicemail_messages WHERE id = $1', [id]);
+    return rows[0] || null;
+}
+
+async function getVoicemailMessageByRoomName(roomName) {
+    const rows = await runQuery(
+        "SELECT * FROM voicemail_messages WHERE room_name = $1 AND status = 'recording' ORDER BY created_at DESC LIMIT 1",
+        [roomName]
+    );
+    return rows[0] || null;
+}
+
+async function updateVoicemailMessage(id, updates) {
+    const allowed = ['status', 'storage_key', 'thumbnail_key', 'duration_seconds', 'file_size_bytes', 'content_type', 'seen'];
+    const fields = [];
+    const params = [];
+    let idx = 1;
+
+    for (const key of allowed) {
+        if (updates[key] !== undefined) {
+            fields.push(`${key} = $${idx++}`);
+            params.push(key === 'seen' ? !!updates[key] : updates[key]);
+        }
+    }
+    if (!fields.length) return 0;
+
+    params.push(id);
+    return await runUpdate(
+        `UPDATE voicemail_messages SET ${fields.join(', ')} WHERE id = $${idx}`,
+        params
+    );
+}
+
+async function deleteVoicemailMessage(id) {
+    return await runUpdate('DELETE FROM voicemail_messages WHERE id = $1', [id]);
+}
+
+async function markVoicemailSeen(messageId, calleeId) {
+    return await runUpdate(
+        'UPDATE voicemail_messages SET seen = true WHERE id = $1 AND callee_id = $2',
+        [messageId, calleeId]
+    );
+}
+
+async function getVoicemailInbox(calleeId, limit = 20, offset = 0) {
+    return await runQuery(
+        `SELECT vm.*, c.name AS caller_name
+         FROM voicemail_messages vm
+         LEFT JOIN clients c ON c.id = vm.caller_id
+         WHERE vm.callee_id = $1 AND vm.status = 'available'
+         ORDER BY vm.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [calleeId, limit, offset]
+    );
+}
+
+async function getVoicemailInboxCount(calleeId) {
+    const rows = await runQuery(
+        "SELECT COUNT(*)::int AS count FROM voicemail_messages WHERE callee_id = $1 AND status = 'available'",
+        [calleeId]
+    );
+    return Number(rows[0]?.count) || 0;
+}
+
+async function getVoicemailUnreadCount(calleeId) {
+    const rows = await runQuery(
+        "SELECT COUNT(*)::int AS count FROM voicemail_messages WHERE callee_id = $1 AND status = 'available' AND seen = false",
+        [calleeId]
+    );
+    return Number(rows[0]?.count) || 0;
+}
+
+async function getVoicemailMessageCount(calleeId) {
+    const rows = await runQuery(
+        "SELECT COUNT(*)::int AS count FROM voicemail_messages WHERE callee_id = $1 AND status IN ('available', 'recording')",
+        [calleeId]
+    );
+    return Number(rows[0]?.count) || 0;
+}
+
+async function getVoicemailStorageUsage(calleeId) {
+    const rows = await runQuery(
+        "SELECT COALESCE(SUM(file_size_bytes), 0)::bigint AS bytes FROM voicemail_messages WHERE callee_id = $1 AND status = 'available'",
+        [calleeId]
+    );
+    return Number(rows[0]?.bytes) || 0;
+}
+
+async function getActiveVoicemailRecordings() {
+    return await runQuery(
+        "SELECT * FROM voicemail_messages WHERE status = 'recording' ORDER BY created_at"
+    );
+}
+
+async function getExpiredVoicemailMessages() {
+    return await runQuery(
+        "SELECT * FROM voicemail_messages WHERE expires_at < NOW() AND status = 'available'"
+    );
+}
+
+async function getAllVoicemailMessages({ status, callerId, calleeId, limit = 50, offset = 0 } = {}) {
+    const conditions = [];
+    const params = [];
+    let idx = 1;
+
+    if (status) { conditions.push(`status = $${idx++}`); params.push(status); }
+    if (callerId) { conditions.push(`caller_id = $${idx++}`); params.push(callerId); }
+    if (calleeId) { conditions.push(`callee_id = $${idx++}`); params.push(calleeId); }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    params.push(limit, offset);
+
+    return await runQuery(
+        `SELECT vm.*, c.name AS caller_name, cl.name AS callee_name
+         FROM voicemail_messages vm
+         LEFT JOIN clients c ON c.id = vm.caller_id
+         LEFT JOIN clients cl ON cl.id = vm.callee_id
+         ${where}
+         ORDER BY vm.created_at DESC
+         LIMIT $${idx++} OFFSET $${idx}`,
+        params
+    );
+}
+
+async function getVoicemailStorageStats() {
+    const rows = await runQuery(`
+        SELECT
+            COUNT(*) FILTER (WHERE status = 'available')::int AS total_messages,
+            COALESCE(SUM(file_size_bytes) FILTER (WHERE status = 'available'), 0)::bigint AS total_size_bytes,
+            COUNT(*) FILTER (WHERE status = 'recording')::int AS active_recordings
+        FROM voicemail_messages
+    `);
+    const r = rows[0] || {};
+    return {
+        total_messages: Number(r.total_messages) || 0,
+        total_size_bytes: Number(r.total_size_bytes) || 0,
+        active_recordings: Number(r.active_recordings) || 0
+    };
+}
+
+// --- Voicemail settings ---
+
+async function getVoicemailSetting(key) {
+    const rows = await runQuery('SELECT setting_value FROM voicemail_settings WHERE setting_key = $1', [key]);
+    return rows[0]?.setting_value ?? null;
+}
+
+async function setVoicemailSetting(key, value, updatedBy) {
+    const id = uuidv4();
+    await runInsert(
+        `INSERT INTO voicemail_settings (id, setting_key, setting_value, updated_by)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (setting_key) DO UPDATE
+           SET setting_value = EXCLUDED.setting_value,
+               updated_by = EXCLUDED.updated_by,
+               updated_at = NOW()`,
+        [id, key, String(value), updatedBy || null]
+    );
+}
+
+async function getAllVoicemailSettings() {
+    return await runQuery('SELECT setting_key, setting_value, updated_by, updated_at FROM voicemail_settings ORDER BY setting_key');
+}
+
+async function seedVoicemailSettings() {
+    const defaults = [
+        ['vm-enabled', 'true'],
+        ['vm-max-length', '180'],
+        ['vm-max-messages', '100'],
+        ['vm-retention-days', '30'],
+        ['vm-storage-quota-mb', '500']
+    ];
+    for (const [key, value] of defaults) {
+        const id = uuidv4();
+        await runInsert(
+            `INSERT INTO voicemail_settings (id, setting_key, setting_value)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (setting_key) DO NOTHING`,
+            [id, key, value]
+        );
+    }
+}
+
+// ============================================
+// DEVICE HANDOFF: ACTIVE SESSIONS
+// ============================================
+
+async function getAllActiveSessions() {
+    return await runQuery('SELECT * FROM active_sessions');
+}
+
+async function upsertActiveSession({ userId, roomName, interpreterId, deviceId }) {
+    await runInsert(
+        `INSERT INTO active_sessions (user_id, room_name, interpreter_id, device_id)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (user_id) DO UPDATE
+           SET room_name = EXCLUDED.room_name,
+               interpreter_id = EXCLUDED.interpreter_id,
+               device_id = EXCLUDED.device_id,
+               updated_at = NOW()`,
+        [userId, roomName, interpreterId || null, deviceId || null]
+    );
+}
+
+async function deleteActiveSession(userId) {
+    return await runUpdate('DELETE FROM active_sessions WHERE user_id = $1', [userId]);
+}
+
+// ============================================
+// DEVICE HANDOFF: TOKENS
+// ============================================
+
+async function storeHandoffToken({ token, userId, roomName, interpreterId, fromDeviceId, targetDeviceId, expiresAt }) {
+    const expiresAtIso = typeof expiresAt === 'number' ? new Date(expiresAt).toISOString() : expiresAt;
+    await runInsert(
+        `INSERT INTO handoff_tokens (token, user_id, room_name, interpreter_id, from_device_id, target_device_id, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [token, userId, roomName, interpreterId || null, fromDeviceId || null, targetDeviceId || null, expiresAtIso]
+    );
+}
+
+async function getAllActiveHandoffTokens() {
+    return await runQuery('SELECT * FROM handoff_tokens WHERE expires_at > NOW()');
+}
+
+async function deleteHandoffToken(token) {
+    return await runUpdate('DELETE FROM handoff_tokens WHERE token = $1', [token]);
+}
+
+async function deleteHandoffTokensByUser(userId) {
+    return await runUpdate('DELETE FROM handoff_tokens WHERE user_id = $1', [userId]);
+}
+
+async function deleteExpiredHandoffTokens() {
+    return await runUpdate('DELETE FROM handoff_tokens WHERE expires_at <= NOW()');
+}
+
+// ============================================
+// SERVER STATE (queue persistence, counters)
+// ============================================
+
+async function getServerState(key) {
+    const rows = await runQuery('SELECT value FROM server_state WHERE key = $1', [key]);
+    return rows[0]?.value ?? null;
+}
+
+async function setServerState(key, value) {
+    await runInsert(
+        `INSERT INTO server_state (key, value) VALUES ($1, $2)
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+        [key, value === null || value === undefined ? null : String(value)]
+    );
+}
+
+// ============================================
 // EXPORT
 // ============================================
 
@@ -1515,6 +1857,7 @@ module.exports = {
     createClient,
     createCall,
     endCall,
+    getCall,
     getActiveCalls,
     addToQueue,
     getQueueRequests,
@@ -1572,5 +1915,37 @@ module.exports = {
     migrateSpeedDialToContacts,
     ensureDefaultGroups,
     getContactCallHistory,
+    // Voicemail
+    createVoicemailMessage,
+    getVoicemailMessage,
+    getVoicemailMessageByRoomName,
+    updateVoicemailMessage,
+    deleteVoicemailMessage,
+    markVoicemailSeen,
+    getVoicemailInbox,
+    getVoicemailInboxCount,
+    getVoicemailUnreadCount,
+    getVoicemailMessageCount,
+    getVoicemailStorageUsage,
+    getActiveVoicemailRecordings,
+    getExpiredVoicemailMessages,
+    getAllVoicemailMessages,
+    getVoicemailStorageStats,
+    getVoicemailSetting,
+    setVoicemailSetting,
+    getAllVoicemailSettings,
+    seedVoicemailSettings,
+    // Device handoff
+    getAllActiveSessions,
+    upsertActiveSession,
+    deleteActiveSession,
+    storeHandoffToken,
+    getAllActiveHandoffTokens,
+    deleteHandoffToken,
+    deleteHandoffTokensByUser,
+    deleteExpiredHandoffTokens,
+    // Server state
+    getServerState,
+    setServerState,
     pool: () => pool
 };
