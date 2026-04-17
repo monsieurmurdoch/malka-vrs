@@ -2,17 +2,12 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Install dependencies (includes devDependencies for the build)
+# Install only runtime dependencies; this release line ships prebuilt dist/.
 COPY vrs-ops-server/package*.json ./
-RUN npm install
+RUN npm install --omit=dev
 
-# Copy source and build TypeScript
-COPY vrs-ops-server/tsconfig.json ./
-COPY vrs-ops-server/src/ ./src/
-RUN npm run build
-
-# Remove devDependencies after build
-RUN npm prune --omit=dev
+COPY vrs-ops-server/dist/ ./dist/
+COPY vrs-ops-server/.env.example ./.env.example
 
 # Create data directory for persisted state
 RUN mkdir -p /app/data

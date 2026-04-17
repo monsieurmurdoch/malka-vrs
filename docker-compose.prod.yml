@@ -11,8 +11,11 @@ services:
     <<: *common
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
     depends_on:
       - vrs
       - ops
@@ -26,7 +29,7 @@ services:
       - ENABLE_AUTH=0
       - ENABLE_GUESTS=1
       - ENABLE_LOBBY=0
-      - PUBLIC_URL=http://${DOMAIN:-localhost}
+      - PUBLIC_URL=https://${DOMAIN:-localhost}
       # Give all room participants owner/moderator rights so either party
       # (interpreter or Deaf client) can end the call for everyone.
       - XMPP_MUC_MODULES=muc_allowners
