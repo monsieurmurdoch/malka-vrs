@@ -11,7 +11,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.adminDeleteMessage = exports.getStats = exports.getAllMessagesForAdmin = exports.updateSetting = exports.getSettings = exports.expireOldMessages = exports.getUnreadCount = exports.markMessageSeen = exports.deleteMessage = exports.getMessageWithPlayback = exports.getInbox = exports.cancelRecording = exports.failRecording = exports.completeRecording = exports.startRecording = exports.shutdown = exports.initialize = void 0;
 const uuid_1 = require("uuid");
-const database_1 = require("../database");
+const database_1 = require("../../database");
 const storage_service_1 = require("./storage-service");
 // ============================================
 // IN-MEMORY STATE
