@@ -12,6 +12,7 @@ RUN cd vrs-server && npm install --omit=dev
 # Copy server source (avoid copying local node_modules which has macOS binaries)
 COPY vrs-server/server.js vrs-server/database.js vrs-server/*.json ./vrs-server/
 COPY vrs-server/lib ./vrs-server/lib
+COPY vrs-server/dist/lib ./vrs-server/dist/lib
 COPY vrs-server/routes ./vrs-server/routes
 COPY vrs-server/ws ./vrs-server/ws
 COPY vrs-server/scripts ./vrs-server/scripts
