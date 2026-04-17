@@ -214,7 +214,7 @@ export interface BillingExportData {
     records: BillingCdr[];
     metadata: {
         exportDate: string;
-        callType: CallType;
+        callType: CallType | 'all';
         periodStart: string;
         periodEnd: string;
         totalRecords: number;

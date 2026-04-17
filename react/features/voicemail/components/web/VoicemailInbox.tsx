@@ -4,7 +4,7 @@
 
 import React, { useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { loadInbox } from '../actions';
+import { loadInbox } from '../../actions';
 import VoicemailCard from './VoicemailCard';
 import VoicemailEmpty from './VoicemailEmpty';
 

@@ -4,8 +4,8 @@
 
 import React, { useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { dismissPrompt, recordingStarted } from '../actions';
-import { startVoicemailRecording } from '../functions';
+import { dismissPrompt, recordingStarted } from '../../actions';
+import { startVoicemailRecording } from '../../functions';
 
 interface PromptState {
     'features/voicemail': {

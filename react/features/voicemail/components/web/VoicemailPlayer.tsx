@@ -6,7 +6,7 @@
 
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { closePlayer, removeMessage } from '../actions';
+import { closePlayer, removeMessage } from '../../actions';
 
 interface PlayerState {
     'features/voicemail': {

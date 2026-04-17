@@ -2,8 +2,8 @@
  * Voicemail Service Tests
  */
 
-// Mock the compiled database module BEFORE requiring the service
-jest.mock('../dist/database', () => ({
+// Mock the live database module BEFORE requiring the compiled service.
+jest.mock('../database', () => ({
     createVoicemailMessage: jest.fn(),
     getVoicemailMessage: jest.fn(),
     updateVoicemailMessage: jest.fn(),
@@ -41,7 +41,7 @@ const {
     getUnreadCount, expireOldMessages, getSettings,
     updateSetting, getStats, shutdown
 } = require('../dist/lib/voicemail-service');
-const db = require('../dist/database');
+const db = require('../database');
 
 describe('VoicemailService', () => {
     beforeEach(() => {

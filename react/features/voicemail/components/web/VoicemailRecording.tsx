@@ -7,9 +7,9 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { recordingCancelled } from '../actions';
-import { cancelVoicemailRecording } from '../functions';
-import { dismissPrompt } from '../actions';
+import { recordingCancelled } from '../../actions';
+import { cancelVoicemailRecording } from '../../functions';
+import { dismissPrompt } from '../../actions';
 
 interface RecordingState {
     'features/voicemail': {

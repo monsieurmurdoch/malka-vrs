@@ -4,8 +4,8 @@
 
 import React, { useCallback } from 'react';
 import { useDispatch } from 'react-redux';
-import type { VoicemailMessage } from '../types';
-import { openMessage, markSeen } from '../actions';
+import type { VoicemailMessage } from '../../types';
+import { openMessage, markSeen } from '../../actions';
 
 interface Props {
     message: VoicemailMessage;
