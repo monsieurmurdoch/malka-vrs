@@ -158,6 +158,7 @@
 
 **Server Modularization**
 - [x] Split monolithic server.js (~2300 lines) → route modules (auth, client, interpreter, admin, p2p, handoff)
+- [ ] Break up `vrs-server/database.js` — DB layer is now the main monolith and should be split by domain (auth, queue, voicemail, contacts, billing, handoff)
 
 **Structured Logging & Monitoring**
 - [x] Structured logger foundation (Pino) with redaction and module-scoped child loggers
@@ -193,6 +194,7 @@
 - [ ] Migrate `vrs-server/database.js` → TypeScript with typed query results
 - [ ] Migrate `vrs-server/lib/*.js` (queue-service, handoff-service, activity-logger)
 - [ ] Unify build tooling: single `tsconfig` base shared by vrs-server and ops-server
+- [ ] Pick one canonical server runtime path — eliminate long-term JS/TS bifurcation between `server.js` / `routes/*.js` and `src/server.ts` / `src/lib/*.ts`
 - [ ] Enable strict mode (`strict: true` in tsconfig) for new files
 
 **Testing**

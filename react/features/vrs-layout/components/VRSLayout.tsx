@@ -3,12 +3,13 @@ import { connect } from 'react-redux';
 import { makeStyles } from 'tss-react/mui';
 
 import { IReduxState } from '../../app/types';
+import getRoomName from '../../base/config/getRoomName';
 import VideoTrack from '../../base/media/components/web/VideoTrack';
 import { getLocalParticipant } from '../../base/participants/functions';
 import type { IParticipant } from '../../base/participants/types';
 import { getVideoTrackByParticipant } from '../../base/tracks/functions.web';
-import { CallWaitingOverlay } from '../../call-management/components/CallWaitingOverlay';
-import { InCallChatPanel } from '../../call-management/components/InCallChatPanel';
+import CallWaitingOverlay from '../../call-management/components/CallWaitingOverlay';
+import InCallChatPanel from '../../call-management/components/InCallChatPanel';
 
 type VRSConferenceRole = 'client' | 'interpreter' | 'hearing';
 
@@ -505,8 +506,7 @@ function _mapStateToProps(state: IReduxState): IProps {
 
     return {
         _extras: remainingParticipants,
-        _roomName: state['features/base/conference']?.conference?.getRoom?.()
-            || state['features/base/config']?.roomName,
+        _roomName: getRoomName(),
         _panes: [
             {
                 description: 'Deaf or hard-of-hearing participant',

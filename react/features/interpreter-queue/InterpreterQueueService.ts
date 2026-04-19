@@ -538,7 +538,7 @@ class InterpreterQueueService {
         });
     }
 
-    private send(message: QueueMessage) {
+    public send(message: QueueMessage) {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify(message));
         } else {
@@ -627,6 +627,8 @@ export const queueService = {
     disconnect: () => getQueueServiceInstance()?.disconnect(),
     reconnect: () => getQueueServiceInstance()?.reconnect(),
     ping: () => getQueueServiceInstance()?.ping(),
+    send: (...args: Parameters<InterpreterQueueService['send']>) =>
+        getQueueServiceInstance()?.send(...args),
     updateInterpreterStatus: (...args: Parameters<InterpreterQueueService['updateInterpreterStatus']>) =>
         getQueueServiceInstance()?.updateInterpreterStatus(...args),
     requestInterpreter: (...args: Parameters<InterpreterQueueService['requestInterpreter']>) =>
