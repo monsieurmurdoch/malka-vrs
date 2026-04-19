@@ -1,15 +1,19 @@
 /**
- * Auth routes — client registration, login, interpreter login, admin login.
+ * Auth routes — client registration, login, interpreter login, admin login,
+ *               phone number login, SMS OTP, password reset.
  */
 
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const db = require('../database');
 const activityLogger = require('../lib/activity-logger');
 const { signToken, normalizeAuthClaims, verifyJwtToken } = require('../lib/auth');
 const log = require('../lib/logger').module('auth');
-const { validate, emailSchema, passwordSchema, nameSchema, organizationSchema, z } = require('../lib/validation');
+const { validate, emailSchema, passwordSchema, nameSchema, organizationSchema, phoneNumberSchema, z } = require('../lib/validation');
+const smsService = require('../lib/sms-service');
+const emailService = require('../lib/email-service');
 
 const router = express.Router();
 
@@ -32,6 +36,33 @@ const clientRegisterSchema = z.object({
     email: emailSchema,
     password: passwordSchema,
     organization: organizationSchema
+});
+
+const phoneLoginSchema = z.object({
+    phoneNumber: phoneNumberSchema,
+    password: z.string().min(1)
+});
+
+const otpRequestSchema = z.object({
+    phoneNumber: phoneNumberSchema,
+    purpose: z.enum(['login'])
+});
+
+const otpVerifySchema = z.object({
+    phoneNumber: phoneNumberSchema,
+    code: z.string().length(6),
+    purpose: z.enum(['login'])
+});
+
+const forgotPasswordSchema = z.object({
+    email: emailSchema
+});
+
+const resetPasswordSchema = z.object({
+    token: z.string().min(1),
+    userId: z.string().min(1),
+    role: z.enum(['client', 'interpreter']),
+    newPassword: passwordSchema
 });
 
 const loginSchema = z.object({

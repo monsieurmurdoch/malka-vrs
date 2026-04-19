@@ -389,6 +389,70 @@ async function createTables() {
             created_at TIMESTAMPTZ DEFAULT NOW()
         );
         CREATE INDEX IF NOT EXISTS idx_quick_phrases_client ON quick_phrases(client_id);
+
+        -- ================================================
+        -- Auth: OTP codes + Password resets (1A features)
+        -- ================================================
+
+        CREATE TABLE IF NOT EXISTS otp_codes (
+            id TEXT PRIMARY KEY,
+            phone_number TEXT NOT NULL,
+            code TEXT NOT NULL,
+            purpose TEXT NOT NULL DEFAULT 'login',
+            attempts INTEGER DEFAULT 0,
+            max_attempts INTEGER DEFAULT 5,
+            verified BOOLEAN DEFAULT false,
+            expires_at TIMESTAMPTZ NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_otp_phone ON otp_codes(phone_number);
+        CREATE INDEX IF NOT EXISTS idx_otp_expires ON otp_codes(expires_at);
+
+        CREATE TABLE IF NOT EXISTS password_resets (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            user_role TEXT NOT NULL DEFAULT 'client',
+            token_hash TEXT NOT NULL,
+            used BOOLEAN DEFAULT false,
+            expires_at TIMESTAMPTZ NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets(user_id);
+        CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token_hash);
+
+        -- ================================================
+        -- Visual Voicemail (Video Messaging)
+        -- ================================================
+
+        CREATE TABLE IF NOT EXISTS voicemail_messages (
+            id TEXT PRIMARY KEY,
+            caller_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+            callee_id TEXT REFERENCES clients(id) ON DELETE CASCADE,
+            callee_phone TEXT,
+            room_name TEXT NOT NULL,
+            recording_filename TEXT NOT NULL,
+            storage_key TEXT NOT NULL,
+            thumbnail_key TEXT,
+            file_size_bytes INTEGER,
+            duration_seconds INTEGER,
+            content_type TEXT DEFAULT 'video/mp4',
+            status TEXT DEFAULT 'recording',
+            seen BOOLEAN DEFAULT false,
+            expires_at TIMESTAMPTZ NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_voicemail_callee ON voicemail_messages(callee_id, seen, created_at);
+        CREATE INDEX IF NOT EXISTS idx_voicemail_caller ON voicemail_messages(caller_id);
+        CREATE INDEX IF NOT EXISTS idx_voicemail_expires ON voicemail_messages(expires_at);
+        CREATE INDEX IF NOT EXISTS idx_voicemail_status ON voicemail_messages(status);
+
+        CREATE TABLE IF NOT EXISTS voicemail_settings (
+            id TEXT PRIMARY KEY,
+            setting_key TEXT UNIQUE NOT NULL,
+            setting_value TEXT NOT NULL,
+            updated_by TEXT,
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
     `;
 
     await pool.query(ddl);
@@ -1905,6 +1969,316 @@ async function createVCOCall({ clientId, roomName, targetPhone }) {
 }
 
 // ============================================
+// OTP CODE OPERATIONS
+// ============================================
+
+async function createOtpCode({ phoneNumber, code, purpose = 'login', expiresInMinutes = 10 }) {
+    const id = uuidv4();
+    const expiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000);
+
+    // Invalidate previous unused codes for same phone + purpose
+    await runUpdate(
+        "UPDATE otp_codes SET verified = true WHERE phone_number = $1 AND purpose = $2 AND verified = false",
+        [phoneNumber, purpose]
+    );
+
+    await runInsert(
+        `INSERT INTO otp_codes (id, phone_number, code, purpose, expires_at) VALUES ($1, $2, $3, $4, $5)`,
+        [id, phoneNumber, code, purpose, expiresAt]
+    );
+
+    return { id, expiresAt };
+}
+
+async function verifyOtpCode({ phoneNumber, code, purpose = 'login' }) {
+    const rows = await runQuery(
+        `SELECT * FROM otp_codes
+         WHERE phone_number = $1 AND purpose = $2 AND verified = false
+         ORDER BY created_at DESC LIMIT 1`,
+        [phoneNumber, purpose]
+    );
+
+    if (rows.length === 0) {
+        return { valid: false, reason: 'not_found' };
+    }
+
+    const otp = rows[0];
+
+    if (otp.attempts >= otp.max_attempts) {
+        return { valid: false, reason: 'max_attempts' };
+    }
+
+    if (new Date() > new Date(otp.expires_at)) {
+        return { valid: false, reason: 'expired' };
+    }
+
+    // Increment attempts
+    await runUpdate(
+        'UPDATE otp_codes SET attempts = attempts + 1 WHERE id = $1',
+        [otp.id]
+    );
+
+    if (otp.code !== code) {
+        return { valid: false, reason: 'wrong_code' };
+    }
+
+    // Mark as verified
+    await runUpdate(
+        'UPDATE otp_codes SET verified = true WHERE id = $1',
+        [otp.id]
+    );
+
+    return { valid: true };
+}
+
+// ============================================
+// PASSWORD RESET OPERATIONS
+// ============================================
+
+async function createPasswordReset({ userId, userRole, tokenHash, expiresInHours = 1 }) {
+    const id = uuidv4();
+    const expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000);
+
+    await runInsert(
+        `INSERT INTO password_resets (id, user_id, user_role, token_hash, expires_at) VALUES ($1, $2, $3, $4, $5)`,
+        [id, userId, userRole, tokenHash, expiresAt]
+    );
+
+    return { id, expiresAt };
+}
+
+async function consumePasswordReset(tokenHash) {
+    const rows = await runQuery(
+        `SELECT * FROM password_resets WHERE token_hash = $1 AND used = false LIMIT 1`,
+        [tokenHash]
+    );
+
+    if (rows.length === 0) {
+        return null;
+    }
+
+    const reset = rows[0];
+
+    if (new Date() > new Date(reset.expires_at)) {
+        return null;
+    }
+
+    // Mark as used
+    await runUpdate('UPDATE password_resets SET used = true WHERE id = $1', [reset.id]);
+
+    // Invalidate all other resets for this user
+    await runUpdate(
+        'UPDATE password_resets SET used = true WHERE user_id = $1 AND id != $2',
+        [reset.user_id, reset.id]
+    );
+
+    return reset;
+}
+
+async function updateClientPassword(userId, newPasswordHash) {
+    return await runUpdate(
+        'UPDATE clients SET password_hash = $1 WHERE id = $2',
+        [newPasswordHash, userId]
+    );
+}
+
+async function updateInterpreterPassword(userId, newPasswordHash) {
+    return await runUpdate(
+        'UPDATE interpreters SET password_hash = $1 WHERE id = $2',
+        [newPasswordHash, userId]
+    );
+}
+
+// ============================================
+// VOICEMAIL OPERATIONS
+// ============================================
+
+async function createVoicemailMessage({ id, callerId, calleeId, calleePhone, roomName, recordingFilename, storageKey, expiresAt }) {
+    await runInsert(
+        `INSERT INTO voicemail_messages (id, caller_id, callee_id, callee_phone, room_name, recording_filename, storage_key, status, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [id, callerId, calleeId || null, calleePhone || null, roomName, recordingFilename, storageKey, 'recording', expiresAt]
+    );
+}
+
+async function getVoicemailMessage(id) {
+    const rows = await runQuery('SELECT * FROM voicemail_messages WHERE id = $1', [id]);
+    return rows[0] || null;
+}
+
+async function getVoicemailMessageByRoomName(roomName) {
+    const rows = await runQuery(
+        "SELECT * FROM voicemail_messages WHERE room_name = $1 AND status = 'recording' ORDER BY created_at DESC LIMIT 1",
+        [roomName]
+    );
+    return rows[0] || null;
+}
+
+async function updateVoicemailMessage(id, updates) {
+    const fields = [];
+    const params = [];
+    let idx = 1;
+
+    const allowed = ['storage_key', 'thumbnail_key', 'duration_seconds', 'file_size_bytes', 'content_type', 'status', 'seen'];
+    for (const key of allowed) {
+        if (updates[key] !== undefined) {
+            fields.push(`${key} = $${idx++}`);
+            params.push(updates[key]);
+        }
+    }
+
+    if (fields.length === 0) return 0;
+
+    params.push(id);
+    return await runUpdate(
+        `UPDATE voicemail_messages SET ${fields.join(', ')} WHERE id = $${idx}`,
+        params
+    );
+}
+
+async function deleteVoicemailMessage(id) {
+    return await runUpdate('DELETE FROM voicemail_messages WHERE id = $1', [id]);
+}
+
+async function getVoicemailInbox(calleeId, limit = 20, offset = 0) {
+    return await runQuery(
+        `SELECT vm.*, c.name as caller_name, cp.phone_number as caller_phone
+         FROM voicemail_messages vm
+         LEFT JOIN clients c ON c.id = vm.caller_id
+         LEFT JOIN client_phone_numbers cp ON cp.client_id = c.id AND cp.is_primary = true AND cp.active = true
+         WHERE vm.callee_id = $1 AND vm.status = 'available'
+         ORDER BY vm.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [calleeId, limit, offset]
+    );
+}
+
+async function getVoicemailInboxCount(calleeId) {
+    const rows = await runQuery(
+        `SELECT COUNT(*) as total FROM voicemail_messages WHERE callee_id = $1 AND status = 'available'`,
+        [calleeId]
+    );
+    return Number(rows[0]?.total) || 0;
+}
+
+async function getVoicemailUnreadCount(calleeId) {
+    const rows = await runQuery(
+        `SELECT COUNT(*) as count FROM voicemail_messages WHERE callee_id = $1 AND status = 'available' AND seen = false`,
+        [calleeId]
+    );
+    return Number(rows[0]?.count) || 0;
+}
+
+async function markVoicemailSeen(id, calleeId) {
+    return await runUpdate(
+        'UPDATE voicemail_messages SET seen = true WHERE id = $1 AND callee_id = $2',
+        [id, calleeId]
+    );
+}
+
+async function getVoicemailStorageUsage(calleeId) {
+    const rows = await runQuery(
+        `SELECT COALESCE(SUM(file_size_bytes), 0) as total_bytes FROM voicemail_messages WHERE callee_id = $1 AND status = 'available'`,
+        [calleeId]
+    );
+    return Number(rows[0]?.total_bytes) || 0;
+}
+
+async function getVoicemailMessageCount(calleeId) {
+    const rows = await runQuery(
+        `SELECT COUNT(*) as count FROM voicemail_messages WHERE callee_id = $1 AND status = 'available'`,
+        [calleeId]
+    );
+    return Number(rows[0]?.count) || 0;
+}
+
+async function getExpiredVoicemailMessages() {
+    return await runQuery(
+        `SELECT * FROM voicemail_messages WHERE status = 'available' AND expires_at < NOW()`
+    );
+}
+
+async function getActiveVoicemailRecordings() {
+    return await runQuery(
+        `SELECT * FROM voicemail_messages WHERE status = 'recording'`
+    );
+}
+
+async function getVoicemailSetting(key) {
+    const rows = await runQuery(
+        'SELECT setting_value FROM voicemail_settings WHERE setting_key = $1',
+        [key]
+    );
+    return rows[0]?.setting_value || null;
+}
+
+async function getAllVoicemailSettings() {
+    return await runQuery('SELECT * FROM voicemail_settings');
+}
+
+async function setVoicemailSetting(key, value, updatedBy) {
+    const id = uuidv4();
+    await runInsert(
+        `INSERT INTO voicemail_settings (id, setting_key, setting_value, updated_by, updated_at)
+         VALUES ($1, $2, $3, $4, NOW())
+         ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_by = EXCLUDED.updated_by, updated_at = NOW()`,
+        [id, key, value, updatedBy || null]
+    );
+}
+
+async function seedVoicemailSettings() {
+    const defaults = [
+        ['vm-enabled', 'true'],
+        ['vm-max-length', '180'],
+        ['vm-retention-days', '30'],
+        ['vm-max-messages', '100'],
+        ['vm-storage-quota-mb', '500']
+    ];
+
+    for (const [key, value] of defaults) {
+        const existing = await getVoicemailSetting(key);
+        if (!existing) {
+            await setVoicemailSetting(key, value, 'system');
+        }
+    }
+}
+
+async function getAllVoicemailMessages({ status, callerId, calleeId, limit = 50, offset = 0 } = {}) {
+    const conditions = [];
+    const params = [];
+    let idx = 1;
+
+    if (status) { conditions.push(`vm.status = $${idx++}`); params.push(status); }
+    if (callerId) { conditions.push(`vm.caller_id = $${idx++}`); params.push(callerId); }
+    if (calleeId) { conditions.push(`vm.callee_id = $${idx++}`); params.push(calleeId); }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    params.push(limit, offset);
+
+    return await runQuery(
+        `SELECT vm.*, c.name as caller_name, cl.name as callee_name
+         FROM voicemail_messages vm
+         LEFT JOIN clients c ON c.id = vm.caller_id
+         LEFT JOIN clients cl ON cl.id = vm.callee_id
+         ${where}
+         ORDER BY vm.created_at DESC
+         LIMIT $${idx++} OFFSET $${idx}`,
+        params
+    );
+}
+
+async function getVoicemailStorageStats() {
+    const rows = await runQuery(`
+        SELECT
+            COUNT(*) as total_messages,
+            COALESCE(SUM(file_size_bytes), 0) as total_size_bytes,
+            COUNT(CASE WHEN status = 'recording' THEN 1 END) as active_recordings
+         FROM voicemail_messages
+    `);
+    return rows[0] || { total_messages: 0, total_size_bytes: 0, active_recordings: 0 };
+}
+
+// ============================================
 // EXPORT
 // ============================================
 
@@ -2018,5 +2392,33 @@ module.exports = {
     deleteQuickPhrase,
     // VCO calls
     createVCOCall,
+    // OTP codes
+    createOtpCode,
+    verifyOtpCode,
+    // Password resets
+    createPasswordReset,
+    consumePasswordReset,
+    updateClientPassword,
+    updateInterpreterPassword,
+    // Voicemail
+    createVoicemailMessage,
+    getVoicemailMessage,
+    getVoicemailMessageByRoomName,
+    updateVoicemailMessage,
+    deleteVoicemailMessage,
+    getVoicemailInbox,
+    getVoicemailInboxCount,
+    getVoicemailUnreadCount,
+    markVoicemailSeen,
+    getVoicemailStorageUsage,
+    getVoicemailMessageCount,
+    getExpiredVoicemailMessages,
+    getActiveVoicemailRecordings,
+    getVoicemailSetting,
+    getAllVoicemailSettings,
+    setVoicemailSetting,
+    seedVoicemailSettings,
+    getAllVoicemailMessages,
+    getVoicemailStorageStats,
     pool: () => pool
 };

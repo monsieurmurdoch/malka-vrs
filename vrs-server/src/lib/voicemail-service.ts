@@ -348,7 +348,7 @@ async function getMessageWithPlayback(messageId: string, requesterId: string): P
     // Mark as seen if requester is callee
     if (msg.callee_id === requesterId && !msg.seen) {
         await markVoicemailSeen(messageId, requesterId);
-        msg.seen = 1;
+        msg.seen = true;
     }
 
     const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString();

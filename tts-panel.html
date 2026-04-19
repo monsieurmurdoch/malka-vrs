@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MalkaVRS - TTS Fallback</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a4d6e 0%, #2d5a3d 50%, #4a3b2a 100%);
+            min-height: 100vh;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .tts-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 32px;
+            background: rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .tts-header-left {
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+        }
+
+        .tts-header-title {
+            font-size: 20px;
+            font-weight: 300;
+            opacity: 0.8;
+        }
+
+        .tts-header-badge {
+            background: rgba(52, 152, 219, 0.3);
+            border: 1px solid rgba(52, 152, 219, 0.5);
+            border-radius: 12px;
+            padding: 2px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .tts-header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px;
+            color: #fff;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .btn:hover { background: rgba(255,255,255,0.2); }
+
+        .btn-primary {
+            background: rgba(52, 152, 219, 0.6);
+            border-color: rgba(52, 152, 219, 0.8);
+        }
+
+        .btn-primary:hover { background: rgba(52, 152, 219, 0.8); }
+
+        .btn-danger {
+            background: rgba(231, 76, 60, 0.5);
+            border-color: rgba(231, 76, 60, 0.7);
+        }
+
+        .btn-danger:hover { background: rgba(231, 76, 60, 0.7); }
+
+        .btn-success {
+            background: rgba(46, 204, 113, 0.5);
+            border-color: rgba(46, 204, 113, 0.7);
+        }
+
+        .btn-success:hover { background: rgba(46, 204, 113, 0.7); }
+
+        /* Main layout */
+        .tts-main {
+            flex: 1;
+            display: flex;
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 24px;
+            gap: 24px;
+        }
+
+        /* Panels */
+        .tts-panel {
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .tts-panel h3 {
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            opacity: 0.7;
+            margin-bottom: 16px;
+        }
+
+        /* Left sidebar - Settings */
+        .tts-sidebar {
+            width: 280px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* Center - Call area */
+        .tts-call-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* Right sidebar - Quick phrases */
+        .tts-phrases-sidebar {
+            width: 260px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* Form elements */
+        label {
+            display: block;
+            font-size: 12px;
+            opacity: 0.6;
+            margin-bottom: 4px;
+            margin-top: 12px;
+        }
+
+        label:first-child { margin-top: 0; }
+
+        select, input[type="range"], input[type="text"] {
+            width: 100%;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 6px;
+            color: #fff;
+            padding: 8px 12px;
+            font-size: 13px;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: rgba(52, 152, 219, 0.6);
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            height: 6px;
+            padding: 0;
+            border: none;
+            border-radius: 3px;
+            background: rgba(255,255,255,0.15);
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #3498db;
+            border: 2px solid #fff;
+            cursor: pointer;
+        }
+
+        .range-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            opacity: 0.4;
+            margin-top: 2px;
+        }
+
+        .range-value {
+            font-size: 12px;
+            opacity: 0.7;
+            text-align: right;
+            margin-top: 2px;
+        }
+
+        /* Toggle switch */
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 12px;
+        }
+
+        .toggle-row span {
+            font-size: 13px;
+        }
+
+        .toggle {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            cursor: pointer;
+        }
+
+        .toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255,255,255,0.15);
+            border-radius: 12px;
+            transition: 0.3s;
+        }
+
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            left: 3px;
+            bottom: 3px;
+            background: #fff;
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+
+        .toggle input:checked + .toggle-slider {
+            background: rgba(52, 152, 219, 0.6);
+        }
+
+        .toggle input:checked + .toggle-slider::before {
+            transform: translateX(20px);
+        }
+
+        /* Call status area */
+        .call-status {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .call-status-icon {
+            font-size: 48px;
+            margin-bottom: 8px;
+        }
+
+        .call-status-text {
+            font-size: 18px;
+            font-weight: 300;
+        }
+
+        .call-status-sub {
+            font-size: 13px;
+            opacity: 0.5;
+            margin-top: 4px;
+        }
+
+        .call-timer {
+            font-size: 24px;
+            font-weight: 200;
+            margin-top: 8px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Text input area */
+        .tts-input-area {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .tts-text-input {
+            width: 100%;
+            min-height: 80px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            color: #fff;
+            padding: 12px;
+            font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+        }
+
+        .tts-text-input:focus {
+            outline: none;
+            border-color: rgba(52, 152, 219, 0.6);
+        }
+
+        .tts-input-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .char-count {
+            font-size: 12px;
+            opacity: 0.4;
+        }
+
+        /* Message log */
+        .tts-message-log {
+            flex: 1;
+            overflow-y: auto;
+            max-height: 200px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .tts-msg {
+            padding: 8px 12px;
+            background: rgba(52, 152, 219, 0.15);
+            border-left: 3px solid rgba(52, 152, 219, 0.6);
+            border-radius: 0 6px 6px 0;
+            font-size: 14px;
+        }
+
+        .tts-msg-time {
+            font-size: 10px;
+            opacity: 0.4;
+            margin-top: 2px;
+        }
+
+        /* Quick phrases */
+        .phrase-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .phrase-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .phrase-item:hover {
+            background: rgba(52, 152, 219, 0.2);
+            border-color: rgba(52, 152, 219, 0.4);
+        }
+
+        .phrase-item.disabled {
+            opacity: 0.4;
+            cursor: default;
+        }
+
+        .phrase-label {
+            font-size: 11px;
+            font-weight: 600;
+            opacity: 0.5;
+            text-transform: uppercase;
+            min-width: 60px;
+        }
+
+        .phrase-text {
+            flex: 1;
+            font-size: 13px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .phrase-delete {
+            background: none;
+            border: none;
+            color: rgba(231, 76, 60, 0.5);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 0 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .phrase-item:hover .phrase-delete { opacity: 1; }
+        .phrase-delete:hover { color: rgba(231, 76, 60, 1); }
+
+        .add-phrase-row {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .add-phrase-row input {
+            flex: 1;
+            font-size: 12px;
+            padding: 6px 10px;
+        }
+
+        .add-phrase-row button {
+            flex-shrink: 0;
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        /* Status indicator */
+        .ws-status {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .ws-status.connected { background: #2ecc71; }
+        .ws-status.disconnected { background: #e74c3c; }
+        .ws-status.connecting { background: #f39c12; animation: pulse 1s infinite; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Phone number input for VCO */
+        .phone-input-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .phone-input-row input {
+            flex: 1;
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .tts-main {
+                flex-direction: column;
+            }
+            .tts-sidebar, .tts-phrases-sidebar {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="tts-header">
+        <div class="tts-header-left">
+            <span class="tts-header-title">TTS Fallback</span>
+            <span class="tts-header-badge" id="callModeBadge">VCO Mode</span>
+        </div>
+        <div class="tts-header-right">
+            <span class="ws-status disconnected" id="wsStatus"></span>
+            <span style="font-size:12px;opacity:0.5" id="wsStatusText">Disconnected</span>
+            <button class="btn" onclick="location.href='client-profile.html'">Back to Profile</button>
+        </div>
+    </div>
+
+    <!-- Main layout -->
+    <div class="tts-main">
+        <!-- Left: Voice Settings -->
+        <div class="tts-sidebar">
+            <div class="tts-panel">
+                <h3>Voice Settings</h3>
+
+                <label>Voice</label>
+                <select id="voiceSelect">
+                    <option value="">Default</option>
+                </select>
+
+                <label>Gender</label>
+                <select id="voiceGender">
+                    <option value="female">Female</option>
+                    <option value="male">Male</option>
+                </select>
+
+                <label>Speed</label>
+                <input type="range" id="voiceSpeed" min="0.5" max="2.0" step="0.1" value="1.0">
+                <div class="range-labels"><span>Slow</span><span>Fast</span></div>
+                <div class="range-value" id="speedValue">1.0x</div>
+
+                <label>Pitch</label>
+                <input type="range" id="voicePitch" min="0.5" max="2.0" step="0.1" value="1.0">
+                <div class="range-labels"><span>Low</span><span>High</span></div>
+                <div class="range-value" id="pitchValue">1.0x</div>
+
+                <div class="toggle-row">
+                    <span>STS Mode</span>
+                    <label class="toggle">
+                        <input type="checkbox" id="stsMode">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <button class="btn btn-primary" style="margin-top:16px;width:100%" onclick="saveSettings()">Save Settings</button>
+                <button class="btn" style="margin-top:6px;width:100%" onclick="testVoice()">Test Voice</button>
+            </div>
+        </div>
+
+        <!-- Center: Call Area -->
+        <div class="tts-call-area">
+            <!-- Call status -->
+            <div class="tts-panel call-status" id="callStatusPanel">
+                <div class="call-status-icon" id="callIcon">&#128222;</div>
+                <div class="call-status-text" id="callStatusText">Ready to call</div>
+                <div class="call-status-sub" id="callStatusSub">Start a VCO call to begin using TTS</div>
+                <div class="call-timer" id="callTimer" style="display:none">00:00</div>
+            </div>
+
+            <!-- Start call area -->
+            <div class="tts-panel" id="startCallPanel">
+                <h3>Start VCO Call</h3>
+                <div class="phone-input-row">
+                    <input type="text" id="targetPhone" placeholder="Phone number (optional)">
+                    <button class="btn btn-success" id="startCallBtn" onclick="startVCOCall()">Start Call</button>
+                </div>
+            </div>
+
+            <!-- TTS Input (hidden until call starts) -->
+            <div class="tts-panel" id="ttsInputPanel" style="display:none">
+                <h3>Type your message</h3>
+                <div class="tts-input-area">
+                    <textarea class="tts-text-input" id="ttsTextInput"
+                        placeholder="Type your message here and press Speak or Enter..."
+                        maxlength="1000"></textarea>
+                    <div class="tts-input-actions">
+                        <span class="char-count"><span id="charCount">0</span>/1000</span>
+                        <div>
+                            <button class="btn btn-danger" onclick="endVCOCall()">End Call</button>
+                            <button class="btn btn-primary" onclick="speakText()" id="speakBtn">Speak</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Message log -->
+            <div class="tts-panel" id="messageLogPanel" style="display:none">
+                <h3>Message Log</h3>
+                <div class="tts-message-log" id="messageLog"></div>
+            </div>
+        </div>
+
+        <!-- Right: Quick Phrases -->
+        <div class="tts-phrases-sidebar">
+            <div class="tts-panel" style="display:flex;flex-direction:column;flex:1">
+                <h3>Quick Phrases</h3>
+                <div class="phrase-list" id="phraseList">
+                    <!-- Populated dynamically -->
+                </div>
+                <div class="add-phrase-row">
+                    <input type="text" id="newPhraseText" placeholder="Add a phrase...">
+                    <button class="btn" onclick="addPhrase()">Add</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ============================================
+    // STATE
+    // ============================================
+
+    let ws = null;
+    let authToken = null;
+    let currentUser = null;
+    let activeCallId = null;
+    let activeRoomName = null;
+    let callStartTime = null;
+    let timerInterval = null;
+    let phrases = [];
+    let voiceSettings = {
+        voiceName: '',
+        voiceGender: 'female',
+        voiceSpeed: 1.0,
+        voicePitch: 1.0,
+        stsMode: false
+    };
+
+    const API_BASE = window.location.origin + '/api/tts';
+    const WS_URL = (location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + location.host;
+
+    // ============================================
+    // INITIALIZATION
+    // ============================================
+
+    document.addEventListener('DOMContentLoaded', () => {
+        authToken = sessionStorage.getItem('authToken') || localStorage.getItem('authToken');
+        currentUser = JSON.parse(sessionStorage.getItem('currentUser') || localStorage.getItem('currentUser') || 'null');
+
+        if (!authToken || !currentUser || currentUser.role !== 'client') {
+            location.href = 'client-profile.html';
+            return;
+        }
+
+        connectWebSocket();
+        loadSettings();
+        loadPhrases();
+        populateVoices();
+
+        // Text input handlers
+        const textInput = document.getElementById('ttsTextInput');
+        textInput.addEventListener('input', () => {
+            document.getElementById('charCount').textContent = textInput.value.length;
+        });
+        textInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                speakText();
+            }
+        });
+
+        // Range sliders
+        document.getElementById('voiceSpeed').addEventListener('input', (e) => {
+            document.getElementById('speedValue').textContent = e.target.value + 'x';
+        });
+        document.getElementById('voicePitch').addEventListener('input', (e) => {
+            document.getElementById('pitchValue').textContent = e.target.value + 'x';
+        });
+    });
+
+    // ============================================
+    // WEBSOCKET
+    // ============================================
+
+    function connectWebSocket() {
+        updateWsStatus('connecting');
+
+        ws = new WebSocket(WS_URL);
+
+        ws.onopen = () => {
+            updateWsStatus('connected');
+            // Authenticate
+            ws.send(JSON.stringify({
+                type: 'auth',
+                data: {
+                    role: 'client',
+                    userId: currentUser.id,
+                    name: currentUser.name,
+                    token: authToken
+                }
+            }));
+        };
+
+        ws.onmessage = (event) => {
+            const msg = JSON.parse(event.data);
+            handleWsMessage(msg);
+        };
+
+        ws.onclose = () => {
+            updateWsStatus('disconnected');
+            setTimeout(connectWebSocket, 3000);
+        };
+
+        ws.onerror = () => {
+            updateWsStatus('disconnected');
+        };
+    }
+
+    function updateWsStatus(status) {
+        const el = document.getElementById('wsStatus');
+        const text = document.getElementById('wsStatusText');
+        el.className = 'ws-status ' + status;
+        const labels = { connected: 'Connected', disconnected: 'Disconnected', connecting: 'Connecting...' };
+        text.textContent = labels[status] || status;
+    }
+
+    function handleWsMessage(msg) {
+        switch (msg.type) {
+            case 'vco_started':
+                onVCOStarted(msg.data);
+                break;
+            case 'vco_outbound_initiated':
+                onOutboundInitiated(msg.data);
+                break;
+            case 'vco_ended':
+                onVCOEnded(msg.data);
+                break;
+            case 'tts_message_sent':
+                onTTSMessageSent(msg.data);
+                break;
+            case 'error':
+                console.error('WS error:', msg.data);
+                break;
+        }
+    }
+
+    // ============================================
+    // VCO CALL MANAGEMENT
+    // ============================================
+
+    function startVCOCall() {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            alert('Not connected. Please wait...');
+            return;
+        }
+
+        const targetPhone = document.getElementById('targetPhone').value.trim() || undefined;
+
+        ws.send(JSON.stringify({
+            type: 'vco_start',
+            data: {
+                targetPhone
+            }
+        }));
+
+        document.getElementById('startCallBtn').disabled = true;
+        document.getElementById('startCallBtn').textContent = 'Starting...';
+    }
+
+    function endVCOCall() {
+        if (!activeCallId) return;
+
+        const durationMinutes = callStartTime ? (Date.now() - callStartTime) / 60000 : 0;
+
+        ws.send(JSON.stringify({
+            type: 'vco_end',
+            data: {
+                callId: activeCallId,
+                roomName: activeRoomName,
+                durationMinutes: Math.round(durationMinutes * 100) / 100
+            }
+        }));
+    }
+
+    function onVCOStarted(data) {
+        activeCallId = data.callId;
+        activeRoomName = data.roomName;
+        callStartTime = Date.now();
+
+        // Update UI
+        document.getElementById('callStatusText').textContent = 'VCO Call Active';
+        document.getElementById('callStatusSub').textContent = data.targetPhone
+            ? 'Calling ' + data.targetPhone + '...'
+            : 'TTS-only mode (no outbound call)';
+        document.getElementById('callIcon').innerHTML = '&#128994;';
+        document.getElementById('callTimer').style.display = 'block';
+        document.getElementById('startCallPanel').style.display = 'none';
+        document.getElementById('ttsInputPanel').style.display = 'block';
+        document.getElementById('messageLogPanel').style.display = 'block';
+
+        // Start timer
+        timerInterval = setInterval(updateTimer, 1000);
+    }
+
+    function onOutboundInitiated(data) {
+        document.getElementById('callStatusSub').textContent = 'Connected to ' + data.targetPhone;
+    }
+
+    function onVCOEnded(data) {
+        activeCallId = null;
+        activeRoomName = null;
+        callStartTime = null;
+
+        if (timerInterval) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
+
+        document.getElementById('callStatusText').textContent = 'Call Ended';
+        document.getElementById('callStatusSub').textContent = 'Ready to start a new call';
+        document.getElementById('callIcon').innerHTML = '&#128222;';
+        document.getElementById('callTimer').style.display = 'none';
+        document.getElementById('startCallPanel').style.display = 'block';
+        document.getElementById('ttsInputPanel').style.display = 'none';
+        document.getElementById('startCallBtn').disabled = false;
+        document.getElementById('startCallBtn').textContent = 'Start Call';
+    }
+
+    function updateTimer() {
+        if (!callStartTime) return;
+        const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
+        const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
+        const secs = (elapsed % 60).toString().padStart(2, '0');
+        document.getElementById('callTimer').textContent = mins + ':' + secs;
+    }
+
+    // ============================================
+    // TTS SPEAK
+    // ============================================
+
+    function speakText() {
+        const text = document.getElementById('ttsTextInput').value.trim();
+        if (!text || !activeCallId) return;
+
+        ws.send(JSON.stringify({
+            type: 'tts_speak',
+            data: {
+                callId: activeCallId,
+                text,
+                voiceSettings: {
+                    voiceName: voiceSettings.voiceName,
+                    voiceGender: voiceSettings.voiceGender,
+                    voiceSpeed: voiceSettings.voiceSpeed,
+                    voicePitch: voiceSettings.voicePitch
+                }
+            }
+        }));
+
+        document.getElementById('ttsTextInput').value = '';
+        document.getElementById('charCount').textContent = '0';
+    }
+
+    function speakQuickPhrase(phraseId) {
+        if (!activeCallId || !phraseId) return;
+
+        ws.send(JSON.stringify({
+            type: 'tts_quick_speak',
+            data: {
+                callId: activeCallId,
+                phraseId
+            }
+        }));
+    }
+
+    function onTTSMessageSent(data) {
+        // Render the message in the log
+        const log = document.getElementById('messageLog');
+        const time = new Date(data.timestamp).toLocaleTimeString();
+        const div = document.createElement('div');
+        div.className = 'tts-msg';
+        div.innerHTML = escapeHtml(data.text) + '<div class="tts-msg-time">' + time + '</div>';
+        log.appendChild(div);
+        log.scrollTop = log.scrollHeight;
+
+        // Also speak locally via Web Speech API so the deaf user can verify
+        localTTS(data.text, data.voiceSettings);
+    }
+
+    function localTTS(text, settings) {
+        if (!window.speechSynthesis) return;
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        if (settings?.voiceName) {
+            const voices = speechSynthesis.getVoices();
+            const match = voices.find(v => v.name === settings.voiceName);
+            if (match) utterance.voice = match;
+        }
+        if (settings?.voiceSpeed) utterance.rate = settings.voiceSpeed;
+        if (settings?.voicePitch) utterance.pitch = settings.voicePitch;
+        speechSynthesis.speak(utterance);
+    }
+
+    function testVoice() {
+        const text = 'Hello, this is a test of the text to speech voice.';
+        const settings = {
+            voiceName: document.getElementById('voiceSelect').value,
+            voiceSpeed: parseFloat(document.getElementById('voiceSpeed').value),
+            voicePitch: parseFloat(document.getElementById('voicePitch').value)
+        };
+        localTTS(text, settings);
+    }
+
+    // ============================================
+    // VOICE SETTINGS
+    // ============================================
+
+    async function loadSettings() {
+        try {
+            const res = await fetch(API_BASE + '/settings', {
+                headers: { 'Authorization': 'Bearer ' + authToken }
+            });
+            const data = await res.json();
+            if (data.settings) {
+                voiceSettings = data.settings;
+                applySettingsToUI();
+            }
+        } catch (err) {
+            console.error('Failed to load TTS settings:', err);
+        }
+    }
+
+    async function saveSettings() {
+        voiceSettings = {
+            voiceName: document.getElementById('voiceSelect').value,
+            voiceGender: document.getElementById('voiceGender').value,
+            voiceSpeed: parseFloat(document.getElementById('voiceSpeed').value),
+            voicePitch: parseFloat(document.getElementById('voicePitch').value),
+            stsMode: document.getElementById('stsMode').checked
+        };
+
+        try {
+            const res = await fetch(API_BASE + '/settings', {
+                method: 'PUT',
+                headers: {
+                    'Authorization': 'Bearer ' + authToken,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(voiceSettings)
+            });
+            const data = await res.json();
+            if (data.settings) {
+                voiceSettings = data.settings;
+                applySettingsToUI();
+            }
+        } catch (err) {
+            console.error('Failed to save TTS settings:', err);
+        }
+    }
+
+    function applySettingsToUI() {
+        document.getElementById('voiceGender').value = voiceSettings.voiceGender || 'female';
+        document.getElementById('voiceSpeed').value = voiceSettings.voiceSpeed || 1.0;
+        document.getElementById('speedValue').textContent = (voiceSettings.voiceSpeed || 1.0) + 'x';
+        document.getElementById('voicePitch').value = voiceSettings.voicePitch || 1.0;
+        document.getElementById('pitchValue').textContent = (voiceSettings.voicePitch || 1.0) + 'x';
+        document.getElementById('stsMode').checked = !!voiceSettings.stsMode;
+
+        if (voiceSettings.voiceName) {
+            document.getElementById('voiceSelect').value = voiceSettings.voiceName;
+        }
+    }
+
+    function populateVoices() {
+        const select = document.getElementById('voiceSelect');
+        if (!window.speechSynthesis) return;
+
+        function fillVoices() {
+            const voices = speechSynthesis.getVoices();
+            // Keep the default option
+            select.innerHTML = '<option value="">Default</option>';
+            voices.forEach(v => {
+                const opt = document.createElement('option');
+                opt.value = v.name;
+                opt.textContent = v.name + ' (' + v.lang + ')';
+                select.appendChild(opt);
+            });
+            if (voiceSettings.voiceName) {
+                select.value = voiceSettings.voiceName;
+            }
+        }
+
+        fillVoices();
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = fillVoices;
+        }
+    }
+
+    // ============================================
+    // QUICK PHRASES
+    // ============================================
+
+    async function loadPhrases() {
+        try {
+            const res = await fetch(API_BASE + '/phrases', {
+                headers: { 'Authorization': 'Bearer ' + authToken }
+            });
+            const data = await res.json();
+            phrases = data.phrases || [];
+            renderPhrases();
+        } catch (err) {
+            console.error('Failed to load phrases:', err);
+        }
+    }
+
+    function renderPhrases() {
+        const list = document.getElementById('phraseList');
+        list.innerHTML = '';
+
+        if (phrases.length === 0) {
+            list.innerHTML = '<div style="text-align:center;opacity:0.4;font-size:13px;padding:16px">No phrases yet</div>';
+            return;
+        }
+
+        phrases.forEach(p => {
+            const div = document.createElement('div');
+            div.className = 'phrase-item' + (activeCallId ? '' : ' disabled');
+            div.onclick = () => { if (activeCallId) speakQuickPhrase(p.id); };
+            div.innerHTML =
+                '<span class="phrase-label">' + escapeHtml(p.label || '') + '</span>' +
+                '<span class="phrase-text">' + escapeHtml(p.text) + '</span>' +
+                '<button class="phrase-delete" onclick="deletePhrase(\'' + p.id + '\', event)">&times;</button>';
+            list.appendChild(div);
+        });
+    }
+
+    async function addPhrase() {
+        const text = document.getElementById('newPhraseText').value.trim();
+        if (!text) return;
+
+        try {
+            const res = await fetch(API_BASE + '/phrases', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + authToken,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ text, label: text.substring(0, 20) })
+            });
+            const data = await res.json();
+            if (data.phrase) {
+                phrases.push(data.phrase);
+                renderPhrases();
+                document.getElementById('newPhraseText').value = '';
+            }
+        } catch (err) {
+            console.error('Failed to add phrase:', err);
+        }
+    }
+
+    async function deletePhrase(id, event) {
+        if (event) event.stopPropagation();
+        try {
+            await fetch(API_BASE + '/phrases/' + id, {
+                method: 'DELETE',
+                headers: { 'Authorization': 'Bearer ' + authToken }
+            });
+            phrases = phrases.filter(p => p.id !== id);
+            renderPhrases();
+        } catch (err) {
+            console.error('Failed to delete phrase:', err);
+        }
+    }
+
+    // ============================================
+    // HELPERS
+    // ============================================
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+    </script>
+</body>
+</html>

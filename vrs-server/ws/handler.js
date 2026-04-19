@@ -1509,7 +1509,7 @@ async function handleVCOStart(ws, data) {
             targetPhone: targetPhone || null
         });
 
-        ttsService.startSession(callId, client.userId, roomName);
+        ttsService.startSession(callId, client.userId, roomName, targetPhone || null);
 
         ws.send(JSON.stringify({
             type: 'vco_started',
@@ -1537,6 +1537,7 @@ async function handleVCOStart(ws, data) {
                 });
                 const twilioData = await twilioRes.json();
                 if (twilioData.success) {
+                    ttsService.attachCallSid(callId, twilioData.callSid);
                     ws.send(JSON.stringify({
                         type: 'vco_outbound_initiated',
                         data: { callId, callSid: twilioData.callSid, targetPhone }
@@ -1606,10 +1607,36 @@ async function handleTTSSpeak(ws, data) {
         voiceSpeed: voiceSettings?.voiceSpeed || settings.voiceSpeed,
         voicePitch: voiceSettings?.voicePitch || settings.voicePitch
     };
+    const twilioVoice = mergedVoice.voiceGender === 'male' ? 'man' : 'alice';
 
-    // Broadcast the TTS message to the call room.
-    // In production, the hearing party receives this via Twilio or WebRTC.
-    // The client's own browser also gets it to confirm the message was sent.
+    // If there is an active outbound Twilio leg, inject <Say> into that live call
+    // before confirming success back to the client.
+    if (session.callSid) {
+        try {
+            const twilioBase = process.env.TWILIO_VOICE_URL || 'http://localhost:3002';
+            const twilioRes = await fetch(twilioBase + '/api/voice/tts-say', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    callSid: session.callSid,
+                    text,
+                    voice: twilioVoice
+                })
+            });
+
+            if (!twilioRes.ok) {
+                const errorText = await twilioRes.text();
+                log.warn({ callId, callSid: session.callSid, status: twilioRes.status, errorText }, 'Twilio TTS relay failed');
+                return sendWsError(ws, 'Failed to relay TTS to the live phone call.', 'TTS_RELAY_FAILED');
+            }
+        } catch (twilioErr) {
+            log.warn({ err: twilioErr, callId, callSid: session.callSid }, 'Twilio TTS relay failed');
+            return sendWsError(ws, 'Failed to relay TTS to the live phone call.', 'TTS_RELAY_FAILED');
+        }
+    }
+
+    // Broadcast the TTS message to the client UI so they get confirmation and
+    // local playback for verification.
     ws.send(JSON.stringify({
         type: 'tts_message_sent',
         data: {
@@ -1620,20 +1647,8 @@ async function handleTTSSpeak(ws, data) {
         }
     }));
 
-    // If there's an active Twilio call, use <Say> to speak the text to the hearing party
-    try {
-        const call = await db.getCall(callId);
-        if (call && call.call_mode === 'vco') {
-            // The TTS audio is rendered client-side via Web Speech API.
-            // For outbound Twilio calls, the server would inject <Say> TwiML.
-            // For now, we relay the message so any connected WebRTC peer can render it.
-            log.info({ callId, textLength: text.length }, 'TTS speak relayed');
-        }
-    } catch (dbErr) {
-        log.warn({ err: dbErr }, 'TTS speak call lookup failed');
-    }
-
     activityLogger.log('tts_speak', { callId, clientId: client.userId, textLength: text.length });
+    log.info({ callId, textLength: text.length, hasOutboundRelay: Boolean(session.callSid) }, 'TTS speak relayed');
 }
 
 async function handleTTSQuickSpeak(ws, data) {

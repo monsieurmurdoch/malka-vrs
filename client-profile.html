@@ -1206,6 +1206,18 @@
                             <div style="font-size:12px;opacity:0.4">Enter a phone number — an interpreter will connect you</div>
                         </div>
 
+                        <!-- TTS Fallback / VCO Mode — no interpreter needed -->
+                        <div class="card" style="margin-bottom:24px;border-color:rgba(52,152,219,0.3)">
+                            <div class="card-title" style="color:#3498db">TTS Fallback (VCO)</div>
+                            <div style="font-size:13px;opacity:0.6;margin-bottom:12px">
+                                Type messages that are read aloud to the hearing party — no interpreter needed.
+                                For deaf users who prefer typing, or when no interpreter is available.
+                            </div>
+                            <button class="start-call-btn" onclick="location.href='tts-panel.html'" style="background:rgba(52,152,219,0.5);border-color:rgba(52,152,219,0.7)">
+                                Open TTS Panel
+                            </button>
+                        </div>
+
                         <!-- Active Rooms -->
                         ${activeRooms.length > 0 ? `
                             <div class="card" style="margin-bottom:24px;border-color:rgba(76,175,80,0.3)">

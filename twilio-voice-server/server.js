@@ -358,6 +358,43 @@ app.post('/api/voice/hangup', async (req, res) => {
     }
 });
 
+// TTS Say — relay text-to-speech to an active VCO call
+app.post('/api/voice/tts-say', validateRequest(z.object({
+    callSid: z.string().min(1),
+    text: z.string().min(1).max(1000),
+    voice: z.string().max(50).optional()
+})), async (req, res) => {
+    try {
+        const { callSid, text, voice } = req.body;
+
+        if (!twilio) {
+            return res.status(500).json({
+                error: 'Twilio not configured',
+                code: 'TWILIO_NOT_CONFIGURED'
+            });
+        }
+
+        log(`TTS Say on call ${callSid}: "${text.substring(0, 60)}..."`);
+
+        // Update the live call with TwiML that speaks the text
+        const twiml = `<Response><Say voice="${voice || 'alice'}">${text.replace(/[<>&]/g, ' ')}</Say></Response>`;
+
+        // For live calls, we use the Call API to modify the call
+        await twilio.calls(callSid).update({
+            twiml
+        });
+
+        res.json({ success: true, message: 'TTS sent to call' });
+    } catch (error) {
+        log(`Error in TTS Say: ${error.message}`);
+        res.status(500).json({
+            error: 'Failed to send TTS',
+            code: 'TTS_FAILED',
+            details: { message: error.message }
+        });
+    }
+});
+
 // Get call status
 app.get('/api/voice/status/:callSid', async (req, res) => {
     try {
