@@ -5,6 +5,11 @@ import JitsiThemeProvider from '../../base/ui/components/JitsiThemeProvider.web'
 import DialogContainer from '../../base/ui/components/web/DialogContainer';
 import ChromeExtensionBanner from '../../chrome-extension-banner/components/ChromeExtensionBanner.web';
 import OverlayContainer from '../../overlay/components/web/OverlayContainer';
+import VoicemailFab from '../../voicemail/components/web/VoicemailFab';
+import VoicemailInbox from '../../voicemail/components/web/VoicemailInbox';
+import VoicemailPrompt from '../../voicemail/components/web/VoicemailPrompt';
+import VoicemailRecording from '../../voicemail/components/web/VoicemailRecording';
+import VoicemailPlayer from '../../voicemail/components/web/VoicemailPlayer';
 
 import { AbstractApp } from './AbstractApp';
 
@@ -32,6 +37,11 @@ export class App extends AbstractApp {
         return (
             <JitsiThemeProvider>
                 <OverlayContainer />
+                <VoicemailFab />
+                <VoicemailInbox />
+                <VoicemailPrompt />
+                <VoicemailRecording />
+                <VoicemailPlayer />
             </JitsiThemeProvider>
         );
     }

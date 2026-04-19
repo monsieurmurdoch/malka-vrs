@@ -120,13 +120,13 @@
 
 **Visual Voicemail**
 - [x] Voicemail foundation — DB tables, API routes, Redux/UI shell, recording lifecycle
-- [ ] Video mailbox — callers can leave short video message (ASL)
-- [ ] Missed call → video message prompt
-- [ ] Voicemail inbox UI (thumbnail grid)
-- [ ] Video playback with controls
-- [ ] Voicemail notifications (badge count + push)
-- [ ] Message expiry (auto-delete after configurable period)
-- [ ] Storage backend: S3-compatible object storage for video files
+- [x] Video mailbox — callers can leave short video message (ASL)
+- [x] Missed call → video message prompt
+- [x] Voicemail inbox UI (thumbnail grid)
+- [x] Video playback with controls
+- [x] Voicemail notifications (badge count + live in-app updates)
+- [x] Message expiry (auto-delete after configurable period)
+- [x] Storage backend: S3-compatible object storage for video files
 
 </details>
 
@@ -280,13 +280,13 @@
 ### Visual Voicemail (Video Messaging)
 > Deaf users communicate in sign language — voicemail must be video-based, not audio
 
-- [ ] Video mailbox — callers leave short video message (ASL) when callee is offline
-- [ ] Missed call → "leave a video message" prompt
-- [ ] Voicemail inbox UI — thumbnail grid with sender, timestamp, duration
-- [ ] Video playback with standard controls
-- [ ] Voicemail notifications (badge count)
-- [ ] Message expiry (auto-delete, default 30 days)
-- [ ] S3-compatible storage backend for video files
+- [x] Video mailbox — callers leave short video message (ASL) when callee is offline
+- [x] Missed call → "leave a video message" prompt
+- [x] Voicemail inbox UI — thumbnail grid with sender, timestamp, duration
+- [x] Video playback with standard controls
+- [x] Voicemail notifications (badge count + live in-app updates)
+- [x] Message expiry (auto-delete, default 30 days)
+- [x] S3-compatible storage backend for video files
 
 ### Auto-Captioning (Speech-to-Text)
 > Live captions alongside the interpreter

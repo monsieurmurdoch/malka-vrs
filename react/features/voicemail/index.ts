@@ -8,6 +8,7 @@ export { default as VoicemailPlayer } from './components/web/VoicemailPlayer';
 export { default as VoicemailPrompt } from './components/web/VoicemailPrompt';
 export { default as VoicemailRecording } from './components/web/VoicemailRecording';
 export { default as VoicemailBadge } from './components/web/VoicemailBadge';
+export { default as VoicemailFab } from './components/web/VoicemailFab';
 export { default as VoicemailEmpty } from './components/web/VoicemailEmpty';
 
 // Actions
