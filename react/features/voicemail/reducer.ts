@@ -28,6 +28,7 @@ const INITIAL_STATE: VoicemailState = {
     totalCount: 0,
     unreadCount: 0,
     isLoading: false,
+    inboxOpen: false,
     currentMessage: null,
     playbackUrl: null,
     isPlayerOpen: false,
@@ -93,7 +94,7 @@ ReducerRegistry.register<VoicemailState>('features/voicemail',
                 return {
                     ...state,
                     messages: state.messages.map(m =>
-                        m.id === messageId ? { ...m, seen: 1 } : m
+                        m.id === messageId ? { ...m, seen: true } : m
                     ),
                     unreadCount: Math.max(0, state.unreadCount - 1)
                 };
@@ -161,6 +162,12 @@ ReducerRegistry.register<VoicemailState>('features/voicemail',
 
             case VOICEMAIL_CLEAR_ERROR:
                 return { ...state, error: null };
+
+            case 'VOICEMAIL_OPEN_INBOX':
+                return { ...state, inboxOpen: true };
+
+            case 'VOICEMAIL_CLOSE_INBOX':
+                return { ...state, inboxOpen: false };
 
             default:
                 return state;

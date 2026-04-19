@@ -39,9 +39,9 @@
 - [x] Role-based access (client, interpreter, admin, superadmin)
 - [x] Registration flows for all user types with validation
 - [x] Password hashing (bcrypt), rate limiting on auth endpoints
-- [ ] Phone number as alternate login identifier
-- [ ] SMS/OTP verification via Twilio
-- [ ] Password reset flow
+- [x] Phone number as alternate login identifier
+- [x] SMS/OTP verification via Twilio
+- [x] Password reset flow
 
 **Interpreter Queue**
 - [x] WebSocket-based queue with real-time state (available / on-break / in-call / teamed)
@@ -298,9 +298,9 @@
 - [ ] Ephemeral-only mode for U.S. VRS (no transcript retention)
 
 ### Auth Enhancements
-- [ ] Phone number as alternate login
-- [ ] SMS/OTP verification via Twilio
-- [ ] Password reset flow
+- [x] Phone number as alternate login
+- [x] SMS/OTP verification via Twilio
+- [x] Password reset flow
 - [ ] STS (Speech-to-Speech) mode for speech disabilities
 
 ---

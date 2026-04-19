@@ -15,7 +15,7 @@ export interface VoicemailMessage {
     duration_seconds: number | null;
     content_type: string;
     status: 'recording' | 'available' | 'failed' | 'expired';
-    seen: number;
+    seen: boolean;
     expires_at: string;
     created_at: string;
     // Joined fields
@@ -45,6 +45,7 @@ export interface VoicemailState {
     totalCount: number;
     unreadCount: number;
     isLoading: boolean;
+    inboxOpen: boolean;
 
     // Current message being played
     currentMessage: VoicemailMessage | null;
