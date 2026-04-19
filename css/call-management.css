@@ -553,6 +553,9 @@ body.vrs-dark {
     --vrs-text-secondary: #94a3b8;
     --vrs-border-color: #1e3a5f;
     --vrs-accent: #3b82f6;
+    --vrs-input-bg: #0f1d2e;
+    --vrs-toggle-bg: #1e3a5f;
+    --vrs-overlay-bg: rgba(6, 19, 32, 0.98);
 
     background-color: var(--vrs-bg-primary);
     color: var(--vrs-text-primary);
@@ -571,6 +574,121 @@ body.vrs-dark .filmstrip {
     background: var(--vrs-bg-secondary);
 }
 
+/* Profile overlay panel */
+body.vrs-dark .vrs-profile-overlay,
+body.vrs-dark [class*="profileOverlay"] {
+    background-color: var(--vrs-overlay-bg);
+    border-left-color: var(--vrs-border-color);
+}
+
+/* Profile sections / cards */
+body.vrs-dark [class*="profileOverlay"] section,
+body.vrs-dark [class*="profileOverlay"] [class*="section"] {
+    background-color: var(--vrs-bg-card);
+    border-color: var(--vrs-border-color);
+}
+
+/* Inputs in profile / settings */
+body.vrs-dark [class*="profileOverlay"] input,
+body.vrs-dark [class*="profileOverlay"] select,
+body.vrs-dark [class*="profileOverlay"] textarea {
+    background-color: var(--vrs-input-bg);
+    border-color: var(--vrs-border-color);
+    color: var(--vrs-text-primary);
+}
+
+body.vrs-dark [class*="profileOverlay"] input:focus,
+body.vrs-dark [class*="profileOverlay"] select:focus,
+body.vrs-dark [class*="profileOverlay"] textarea:focus {
+    border-color: var(--vrs-accent);
+}
+
+/* Toggle switches in profile */
+body.vrs-dark [class*="profileOverlay"] [role="switch"] {
+    background-color: var(--vrs-toggle-bg);
+}
+
+body.vrs-dark [class*="profileOverlay"] [role="switch"][aria-checked="true"] {
+    background-color: var(--vrs-accent);
+}
+
+/* Contact drawer overrides */
+body.vrs-dark .contacts-drawer,
+body.vrs-dark [class*="contactsDrawer"] {
+    background-color: var(--vrs-overlay-bg);
+    border-left-color: var(--vrs-border-color);
+}
+
+body.vrs-dark .contacts-drawer input,
+body.vrs-dark .contacts-drawer select,
+body.vrs-dark .contacts-drawer textarea,
+body.vrs-dark [class*="contactsDrawer"] input,
+body.vrs-dark [class*="contactsDrawer"] select,
+body.vrs-dark [class*="contactsDrawer"] textarea {
+    background-color: var(--vrs-input-bg);
+    border-color: var(--vrs-border-color);
+    color: var(--vrs-text-primary);
+}
+
+body.vrs-dark .contacts-drawer input:focus,
+body.vrs-dark .contacts-drawer select:focus,
+body.vrs-dark [class*="contactsDrawer"] input:focus,
+body.vrs-dark [class*="contactsDrawer"] select:focus {
+    border-color: var(--vrs-accent);
+}
+
+body.vrs-dark .contacts-drawer button,
+body.vrs-dark [class*="contactsDrawer"] button {
+    color: var(--vrs-text-primary);
+}
+
+/* Call transfer / conference dialogs — dark already dark, just ensure consistency */
+body.vrs-dark .call-transfer-card,
+body.vrs-dark .conference-add-card {
+    background: var(--vrs-bg-card);
+    border-color: var(--vrs-border-color);
+}
+
+body.vrs-dark .call-transfer-form input,
+body.vrs-dark .call-transfer-form select,
+body.vrs-dark .conference-add-form input {
+    background: var(--vrs-input-bg);
+    border-color: var(--vrs-border-color);
+    color: var(--vrs-text-primary);
+}
+
+/* Chat panel overrides */
+body.vrs-dark [class*="inCallChat"],
+body.vrs-dark [class*="InCallChat"] {
+    background-color: var(--vrs-bg-card);
+    border-color: var(--vrs-border-color);
+}
+
+body.vrs-dark [class*="inCallChat"] input,
+body.vrs-dark [class*="InCallChat"] input {
+    background-color: var(--vrs-input-bg);
+    border-color: var(--vrs-border-color);
+    color: var(--vrs-text-primary);
+}
+
+/* Call waiting card — already dark themed, ensure it uses vars */
+body.vrs-dark .call-waiting-card {
+    background: var(--vrs-bg-card);
+}
+
+/* Dark mode toggle in settings row */
+body.vrs-dark [class*="toggleRow"] .dark-mode-toggle {
+    border-color: var(--vrs-border-color);
+    color: var(--vrs-text-secondary);
+}
+
+body.vrs-dark [class*="toggleRow"] .dark-mode-toggle:hover {
+    border-color: var(--vrs-accent);
+    color: var(--vrs-accent);
+}
+
+/* ---- LIGHT MODE THEME ---- */
+
 body.vrs-light {
     --vrs-bg-primary: #ffffff;
     --vrs-bg-secondary: #f8fafc;
@@ -579,4 +697,229 @@ body.vrs-light {
     --vrs-text-secondary: #475569;
     --vrs-border-color: #e2e8f0;
     --vrs-accent: #2563eb;
+    --vrs-input-bg: #f1f5f9;
+    --vrs-toggle-bg: #cbd5e1;
+    --vrs-overlay-bg: rgba(255, 255, 255, 0.98);
+
+    background-color: var(--vrs-bg-primary);
+    color: var(--vrs-text-primary);
+}
+
+body.vrs-light .new-toolbox {
+    background: var(--vrs-bg-secondary);
+    border-color: var(--vrs-border-color);
+}
+
+body.vrs-light .toolbox-content {
+    background: var(--vrs-bg-card);
+}
+
+body.vrs-light .filmstrip {
+    background: var(--vrs-bg-secondary);
+}
+
+/* Profile overlay — light */
+body.vrs-light .vrs-profile-overlay,
+body.vrs-light [class*="profileOverlay"] {
+    background-color: var(--vrs-overlay-bg);
+    border-left-color: var(--vrs-border-color);
+    box-shadow: -8px 0 30px rgba(0, 0, 0, 0.08);
+}
+
+body.vrs-light [class*="profileOverlay"] h2,
+body.vrs-light [class*="profileOverlay"] [class*="title"] {
+    color: var(--vrs-text-primary);
+}
+
+body.vrs-light [class*="profileOverlay"] [class*="sectionTitle"],
+body.vrs-light [class*="profileOverlay"] [class*="label"] {
+    color: var(--vrs-text-secondary);
+}
+
+body.vrs-light [class*="profileOverlay"] [class*="section"] {
+    background-color: var(--vrs-bg-secondary);
+    border-color: var(--vrs-border-color);
+}
+
+body.vrs-light [class*="profileOverlay"] input,
+body.vrs-light [class*="profileOverlay"] select,
+body.vrs-light [class*="profileOverlay"] textarea {
+    background-color: var(--vrs-input-bg);
+    border-color: var(--vrs-border-color);
+    color: var(--vrs-text-primary);
+}
+
+body.vrs-light [class*="profileOverlay"] input:focus,
+body.vrs-light [class*="profileOverlay"] select:focus,
+body.vrs-light [class*="profileOverlay"] textarea:focus {
+    border-color: var(--vrs-accent);
+}
+
+body.vrs-light [class*="profileOverlay"] [role="switch"] {
+    background-color: var(--vrs-toggle-bg);
+}
+
+body.vrs-light [class*="profileOverlay"] [role="switch"][aria-checked="true"] {
+    background-color: var(--vrs-accent);
+}
+
+body.vrs-light [class*="profileOverlay"] [class*="closeBtn"] {
+    color: var(--vrs-text-secondary);
+}
+
+body.vrs-light [class*="profileOverlay"] [class*="closeBtn"]:hover {
+    background-color: var(--vrs-bg-secondary);
+}
+
+body.vrs-light [class*="profileOverlay"] [class*="saveBtn"],
+body.vrs-light [class*="profileOverlay"] [class*="submitBtn"] {
+    background-color: var(--vrs-accent);
+    color: #fff;
+}
+
+body.vrs-light [class*="profileOverlay"] [class*="statusBadge"] {
+    background-color: var(--vrs-bg-secondary);
+    border-color: var(--vrs-border-color);
+    color: var(--vrs-text-secondary);
+}
+
+body.vrs-light [class*="profileOverlay"] [class*="toggleLabel"] {
+    color: var(--vrs-text-primary);
+}
+
+body.vrs-light [class*="profileOverlay"] [class*="toggleDesc"] {
+    color: var(--vrs-text-secondary);
+}
+
+/* Contact drawer — light */
+body.vrs-light .contacts-drawer,
+body.vrs-light [class*="contactsDrawer"] {
+    background-color: var(--vrs-overlay-bg);
+    border-left-color: var(--vrs-border-color);
+    box-shadow: -8px 0 30px rgba(0, 0, 0, 0.08);
+}
+
+body.vrs-light .contacts-drawer input,
+body.vrs-light .contacts-drawer select,
+body.vrs-light .contacts-drawer textarea,
+body.vrs-light [class*="contactsDrawer"] input,
+body.vrs-light [class*="contactsDrawer"] select,
+body.vrs-light [class*="contactsDrawer"] textarea {
+    background-color: var(--vrs-input-bg);
+    border-color: var(--vrs-border-color);
+    color: var(--vrs-text-primary);
+}
+
+body.vrs-light .contacts-drawer input:focus,
+body.vrs-light .contacts-drawer select:focus,
+body.vrs-light [class*="contactsDrawer"] input:focus,
+body.vrs-light [class*="contactsDrawer"] select:focus {
+    border-color: var(--vrs-accent);
+}
+
+/* Call transfer / conference — light */
+body.vrs-light .call-transfer-card,
+body.vrs-light .conference-add-card {
+    background: var(--vrs-bg-card);
+    border-color: var(--vrs-border-color);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+body.vrs-light .call-transfer-header h3,
+body.vrs-light .conference-add-header h3 {
+    color: var(--vrs-text-primary);
+}
+
+body.vrs-light .call-transfer-form input,
+body.vrs-light .call-transfer-form select,
+body.vrs-light .conference-add-form input {
+    background: var(--vrs-input-bg);
+    border-color: var(--vrs-border-color);
+    color: var(--vrs-text-primary);
+}
+
+body.vrs-light .call-transfer-form label,
+body.vrs-light .conference-add-form label {
+    color: var(--vrs-text-secondary);
+}
+
+body.vrs-light .cancel-btn {
+    border-color: var(--vrs-border-color);
+    color: var(--vrs-text-secondary);
+}
+
+body.vrs-light .transfer-btn,
+body.vrs-light .add-btn {
+    background: var(--vrs-accent);
+}
+
+body.vrs-light .call-transfer-pending {
+    color: var(--vrs-text-primary);
+}
+
+body.vrs-light .transfer-spinner {
+    border-color: var(--vrs-border-color);
+    border-top-color: var(--vrs-accent);
+}
+
+body.vrs-light .conference-add-description {
+    color: var(--vrs-text-secondary);
+}
+
+/* Call waiting card — light */
+body.vrs-light .call-waiting-overlay {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+body.vrs-light .call-waiting-card {
+    background: var(--vrs-bg-card);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+body.vrs-light .call-waiting-card h3 {
+    color: var(--vrs-text-primary);
+}
+
+body.vrs-light .call-waiting-caller {
+    color: var(--vrs-accent);
+}
+
+body.vrs-light .call-waiting-status {
+    color: var(--vrs-text-secondary);
+}
+
+/* Chat panel — light */
+body.vrs-light [class*="inCallChat"],
+body.vrs-light [class*="InCallChat"] {
+    background-color: var(--vrs-bg-card);
+    border-color: var(--vrs-border-color);
+}
+
+body.vrs-light [class*="inCallChat"] input,
+body.vrs-light [class*="InCallChat"] input {
+    background-color: var(--vrs-input-bg);
+    border-color: var(--vrs-border-color);
+    color: var(--vrs-text-primary);
+}
+
+/* Dark mode toggle — light */
+body.vrs-light .dark-mode-toggle {
+    border-color: var(--vrs-border-color);
+    color: var(--vrs-text-secondary);
+}
+
+body.vrs-light .dark-mode-toggle:hover {
+    border-color: var(--vrs-accent);
+    color: var(--vrs-accent);
+}
+
+/* Profile button in VRSLayout — light */
+body.vrs-light [class*="profileBtn"] {
+    background-color: var(--vrs-bg-secondary);
+    border-color: var(--vrs-border-color);
+    color: var(--vrs-text-primary);
+}
+
+body.vrs-light [class*="profileBtn"]:hover {
+    background-color: var(--vrs-input-bg);
 }

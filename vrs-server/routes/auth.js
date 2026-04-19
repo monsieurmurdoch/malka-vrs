@@ -487,4 +487,66 @@ router.post('/password/reset', authLimiter, validate(resetPasswordSchema), async
     }
 });
 
+// --- Change password (authenticated) ---
+router.post('/password/change', authLimiter, async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Authorization required', code: 'AUTH_REQUIRED' });
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    let user;
+
+    try {
+        user = normalizeAuthClaims(verifyJwtToken(token));
+    } catch {
+        return res.status(401).json({ error: 'Invalid token', code: 'AUTH_INVALID' });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+        return res.status(400).json({ error: 'currentPassword and newPassword are required', code: 'VALIDATION_ERROR' });
+    }
+
+    if (newPassword.length < 8) {
+        return res.status(400).json({ error: 'New password must be at least 8 characters', code: 'VALIDATION_ERROR' });
+    }
+
+    try {
+        let dbUser;
+        if (user.role === 'client') {
+            dbUser = await db.getClient(user.id);
+        } else if (user.role === 'interpreter') {
+            dbUser = await db.getInterpreter(user.id);
+        } else {
+            return res.status(403).json({ error: 'Unsupported role', code: 'FORBIDDEN' });
+        }
+
+        if (!dbUser || !dbUser.password_hash) {
+            return res.status(400).json({ error: 'No password set for this account', code: 'NO_PASSWORD' });
+        }
+
+        const valid = await bcrypt.compare(currentPassword, dbUser.password_hash);
+        if (!valid) {
+            return res.status(401).json({ error: 'Current password is incorrect', code: 'WRONG_PASSWORD' });
+        }
+
+        const salt = await bcrypt.genSalt(12);
+        const passwordHash = await bcrypt.hash(newPassword, salt);
+
+        if (user.role === 'client') {
+            await db.updateClientPassword(user.id, passwordHash);
+        } else {
+            await db.updateInterpreterPassword(user.id, passwordHash);
+        }
+
+        activityLogger.log('password_changed', { userId: user.id, role: user.role });
+        res.json({ success: true });
+    } catch (error) {
+        req.log.error({ err: error }, 'Password change failed');
+        res.status(500).json({ error: 'Password change failed', code: 'INTERNAL_ERROR' });
+    }
+});
+
 module.exports = { router, setLegacyFlag };

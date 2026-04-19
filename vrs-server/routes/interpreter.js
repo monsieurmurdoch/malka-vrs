@@ -69,6 +69,33 @@ router.get('/profile', authenticateUser, async (req, res) => {
 });
 
 // ============================================
+// UPDATE PROFILE
+// ============================================
+
+router.put('/profile', authenticateUser, async (req, res) => {
+    if (req.user.role !== 'interpreter') {
+        return res.status(403).json({ error: 'Interpreter access required', code: 'FORBIDDEN' });
+    }
+
+    const { name, email, languages } = req.body;
+
+    try {
+        await db.updateInterpreter(req.user.id, { name, email, languages });
+        const interpreter = await db.getInterpreter(req.user.id);
+        res.json({
+            id: interpreter.id,
+            name: interpreter.name,
+            email: interpreter.email,
+            languages: interpreter.languages,
+            active: interpreter.active
+        });
+    } catch (error) {
+        req.log.error({ err: error }, 'Interpreter profile update error');
+        res.status(500).json({ error: 'Failed to update profile', code: 'INTERNAL_ERROR' });
+    }
+});
+
+// ============================================
 // CALL HISTORY
 // ============================================
 

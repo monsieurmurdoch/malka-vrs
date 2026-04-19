@@ -522,6 +522,48 @@ async function createTables() {
             updated_by TEXT,
             updated_at TIMESTAMPTZ DEFAULT NOW()
         );
+
+        -- ================================================
+        -- Contact Notes (timestamped notes per contact)
+        -- ================================================
+        CREATE TABLE IF NOT EXISTS contact_notes (
+            id TEXT PRIMARY KEY,
+            contact_id TEXT NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+            author_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+            content TEXT NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_contact_notes_contact ON contact_notes(contact_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_contact_notes_author ON contact_notes(author_id);
+
+        -- ================================================
+        -- Contact Sync Log (delta sync across devices)
+        -- ================================================
+        CREATE TABLE IF NOT EXISTS contact_sync_log (
+            id TEXT PRIMARY KEY,
+            client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+            entity_type TEXT NOT NULL DEFAULT 'contact',
+            entity_id TEXT NOT NULL,
+            action TEXT NOT NULL,
+            snapshot JSONB,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_sync_log_client_time ON contact_sync_log(client_id, created_at DESC);
+
+        -- ================================================
+        -- Google OAuth Tokens (for Google Contacts import)
+        -- ================================================
+        CREATE TABLE IF NOT EXISTS google_oauth_tokens (
+            client_id TEXT PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
+            access_token TEXT NOT NULL,
+            refresh_token TEXT,
+            token_type TEXT DEFAULT 'Bearer',
+            expires_at TIMESTAMPTZ,
+            scope TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
     `;
 
     await pool.query(ddl);
@@ -833,6 +875,33 @@ async function getAllClients() {
 async function getClient(id) {
     const rows = await runQuery('SELECT * FROM clients WHERE id = $1', [id]);
     return rows[0];
+}
+
+async function updateClient(id, { name, email, organization }) {
+    const updates = [];
+    const params = [];
+    let paramIdx = 1;
+
+    if (name !== undefined) {
+        updates.push(`name = $${paramIdx++}`);
+        params.push(name);
+    }
+    if (email !== undefined) {
+        updates.push(`email = $${paramIdx++}`);
+        params.push(email);
+    }
+    if (organization !== undefined) {
+        updates.push(`organization = $${paramIdx++}`);
+        params.push(organization);
+    }
+
+    if (updates.length === 0) return 0;
+
+    params.push(id);
+    return await runUpdate(
+        `UPDATE clients SET ${updates.join(', ')} WHERE id = $${paramIdx}`,
+        params
+    );
 }
 
 async function getClientByEmail(email) {
@@ -1720,7 +1789,6 @@ async function getContactCallHistory(clientId, contactId) {
 }
 
 // ============================================
-<<<<<<< HEAD
 // CLIENT PREFERENCES OPERATIONS
 // ============================================
 
@@ -2165,25 +2233,15 @@ async function updateInterpreterPassword(userId, newPasswordHash) {
 }
 
 // ============================================
-=======
->>>>>>> main
 // VOICEMAIL OPERATIONS
 // ============================================
 
 async function createVoicemailMessage({ id, callerId, calleeId, calleePhone, roomName, recordingFilename, storageKey, expiresAt }) {
     await runInsert(
-<<<<<<< HEAD
         `INSERT INTO voicemail_messages (id, caller_id, callee_id, callee_phone, room_name, recording_filename, storage_key, status, expires_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
         [id, callerId, calleeId || null, calleePhone || null, roomName, recordingFilename, storageKey, 'recording', expiresAt]
     );
-=======
-        `INSERT INTO voicemail_messages (id, caller_id, callee_id, callee_phone, room_name, recording_filename, storage_key, expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [id, callerId, calleeId || null, calleePhone || null, roomName, recordingFilename, storageKey, expiresAt]
-    );
-    return { id };
->>>>>>> main
 }
 
 async function getVoicemailMessage(id) {
@@ -2200,16 +2258,11 @@ async function getVoicemailMessageByRoomName(roomName) {
 }
 
 async function updateVoicemailMessage(id, updates) {
-<<<<<<< HEAD
-=======
-    const allowed = ['status', 'storage_key', 'thumbnail_key', 'duration_seconds', 'file_size_bytes', 'content_type', 'seen'];
->>>>>>> main
+    const allowed = ['storage_key', 'thumbnail_key', 'duration_seconds', 'file_size_bytes', 'content_type', 'status', 'seen'];
     const fields = [];
     const params = [];
     let idx = 1;
 
-<<<<<<< HEAD
-    const allowed = ['storage_key', 'thumbnail_key', 'duration_seconds', 'file_size_bytes', 'content_type', 'status', 'seen'];
     for (const key of allowed) {
         if (updates[key] !== undefined) {
             fields.push(`${key} = $${idx++}`);
@@ -2218,15 +2271,6 @@ async function updateVoicemailMessage(id, updates) {
     }
 
     if (fields.length === 0) return 0;
-=======
-    for (const key of allowed) {
-        if (updates[key] !== undefined) {
-            fields.push(`${key} = $${idx++}`);
-            params.push(key === 'seen' ? !!updates[key] : updates[key]);
-        }
-    }
-    if (!fields.length) return 0;
->>>>>>> main
 
     params.push(id);
     return await runUpdate(
@@ -2239,27 +2283,12 @@ async function deleteVoicemailMessage(id) {
     return await runUpdate('DELETE FROM voicemail_messages WHERE id = $1', [id]);
 }
 
-<<<<<<< HEAD
 async function getVoicemailInbox(calleeId, limit = 20, offset = 0) {
     return await runQuery(
         `SELECT vm.*, c.name as caller_name, cp.phone_number as caller_phone
          FROM voicemail_messages vm
          LEFT JOIN clients c ON c.id = vm.caller_id
          LEFT JOIN client_phone_numbers cp ON cp.client_id = c.id AND cp.is_primary = true AND cp.active = true
-=======
-async function markVoicemailSeen(messageId, calleeId) {
-    return await runUpdate(
-        'UPDATE voicemail_messages SET seen = true WHERE id = $1 AND callee_id = $2',
-        [messageId, calleeId]
-    );
-}
-
-async function getVoicemailInbox(calleeId, limit = 20, offset = 0) {
-    return await runQuery(
-        `SELECT vm.*, c.name AS caller_name
-         FROM voicemail_messages vm
-         LEFT JOIN clients c ON c.id = vm.caller_id
->>>>>>> main
          WHERE vm.callee_id = $1 AND vm.status = 'available'
          ORDER BY vm.created_at DESC
          LIMIT $2 OFFSET $3`,
@@ -2269,32 +2298,20 @@ async function getVoicemailInbox(calleeId, limit = 20, offset = 0) {
 
 async function getVoicemailInboxCount(calleeId) {
     const rows = await runQuery(
-<<<<<<< HEAD
         `SELECT COUNT(*) as total FROM voicemail_messages WHERE callee_id = $1 AND status = 'available'`,
         [calleeId]
     );
     return Number(rows[0]?.total) || 0;
-=======
-        "SELECT COUNT(*)::int AS count FROM voicemail_messages WHERE callee_id = $1 AND status = 'available'",
-        [calleeId]
-    );
-    return Number(rows[0]?.count) || 0;
->>>>>>> main
 }
 
 async function getVoicemailUnreadCount(calleeId) {
     const rows = await runQuery(
-<<<<<<< HEAD
         `SELECT COUNT(*) as count FROM voicemail_messages WHERE callee_id = $1 AND status = 'available' AND seen = false`,
-=======
-        "SELECT COUNT(*)::int AS count FROM voicemail_messages WHERE callee_id = $1 AND status = 'available' AND seen = false",
->>>>>>> main
         [calleeId]
     );
     return Number(rows[0]?.count) || 0;
 }
 
-<<<<<<< HEAD
 async function markVoicemailSeen(id, calleeId) {
     return await runUpdate(
         'UPDATE voicemail_messages SET seen = true WHERE id = $1 AND callee_id = $2',
@@ -2313,34 +2330,19 @@ async function getVoicemailStorageUsage(calleeId) {
 async function getVoicemailMessageCount(calleeId) {
     const rows = await runQuery(
         `SELECT COUNT(*) as count FROM voicemail_messages WHERE callee_id = $1 AND status = 'available'`,
-=======
-async function getVoicemailMessageCount(calleeId) {
-    const rows = await runQuery(
-        "SELECT COUNT(*)::int AS count FROM voicemail_messages WHERE callee_id = $1 AND status IN ('available', 'recording')",
->>>>>>> main
         [calleeId]
     );
     return Number(rows[0]?.count) || 0;
 }
 
-<<<<<<< HEAD
 async function getExpiredVoicemailMessages() {
     return await runQuery(
         `SELECT * FROM voicemail_messages WHERE status = 'available' AND expires_at < NOW()`
     );
-=======
-async function getVoicemailStorageUsage(calleeId) {
-    const rows = await runQuery(
-        "SELECT COALESCE(SUM(file_size_bytes), 0)::bigint AS bytes FROM voicemail_messages WHERE callee_id = $1 AND status = 'available'",
-        [calleeId]
-    );
-    return Number(rows[0]?.bytes) || 0;
->>>>>>> main
 }
 
 async function getActiveVoicemailRecordings() {
     return await runQuery(
-<<<<<<< HEAD
         `SELECT * FROM voicemail_messages WHERE status = 'recording'`
     );
 }
@@ -2382,16 +2384,6 @@ async function seedVoicemailSettings() {
             await setVoicemailSetting(key, value, 'system');
         }
     }
-=======
-        "SELECT * FROM voicemail_messages WHERE status = 'recording' ORDER BY created_at"
-    );
-}
-
-async function getExpiredVoicemailMessages() {
-    return await runQuery(
-        "SELECT * FROM voicemail_messages WHERE expires_at < NOW() AND status = 'available'"
-    );
->>>>>>> main
 }
 
 async function getAllVoicemailMessages({ status, callerId, calleeId, limit = 50, offset = 0 } = {}) {
@@ -2399,7 +2391,6 @@ async function getAllVoicemailMessages({ status, callerId, calleeId, limit = 50,
     const params = [];
     let idx = 1;
 
-<<<<<<< HEAD
     if (status) { conditions.push(`vm.status = $${idx++}`); params.push(status); }
     if (callerId) { conditions.push(`vm.caller_id = $${idx++}`); params.push(callerId); }
     if (calleeId) { conditions.push(`vm.callee_id = $${idx++}`); params.push(calleeId); }
@@ -2409,17 +2400,6 @@ async function getAllVoicemailMessages({ status, callerId, calleeId, limit = 50,
 
     return await runQuery(
         `SELECT vm.*, c.name as caller_name, cl.name as callee_name
-=======
-    if (status) { conditions.push(`status = $${idx++}`); params.push(status); }
-    if (callerId) { conditions.push(`caller_id = $${idx++}`); params.push(callerId); }
-    if (calleeId) { conditions.push(`callee_id = $${idx++}`); params.push(calleeId); }
-
-    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    params.push(limit, offset);
-
-    return await runQuery(
-        `SELECT vm.*, c.name AS caller_name, cl.name AS callee_name
->>>>>>> main
          FROM voicemail_messages vm
          LEFT JOIN clients c ON c.id = vm.caller_id
          LEFT JOIN clients cl ON cl.id = vm.callee_id
@@ -2433,140 +2413,160 @@ async function getAllVoicemailMessages({ status, callerId, calleeId, limit = 50,
 async function getVoicemailStorageStats() {
     const rows = await runQuery(`
         SELECT
-<<<<<<< HEAD
             COUNT(*) as total_messages,
             COALESCE(SUM(file_size_bytes), 0) as total_size_bytes,
             COUNT(CASE WHEN status = 'recording' THEN 1 END) as active_recordings
          FROM voicemail_messages
     `);
     return rows[0] || { total_messages: 0, total_size_bytes: 0, active_recordings: 0 };
-=======
-            COUNT(*) FILTER (WHERE status = 'available')::int AS total_messages,
-            COALESCE(SUM(file_size_bytes) FILTER (WHERE status = 'available'), 0)::bigint AS total_size_bytes,
-            COUNT(*) FILTER (WHERE status = 'recording')::int AS active_recordings
-        FROM voicemail_messages
-    `);
-    const r = rows[0] || {};
-    return {
-        total_messages: Number(r.total_messages) || 0,
-        total_size_bytes: Number(r.total_size_bytes) || 0,
-        active_recordings: Number(r.active_recordings) || 0
-    };
 }
 
-// --- Voicemail settings ---
+// ============================================
+// CONTACT NOTES OPERATIONS
+// ============================================
 
-async function getVoicemailSetting(key) {
-    const rows = await runQuery('SELECT setting_value FROM voicemail_settings WHERE setting_key = $1', [key]);
-    return rows[0]?.setting_value ?? null;
+async function getContactNotes(contactId) {
+    return await runQuery(
+        'SELECT * FROM contact_notes WHERE contact_id = $1 ORDER BY created_at DESC',
+        [contactId]
+    );
 }
 
-async function setVoicemailSetting(key, value, updatedBy) {
+async function createContactNote({ contactId, authorId, content }) {
     const id = uuidv4();
     await runInsert(
-        `INSERT INTO voicemail_settings (id, setting_key, setting_value, updated_by)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (setting_key) DO UPDATE
-           SET setting_value = EXCLUDED.setting_value,
-               updated_by = EXCLUDED.updated_by,
-               updated_at = NOW()`,
-        [id, key, String(value), updatedBy || null]
+        'INSERT INTO contact_notes (id, contact_id, author_id, content) VALUES ($1, $2, $3, $4)',
+        [id, contactId, authorId, content]
+    );
+    return { id, contact_id: contactId, author_id: authorId, content, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+}
+
+async function updateContactNote(noteId, content) {
+    return await runUpdate(
+        'UPDATE contact_notes SET content = $1, updated_at = NOW() WHERE id = $2',
+        [content, noteId]
     );
 }
 
-async function getAllVoicemailSettings() {
-    return await runQuery('SELECT setting_key, setting_value, updated_by, updated_at FROM voicemail_settings ORDER BY setting_key');
+async function deleteContactNote(noteId) {
+    return await runUpdate('DELETE FROM contact_notes WHERE id = $1', [noteId]);
 }
 
-async function seedVoicemailSettings() {
-    const defaults = [
-        ['vm-enabled', 'true'],
-        ['vm-max-length', '180'],
-        ['vm-max-messages', '100'],
-        ['vm-retention-days', '30'],
-        ['vm-storage-quota-mb', '500']
-    ];
-    for (const [key, value] of defaults) {
-        const id = uuidv4();
-        await runInsert(
-            `INSERT INTO voicemail_settings (id, setting_key, setting_value)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (setting_key) DO NOTHING`,
-            [id, key, value]
-        );
+async function getContactTimeline(clientId, contactId) {
+    const contact = await getContact(clientId, contactId);
+    if (!contact) return [];
+
+    const linkedId = contact.linked_client_id;
+    const phone = contact.phone_number;
+    const parts = [];
+    const params = [];
+    let idx = 1;
+
+    // Calls
+    if (linkedId) {
+        params.push(clientId, linkedId);
+        parts.push(`(SELECT 'call' AS type, c.id, c.started_at AS timestamp,
+            json_build_object('room_name', c.room_name, 'duration_minutes', c.duration_minutes,
+                              'status', c.status, 'call_type', c.call_type) AS data
+         FROM calls c
+         WHERE (c.client_id = $${idx} AND c.callee_id = $${idx + 1})
+            OR (c.callee_id = $${idx} AND c.client_id = $${idx + 1}))`);
+        idx += 2;
     }
+
+    // Missed calls
+    if (linkedId) {
+        params.push(linkedId, clientId);
+        parts.push(`(SELECT 'missed_call' AS type, mc.id, mc.created_at AS timestamp,
+            json_build_object('callee_phone', mc.callee_phone, 'room_name', mc.room_name) AS data
+         FROM missed_calls mc
+         WHERE (mc.caller_id = $${idx} AND mc.callee_client_id = $${idx + 1})
+            OR (mc.callee_client_id = $${idx} AND mc.caller_id = $${idx + 1}))`);
+        idx += 2;
+    }
+
+    // Voicemail
+    if (linkedId) {
+        params.push(clientId, linkedId);
+        parts.push(`(SELECT 'voicemail' AS type, vm.id, vm.created_at AS timestamp,
+            json_build_object('duration_seconds', vm.duration_seconds, 'status', vm.status,
+                              'content_type', vm.content_type) AS data
+         FROM voicemail_messages vm
+         WHERE (vm.caller_id = $${idx} AND vm.callee_id = $${idx + 1})
+            OR (vm.callee_id = $${idx} AND vm.caller_id = $${idx + 1}))`);
+        idx += 2;
+    }
+
+    // Notes
+    params.push(contactId);
+    parts.push(`(SELECT 'note' AS type, cn.id, cn.created_at AS timestamp,
+        json_build_object('content', cn.content, 'author_id', cn.author_id) AS data
+     FROM contact_notes cn
+     WHERE cn.contact_id = $${idx})`);
+    idx++;
+
+    if (parts.length === 0) return [];
+
+    params.push(100);
+    const sql = parts.join('\n UNION ALL \n') + ` ORDER BY timestamp DESC LIMIT $${idx}`;
+
+    return await runQuery(sql, params);
 }
 
 // ============================================
-// DEVICE HANDOFF: ACTIVE SESSIONS
+// CONTACT SYNC LOG OPERATIONS
 // ============================================
 
-async function getAllActiveSessions() {
-    return await runQuery('SELECT * FROM active_sessions');
-}
-
-async function upsertActiveSession({ userId, roomName, interpreterId, deviceId }) {
+async function logContactChange({ clientId, entityType, entityId, action, snapshot }) {
+    const id = uuidv4();
     await runInsert(
-        `INSERT INTO active_sessions (user_id, room_name, interpreter_id, device_id)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (user_id) DO UPDATE
-           SET room_name = EXCLUDED.room_name,
-               interpreter_id = EXCLUDED.interpreter_id,
-               device_id = EXCLUDED.device_id,
-               updated_at = NOW()`,
-        [userId, roomName, interpreterId || null, deviceId || null]
+        `INSERT INTO contact_sync_log (id, client_id, entity_type, entity_id, action, snapshot)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [id, clientId, entityType, entityId, action, snapshot ? JSON.stringify(snapshot) : null]
+    );
+    return id;
+}
+
+async function getContactChangesSince(clientId, sinceTimestamp) {
+    return await runQuery(
+        `SELECT id, client_id, entity_type, entity_id, action, snapshot, created_at
+         FROM contact_sync_log
+         WHERE client_id = $1 AND created_at > $2
+         ORDER BY created_at ASC
+         LIMIT 500`,
+        [clientId, sinceTimestamp]
     );
 }
 
-async function deleteActiveSession(userId) {
-    return await runUpdate('DELETE FROM active_sessions WHERE user_id = $1', [userId]);
+// ============================================
+// GOOGLE OAUTH TOKEN OPERATIONS
+// ============================================
+
+async function getGoogleOAuthToken(clientId) {
+    const rows = await runQuery(
+        'SELECT * FROM google_oauth_tokens WHERE client_id = $1',
+        [clientId]
+    );
+    return rows[0] || null;
 }
 
-// ============================================
-// DEVICE HANDOFF: TOKENS
-// ============================================
-
-async function storeHandoffToken({ token, userId, roomName, interpreterId, fromDeviceId, targetDeviceId, expiresAt }) {
-    const expiresAtIso = typeof expiresAt === 'number' ? new Date(expiresAt).toISOString() : expiresAt;
+async function upsertGoogleOAuthToken({ clientId, accessToken, refreshToken, tokenType, expiresAt, scope }) {
     await runInsert(
-        `INSERT INTO handoff_tokens (token, user_id, room_name, interpreter_id, from_device_id, target_device_id, expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [token, userId, roomName, interpreterId || null, fromDeviceId || null, targetDeviceId || null, expiresAtIso]
+        `INSERT INTO google_oauth_tokens (client_id, access_token, refresh_token, token_type, expires_at, scope)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (client_id) DO UPDATE SET
+            access_token = EXCLUDED.access_token,
+            refresh_token = COALESCE(EXCLUDED.refresh_token, google_oauth_tokens.refresh_token),
+            token_type = EXCLUDED.token_type,
+            expires_at = EXCLUDED.expires_at,
+            scope = EXCLUDED.scope,
+            updated_at = NOW()`,
+        [clientId, accessToken, refreshToken || null, tokenType || 'Bearer', expiresAt, scope || null]
     );
 }
 
-async function getAllActiveHandoffTokens() {
-    return await runQuery('SELECT * FROM handoff_tokens WHERE expires_at > NOW()');
-}
-
-async function deleteHandoffToken(token) {
-    return await runUpdate('DELETE FROM handoff_tokens WHERE token = $1', [token]);
-}
-
-async function deleteHandoffTokensByUser(userId) {
-    return await runUpdate('DELETE FROM handoff_tokens WHERE user_id = $1', [userId]);
-}
-
-async function deleteExpiredHandoffTokens() {
-    return await runUpdate('DELETE FROM handoff_tokens WHERE expires_at <= NOW()');
-}
-
-// ============================================
-// SERVER STATE (queue persistence, counters)
-// ============================================
-
-async function getServerState(key) {
-    const rows = await runQuery('SELECT value FROM server_state WHERE key = $1', [key]);
-    return rows[0]?.value ?? null;
-}
-
-async function setServerState(key, value) {
-    await runInsert(
-        `INSERT INTO server_state (key, value) VALUES ($1, $2)
-         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
-        [key, value === null || value === undefined ? null : String(value)]
-    );
->>>>>>> main
+async function deleteGoogleOAuthToken(clientId) {
+    return await runUpdate('DELETE FROM google_oauth_tokens WHERE client_id = $1', [clientId]);
 }
 
 // ============================================
@@ -2594,6 +2594,7 @@ module.exports = {
     getClient,
     getClientByEmail,
     createClient,
+    updateClient,
     createCall,
     endCall,
     getCall,
@@ -2654,7 +2655,19 @@ module.exports = {
     migrateSpeedDialToContacts,
     ensureDefaultGroups,
     getContactCallHistory,
-<<<<<<< HEAD
+    // Contact notes
+    getContactNotes,
+    createContactNote,
+    updateContactNote,
+    deleteContactNote,
+    getContactTimeline,
+    // Contact sync
+    logContactChange,
+    getContactChangesSince,
+    // Google OAuth
+    getGoogleOAuthToken,
+    upsertGoogleOAuthToken,
+    deleteGoogleOAuthToken,
     // Client preferences
     getClientPreferences,
     updateClientPreferences,
@@ -2693,15 +2706,12 @@ module.exports = {
     consumePasswordReset,
     updateClientPassword,
     updateInterpreterPassword,
-=======
->>>>>>> main
     // Voicemail
     createVoicemailMessage,
     getVoicemailMessage,
     getVoicemailMessageByRoomName,
     updateVoicemailMessage,
     deleteVoicemailMessage,
-<<<<<<< HEAD
     getVoicemailInbox,
     getVoicemailInboxCount,
     getVoicemailUnreadCount,
@@ -2716,33 +2726,5 @@ module.exports = {
     seedVoicemailSettings,
     getAllVoicemailMessages,
     getVoicemailStorageStats,
-=======
-    markVoicemailSeen,
-    getVoicemailInbox,
-    getVoicemailInboxCount,
-    getVoicemailUnreadCount,
-    getVoicemailMessageCount,
-    getVoicemailStorageUsage,
-    getActiveVoicemailRecordings,
-    getExpiredVoicemailMessages,
-    getAllVoicemailMessages,
-    getVoicemailStorageStats,
-    getVoicemailSetting,
-    setVoicemailSetting,
-    getAllVoicemailSettings,
-    seedVoicemailSettings,
-    // Device handoff
-    getAllActiveSessions,
-    upsertActiveSession,
-    deleteActiveSession,
-    storeHandoffToken,
-    getAllActiveHandoffTokens,
-    deleteHandoffToken,
-    deleteHandoffTokensByUser,
-    deleteExpiredHandoffTokens,
-    // Server state
-    getServerState,
-    setServerState,
->>>>>>> main
     pool: () => pool
 };

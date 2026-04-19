@@ -224,6 +224,57 @@ export const contactsAPI = {
     // Migration
     migrateSpeedDial(): Promise<{ success: boolean; migrated: number }> {
         return apiFetch('/api/contacts/migrate-speed-dial', { method: 'POST' });
+    },
+
+    // Timeline
+    getTimeline(contactId: string): Promise<{ timeline: Array<{ type: string; id: string; timestamp: string; data: Record<string, any> }> }> {
+        return apiFetch(`/api/contacts/${contactId}/timeline`);
+    },
+
+    // Notes CRUD
+    getNotes(contactId: string): Promise<{ notes: Array<{ id: string; contact_id: string; author_id: string; content: string; created_at: string; updated_at: string }> }> {
+        return apiFetch(`/api/contacts/${contactId}/notes`);
+    },
+
+    addNote(contactId: string, content: string): Promise<{ note: { id: string; contact_id: string; author_id: string; content: string; created_at: string } }> {
+        return apiFetch(`/api/contacts/${contactId}/notes`, {
+            method: 'POST',
+            body: JSON.stringify({ content })
+        });
+    },
+
+    updateNote(contactId: string, noteId: string, content: string): Promise<{ success: boolean }> {
+        return apiFetch(`/api/contacts/${contactId}/notes/${noteId}`, {
+            method: 'PUT',
+            body: JSON.stringify({ content })
+        });
+    },
+
+    deleteNote(contactId: string, noteId: string): Promise<{ success: boolean }> {
+        return apiFetch(`/api/contacts/${contactId}/notes/${noteId}`, { method: 'DELETE' });
+    },
+
+    // Sync
+    sync(since?: string | null): Promise<{ changes: any[]; serverTimestamp: string }> {
+        const qs = since ? `?since=${encodeURIComponent(since)}` : '';
+
+        return apiFetch(`/api/contacts/sync${qs}`);
+    },
+
+    // Google Contacts
+    googleAuthUrl(): Promise<{ url: string }> {
+        return apiFetch('/api/google-contacts/auth-url');
+    },
+
+    googleFetch(): Promise<{ contacts: Array<Record<string, any>> }> {
+        return apiFetch('/api/google-contacts/fetch', { method: 'POST' });
+    },
+
+    googleImport(contacts: Array<Record<string, any>>): Promise<{ imported: number; skipped: number; errors: Array<{ name: string; error: string }> }> {
+        return apiFetch('/api/google-contacts/import', {
+            method: 'POST',
+            body: JSON.stringify({ contacts })
+        });
     }
 };
 

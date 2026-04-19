@@ -1,5 +1,6 @@
 /* eslint-disable react/jsx-no-bind */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import { makeStyles } from 'tss-react/mui';
 import {
     contactsAPI,
@@ -9,6 +10,31 @@ import {
     DuplicateSet,
     ImportResult
 } from '../../contactsAPI';
+import {
+    loadContacts,
+    loadContactDetail,
+    closeContactDetail,
+    addContact,
+    updateContactAction,
+    deleteContactAction,
+    toggleFavorite,
+    addNote,
+    updateNote,
+    deleteNote,
+    loadGroups,
+    addGroup,
+    deleteGroup,
+    loadBlocked,
+    setSearch,
+    setTab,
+    setGroupFilter,
+    clearError
+} from '../../actions';
+import type { ContactsState } from '../../types';
+import ContactTimeline from './ContactTimeline';
+import ContactNotes from './ContactNotes';
+import GoogleContactsImport from './GoogleContactsImport';
+import { queueService } from '../../../interpreter-queue/InterpreterQueueService';
 
 // ============================================
 // AVATAR HELPER
@@ -513,31 +539,25 @@ interface Props {
 
 export default function ContactsDrawer({ onClose, onInviteContact, showInviteActions }: Props) {
     const { classes, cx } = useStyles();
+    const dispatch = useDispatch();
 
-    // Core state
-    const [contacts, setContacts] = useState<ContactEntry[]>([]);
-    const [groups, setGroups] = useState<ContactGroup[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [search, setSearch] = useState('');
-    const [activeTab, setActiveTab] = useState<Tab>('all');
-    const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+    // Redux state
+    const {
+        contacts,
+        groups,
+        blocked,
+        isLoading: loading,
+        error,
+        search,
+        activeTab,
+        selectedGroupId,
+        contactDetail
+    } = useSelector((state: any) => state['features/contacts'] as ContactsState);
 
-    // Detail view
-    const [selectedContact, setSelectedContact] = useState<ContactEntry | null>(null);
-    const [showDetail, setShowDetail] = useState(false);
-
-    // Edit / Add
-    const [editingContact, setEditingContact] = useState<ContactEntry | null>(null);
+    // Local-only UI state
     const [addingNew, setAddingNew] = useState(false);
-
-    // Duplicates
+    const [editingContact, setEditingContact] = useState<ContactEntry | null>(null);
     const [duplicates, setDuplicates] = useState<DuplicateSet[]>([]);
-
-    // Blocked
-    const [blocked, setBlocked] = useState<BlockedContact[]>([]);
-
-    // Import
     const [importResult, setImportResult] = useState<ImportResult | null>(null);
     const [importing, setImporting] = useState(false);
 
@@ -545,62 +565,29 @@ export default function ContactsDrawer({ onClose, onInviteContact, showInviteAct
     // DATA LOADING
     // ============================================
 
-    const loadContacts = useCallback(async () => {
-        setLoading(true);
-        setError('');
-        try {
-            const data = await contactsAPI.list(
-                search || undefined,
-                selectedGroupId || undefined,
-                activeTab === 'favorites' ? true : undefined
-            );
-            setContacts(data.contacts || []);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to load contacts');
-        } finally {
-            setLoading(false);
-        }
-    }, [search, selectedGroupId, activeTab]);
-
-    const loadGroups = useCallback(async () => {
-        try {
-            const data = await contactsAPI.listGroups();
-            setGroups(data.groups || []);
-        } catch {
-            // Groups are optional, don't block UI
-        }
-    }, []);
-
-    const loadDuplicates = useCallback(async () => {
-        try {
-            const data = await contactsAPI.findDuplicates();
-            setDuplicates(data.duplicates || []);
-        } catch {
-            // Non-critical
-        }
-    }, []);
-
-    const loadBlocked = useCallback(async () => {
-        try {
-            const data = await contactsAPI.listBlocked();
-            setBlocked(data.blocked || []);
-        } catch {
-            // Non-critical
-        }
-    }, []);
+    useEffect(() => {
+        dispatch(loadContacts(
+            search || undefined,
+            selectedGroupId || undefined,
+            activeTab === 'favorites' ? true : undefined
+        ) as any);
+    }, [search, selectedGroupId, activeTab === 'favorites', dispatch]);
 
     useEffect(() => {
-        loadContacts();
-    }, [loadContacts]);
+        dispatch(loadGroups() as any);
+    }, [dispatch]);
 
     useEffect(() => {
-        loadGroups();
-    }, [loadGroups]);
+        if (activeTab === 'blocked') {
+            dispatch(loadBlocked() as any);
+        }
+    }, [activeTab, dispatch]);
 
     useEffect(() => {
-        if (activeTab === 'duplicates') loadDuplicates();
-        if (activeTab === 'blocked') loadBlocked();
-    }, [activeTab, loadDuplicates, loadBlocked]);
+        if (activeTab === 'duplicates') {
+            contactsAPI.findDuplicates().then(data => setDuplicates(data.duplicates || [])).catch(() => {});
+        }
+    }, [activeTab]);
 
     // ============================================
     // ALPHABETICAL GROUPING
@@ -621,39 +608,26 @@ export default function ContactsDrawer({ onClose, onInviteContact, showInviteAct
     // ACTIONS
     // ============================================
 
-    const handleToggleFavorite = useCallback(async (e: React.MouseEvent, contact: ContactEntry) => {
+    const handleToggleFavorite = useCallback((e: React.MouseEvent, contact: ContactEntry) => {
         e.stopPropagation();
-        try {
-            await contactsAPI.update(contact.id, {
-                is_favorite: contact.is_favorite ? 0 : 1
-            });
-            loadContacts();
-        } catch {
-            // Silently fail
-        }
-    }, [loadContacts]);
+        dispatch(toggleFavorite(contact.id, contact.is_favorite) as any);
+    }, [dispatch]);
 
     const handleDelete = useCallback(async (contactId: string) => {
         if (!confirm('Delete this contact?')) return;
-        try {
-            await contactsAPI.delete(contactId);
-            setShowDetail(false);
-            setSelectedContact(null);
-            loadContacts();
-        } catch {
-            // Silently fail
-        }
-    }, [loadContacts]);
+        dispatch(deleteContactAction(contactId) as any);
+        dispatch(closeContactDetail() as any);
+    }, [dispatch]);
 
     const handleMerge = useCallback(async (primaryId: string, secondaryIds: string[]) => {
         try {
             await contactsAPI.merge(primaryId, secondaryIds);
-            loadDuplicates();
-            loadContacts();
+            contactsAPI.findDuplicates().then(data => setDuplicates(data.duplicates || [])).catch(() => {});
+            dispatch(loadContacts() as any);
         } catch {
             // Silently fail
         }
-    }, [loadContacts, loadDuplicates]);
+    }, [dispatch]);
 
     const handleImportFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -675,8 +649,8 @@ export default function ContactsDrawer({ onClose, onInviteContact, showInviteAct
 
             const result = await contactsAPI.import(rows);
             setImportResult(result);
-            loadContacts();
-            loadGroups();
+            dispatch(loadContacts() as any);
+            dispatch(loadGroups() as any);
         } catch (err) {
             setImportResult({
                 imported: 0,
@@ -686,25 +660,26 @@ export default function ContactsDrawer({ onClose, onInviteContact, showInviteAct
         } finally {
             setImporting(false);
         }
-    }, [loadContacts, loadGroups]);
+    }, [dispatch]);
 
     const handleUnblock = useCallback(async (blockId: string) => {
         try {
             await contactsAPI.unblock(blockId);
-            loadBlocked();
+            dispatch(loadBlocked() as any);
         } catch {
             // Silently fail
         }
-    }, [loadBlocked]);
+    }, [dispatch]);
 
-    const handleOpenDetail = useCallback(async (contact: ContactEntry) => {
-        try {
-            const data = await contactsAPI.get(contact.id);
-            setSelectedContact(data.contact);
-            setShowDetail(true);
-        } catch {
-            setSelectedContact(contact);
-            setShowDetail(true);
+    const handleOpenDetail = useCallback((contact: ContactEntry) => {
+        dispatch(loadContactDetail(contact.id) as any);
+    }, [dispatch]);
+
+    const handleDial = useCallback((e: React.MouseEvent, contact: ContactEntry) => {
+        e.stopPropagation();
+        if (!contact.phone_number) return;
+        if (queueService?.isConnected()) {
+            queueService.sendP2PCall(contact.phone_number);
         }
     }, []);
 
@@ -752,7 +727,7 @@ export default function ContactsDrawer({ onClose, onInviteContact, showInviteAct
                     <button
                         className = { cx(classes.headerBtn, activeTab === tab.key && classes.headerBtnActive) }
                         key = { tab.key }
-                        onClick = { () => setActiveTab(tab.key) }
+                        onClick = { () => dispatch(setTab(tab.key) as any) }
                         type = 'button'>{tab.label}</button>
                 ))}
             </div>
@@ -762,7 +737,7 @@ export default function ContactsDrawer({ onClose, onInviteContact, showInviteAct
                 <div className = { classes.searchBox }>
                     <input
                         className = { classes.searchInput }
-                        onChange = { e => setSearch(e.target.value) }
+                        onChange = { e => dispatch(setSearch(e.target.value) as any) }
                         placeholder = 'Search contacts...'
                         type = 'text'
                         value = { search } />
@@ -774,13 +749,13 @@ export default function ContactsDrawer({ onClose, onInviteContact, showInviteAct
                 <div className = { classes.groupFilterRow }>
                     <span
                         className = { cx(classes.groupChip, !selectedGroupId && classes.groupChipActive) }
-                        onClick = { () => setSelectedGroupId(null) }
+                        onClick = { () => dispatch(setGroupFilter(null) as any) }
                         role = 'button'>All</span>
                     {groups.map(g => (
                         <span
                             className = { cx(classes.groupChip, selectedGroupId === g.id && classes.groupChipActive) }
                             key = { g.id }
-                            onClick = { () => setSelectedGroupId(g.id === selectedGroupId ? null : g.id) }
+                            onClick = { () => dispatch(setGroupFilter(g.id === selectedGroupId ? null : g.id) as any) }
                             role = 'button'>
                             {g.name} ({g.member_count})
                         </span>
@@ -791,7 +766,7 @@ export default function ContactsDrawer({ onClose, onInviteContact, showInviteAct
             {/* Body */}
             <div className = { classes.body }>
                 {/* ---- Contact list (All / Favorites) ---- */}
-                {(activeTab === 'all' || activeTab === 'favorites') && !showDetail && !addingNew && (
+                {(activeTab === 'all' || activeTab === 'favorites') && !contactDetail && !addingNew && (
                     <>
                         {loading && <div className = { classes.loadingSpinner }>Loading contacts...</div>}
                         {error && <div className = { classes.emptyState }>{error}</div>}
@@ -826,6 +801,14 @@ export default function ContactsDrawer({ onClose, onInviteContact, showInviteAct
                                             role = 'button'>{c.is_favorite ? '\u2605' : '\u2606'}</span>
                                         {showInviteActions && onInviteContact && (
                                             <div className = { classes.contactActions }>
+                                                {c.phone_number && (
+                                                    <button
+                                                        aria-label = { `Call ${c.name}` }
+                                                        className = { classes.iconBtn }
+                                                        onClick = { e => handleDial(e, c) }
+                                                        title = 'Call'
+                                                        type = 'button'>Call</button>
+                                                )}
                                                 <button
                                                     className = { classes.iconBtn }
                                                     onClick = { e => { e.stopPropagation(); onInviteContact(c); } }
@@ -841,14 +824,19 @@ export default function ContactsDrawer({ onClose, onInviteContact, showInviteAct
                 )}
 
                 {/* ---- Contact detail card ---- */}
-                {showDetail && selectedContact && (
+                {contactDetail && (
                     <ContactDetail
-                        contact = { selectedContact }
+                        contact = { contactDetail.contact }
+                        timeline = { contactDetail.timeline || [] }
+                        notes = { contactDetail.notes || [] }
                         groups = { groups }
-                        onBack = { () => { setShowDetail(false); setSelectedContact(null); } }
+                        onBack = { () => dispatch(closeContactDetail() as any) }
                         onDelete = { handleDelete }
                         onEdit = { c => { setEditingContact(c); setAddingNew(false); } }
-                        onToggleFavorite = { handleToggleFavorite } />
+                        onToggleFavorite = { handleToggleFavorite }
+                        onAddNote = { (content: string) => dispatch(addNote(contactDetail.contact.id, content) as any) }
+                        onUpdateNote = { (noteId: string, content: string) => dispatch(updateNote(contactDetail.contact.id, noteId, content) as any) }
+                        onDeleteNote = { (noteId: string) => dispatch(deleteNote(contactDetail.contact.id, noteId) as any) } />
                 )}
 
                 {/* ---- Add / Edit form ---- */}
@@ -860,8 +848,8 @@ export default function ContactsDrawer({ onClose, onInviteContact, showInviteAct
                         onSaved = { () => {
                             setAddingNew(false);
                             setEditingContact(null);
-                            loadContacts();
-                            loadGroups();
+                            dispatch(loadContacts() as any);
+                            dispatch(loadGroups() as any);
                         } } />
                 )}
 
@@ -869,12 +857,19 @@ export default function ContactsDrawer({ onClose, onInviteContact, showInviteAct
                 {activeTab === 'groups' && (
                     <GroupsPanel
                         groups = { groups }
-                        onRefresh = { loadGroups } />
+                        onRefresh = { () => dispatch(loadGroups() as any) } />
                 )}
 
                 {/* ---- Import panel ---- */}
                 {activeTab === 'import' && (
                     <div style = {{ padding: '16px' }}>
+                        {/* Google Contacts import */}
+                        <div style = {{ marginBottom: '16px', padding: '12px', border: '1px solid var(--border-color, rgba(255,255,255,0.1))', borderRadius: '8px' }}>
+                            <div className = { classes.detailSectionTitle }>Import from Google</div>
+                            <GoogleContactsImport onImported = { () => { dispatch(loadContacts() as any); dispatch(loadGroups() as any); } } />
+                        </div>
+
+                        <div className = { classes.detailSectionTitle }>Import from File</div>
                         <div
                             className = { classes.importDropZone }
                             onClick = { () => {
@@ -968,14 +963,19 @@ export default function ContactsDrawer({ onClose, onInviteContact, showInviteAct
 
 interface ContactDetailProps {
     contact: ContactEntry;
+    timeline: Array<{ type: 'call' | 'missed_call' | 'voicemail' | 'note'; id: string; timestamp: string; data: Record<string, any> }>;
+    notes: Array<{ id: string; contact_id: string; author_id: string; content: string; created_at: string; updated_at: string }>;
     groups: ContactGroup[];
     onBack: () => void;
     onDelete: (id: string) => void;
     onEdit: (c: ContactEntry) => void;
     onToggleFavorite: (e: React.MouseEvent, c: ContactEntry) => void;
+    onAddNote: (content: string) => Promise<void>;
+    onUpdateNote: (noteId: string, content: string) => Promise<void>;
+    onDeleteNote: (noteId: string) => Promise<void>;
 }
 
-function ContactDetail({ contact, groups, onBack, onDelete, onEdit, onToggleFavorite }: ContactDetailProps) {
+function ContactDetail({ contact, timeline, notes, groups, onBack, onDelete, onEdit, onToggleFavorite, onAddNote, onUpdateNote, onDeleteNote }: ContactDetailProps) {
     const { classes } = useStyles();
     const contactGroups = (contact.group_ids || '').split(',').filter(Boolean);
 
@@ -1059,28 +1059,26 @@ function ContactDetail({ contact, groups, onBack, onDelete, onEdit, onToggleFavo
                 {/* Notes */}
                 {contact.notes && (
                     <div className = { classes.detailSection }>
-                        <div className = { classes.detailSectionTitle }>Notes</div>
+                        <div className = { classes.detailSectionTitle }>Description</div>
                         <div style = {{ fontSize: '14px', color: 'var(--text-color, #fff)' }}>{contact.notes}</div>
                     </div>
                 )}
 
-                {/* Call history */}
-                {contact.callHistory && contact.callHistory.length > 0 && (
-                    <div className = { classes.detailSection }>
-                        <div className = { classes.detailSectionTitle }>Call History</div>
-                        {contact.callHistory.map((call: any, i: number) => (
-                            <div className = { classes.callRow } key = { i }>
-                                <span style = {{ color: 'var(--text-color, #fff)' }}>
-                                    {call.callee_name || call.caller_name || call.room_name}
-                                </span>
-                                <span style = {{ color: 'var(--text-muted, #888)' }}>
-                                    {formatDate(call.started_at)}
-                                    {call.duration_minutes ? ` (${call.duration_minutes}m)` : ''}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
-                )}
+                {/* Timeline */}
+                <div className = { classes.detailSection }>
+                    <div className = { classes.detailSectionTitle }>Timeline</div>
+                    <ContactTimeline timeline = { timeline } />
+                </div>
+
+                {/* Timestamped Notes */}
+                <div className = { classes.detailSection }>
+                    <div className = { classes.detailSectionTitle }>Notes</div>
+                    <ContactNotes
+                        notes = { notes }
+                        onAdd = { onAddNote }
+                        onDelete = { onDeleteNote }
+                        onUpdate = { onUpdateNote } />
+                </div>
             </div>
 
             {/* Actions */}
@@ -1090,6 +1088,19 @@ function ContactDetail({ contact, groups, onBack, onDelete, onEdit, onToggleFavo
                 padding: '12px 16px',
                 borderTop: '1px solid var(--border-color, rgba(255,255,255,0.1))'
             }}>
+                {contact.phone_number && (
+                    <button
+                        aria-label = { `Call ${contact.name}` }
+                        className = { classes.saveBtn }
+                        onClick = { e => {
+                            e.stopPropagation();
+                            if (queueService?.isConnected()) {
+                                queueService.sendP2PCall(contact.phone_number!);
+                            }
+                        } }
+                        style = {{ flex: 1 }}
+                        type = 'button'>Call</button>
+                )}
                 <button
                     className = { classes.saveBtn }
                     onClick = { () => onEdit(contact) }

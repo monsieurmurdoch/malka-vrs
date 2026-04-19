@@ -5,6 +5,7 @@
 const express = require('express');
 const db = require('../database');
 const { verifyJwtToken, normalizeAuthClaims } = require('../lib/auth');
+const state = require('../lib/state');
 
 const router = express.Router();
 
@@ -54,6 +55,30 @@ router.get('/', authenticateClient, async (req, res) => {
 });
 
 /**
+ * GET /api/contacts/sync — delta sync (must be before /:id)
+ * Query: since (ISO-8601 timestamp)
+ */
+router.get('/sync', authenticateClient, async (req, res) => {
+    try {
+        const { since } = req.query;
+        const sinceTimestamp = since ? new Date(since) : new Date(0);
+
+        if (isNaN(sinceTimestamp.getTime())) {
+            return res.status(400).json({ error: 'Invalid "since" timestamp' });
+        }
+
+        const changes = await db.getContactChangesSince(req.user.id, sinceTimestamp);
+        res.json({
+            changes,
+            serverTimestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('[Contacts Sync] Error:', error);
+        res.status(500).json({ error: 'Failed to sync contacts' });
+    }
+});
+
+/**
  * GET /api/contacts/:id — single contact detail
  */
 router.get('/:id', authenticateClient, async (req, res) => {
@@ -63,9 +88,14 @@ router.get('/:id', authenticateClient, async (req, res) => {
             return res.status(404).json({ error: 'Contact not found' });
         }
 
-        // Attach call history
-        const calls = await db.getContactCallHistory(req.user.id, req.params.id);
-        contact.callHistory = calls;
+        // Attach timeline + notes
+        const [timeline, notes] = await Promise.all([
+            db.getContactTimeline(req.user.id, req.params.id).catch(() => []),
+            db.getContactNotes(req.params.id).catch(() => [])
+        ]);
+        contact.callHistory = timeline.filter(t => t.type === 'call');
+        contact.timeline = timeline;
+        contact.notesList = notes;
 
         res.json({ contact });
     } catch (error) {
@@ -106,6 +136,23 @@ router.post('/', authenticateClient, async (req, res) => {
         await db.ensureDefaultGroups(req.user.id);
 
         res.status(201).json({ contact });
+
+        // Sync logging + WS broadcast
+        try {
+            await db.logContactChange({
+                clientId: req.user.id,
+                entityType: 'contact',
+                entityId: contact.id,
+                action: 'create',
+                snapshot: contact
+            });
+            state.broadcastToUserDevices(req.user.id, {
+                type: 'contacts_changed',
+                data: { action: 'create', entityType: 'contact', entityId: contact.id }
+            });
+        } catch (e) {
+            console.error('[Contact Create Sync Log] Error:', e);
+        }
     } catch (error) {
         console.error('[Contact Create] Error:', error);
         res.status(500).json({ error: 'Failed to create contact' });
@@ -140,6 +187,23 @@ router.put('/:id', authenticateClient, async (req, res) => {
         }
 
         res.json({ success: true });
+
+        // Sync logging + WS broadcast
+        try {
+            await db.logContactChange({
+                clientId: req.user.id,
+                entityType: 'contact',
+                entityId: req.params.id,
+                action: 'update',
+                snapshot: updates
+            });
+            state.broadcastToUserDevices(req.user.id, {
+                type: 'contacts_changed',
+                data: { action: 'update', entityType: 'contact', entityId: req.params.id }
+            });
+        } catch (e) {
+            console.error('[Contact Update Sync Log] Error:', e);
+        }
     } catch (error) {
         console.error('[Contact Update] Error:', error);
         res.status(500).json({ error: 'Failed to update contact' });
@@ -156,6 +220,22 @@ router.delete('/:id', authenticateClient, async (req, res) => {
             return res.status(404).json({ error: 'Contact not found' });
         }
         res.json({ success: true });
+
+        // Sync logging + WS broadcast
+        try {
+            await db.logContactChange({
+                clientId: req.user.id,
+                entityType: 'contact',
+                entityId: req.params.id,
+                action: 'delete'
+            });
+            state.broadcastToUserDevices(req.user.id, {
+                type: 'contacts_changed',
+                data: { action: 'delete', entityType: 'contact', entityId: req.params.id }
+            });
+        } catch (e) {
+            console.error('[Contact Delete Sync Log] Error:', e);
+        }
     } catch (error) {
         console.error('[Contact Delete] Error:', error);
         res.status(500).json({ error: 'Failed to delete contact' });
@@ -393,6 +473,140 @@ router.post('/migrate-speed-dial', authenticateClient, async (req, res) => {
     } catch (error) {
         console.error('[Migrate Speed Dial] Error:', error);
         res.status(500).json({ error: 'Failed to migrate speed dial' });
+    }
+});
+
+// ============================================
+// TIMELINE & NOTES
+// ============================================
+
+/**
+ * GET /api/contacts/:id/timeline — unified timeline for a contact
+ */
+router.get('/:id/timeline', authenticateClient, async (req, res) => {
+    try {
+        const timeline = await db.getContactTimeline(req.user.id, req.params.id);
+        res.json({ timeline });
+    } catch (error) {
+        console.error('[Contact Timeline] Error:', error);
+        res.status(500).json({ error: 'Failed to fetch timeline' });
+    }
+});
+
+/**
+ * GET /api/contacts/:id/notes — list notes for a contact
+ */
+router.get('/:id/notes', authenticateClient, async (req, res) => {
+    try {
+        const notes = await db.getContactNotes(req.params.id);
+        res.json({ notes });
+    } catch (error) {
+        console.error('[Contact Notes List] Error:', error);
+        res.status(500).json({ error: 'Failed to fetch notes' });
+    }
+});
+
+/**
+ * POST /api/contacts/:id/notes — add a note
+ */
+router.post('/:id/notes', authenticateClient, async (req, res) => {
+    const { content } = req.body;
+    if (!content || !content.trim()) {
+        return res.status(400).json({ error: 'Note content is required' });
+    }
+
+    try {
+        const note = await db.createContactNote({
+            contactId: req.params.id,
+            authorId: req.user.id,
+            content: content.trim()
+        });
+        res.status(201).json({ note });
+
+        // Sync logging + WS broadcast
+        try {
+            await db.logContactChange({
+                clientId: req.user.id,
+                entityType: 'note',
+                entityId: note.id,
+                action: 'create',
+                snapshot: { contactId: req.params.id, content: content.trim() }
+            });
+            state.broadcastToUserDevices(req.user.id, {
+                type: 'contacts_changed',
+                data: { action: 'create', entityType: 'note', entityId: note.id, contactId: req.params.id }
+            });
+        } catch (e) {
+            console.error('[Note Create Sync Log] Error:', e);
+        }
+    } catch (error) {
+        console.error('[Note Create] Error:', error);
+        res.status(500).json({ error: 'Failed to create note' });
+    }
+});
+
+/**
+ * PUT /api/contacts/:id/notes/:noteId — update a note
+ */
+router.put('/:id/notes/:noteId', authenticateClient, async (req, res) => {
+    const { content } = req.body;
+    if (!content || !content.trim()) {
+        return res.status(400).json({ error: 'Note content is required' });
+    }
+
+    try {
+        await db.updateContactNote(req.params.noteId, content.trim());
+        res.json({ success: true });
+
+        // Sync logging + WS broadcast
+        try {
+            await db.logContactChange({
+                clientId: req.user.id,
+                entityType: 'note',
+                entityId: req.params.noteId,
+                action: 'update',
+                snapshot: { contactId: req.params.id, content: content.trim() }
+            });
+            state.broadcastToUserDevices(req.user.id, {
+                type: 'contacts_changed',
+                data: { action: 'update', entityType: 'note', entityId: req.params.noteId, contactId: req.params.id }
+            });
+        } catch (e) {
+            console.error('[Note Update Sync Log] Error:', e);
+        }
+    } catch (error) {
+        console.error('[Note Update] Error:', error);
+        res.status(500).json({ error: 'Failed to update note' });
+    }
+});
+
+/**
+ * DELETE /api/contacts/:id/notes/:noteId — delete a note
+ */
+router.delete('/:id/notes/:noteId', authenticateClient, async (req, res) => {
+    try {
+        await db.deleteContactNote(req.params.noteId);
+        res.json({ success: true });
+
+        // Sync logging + WS broadcast
+        try {
+            await db.logContactChange({
+                clientId: req.user.id,
+                entityType: 'note',
+                entityId: req.params.noteId,
+                action: 'delete',
+                snapshot: { contactId: req.params.id }
+            });
+            state.broadcastToUserDevices(req.user.id, {
+                type: 'contacts_changed',
+                data: { action: 'delete', entityType: 'note', entityId: req.params.noteId, contactId: req.params.id }
+            });
+        } catch (e) {
+            console.error('[Note Delete Sync Log] Error:', e);
+        }
+    } catch (error) {
+        console.error('[Note Delete] Error:', error);
+        res.status(500).json({ error: 'Failed to delete note' });
     }
 });
 
