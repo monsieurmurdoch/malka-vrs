@@ -107,6 +107,103 @@ const voicemailMessageSchema = z.object({
 
 const adminSubscribeSchema = z.object({}).passthrough();
 
+// Call waiting schemas
+const callWaitingAcceptSchema = z.object({
+    incomingCallId: z.string().min(1),
+    currentCallId: z.string().min(1),
+    action: z.enum(['accept', 'reject', 'hold_and_accept'])
+});
+
+// Call transfer schemas
+const callTransferSchema = z.object({
+    callId: z.string().min(1),
+    toPhoneNumber: phoneNumberSchema.optional(),
+    toInterpreterId: z.string().min(1).optional(),
+    transferType: z.enum(['blind', 'attended']).default('blind'),
+    reason: z.string().max(500).optional()
+}).refine(data => data.toPhoneNumber || data.toInterpreterId, {
+    message: 'Must provide toPhoneNumber or toInterpreterId'
+});
+
+const callTransferAcceptSchema = z.object({
+    transferId: z.string().min(1)
+});
+
+const callTransferCancelSchema = z.object({
+    transferId: z.string().min(1)
+});
+
+// Conference schemas
+const conferenceAddSchema = z.object({
+    callId: z.string().min(1),
+    phoneNumber: phoneNumberSchema.optional(),
+    clientId: z.string().min(1).optional()
+}).refine(data => data.phoneNumber || data.clientId, {
+    message: 'Must provide phoneNumber or clientId'
+});
+
+const conferenceRemoveSchema = z.object({
+    callId: z.string().min(1),
+    participantId: z.string().min(1)
+});
+
+// In-call chat schemas
+const chatSendMessageSchema = z.object({
+    callId: z.string().min(1),
+    message: z.string().min(1).max(2000)
+});
+
+const chatHistorySchema = z.object({
+    callId: z.string().min(1),
+    limit: z.number().min(1).max(500).optional().default(100),
+    offset: z.number().nonnegative().optional().default(0)
+});
+
+// Client preferences schemas
+const preferencesUpdateSchema = z.object({
+    dnd_enabled: z.boolean().optional(),
+    dnd_message: z.string().max(200).optional(),
+    dark_mode: z.enum(['light', 'dark', 'system']).optional(),
+    camera_default_off: z.boolean().optional(),
+    mic_default_off: z.boolean().optional(),
+    skip_waiting_room: z.boolean().optional(),
+    remember_media_permissions: z.boolean().optional()
+});
+
+// Call hold schemas
+const callHoldSchema = z.object({
+    callId: z.string().min(1),
+    onHold: z.boolean()
+});
+
+// TTS / VCO schemas
+const vcoStartSchema = z.object({
+    targetPhone: phoneNumberSchema.optional(),
+    roomName: z.string().max(100).optional()
+});
+
+const vcoEndSchema = z.object({
+    callId: z.string().min(1),
+    roomName: z.string().optional(),
+    durationMinutes: z.number().nonnegative().optional()
+});
+
+const ttsSpeakSchema = z.object({
+    callId: z.string().min(1),
+    text: z.string().min(1).max(1000),
+    voiceSettings: z.object({
+        voiceName: z.string().max(100).optional(),
+        voiceGender: z.enum(['male', 'female']).optional(),
+        voiceSpeed: z.number().min(0.5).max(2.0).optional(),
+        voicePitch: z.number().min(0.5).max(2.0).optional()
+    }).optional()
+});
+
+const ttsQuickSpeakSchema = z.object({
+    callId: z.string().min(1),
+    phraseId: z.string().min(1)
+});
+
 // Map message type → schema for the `data` payload
 const messageSchemas = {
     auth: authMessageSchema,
@@ -130,7 +227,23 @@ const messageSchemas = {
     voicemail_cancel: voicemailMessageSchema,
     voicemail_delete: voicemailMessageSchema,
     voicemail_mark_seen: voicemailMessageSchema,
-    admin_subscribe: adminSubscribeSchema
+    admin_subscribe: adminSubscribeSchema,
+    // Call management & UX
+    call_waiting_respond: callWaitingAcceptSchema,
+    call_transfer: callTransferSchema,
+    call_transfer_accept: callTransferAcceptSchema,
+    call_transfer_cancel: callTransferCancelSchema,
+    conference_add: conferenceAddSchema,
+    conference_remove: conferenceRemoveSchema,
+    chat_send: chatSendMessageSchema,
+    chat_history: chatHistorySchema,
+    preferences_update: preferencesUpdateSchema,
+    call_hold: callHoldSchema,
+    // TTS / VCO
+    vco_start: vcoStartSchema,
+    vco_end: vcoEndSchema,
+    tts_speak: ttsSpeakSchema,
+    tts_quick_speak: ttsQuickSpeakSchema
 };
 
 module.exports = { messageSchemas };

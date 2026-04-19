@@ -60,6 +60,7 @@ const interpreterRouter = require('./routes/interpreter');
 const { router: adminRouter, setVoicemailServiceForAdmin } = require('./routes/admin');
 const handoffRouter = require('./routes/handoff');
 const { router: voicemailRouter, setVoicemailService } = require('./routes/voicemail');
+const ttsRouter = require('./routes/tts');
 const handoffService = require('./lib/handoff-service');
 const voicemailService = require('./dist/lib/voicemail-service');
 const { validate, nameSchema, emailSchema, organizationSchema, z: zodLib } = require('./lib/validation');
@@ -397,6 +398,7 @@ app.use('/api/interpreter', interpreterRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/handoff', handoffRouter);
 app.use('/api/voicemail', voicemailRouter);
+app.use('/api/tts', ttsRouter);
 
 // ============================================
 // ERROR HANDLER

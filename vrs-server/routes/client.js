@@ -256,4 +256,71 @@ router.get('/active-rooms', authenticateUser, async (req, res) => {
     }
 });
 
+// ============================================
+// CLIENT PREFERENCES (DND, Dark Mode, Media Defaults)
+// ============================================
+
+const preferencesUpdateSchema = z.object({
+    dnd_enabled: z.boolean().optional(),
+    dnd_message: z.string().max(200).optional(),
+    dark_mode: z.enum(['light', 'dark', 'system']).optional(),
+    camera_default_off: z.boolean().optional(),
+    mic_default_off: z.boolean().optional(),
+    skip_waiting_room: z.boolean().optional(),
+    remember_media_permissions: z.boolean().optional()
+});
+
+router.get('/preferences', authenticateUser, async (req, res) => {
+    if (req.user.role !== 'client') {
+        return res.status(403).json({ error: 'Client access required', code: 'FORBIDDEN' });
+    }
+
+    try {
+        const prefs = await db.getClientPreferences(req.user.id);
+        res.json(prefs);
+    } catch (error) {
+        req.log.error({ err: error }, 'Get preferences error');
+        res.status(500).json({ error: 'Failed to get preferences', code: 'INTERNAL_ERROR' });
+    }
+});
+
+router.put('/preferences', authenticateUser, async (req, res) => {
+    if (req.user.role !== 'client') {
+        return res.status(403).json({ error: 'Client access required', code: 'FORBIDDEN' });
+    }
+
+    try {
+        const updates = validate(preferencesUpdateSchema, req.body);
+        await db.updateClientPreferences(req.user.id, updates);
+        const prefs = await db.getClientPreferences(req.user.id);
+        res.json(prefs);
+    } catch (error) {
+        if (error.code === 'VALIDATION_ERROR') {
+            return res.status(400).json({ error: error.message, code: 'VALIDATION_ERROR' });
+        }
+        req.log.error({ err: error }, 'Update preferences error');
+        res.status(500).json({ error: 'Failed to update preferences', code: 'INTERNAL_ERROR' });
+    }
+});
+
+// ============================================
+// IN-CALL CHAT (REST fallback)
+// ============================================
+
+router.get('/chat/:callId', authenticateUser, async (req, res) => {
+    if (req.user.role !== 'client') {
+        return res.status(403).json({ error: 'Client access required', code: 'FORBIDDEN' });
+    }
+
+    try {
+        const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 500);
+        const offset = parseInt(req.query.offset) || 0;
+        const messages = await db.getChatMessages(req.params.callId, limit, offset);
+        res.json({ messages });
+    } catch (error) {
+        req.log.error({ err: error }, 'Get chat messages error');
+        res.status(500).json({ error: 'Failed to get chat messages', code: 'INTERNAL_ERROR' });
+    }
+});
+
 module.exports = router;

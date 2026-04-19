@@ -1,0 +1,582 @@
+/**
+ * Call Management & UX — component styles.
+ *
+ * Loaded alongside the VRS Jitsi Meet frontend.
+ */
+
+/* ============================================
+   CALL WAITING OVERLAY
+   ============================================ */
+
+.call-waiting-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: call-waiting-fade-in 0.3s ease;
+}
+
+@keyframes call-waiting-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.call-waiting-card {
+    background: #1a2a3a;
+    border-radius: 16px;
+    padding: 32px;
+    text-align: center;
+    min-width: 320px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    animation: call-waiting-pulse 2s ease-in-out infinite;
+}
+
+@keyframes call-waiting-pulse {
+    0%, 100% { box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4); }
+    50%      { box-shadow: 0 8px 48px rgba(59, 130, 246, 0.3); }
+}
+
+.call-waiting-card h3 {
+    color: #fff;
+    font-size: 1.25rem;
+    margin: 12px 0 4px;
+}
+
+.call-waiting-caller {
+    color: #93c5fd;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 4px 0;
+}
+
+.call-waiting-status {
+    color: #94a3b8;
+    font-size: 0.85rem;
+    margin-bottom: 24px;
+}
+
+.call-waiting-actions {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+}
+
+.call-waiting-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 18px;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #fff;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.call-waiting-btn:hover {
+    transform: scale(1.05);
+}
+
+.call-waiting-btn i {
+    font-size: 1.5rem;
+}
+
+.call-waiting-btn.accept {
+    background: #16a34a;
+}
+
+.call-waiting-btn.reject {
+    background: #dc2626;
+}
+
+.call-waiting-btn.hold-accept {
+    background: #d97706;
+}
+
+/* ============================================
+   IN-CALL CHAT PANEL
+   ============================================ */
+
+.chat-toggle-btn {
+    position: fixed;
+    right: 16px;
+    bottom: 80px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #1e40af;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5000;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    transition: background 0.2s;
+}
+
+.chat-toggle-btn.active {
+    background: #1d4ed8;
+}
+
+.chat-toggle-btn:hover {
+    background: #2563eb;
+}
+
+.chat-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: #dc2626;
+    color: #fff;
+    font-size: 0.65rem;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+}
+
+.in-call-chat-panel {
+    position: fixed;
+    right: 16px;
+    bottom: 140px;
+    width: 340px;
+    height: 440px;
+    background: #0f1d2e;
+    border: 1px solid #1e3a5f;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    z-index: 5001;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+    animation: chat-slide-in 0.2s ease;
+}
+
+@keyframes chat-slide-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.chat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid #1e3a5f;
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.chat-close-btn {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    font-size: 1.3rem;
+    cursor: pointer;
+    padding: 0 4px;
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.chat-empty {
+    color: #64748b;
+    text-align: center;
+    padding: 40px 16px;
+    font-size: 0.85rem;
+}
+
+.chat-message {
+    max-width: 80%;
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
+.chat-message.self {
+    align-self: flex-end;
+    background: #1e40af;
+    color: #fff;
+    border-bottom-right-radius: 4px;
+}
+
+.chat-message.other {
+    align-self: flex-start;
+    background: #1e293b;
+    color: #e2e8f0;
+    border-bottom-left-radius: 4px;
+}
+
+.chat-message-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 2px;
+    font-size: 0.7rem;
+    opacity: 0.7;
+}
+
+.chat-input-area {
+    display: flex;
+    gap: 8px;
+    padding: 12px;
+    border-top: 1px solid #1e3a5f;
+}
+
+.chat-input-area textarea {
+    flex: 1;
+    background: #1a2744;
+    border: 1px solid #2d4a6f;
+    border-radius: 8px;
+    color: #e2e8f0;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    resize: none;
+    font-family: inherit;
+}
+
+.chat-input-area textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+}
+
+.chat-send-btn {
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.chat-send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.chat-send-btn:not(:disabled):hover {
+    background: #1d4ed8;
+}
+
+/* ============================================
+   DND TOGGLE
+   ============================================ */
+
+.dnd-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    position: relative;
+}
+
+.dnd-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid #334155;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.2s;
+}
+
+.dnd-btn.active {
+    background: #7c3aed;
+    border-color: #7c3aed;
+    color: #fff;
+}
+
+.dnd-btn:hover {
+    border-color: #7c3aed;
+}
+
+.dnd-settings-btn {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 4px;
+    font-size: 0.9rem;
+}
+
+.dnd-settings-popup {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 8px;
+    background: #1a2744;
+    border: 1px solid #2d4a6f;
+    border-radius: 8px;
+    padding: 12px;
+    min-width: 240px;
+    z-index: 6000;
+}
+
+.dnd-settings-popup label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: #94a3b8;
+    font-size: 0.8rem;
+    margin-bottom: 8px;
+}
+
+.dnd-settings-popup textarea {
+    background: #0f1d2e;
+    border: 1px solid #2d4a6f;
+    border-radius: 6px;
+    color: #e2e8f0;
+    padding: 8px;
+    font-size: 0.85rem;
+    resize: none;
+    font-family: inherit;
+}
+
+.dnd-settings-popup button {
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 16px;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+
+/* ============================================
+   DARK MODE TOGGLE
+   ============================================ */
+
+.dark-mode-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid #334155;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.2s;
+}
+
+.dark-mode-toggle:hover {
+    border-color: #f59e0b;
+    color: #f59e0b;
+}
+
+/* ============================================
+   CALL TRANSFER DIALOG
+   ============================================ */
+
+.call-transfer-dialog,
+.conference-add-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9000;
+}
+
+.call-transfer-card,
+.conference-add-card {
+    background: #0f1d2e;
+    border: 1px solid #1e3a5f;
+    border-radius: 12px;
+    padding: 24px;
+    min-width: 380px;
+    max-width: 440px;
+}
+
+.call-transfer-header,
+.conference-add-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.call-transfer-header h3,
+.conference-add-header h3 {
+    color: #fff;
+    font-size: 1.1rem;
+    margin: 0;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    font-size: 1.4rem;
+    cursor: pointer;
+    padding: 0;
+}
+
+.call-transfer-form,
+.conference-add-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.call-transfer-form label,
+.conference-add-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: #94a3b8;
+    font-size: 0.8rem;
+}
+
+.call-transfer-form input,
+.call-transfer-form select,
+.conference-add-form input {
+    background: #1a2744;
+    border: 1px solid #2d4a6f;
+    border-radius: 8px;
+    color: #e2e8f0;
+    padding: 10px 12px;
+    font-size: 0.9rem;
+}
+
+.call-transfer-form input:focus,
+.call-transfer-form select:focus,
+.conference-add-form input:focus {
+    outline: none;
+    border-color: #3b82f6;
+}
+
+.call-transfer-actions,
+.conference-add-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.cancel-btn {
+    background: transparent;
+    border: 1px solid #475569;
+    color: #94a3b8;
+    border-radius: 8px;
+    padding: 8px 20px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+.transfer-btn,
+.add-btn {
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 20px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.transfer-btn:disabled,
+.add-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.call-transfer-pending {
+    text-align: center;
+    padding: 24px 0;
+    color: #e2e8f0;
+}
+
+.transfer-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid #1e3a5f;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    margin: 16px auto;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.conference-add-description {
+    color: #94a3b8;
+    font-size: 0.85rem;
+    margin: 0 0 16px;
+}
+
+/* ============================================
+   DARK MODE THEME OVERRIDES
+   ============================================ */
+
+body.vrs-dark {
+    --vrs-bg-primary: #0a0f1a;
+    --vrs-bg-secondary: #111827;
+    --vrs-bg-card: #1a2332;
+    --vrs-text-primary: #f1f5f9;
+    --vrs-text-secondary: #94a3b8;
+    --vrs-border-color: #1e3a5f;
+    --vrs-accent: #3b82f6;
+
+    background-color: var(--vrs-bg-primary);
+    color: var(--vrs-text-primary);
+}
+
+body.vrs-dark .new-toolbox {
+    background: var(--vrs-bg-secondary);
+    border-color: var(--vrs-border-color);
+}
+
+body.vrs-dark .toolbox-content {
+    background: var(--vrs-bg-card);
+}
+
+body.vrs-dark .filmstrip {
+    background: var(--vrs-bg-secondary);
+}
+
+body.vrs-light {
+    --vrs-bg-primary: #ffffff;
+    --vrs-bg-secondary: #f8fafc;
+    --vrs-bg-card: #ffffff;
+    --vrs-text-primary: #0f172a;
+    --vrs-text-secondary: #475569;
+    --vrs-border-color: #e2e8f0;
+    --vrs-accent: #2563eb;
+}

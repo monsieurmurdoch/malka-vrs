@@ -1,15 +1,19 @@
 /**
- * Auth routes — client registration, login, interpreter login, admin login.
+ * Auth routes — client registration, login, interpreter login, admin login,
+ *               phone number login, SMS OTP, password reset.
  */
 
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const db = require('../database');
 const activityLogger = require('../lib/activity-logger');
 const { signToken, normalizeAuthClaims, verifyJwtToken } = require('../lib/auth');
 const log = require('../lib/logger').module('auth');
-const { validate, emailSchema, passwordSchema, nameSchema, organizationSchema, z } = require('../lib/validation');
+const { validate, emailSchema, passwordSchema, nameSchema, organizationSchema, phoneNumberSchema, z } = require('../lib/validation');
+const smsService = require('../lib/sms-service');
+const emailService = require('../lib/email-service');
 
 const router = express.Router();
 
@@ -32,6 +36,33 @@ const clientRegisterSchema = z.object({
     email: emailSchema,
     password: passwordSchema,
     organization: organizationSchema
+});
+
+const phoneLoginSchema = z.object({
+    phoneNumber: phoneNumberSchema,
+    password: z.string().min(1)
+});
+
+const otpRequestSchema = z.object({
+    phoneNumber: phoneNumberSchema,
+    purpose: z.enum(['login'])
+});
+
+const otpVerifySchema = z.object({
+    phoneNumber: phoneNumberSchema,
+    code: z.string().length(6),
+    purpose: z.enum(['login'])
+});
+
+const forgotPasswordSchema = z.object({
+    email: emailSchema
+});
+
+const resetPasswordSchema = z.object({
+    token: z.string().min(1),
+    userId: z.string().min(1),
+    role: z.enum(['client', 'interpreter']),
+    newPassword: passwordSchema
 });
 
 const loginSchema = z.object({
@@ -251,6 +282,208 @@ router.post('/admin/login', authLimiter, validate(adminLoginSchema), async (req,
     } catch (error) {
         req.log.error({ err: error }, 'Login failed');
         res.status(500).json({ error: 'Server error', code: 'INTERNAL_ERROR' });
+    }
+});
+
+// --- Phone number login ---
+router.post('/client/phone-login', authLimiter, validate(phoneLoginSchema), async (req, res) => {
+    const { phoneNumber, password } = req.body;
+
+    try {
+        const client = await db.getClientByPhoneNumber(phoneNumber);
+        if (!client || !client.password_hash) {
+            return res.status(401).json({ error: 'Invalid phone number or password', code: 'AUTH_FAILED' });
+        }
+
+        const isMatch = await bcrypt.compare(password, client.password_hash);
+        if (!isMatch) {
+            return res.status(401).json({ error: 'Invalid phone number or password', code: 'AUTH_FAILED' });
+        }
+
+        const phones = await db.getClientPhoneNumbers(client.id);
+        const primary = phones.find(p => p.is_primary);
+
+        const token = signToken({ id: client.id, email: client.email, name: client.name, role: 'client' });
+
+        activityLogger.log('client_phone_login', { clientId: client.id, phoneNumber });
+
+        res.json({
+            success: true,
+            token,
+            user: {
+                id: client.id,
+                name: client.name,
+                email: client.email,
+                role: 'client',
+                phoneNumber: primary?.phone_number || phoneNumber
+            }
+        });
+    } catch (error) {
+        req.log.error({ err: error }, 'Phone login failed');
+        res.status(500).json({ error: 'Login failed', code: 'INTERNAL_ERROR' });
+    }
+});
+
+// --- OTP request (SMS login) ---
+router.post('/otp/request', authLimiter, validate(otpRequestSchema), async (req, res) => {
+    const { phoneNumber, purpose } = req.body;
+
+    try {
+        const client = await db.getClientByPhoneNumber(phoneNumber);
+        if (!client) {
+            // Return success even if not found to prevent enumeration
+            return res.json({ success: true, expiresIn: 600 });
+        }
+
+        const code = smsService.generateOtpCode();
+        await db.createOtpCode({ phoneNumber, code, purpose });
+
+        const result = await smsService.sendOtp(phoneNumber, code);
+        if (result.error === 'rate_limited') {
+            return res.status(429).json({ error: 'Too many OTP requests. Try again later.', code: 'RATE_LIMITED' });
+        }
+
+        activityLogger.log('otp_requested', { phoneNumber, purpose, mock: result.mock });
+
+        res.json({ success: true, expiresIn: 600 });
+    } catch (error) {
+        req.log.error({ err: error }, 'OTP request failed');
+        res.status(500).json({ error: 'OTP request failed', code: 'INTERNAL_ERROR' });
+    }
+});
+
+// --- OTP verify (SMS login) ---
+router.post('/otp/verify', authLimiter, validate(otpVerifySchema), async (req, res) => {
+    const { phoneNumber, code, purpose } = req.body;
+
+    try {
+        const otpResult = await db.verifyOtpCode({ phoneNumber, code, purpose });
+
+        if (!otpResult.valid) {
+            const status = otpResult.reason === 'not_found' ? 401
+                : otpResult.reason === 'expired' ? 401
+                    : otpResult.reason === 'too_many_attempts' ? 429 : 401;
+
+            return res.status(status).json({
+                error: otpResult.reason === 'too_many_attempts'
+                    ? 'Too many failed attempts. Request a new code.'
+                    : 'Invalid or expired code',
+                code: otpResult.reason === 'too_many_attempts' ? 'TOO_MANY_ATTEMPTS' : 'AUTH_FAILED'
+            });
+        }
+
+        const client = await db.getClientByPhoneNumber(phoneNumber);
+        if (!client) {
+            return res.status(401).json({ error: 'Invalid credentials', code: 'AUTH_FAILED' });
+        }
+
+        const phones = await db.getClientPhoneNumbers(client.id);
+        const primary = phones.find(p => p.is_primary);
+
+        const token = signToken({ id: client.id, email: client.email, name: client.name, role: 'client' });
+
+        activityLogger.log('otp_login', { clientId: client.id, phoneNumber });
+
+        res.json({
+            success: true,
+            token,
+            user: {
+                id: client.id,
+                name: client.name,
+                email: client.email,
+                role: 'client',
+                phoneNumber: primary?.phone_number || phoneNumber
+            }
+        });
+    } catch (error) {
+        req.log.error({ err: error }, 'OTP verify failed');
+        res.status(500).json({ error: 'Verification failed', code: 'INTERNAL_ERROR' });
+    }
+});
+
+// --- Forgot password ---
+router.post('/password/forgot', authLimiter, validate(forgotPasswordSchema), async (req, res) => {
+    const { email } = req.body;
+
+    try {
+        // Check clients first, then interpreters
+        let user = await db.getClientByEmail(email);
+        let userRole = 'client';
+
+        if (!user) {
+            user = await db.getInterpreterByEmail(email);
+            userRole = 'interpreter';
+        }
+
+        // Always return success to prevent email enumeration
+        if (!user) {
+            return res.json({ success: true });
+        }
+
+        const rawToken = crypto.randomBytes(32).toString('hex');
+        const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+        await db.createPasswordReset({
+            userId: user.id,
+            userRole,
+            tokenHash,
+            expiresInHours: 1
+        });
+
+        const result = await emailService.sendPasswordResetEmail(
+            email, rawToken, user.id, userRole
+        );
+
+        activityLogger.log('password_reset_requested', {
+            userId: user.id,
+            role: userRole,
+            emailSent: result.sent,
+            mock: result.mock
+        });
+
+        res.json({ success: true });
+    } catch (error) {
+        req.log.error({ err: error }, 'Forgot password failed');
+        // Still return success to prevent enumeration
+        res.json({ success: true });
+    }
+});
+
+// --- Reset password ---
+router.post('/password/reset', authLimiter, validate(resetPasswordSchema), async (req, res) => {
+    const { token, userId, role, newPassword } = req.body;
+
+    try {
+        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+        const resetRecord = await db.consumePasswordReset(tokenHash);
+
+        if (!resetRecord) {
+            return res.status(400).json({ error: 'Invalid or expired reset token', code: 'INVALID_TOKEN' });
+        }
+
+        if (resetRecord.used) {
+            return res.status(400).json({ error: 'Reset token already used', code: 'TOKEN_USED' });
+        }
+
+        if (resetRecord.user_id !== userId || resetRecord.user_role !== role) {
+            return res.status(400).json({ error: 'Invalid reset request', code: 'INVALID_REQUEST' });
+        }
+
+        const salt = await bcrypt.genSalt(12);
+        const passwordHash = await bcrypt.hash(newPassword, salt);
+
+        if (role === 'client') {
+            await db.updateClientPassword(userId, passwordHash);
+        } else if (role === 'interpreter') {
+            await db.updateInterpreterPassword(userId, passwordHash);
+        }
+
+        activityLogger.log('password_reset_completed', { userId, role });
+
+        res.json({ success: true });
+    } catch (error) {
+        req.log.error({ err: error }, 'Password reset failed');
+        res.status(500).json({ error: 'Password reset failed', code: 'INTERNAL_ERROR' });
     }
 });
 

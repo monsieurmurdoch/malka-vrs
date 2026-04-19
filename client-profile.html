@@ -514,6 +514,150 @@
         .ws-connected { color: #4caf50; }
         .ws-disconnected { color: #f44336; }
 
+        /* Auth / Login page styles */
+        .auth-page {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 24px;
+        }
+
+        .auth-card {
+            background: rgba(255,255,255,0.08);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 32px;
+            width: 100%;
+            max-width: 420px;
+        }
+
+        .auth-logo {
+            display: block;
+            margin: 0 auto 16px;
+            max-width: 140px;
+        }
+
+        .auth-title {
+            text-align: center;
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .auth-subtitle {
+            text-align: center;
+            font-size: 14px;
+            opacity: 0.6;
+            margin-bottom: 24px;
+        }
+
+        .auth-tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 20px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .auth-tab {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            background: transparent;
+            border: none;
+            color: rgba(255,255,255,0.5);
+            transition: all 0.2s ease;
+        }
+
+        .auth-tab.active {
+            background: rgba(255,255,255,0.12);
+            color: #fff;
+        }
+
+        .auth-tab:hover:not(.active) {
+            color: rgba(255,255,255,0.8);
+        }
+
+        .auth-field {
+            width: 100%;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            color: #fff;
+            padding: 12px 14px;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .auth-field::placeholder { color: rgba(255,255,255,0.3); }
+        .auth-field:focus { outline: none; border-color: #4caf50; }
+
+        .auth-submit {
+            width: 100%;
+            padding: 13px;
+            background: #4caf50;
+            border: none;
+            border-radius: 10px;
+            color: #fff;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            margin-top: 4px;
+        }
+
+        .auth-submit:hover { background: #43a047; }
+        .auth-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .auth-error {
+            background: rgba(244,67,54,0.15);
+            border: 1px solid rgba(244,67,54,0.3);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 13px;
+            color: #f44336;
+            margin-bottom: 12px;
+        }
+
+        .auth-success {
+            background: rgba(76,175,80,0.15);
+            border: 1px solid rgba(76,175,80,0.3);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 13px;
+            color: #4caf50;
+            margin-bottom: 12px;
+        }
+
+        .auth-link {
+            color: #64b5f6;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 13px;
+        }
+
+        .auth-link:hover { text-decoration: underline; }
+
+        .auth-footer {
+            text-align: center;
+            margin-top: 16px;
+            font-size: 13px;
+            opacity: 0.6;
+        }
+
+        .auth-divider {
+            text-align: center;
+            margin: 16px 0;
+            font-size: 12px;
+            opacity: 0.3;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .profile-main {
@@ -673,7 +817,14 @@
             ringingCall: null,    // { callId, roomName, calleeName, calleePhone }
             // VRS queue state
             queueRequest: null,   // { requestId, position, roomName, language, targetPhone }
-            wsConnected: false
+            wsConnected: false,
+            // Auth state
+            authScreen: 'login',  // 'login' | 'register' | 'forgot' | 'reset' | 'otp' | 'otp-verify'
+            authTab: 'email',     // 'email' | 'phone' | 'sms'
+            authError: '',
+            authSuccess: '',
+            authLoading: false,
+            otpPhoneNumber: ''
         };
 
         // ============================================
@@ -1149,14 +1300,458 @@
         }
 
         // ============================================
+        // AUTH RENDERING
+        // ============================================
+
+        function renderAuth() {
+            const app = document.getElementById('app');
+            const screen = state.authScreen;
+
+            if (screen === 'reset') {
+                const urlParams = new URLSearchParams(window.location.search);
+                renderResetPassword(app, urlParams.get('reset-token'), urlParams.get('reset-user'), urlParams.get('reset-role'));
+                return;
+            }
+
+            if (screen === 'forgot') {
+                renderForgotPassword(app);
+                return;
+            }
+
+            if (screen === 'otp-verify') {
+                renderOtpVerify(app);
+                return;
+            }
+
+            if (screen === 'register') {
+                renderRegister(app);
+                return;
+            }
+
+            // Default: login screen
+            renderLogin(app);
+        }
+
+        function renderLogin(app) {
+            const tab = state.authTab;
+            app.innerHTML = `
+                <div class="auth-page">
+                    <div class="auth-card">
+                        <img src="images/malka-logo-white.png" alt="MalkaVRS" class="auth-logo">
+                        <div class="auth-title">Sign In</div>
+                        <div class="auth-subtitle">Access your VRS account</div>
+
+                        <div class="auth-tabs">
+                            <button class="auth-tab ${tab === 'email' ? 'active' : ''}" onclick="window.__setAuthTab('email')">Email</button>
+                            <button class="auth-tab ${tab === 'phone' ? 'active' : ''}" onclick="window.__setAuthTab('phone')">Phone</button>
+                            <button class="auth-tab ${tab === 'sms' ? 'active' : ''}" onclick="window.__setAuthTab('sms')">SMS Code</button>
+                        </div>
+
+                        ${state.authError ? '<div class="auth-error">' + state.authError + '</div>' : ''}
+                        ${state.authSuccess ? '<div class="auth-success">' + state.authSuccess + '</div>' : ''}
+
+                        ${tab === 'email' ? `
+                            <input type="email" id="login-email" class="auth-field" placeholder="Email address" autocomplete="email">
+                            <input type="password" id="login-password" class="auth-field" placeholder="Password" autocomplete="current-password"
+                                onkeydown="if(event.key==='Enter')window.__loginEmail()">
+                            <button class="auth-submit" onclick="window.__loginEmail()" ${state.authLoading ? 'disabled' : ''}>
+                                ${state.authLoading ? 'Signing in...' : 'Sign In'}
+                            </button>
+                        ` : ''}
+
+                        ${tab === 'phone' ? `
+                            <input type="tel" id="login-phone" class="auth-field" placeholder="+1-555-XXXX" autocomplete="tel">
+                            <input type="password" id="login-password" class="auth-field" placeholder="Password" autocomplete="current-password"
+                                onkeydown="if(event.key==='Enter')window.__loginPhone()">
+                            <button class="auth-submit" onclick="window.__loginPhone()" ${state.authLoading ? 'disabled' : ''}>
+                                ${state.authLoading ? 'Signing in...' : 'Sign In'}
+                            </button>
+                        ` : ''}
+
+                        ${tab === 'sms' ? `
+                            <input type="tel" id="sms-phone" class="auth-field" placeholder="+1-555-XXXX" autocomplete="tel">
+                            <button class="auth-submit" onclick="window.__requestOtp()" ${state.authLoading ? 'disabled' : ''}>
+                                ${state.authLoading ? 'Sending...' : 'Send Verification Code'}
+                            </button>
+                        ` : ''}
+
+                        <div style="text-align:center;margin-top:12px">
+                            <a class="auth-link" onclick="window.__setAuthScreen('forgot')">Forgot password?</a>
+                        </div>
+
+                        <div class="auth-divider">or</div>
+
+                        <div class="auth-footer">
+                            Don't have an account? <a class="auth-link" onclick="window.__setAuthScreen('register')">Register</a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderRegister(app) {
+            app.innerHTML = `
+                <div class="auth-page">
+                    <div class="auth-card">
+                        <img src="images/malka-logo-white.png" alt="MalkaVRS" class="auth-logo">
+                        <div class="auth-title">Register</div>
+                        <div class="auth-subtitle">Create your VRS account</div>
+
+                        ${state.authError ? '<div class="auth-error">' + state.authError + '</div>' : ''}
+
+                        <input type="text" id="reg-name" class="auth-field" placeholder="Full name">
+                        <input type="email" id="reg-email" class="auth-field" placeholder="Email address" autocomplete="email">
+                        <input type="password" id="reg-password" class="auth-field" placeholder="Password (min 8 characters)" autocomplete="new-password">
+                        <input type="text" id="reg-org" class="auth-field" placeholder="Organization (optional)">
+                        <button class="auth-submit" onclick="window.__register()" ${state.authLoading ? 'disabled' : ''}>
+                            ${state.authLoading ? 'Creating account...' : 'Create Account'}
+                        </button>
+
+                        <div class="auth-footer">
+                            Already have an account? <a class="auth-link" onclick="window.__setAuthScreen('login')">Sign In</a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderForgotPassword(app) {
+            app.innerHTML = `
+                <div class="auth-page">
+                    <div class="auth-card">
+                        <img src="images/malka-logo-white.png" alt="MalkaVRS" class="auth-logo">
+                        <div class="auth-title">Reset Password</div>
+                        <div class="auth-subtitle">We'll send a reset link to your email</div>
+
+                        ${state.authError ? '<div class="auth-error">' + state.authError + '</div>' : ''}
+                        ${state.authSuccess ? '<div class="auth-success">' + state.authSuccess + '</div>' : ''}
+
+                        <input type="email" id="forgot-email" class="auth-field" placeholder="Email address"
+                            onkeydown="if(event.key==='Enter')window.__forgotPassword()">
+                        <button class="auth-submit" onclick="window.__forgotPassword()" ${state.authLoading ? 'disabled' : ''}>
+                            ${state.authLoading ? 'Sending...' : 'Send Reset Link'}
+                        </button>
+
+                        <div class="auth-footer">
+                            <a class="auth-link" onclick="window.__setAuthScreen('login')">Back to Sign In</a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderResetPassword(app, token, userId, role) {
+            app.innerHTML = `
+                <div class="auth-page">
+                    <div class="auth-card">
+                        <img src="images/malka-logo-white.png" alt="MalkaVRS" class="auth-logo">
+                        <div class="auth-title">Set New Password</div>
+                        <div class="auth-subtitle">Enter your new password below</div>
+
+                        ${state.authError ? '<div class="auth-error">' + state.authError + '</div>' : ''}
+                        ${state.authSuccess ? '<div class="auth-success">' + state.authSuccess + '</div>' : ''}
+
+                        <input type="password" id="reset-new-password" class="auth-field" placeholder="New password (min 8 characters)" autocomplete="new-password">
+                        <input type="password" id="reset-confirm-password" class="auth-field" placeholder="Confirm new password"
+                            onkeydown="if(event.key==='Enter')window.__resetPassword()">
+                        <button class="auth-submit" onclick="window.__resetPassword()" ${state.authLoading ? 'disabled' : ''}>
+                            ${state.authLoading ? 'Resetting...' : 'Reset Password'}
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderOtpVerify(app) {
+            app.innerHTML = `
+                <div class="auth-page">
+                    <div class="auth-card">
+                        <img src="images/malka-logo-white.png" alt="MalkaVRS" class="auth-logo">
+                        <div class="auth-title">Verify Code</div>
+                        <div class="auth-subtitle">Enter the 6-digit code sent to ${state.otpPhoneNumber}</div>
+
+                        ${state.authError ? '<div class="auth-error">' + state.authError + '</div>' : ''}
+
+                        <input type="text" id="otp-code" class="auth-field" placeholder="000000" maxlength="6"
+                            style="text-align:center;font-size:24px;letter-spacing:8px;font-family:monospace"
+                            onkeydown="if(event.key==='Enter')window.__verifyOtp()" inputmode="numeric">
+                        <button class="auth-submit" onclick="window.__verifyOtp()" ${state.authLoading ? 'disabled' : ''}>
+                            ${state.authLoading ? 'Verifying...' : 'Verify & Sign In'}
+                        </button>
+
+                        <div style="text-align:center;margin-top:12px">
+                            <a class="auth-link" onclick="window.__setAuthScreen('login')">Back to Sign In</a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ============================================
+        // AUTH ACTIONS
+        // ============================================
+
+        window.__setAuthTab = function(tab) {
+            state.authTab = tab;
+            state.authError = '';
+            state.authSuccess = '';
+            renderAuth();
+        };
+
+        window.__setAuthScreen = function(screen) {
+            state.authScreen = screen;
+            state.authError = '';
+            state.authSuccess = '';
+            // Clear reset params from URL when navigating away
+            if (screen !== 'reset' && window.location.search) {
+                window.history.replaceState({}, '', window.location.pathname);
+            }
+            renderAuth();
+        };
+
+        function handleAuthResponse(data, errorMsg) {
+            if (!data) {
+                state.authError = 'Network error. Please try again.';
+                state.authLoading = false;
+                renderAuth();
+                return null;
+            }
+            if (data.error) {
+                state.authError = data.error;
+                state.authLoading = false;
+                renderAuth();
+                return null;
+            }
+            return data;
+        }
+
+        window.__loginEmail = async function() {
+            const email = document.getElementById('login-email')?.value?.trim();
+            const password = document.getElementById('login-password')?.value;
+            if (!email || !password) { state.authError = 'Please fill in all fields.'; renderAuth(); return; }
+
+            state.authLoading = true;
+            state.authError = '';
+            renderAuth();
+
+            try {
+                const res = await fetch(API_BASE + '/api/auth/client/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await res.json();
+                if (handleAuthResponse(data)) {
+                    setPersistentItem('vrs_auth_token', JSON.stringify({ token: data.token }));
+                    setPersistentItem('vrs_user_info', JSON.stringify(data.user));
+                    init();
+                }
+            } catch (e) {
+                state.authError = 'Network error. Please try again.';
+                state.authLoading = false;
+                renderAuth();
+            }
+        };
+
+        window.__loginPhone = async function() {
+            const phoneNumber = document.getElementById('login-phone')?.value?.trim();
+            const password = document.getElementById('login-password')?.value;
+            if (!phoneNumber || !password) { state.authError = 'Please fill in all fields.'; renderAuth(); return; }
+
+            state.authLoading = true;
+            state.authError = '';
+            renderAuth();
+
+            try {
+                const res = await fetch(API_BASE + '/api/auth/client/phone-login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phoneNumber, password })
+                });
+                const data = await res.json();
+                if (handleAuthResponse(data)) {
+                    setPersistentItem('vrs_auth_token', JSON.stringify({ token: data.token }));
+                    setPersistentItem('vrs_user_info', JSON.stringify(data.user));
+                    init();
+                }
+            } catch (e) {
+                state.authError = 'Network error. Please try again.';
+                state.authLoading = false;
+                renderAuth();
+            }
+        };
+
+        window.__requestOtp = async function() {
+            const phoneNumber = document.getElementById('sms-phone')?.value?.trim();
+            if (!phoneNumber) { state.authError = 'Please enter your phone number.'; renderAuth(); return; }
+
+            state.authLoading = true;
+            state.authError = '';
+            renderAuth();
+
+            try {
+                const res = await fetch(API_BASE + '/api/auth/otp/request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phoneNumber, purpose: 'login' })
+                });
+                const data = await res.json();
+                if (handleAuthResponse(data)) {
+                    state.otpPhoneNumber = phoneNumber;
+                    state.authScreen = 'otp-verify';
+                    state.authLoading = false;
+                    renderAuth();
+                }
+            } catch (e) {
+                state.authError = 'Network error. Please try again.';
+                state.authLoading = false;
+                renderAuth();
+            }
+        };
+
+        window.__verifyOtp = async function() {
+            const code = document.getElementById('otp-code')?.value?.trim();
+            if (!code || code.length !== 6) { state.authError = 'Please enter the 6-digit code.'; renderAuth(); return; }
+
+            state.authLoading = true;
+            state.authError = '';
+            renderAuth();
+
+            try {
+                const res = await fetch(API_BASE + '/api/auth/otp/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phoneNumber: state.otpPhoneNumber, code, purpose: 'login' })
+                });
+                const data = await res.json();
+                if (handleAuthResponse(data)) {
+                    setPersistentItem('vrs_auth_token', JSON.stringify({ token: data.token }));
+                    setPersistentItem('vrs_user_info', JSON.stringify(data.user));
+                    init();
+                }
+            } catch (e) {
+                state.authError = 'Network error. Please try again.';
+                state.authLoading = false;
+                renderAuth();
+            }
+        };
+
+        window.__register = async function() {
+            const name = document.getElementById('reg-name')?.value?.trim();
+            const email = document.getElementById('reg-email')?.value?.trim();
+            const password = document.getElementById('reg-password')?.value;
+            const organization = document.getElementById('reg-org')?.value?.trim() || '';
+            if (!name || !email || !password) { state.authError = 'Please fill in all required fields.'; renderAuth(); return; }
+
+            state.authLoading = true;
+            state.authError = '';
+            renderAuth();
+
+            try {
+                const res = await fetch(API_BASE + '/api/auth/client/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email, password, organization })
+                });
+                const data = await res.json();
+                if (handleAuthResponse(data)) {
+                    setPersistentItem('vrs_auth_token', JSON.stringify({ token: data.token }));
+                    setPersistentItem('vrs_user_info', JSON.stringify(data.user));
+                    init();
+                }
+            } catch (e) {
+                state.authError = 'Network error. Please try again.';
+                state.authLoading = false;
+                renderAuth();
+            }
+        };
+
+        window.__forgotPassword = async function() {
+            const email = document.getElementById('forgot-email')?.value?.trim();
+            if (!email) { state.authError = 'Please enter your email address.'; renderAuth(); return; }
+
+            state.authLoading = true;
+            state.authError = '';
+            renderAuth();
+
+            try {
+                const res = await fetch(API_BASE + '/api/auth/password/forgot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                const data = await res.json();
+                state.authLoading = false;
+                if (data && data.success) {
+                    state.authSuccess = 'If an account exists with that email, a reset link has been sent. Check your inbox.';
+                } else {
+                    state.authError = data?.error || 'Something went wrong.';
+                }
+                renderAuth();
+            } catch (e) {
+                state.authError = 'Network error. Please try again.';
+                state.authLoading = false;
+                renderAuth();
+            }
+        };
+
+        window.__resetPassword = async function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('reset-token');
+            const userId = urlParams.get('reset-user');
+            const role = urlParams.get('reset-role');
+            const newPassword = document.getElementById('reset-new-password')?.value;
+            const confirm = document.getElementById('reset-confirm-password')?.value;
+
+            if (!newPassword || newPassword.length < 8) { state.authError = 'Password must be at least 8 characters.'; renderAuth(); return; }
+            if (newPassword !== confirm) { state.authError = 'Passwords do not match.'; renderAuth(); return; }
+
+            state.authLoading = true;
+            state.authError = '';
+            renderAuth();
+
+            try {
+                const res = await fetch(API_BASE + '/api/auth/password/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, userId, role, newPassword })
+                });
+                const data = await res.json();
+                state.authLoading = false;
+                if (data && data.success) {
+                    state.authSuccess = 'Password reset successfully! You can now sign in.';
+                    state.authScreen = 'login';
+                    window.history.replaceState({}, '', window.location.pathname);
+                } else {
+                    state.authError = data?.error || 'Reset failed. The link may have expired.';
+                }
+                renderAuth();
+            } catch (e) {
+                state.authError = 'Network error. Please try again.';
+                state.authLoading = false;
+                renderAuth();
+            }
+        };
+
+        // ============================================
         // RENDER
         // ============================================
 
         function render() {
             const user = getUser();
+
+            // Check for password reset URL params
+            const urlParams = new URLSearchParams(window.location.search);
+            const resetToken = urlParams.get('reset-token');
+            const resetUser = urlParams.get('reset-user');
+            const resetRole = urlParams.get('reset-role');
+
+            if (resetToken && resetUser && resetRole) {
+                state.authScreen = 'reset';
+            }
+
             if (!user || user.role !== 'client') {
-                document.getElementById('app').innerHTML = '<div class="auth-redirect"><p>Redirecting to sign in...</p></div>';
-                setTimeout(() => { window.location.href = '/'; }, 1000);
+                renderAuth();
                 return;
             }
 
@@ -1204,6 +1799,18 @@
                                 <button class="dialer-btn" onclick="window.__dialViaInterpreter()">Call</button>
                             </div>
                             <div style="font-size:12px;opacity:0.4">Enter a phone number — an interpreter will connect you</div>
+                        </div>
+
+                        <!-- TTS Fallback / VCO Mode — no interpreter needed -->
+                        <div class="card" style="margin-bottom:24px;border-color:rgba(52,152,219,0.3)">
+                            <div class="card-title" style="color:#3498db">TTS Fallback (VCO)</div>
+                            <div style="font-size:13px;opacity:0.6;margin-bottom:12px">
+                                Type messages that are read aloud to the hearing party — no interpreter needed.
+                                For deaf users who prefer typing, or when no interpreter is available.
+                            </div>
+                            <button class="start-call-btn" onclick="location.href='tts-panel.html'" style="background:rgba(52,152,219,0.5);border-color:rgba(52,152,219,0.7)">
+                                Open TTS Panel
+                            </button>
                         </div>
 
                         <!-- Active Rooms -->
@@ -1423,9 +2030,18 @@
         async function init() {
             const user = getUser();
             const token = getToken();
+
+            // Check for password reset URL params first
+            const urlParams = new URLSearchParams(window.location.search);
+            const resetToken = urlParams.get('reset-token');
+            if (resetToken) {
+                state.authScreen = 'reset';
+                renderAuth();
+                return;
+            }
+
             if (!user || !token || user.role !== 'client') {
-                document.getElementById('app').innerHTML = '<div class="auth-redirect"><p>Redirecting...</p></div>';
-                setTimeout(() => { window.location.href = '/'; }, 500);
+                renderAuth();
                 return;
             }
 

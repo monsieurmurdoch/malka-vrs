@@ -12,6 +12,7 @@ const activityLogger = require('../lib/activity-logger');
 const queueService = require('../lib/queue-service');
 const handoffService = require('../lib/handoff-service');
 const voicemailService = require('../dist/lib/voicemail-service');
+const ttsService = require('../lib/tts-service');
 const state = require('../lib/state');
 const { verifyJwtToken, normalizeAuthClaims, tokenMatchesRequestedRole } = require('../lib/auth');
 const log = require('../lib/logger').module('ws');
@@ -210,6 +211,64 @@ function handleConnection(ws, req) {
                     await handleVoicemailMarkSeen(ws, data);
                     break;
 
+                // Call Management & UX
+                case 'call_waiting_respond':
+                    await handleCallWaitingRespond(ws, data);
+                    break;
+
+                case 'call_transfer':
+                    await handleCallTransfer(ws, data);
+                    break;
+
+                case 'call_transfer_accept':
+                    await handleCallTransferAccept(ws, data);
+                    break;
+
+                case 'call_transfer_cancel':
+                    await handleCallTransferCancel(ws, data);
+                    break;
+
+                case 'call_hold':
+                    await handleCallHold(ws, data);
+                    break;
+
+                case 'conference_add':
+                    await handleConferenceAdd(ws, data);
+                    break;
+
+                case 'conference_remove':
+                    await handleConferenceRemove(ws, data);
+                    break;
+
+                case 'chat_send':
+                    await handleChatSend(ws, data);
+                    break;
+
+                case 'chat_history':
+                    await handleChatHistory(ws, data);
+                    break;
+
+                case 'preferences_update':
+                    await handlePreferencesUpdate(ws, data);
+                    break;
+
+                // TTS / VCO
+                case 'vco_start':
+                    await handleVCOStart(ws, data);
+                    break;
+
+                case 'vco_end':
+                    await handleVCOEnd(ws, data);
+                    break;
+
+                case 'tts_speak':
+                    await handleTTSSpeak(ws, data);
+                    break;
+
+                case 'tts_quick_speak':
+                    await handleTTSQuickSpeak(ws, data);
+                    break;
+
                 default:
                     sendWsError(ws, `Unsupported message type: ${String(data.type || 'unknown')}`, 'UNSUPPORTED_MESSAGE');
                     break;
@@ -311,6 +370,13 @@ function handleAuth(ws, data, clientId) {
                 }
             }).catch(err => {
                 log.error({ err }, 'Failed to deliver voicemail unread count');
+            });
+
+            // Send client preferences on connect
+            db.getClientPreferences(clientInfo.userId).then(prefs => {
+                ws.send(JSON.stringify({ type: 'preferences_updated', data: prefs }));
+            }).catch(err => {
+                log.error({ err }, 'Failed to deliver client preferences');
             });
         }
 
@@ -755,6 +821,19 @@ async function handleP2PCall(ws, data) {
         const roomName = 'p2p-' + uuidv4().substring(0, 8);
         const calleeWs = state.findClientSocketByUserId(callee.id);
 
+        // Check Do Not Disturb
+        const isDND = await db.isClientDND(callee.id);
+        if (isDND) {
+            // Route to voicemail instead of ringing
+            ws.send(JSON.stringify({
+                type: 'p2p_target_dnd',
+                data: { calleeName: callee.name, calleePhone: phoneNumber, calleeId: callee.id, voicemailAvailable: true }
+            }));
+
+            activityLogger.log('p2p_call_dnd', { callerId: caller.userId, calleeId: callee.id, calleePhone: phoneNumber });
+            return;
+        }
+
         if (calleeWs && calleeWs.readyState === WebSocket.OPEN) {
             const callId = await db.createP2PCall({ callerId: caller.userId, calleeId: callee.id, roomName });
 
@@ -762,15 +841,33 @@ async function handleP2PCall(ws, data) {
 
             log.info({ callId, clientId: caller.userId, interpreterId: callee.id, roomName }, 'Call started');
 
+            // Check if callee is already on a call (call waiting scenario)
+            const calleeActiveCall = await db.getActiveCallForClient(callee.id);
+
             ws.send(JSON.stringify({
                 type: 'p2p_ringing',
                 data: { callId, roomName, calleeName: callee.name, calleePhone: phoneNumber }
             }));
 
-            calleeWs.send(JSON.stringify({
-                type: 'p2p_incoming_call',
-                data: { callId, roomName, callerName: caller.name, callerId: caller.userId, calleeId: callee.id }
-            }));
+            if (calleeActiveCall && calleeActiveCall.id !== callId) {
+                // Callee is on another call — send call waiting notification
+                calleeWs.send(JSON.stringify({
+                    type: 'p2p_incoming_call_waiting',
+                    data: {
+                        callId,
+                        roomName,
+                        callerName: caller.name,
+                        callerId: caller.userId,
+                        calleeId: callee.id,
+                        currentCallId: calleeActiveCall.id
+                    }
+                }));
+            } else {
+                calleeWs.send(JSON.stringify({
+                    type: 'p2p_incoming_call',
+                    data: { callId, roomName, callerName: caller.name, callerId: caller.userId, calleeId: callee.id }
+                }));
+            }
 
             activityLogger.log('p2p_call_ringing', { callerId: caller.userId, calleeId: callee.id, roomName });
         } else {
@@ -987,5 +1084,608 @@ async function handleVoicemailMarkSeen(ws, data) {
         // Silently ignore — seen status is non-critical
     }
 }
+
+// ============================================
+// CALL WAITING HANDLERS
+// ============================================
+
+async function handleCallWaitingRespond(ws, data) {
+    const client = ws.clientInfo;
+    if (!client || client.role !== 'client' || !client.authenticated) {
+        return sendWsError(ws, 'Client authentication required.', 'AUTH_REQUIRED');
+    }
+
+    const { incomingCallId, currentCallId, action } = data.data || data;
+
+    if (action === 'reject') {
+        // Reject incoming call — treat as declined
+        const incomingCall = await db.getCall(incomingCallId);
+        if (incomingCall) {
+            const otherId = incomingCall.client_id === client.userId
+                ? incomingCall.callee_id
+                : incomingCall.client_id;
+            const otherWs = state.findClientSocketByUserId(otherId);
+            if (otherWs && otherWs.readyState === WebSocket.OPEN) {
+                otherWs.send(JSON.stringify({
+                    type: 'p2p_declined',
+                    data: { callId: incomingCallId, calleeName: client.name, calleeId: client.userId }
+                }));
+            }
+        }
+        ws.send(JSON.stringify({ type: 'call_waiting_responded', data: { action: 'rejected', callId: incomingCallId } }));
+        activityLogger.log('call_waiting_rejected', { clientId: client.userId, incomingCallId });
+        return;
+    }
+
+    if (action === 'hold_and_accept') {
+        // Put current call on hold, then accept incoming
+        await db.setCallOnHold(currentCallId, true);
+
+        // Notify the other party on the current call
+        const currentCall = await db.getCall(currentCallId);
+        if (currentCall) {
+            const otherId = currentCall.client_id === client.userId
+                ? currentCall.callee_id || currentCall.interpreter_id
+                : currentCall.client_id;
+            const otherWs = state.findClientSocketByUserId(otherId);
+            if (otherWs && otherWs.readyState === WebSocket.OPEN) {
+                otherWs.send(JSON.stringify({
+                    type: 'call_on_hold',
+                    data: { callId: currentCallId, heldBy: client.name }
+                }));
+            }
+        }
+    }
+
+    // Accept the incoming call (works for both 'accept' and 'hold_and_accept')
+    const incomingCall = await db.getCall(incomingCallId);
+    if (!incomingCall) {
+        return sendWsError(ws, 'Incoming call not found.', 'NOT_FOUND');
+    }
+
+    const callerId = incomingCall.client_id === client.userId
+        ? incomingCall.callee_id
+        : incomingCall.client_id;
+    const callerWs = state.findClientSocketByUserId(callerId);
+
+    if (callerWs && callerWs.readyState === WebSocket.OPEN) {
+        callerWs.send(JSON.stringify({
+            type: 'p2p_accepted',
+            data: { callId: incomingCallId, roomName: incomingCall.room_name, calleeName: client.name, calleeId: client.userId }
+        }));
+    }
+
+    ws.send(JSON.stringify({
+        type: 'call_waiting_responded',
+        data: { action, callId: incomingCallId, roomName: incomingCall.room_name, callerName: callerId }
+    }));
+
+    ws.send(JSON.stringify({
+        type: 'p2p_join_room',
+        data: { callId: incomingCallId, roomName: incomingCall.room_name, callerId }
+    }));
+
+    activityLogger.log('call_waiting_accepted', { clientId: client.userId, incomingCallId, currentCallId, action });
+}
+
+// ============================================
+// CALL TRANSFER HANDLERS
+// ============================================
+
+async function handleCallTransfer(ws, data) {
+    const interpreter = ws.clientInfo;
+    if (!interpreter || interpreter.role !== 'interpreter' || !interpreter.authenticated) {
+        return sendWsError(ws, 'Interpreter authentication required.', 'AUTH_REQUIRED');
+    }
+
+    const payload = data.data || data;
+    const { callId, toPhoneNumber, toInterpreterId, transferType, reason } = payload;
+
+    const call = await db.getCall(callId);
+    if (!call) {
+        return sendWsError(ws, 'Call not found.', 'NOT_FOUND');
+    }
+
+    const transfer = await db.createCallTransfer({
+        callId,
+        fromInterpreterId: interpreter.userId,
+        toPhoneNumber: toPhoneNumber || null,
+        toInterpreterId: toInterpreterId || null,
+        transferType: transferType || 'blind',
+        reason: reason || null
+    });
+
+    // Notify admin dashboard
+    notifyAdmins('call_transfer_initiated', {
+        transferId: transfer.id,
+        callId,
+        fromInterpreterId: interpreter.userId,
+        fromInterpreterName: interpreter.name,
+        toPhoneNumber: toPhoneNumber || null,
+        toInterpreterId: toInterpreterId || null,
+        transferType: transferType || 'blind'
+    });
+
+    // Notify the client on the call
+    const clientWs = state.findClientSocketByUserId(call.client_id);
+    if (clientWs && clientWs.readyState === WebSocket.OPEN) {
+        clientWs.send(JSON.stringify({
+            type: 'call_transfer_initiated',
+            data: {
+                transferId: transfer.id,
+                callId,
+                transferType: transferType || 'blind',
+                toPhoneNumber: toPhoneNumber || null,
+                interpreterName: interpreter.name
+            }
+        }));
+    }
+
+    ws.send(JSON.stringify({
+        type: 'call_transfer_pending',
+        data: { transferId: transfer.id, callId }
+    }));
+
+    activityLogger.log('call_transfer_initiated', {
+        transferId: transfer.id, callId,
+        fromInterpreterId: interpreter.userId,
+        toPhoneNumber: toPhoneNumber || null,
+        toInterpreterId: toInterpreterId || null,
+        transferType: transferType || 'blind'
+    });
+}
+
+async function handleCallTransferAccept(ws, data) {
+    const interpreter = ws.clientInfo;
+    if (!interpreter || interpreter.role !== 'interpreter' || !interpreter.authenticated) {
+        return sendWsError(ws, 'Interpreter authentication required.', 'AUTH_REQUIRED');
+    }
+
+    const { transferId } = data.data || data;
+    await db.updateCallTransferStatus(transferId, 'accepted');
+
+    ws.send(JSON.stringify({
+        type: 'call_transfer_accepted',
+        data: { transferId }
+    }));
+
+    activityLogger.log('call_transfer_accepted', { transferId, interpreterId: interpreter.userId });
+}
+
+async function handleCallTransferCancel(ws, data) {
+    const { transferId } = data.data || data;
+    await db.updateCallTransferStatus(transferId, 'cancelled');
+
+    ws.send(JSON.stringify({
+        type: 'call_transfer_cancelled',
+        data: { transferId }
+    }));
+
+    activityLogger.log('call_transfer_cancelled', { transferId });
+}
+
+// ============================================
+// CALL HOLD HANDLER
+// ============================================
+
+async function handleCallHold(ws, data) {
+    const client = ws.clientInfo;
+    if (!client || !client.authenticated) {
+        return sendWsError(ws, 'Authentication required.', 'AUTH_REQUIRED');
+    }
+
+    const { callId, onHold } = data.data || data;
+    await db.setCallOnHold(callId, onHold);
+
+    // Notify the other party
+    const call = await db.getCall(callId);
+    if (call) {
+        const otherId = call.client_id === client.userId
+            ? (call.callee_id || call.interpreter_id)
+            : call.client_id;
+        const otherWs = state.findClientSocketByUserId(otherId);
+        if (otherWs && otherWs.readyState === WebSocket.OPEN) {
+            otherWs.send(JSON.stringify({
+                type: onHold ? 'call_on_hold' : 'call_off_hold',
+                data: { callId, heldBy: client.name }
+            }));
+        }
+    }
+
+    ws.send(JSON.stringify({
+        type: 'call_hold_updated',
+        data: { callId, onHold }
+    }));
+
+    activityLogger.log(onHold ? 'call_on_hold' : 'call_off_hold', { callId, userId: client.userId });
+}
+
+// ============================================
+// CONFERENCE (3-WAY) CALL HANDLERS
+// ============================================
+
+async function handleConferenceAdd(ws, data) {
+    const client = ws.clientInfo;
+    if (!client || client.role !== 'client' || !client.authenticated) {
+        return sendWsError(ws, 'Client authentication required.', 'AUTH_REQUIRED');
+    }
+
+    const payload = data.data || data;
+    const { callId, phoneNumber, clientId: thirdPartyId } = payload;
+
+    let targetClientId = thirdPartyId || null;
+
+    // Resolve phone number to client
+    if (phoneNumber && !targetClientId) {
+        const target = await db.getClientByPhoneNumber(phoneNumber);
+        if (!target) {
+            return sendWsError(ws, 'No client found with that phone number.', 'NOT_FOUND');
+        }
+        targetClientId = target.id;
+    }
+
+    if (!targetClientId) {
+        return sendWsError(ws, 'Must provide phoneNumber or clientId.', 'VALIDATION_ERROR');
+    }
+
+    // Check DND
+    const isDND = await db.isClientDND(targetClientId);
+    if (isDND) {
+        return sendWsError(ws, 'Target has Do Not Disturb enabled.', 'TARGET_DND');
+    }
+
+    // Add participant to conference
+    await db.addConferenceParticipant({ callId, participantId: targetClientId, participantRole: 'party' });
+
+    const call = await db.getCall(callId);
+
+    // Notify the third party
+    const thirdPartyWs = state.findClientSocketByUserId(targetClientId);
+    if (thirdPartyWs && thirdPartyWs.readyState === WebSocket.OPEN) {
+        thirdPartyWs.send(JSON.stringify({
+            type: 'conference_invite',
+            data: {
+                callId,
+                roomName: call ? call.room_name : null,
+                invitedByName: client.name,
+                invitedById: client.userId
+            }
+        }));
+    } else {
+        await db.createMissedCall({
+            callerId: client.userId,
+            calleePhone: phoneNumber || null,
+            calleeClientId: targetClientId,
+            roomName: call ? call.room_name : null
+        });
+
+        ws.send(JSON.stringify({
+            type: 'conference_add_offline',
+            data: { targetClientId, callId }
+        }));
+        return;
+    }
+
+    ws.send(JSON.stringify({
+        type: 'conference_add_ringing',
+        data: { targetClientId, callId }
+    }));
+
+    activityLogger.log('conference_add', { callId, addedById: client.userId, targetClientId });
+}
+
+async function handleConferenceRemove(ws, data) {
+    const client = ws.clientInfo;
+    if (!client || !client.authenticated) {
+        return sendWsError(ws, 'Authentication required.', 'AUTH_REQUIRED');
+    }
+
+    const { callId, participantId } = data.data || data;
+    await db.removeConferenceParticipant(callId, participantId);
+
+    // Notify removed participant
+    const participantWs = state.findClientSocketByUserId(participantId);
+    if (participantWs && participantWs.readyState === WebSocket.OPEN) {
+        participantWs.send(JSON.stringify({
+            type: 'conference_removed',
+            data: { callId, removedBy: client.name }
+        }));
+    }
+
+    ws.send(JSON.stringify({
+        type: 'conference_participant_removed',
+        data: { callId, participantId }
+    }));
+
+    activityLogger.log('conference_remove', { callId, removedBy: client.userId, participantId });
+}
+
+// ============================================
+// IN-CALL CHAT HANDLERS
+// ============================================
+
+async function handleChatSend(ws, data) {
+    const client = ws.clientInfo;
+    if (!client || !client.authenticated) {
+        return sendWsError(ws, 'Authentication required.', 'AUTH_REQUIRED');
+    }
+
+    const { callId, message } = data.data || data;
+
+    const result = await db.addChatMessage({
+        callId,
+        senderId: client.userId,
+        senderName: client.name || 'Unknown',
+        message
+    });
+
+    // Broadcast to all participants on the call
+    const call = await db.getCall(callId);
+    if (call) {
+        const participantIds = [call.client_id, call.callee_id, call.interpreter_id].filter(Boolean);
+        const chatMsg = JSON.stringify({
+            type: 'chat_message',
+            data: {
+                id: result.id,
+                callId,
+                senderId: client.userId,
+                senderName: client.name || 'Unknown',
+                message,
+                timestamp: Date.now()
+            }
+        });
+
+        for (const pid of participantIds) {
+            if (pid === client.userId) continue;
+            const participantWs = state.findClientSocketByUserId(pid);
+            if (participantWs && participantWs.readyState === WebSocket.OPEN) {
+                participantWs.send(chatMsg);
+            }
+        }
+    }
+
+    ws.send(JSON.stringify({
+        type: 'chat_message_sent',
+        data: { id: result.id, callId, message }
+    }));
+}
+
+async function handleChatHistory(ws, data) {
+    const client = ws.clientInfo;
+    if (!client || !client.authenticated) {
+        return sendWsError(ws, 'Authentication required.', 'AUTH_REQUIRED');
+    }
+
+    const { callId, limit, offset } = data.data || data;
+    const messages = await db.getChatMessages(callId, limit || 100, offset || 0);
+
+    ws.send(JSON.stringify({
+        type: 'chat_history',
+        data: { callId, messages }
+    }));
+}
+
+// ============================================
+// CLIENT PREFERENCES HANDLER
+// ============================================
+
+async function handlePreferencesUpdate(ws, data) {
+    const client = ws.clientInfo;
+    if (!client || client.role !== 'client' || !client.authenticated) {
+        return sendWsError(ws, 'Client authentication required.', 'AUTH_REQUIRED');
+    }
+
+    const updates = data.data || data;
+    await db.updateClientPreferences(client.userId, updates);
+
+    // Return the updated preferences
+    const prefs = await db.getClientPreferences(client.userId);
+    ws.send(JSON.stringify({
+        type: 'preferences_updated',
+        data: prefs
+    }));
+
+    activityLogger.log('preferences_updated', { clientId: client.userId, updates });
+}
+
+// ============================================
+// TTS / VCO HANDLERS
+// ============================================
+
+async function handleVCOStart(ws, data) {
+    const client = ws.clientInfo;
+    if (!client || client.role !== 'client' || !client.authenticated) {
+        return sendWsError(ws, 'Client authentication required.', 'AUTH_REQUIRED');
+    }
+
+    const payload = data.data || {};
+    const targetPhone = sanitizePhoneNumber(payload.targetPhone);
+    const roomName = payload.roomName || generateFriendlyRoomName();
+
+    try {
+        const callId = await db.createVCOCall({
+            clientId: client.userId,
+            roomName,
+            targetPhone: targetPhone || null
+        });
+
+        ttsService.startSession(callId, client.userId, roomName, targetPhone || null);
+
+        ws.send(JSON.stringify({
+            type: 'vco_started',
+            data: {
+                callId,
+                roomName,
+                callMode: 'vco',
+                targetPhone: targetPhone || null,
+                message: 'VCO call started. Use tts_speak to send text messages.'
+            }
+        }));
+
+        // If target phone was provided and Twilio is available, initiate outbound call
+        if (targetPhone) {
+            try {
+                const twilioBase = process.env.TWILIO_VOICE_URL || 'http://localhost:3002';
+                const twilioRes = await fetch(twilioBase + '/api/voice/call', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        phoneNumber: targetPhone,
+                        interpreterId: 'tts-fallback-' + client.userId,
+                        sessionId: callId
+                    })
+                });
+                const twilioData = await twilioRes.json();
+                if (twilioData.success) {
+                    ttsService.attachCallSid(callId, twilioData.callSid);
+                    ws.send(JSON.stringify({
+                        type: 'vco_outbound_initiated',
+                        data: { callId, callSid: twilioData.callSid, targetPhone }
+                    }));
+                }
+            } catch (twilioErr) {
+                log.warn({ err: twilioErr }, 'Twilio outbound failed for VCO (non-fatal)');
+            }
+        }
+
+        activityLogger.log('vco_call_started', { callId, clientId: client.userId, roomName, targetPhone });
+        log.info({ callId, clientId: client.userId, roomName }, 'VCO call started');
+    } catch (error) {
+        log.error({ err: error }, 'VCO start error');
+        sendWsError(ws, 'Failed to start VCO call.', 'INTERNAL_ERROR');
+    }
+}
+
+async function handleVCOEnd(ws, data) {
+    const client = ws.clientInfo;
+    if (!client || client.role !== 'client' || !client.authenticated) return;
+
+    const payload = data.data || {};
+    const { callId } = payload;
+    if (!callId) return;
+
+    try {
+        await db.endCall(callId, payload.durationMinutes || 0);
+        ttsService.endSession(callId);
+
+        ws.send(JSON.stringify({
+            type: 'vco_ended',
+            data: { callId, roomName: payload.roomName }
+        }));
+
+        activityLogger.log('vco_call_ended', { callId, clientId: client.userId, durationMinutes: payload.durationMinutes || 0 });
+        log.info({ callId, durationMs: (payload.durationMinutes || 0) * 60000 }, 'VCO call ended');
+    } catch (err) {
+        log.error({ err }, 'VCO end error');
+    }
+}
+
+async function handleTTSSpeak(ws, data) {
+    const client = ws.clientInfo;
+    if (!client || client.role !== 'client' || !client.authenticated) {
+        return sendWsError(ws, 'Client authentication required.', 'AUTH_REQUIRED');
+    }
+
+    const payload = data.data || {};
+    const { callId, text, voiceSettings } = payload;
+
+    if (!callId || !text) {
+        return sendWsError(ws, 'callId and text are required.', 'VALIDATION_ERROR');
+    }
+
+    // Verify the call belongs to this client
+    const session = ttsService.getSession(callId);
+    if (!session || String(session.clientId) !== String(client.userId)) {
+        return sendWsError(ws, 'TTS session not found or not owned by you.', 'NOT_FOUND');
+    }
+
+    // Get client voice settings (merge with any overrides from this message)
+    const settings = await ttsService.getSettings(client.userId);
+    const mergedVoice = {
+        voiceName: voiceSettings?.voiceName || settings.voiceName,
+        voiceGender: voiceSettings?.voiceGender || settings.voiceGender,
+        voiceSpeed: voiceSettings?.voiceSpeed || settings.voiceSpeed,
+        voicePitch: voiceSettings?.voicePitch || settings.voicePitch
+    };
+    const twilioVoice = mergedVoice.voiceGender === 'male' ? 'man' : 'alice';
+
+    // If there is an active outbound Twilio leg, inject <Say> into that live call
+    // before confirming success back to the client.
+    if (session.callSid) {
+        try {
+            const twilioBase = process.env.TWILIO_VOICE_URL || 'http://localhost:3002';
+            const twilioRes = await fetch(twilioBase + '/api/voice/tts-say', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    callSid: session.callSid,
+                    text,
+                    voice: twilioVoice
+                })
+            });
+
+            if (!twilioRes.ok) {
+                const errorText = await twilioRes.text();
+                log.warn({ callId, callSid: session.callSid, status: twilioRes.status, errorText }, 'Twilio TTS relay failed');
+                return sendWsError(ws, 'Failed to relay TTS to the live phone call.', 'TTS_RELAY_FAILED');
+            }
+        } catch (twilioErr) {
+            log.warn({ err: twilioErr, callId, callSid: session.callSid }, 'Twilio TTS relay failed');
+            return sendWsError(ws, 'Failed to relay TTS to the live phone call.', 'TTS_RELAY_FAILED');
+        }
+    }
+
+    // Broadcast the TTS message to the client UI so they get confirmation and
+    // local playback for verification.
+    ws.send(JSON.stringify({
+        type: 'tts_message_sent',
+        data: {
+            callId,
+            text,
+            voiceSettings: mergedVoice,
+            timestamp: Date.now()
+        }
+    }));
+
+    activityLogger.log('tts_speak', { callId, clientId: client.userId, textLength: text.length });
+    log.info({ callId, textLength: text.length, hasOutboundRelay: Boolean(session.callSid) }, 'TTS speak relayed');
+}
+
+async function handleTTSQuickSpeak(ws, data) {
+    const client = ws.clientInfo;
+    if (!client || client.role !== 'client' || !client.authenticated) {
+        return sendWsError(ws, 'Client authentication required.', 'AUTH_REQUIRED');
+    }
+
+    const payload = data.data || {};
+    const { callId, phraseId } = payload;
+
+    if (!callId || !phraseId) {
+        return sendWsError(ws, 'callId and phraseId are required.', 'VALIDATION_ERROR');
+    }
+
+    try {
+        const phrases = await ttsService.getQuickPhrases(client.userId);
+        const phrase = phrases.find(p => p.id === phraseId);
+        if (!phrase) {
+            return sendWsError(ws, 'Quick phrase not found.', 'NOT_FOUND');
+        }
+
+        // Reuse the speak handler with the phrase text
+        await handleTTSSpeak(ws, {
+            data: {
+                callId,
+                text: phrase.text
+            }
+        });
+    } catch (error) {
+        log.error({ err: error }, 'TTS quick speak error');
+        sendWsError(ws, 'Failed to speak quick phrase.', 'INTERNAL_ERROR');
+    }
+}
+
+// ============================================
+// DND CHECK (used by P2P call to check if callee has DND on)
+// ============================================
 
 module.exports = { handleConnection };

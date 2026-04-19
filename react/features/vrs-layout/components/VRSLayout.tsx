@@ -7,6 +7,8 @@ import VideoTrack from '../../base/media/components/web/VideoTrack';
 import { getLocalParticipant } from '../../base/participants/functions';
 import type { IParticipant } from '../../base/participants/types';
 import { getVideoTrackByParticipant } from '../../base/tracks/functions.web';
+import { CallWaitingOverlay } from '../../call-management/components/CallWaitingOverlay';
+import { InCallChatPanel } from '../../call-management/components/InCallChatPanel';
 
 type VRSConferenceRole = 'client' | 'interpreter' | 'hearing';
 
@@ -22,6 +24,7 @@ interface IVRSPane {
 interface IProps {
     _extras: IParticipant[];
     _panes: IVRSPane[];
+    _roomName?: string;
 }
 
 const VIDEO_STYLE = {
@@ -384,7 +387,7 @@ function getPaneEmptyMessage(role: VRSConferenceRole, hasParticipant: boolean) {
     return 'The hearing party will appear here when they join by video or phone.';
 }
 
-const VRSLayout = ({ _extras, _panes }: IProps) => {
+const VRSLayout = ({ _extras, _panes, _roomName }: IProps) => {
     const { classes, cx } = useStyles();
     const visiblePanes = _panes.filter(pane => Boolean(pane.participant));
 
@@ -400,6 +403,9 @@ const VRSLayout = ({ _extras, _panes }: IProps) => {
                 visiblePanes.length === 2 && classes.twoPaneRoot,
                 visiblePanes.length >= 3 && classes.threePaneRoot
             ) }>
+            {/* Call waiting overlay — renders only when an incoming call arrives */}
+            <CallWaitingOverlay />
+
             {visiblePanes.map(pane => {
                 const participantName = getParticipantName(pane.participant, pane.title);
                 const emptyMessage = getPaneEmptyMessage(pane.role, Boolean(pane.participant));
@@ -459,6 +465,8 @@ const VRSLayout = ({ _extras, _panes }: IProps) => {
                     </div>
                 </div>
             )}
+            {/* In-call text chat panel */}
+            {_roomName && <InCallChatPanel callId = { _roomName } />}
         </div>
     );
 };
@@ -497,6 +505,8 @@ function _mapStateToProps(state: IReduxState): IProps {
 
     return {
         _extras: remainingParticipants,
+        _roomName: state['features/base/conference']?.conference?.getRoom?.()
+            || state['features/base/config']?.roomName,
         _panes: [
             {
                 description: 'Deaf or hard-of-hearing participant',

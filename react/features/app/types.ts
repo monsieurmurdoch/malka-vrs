@@ -83,6 +83,7 @@ import { IVisitorsState } from '../visitors/reducer';
 import { IWebHid } from '../web-hid/reducer';
 import { IWhiteboardState } from '../whiteboard/reducer';
 import { QueueState } from '../interpreter-queue/reducer';
+import { CallManagementState } from '../call-management/reducer';
 
 export interface IStore {
     dispatch: ThunkDispatch<IReduxState, void, AnyAction>;
@@ -138,6 +139,7 @@ export interface IReduxState {
     'features/invite': IInviteState;
     'features/jaas': IJaaSState;
     'features/interpreter-queue': QueueState;
+    'features/call-management': CallManagementState;
     'features/keyboard-shortcuts': IKeyboardShortcutsState;
     'features/large-video': ILargeVideoState;
     'features/lobby': ILobbyState;
