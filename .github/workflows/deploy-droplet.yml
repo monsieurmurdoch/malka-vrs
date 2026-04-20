@@ -32,8 +32,15 @@ jobs:
         run: make
 
       - name: Create deployment bundle
+        # GNU tar exits with code 1 when a file changes during read (e.g. a
+        # log rotate or a straggling build-step write). That's a warning, not
+        # a fatal error — exit 2 is the real failure code. Suppress the
+        # warning and only fail on exit >= 2 so transient writes under the
+        # workspace don't kill the deploy.
         run: |
+          set +e
           tar \
+            --warning=no-file-changed \
             --exclude=.git \
             --exclude=.github \
             --exclude=node_modules \
@@ -42,6 +49,12 @@ jobs:
             --exclude=vrs-server/node_modules \
             --exclude=vrs-ops-server/node_modules \
             -czf deploy.tgz .
+          status=$?
+          if [ "$status" -gt 1 ]; then
+            echo "tar failed with fatal exit code $status"
+            exit "$status"
+          fi
+          echo "tar completed (exit $status)"
 
       - name: Upload bundle to droplet
         uses: appleboy/scp-action@v0.1.7
