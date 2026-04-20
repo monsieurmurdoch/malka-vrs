@@ -11,7 +11,12 @@ Copyright 2015, 2019, 2020 Google LLC. All Rights Reserved.
  limitations under the License.
 */
 
-const CACHE_NAME = 'offline';
+// Bump SW_VERSION on every deploy that changes static asset hashes.
+// The activate step deletes any cache whose name does not match, so
+// stale app.bundle / chunk caches from a previous SW generation can
+// never be served to a freshly loaded page (avoids ChunkLoadError loops).
+const SW_VERSION = 'malka-vrs-v2';
+const CACHE_NAME = `${SW_VERSION}-offline`;
 
 // Customize this with a different URL if needed.
 const OFFLINE_URL = 'static/offline.html';
@@ -36,6 +41,18 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
     event.waitUntil(
     (async () => {
+        // Purge any caches left over from previous SW generations. This is
+        // what actually breaks the ChunkLoadError loop after a deploy: the
+        // browser can no longer serve a stale app.bundle whose chunk hashes
+        // are no longer present on the server.
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => {
+            if (name !== CACHE_NAME) {
+                return caches.delete(name);
+            }
+            return undefined;
+        }));
+
         // Enable navigation preload if it's supported.
         // See https://developers.google.com/web/updates/2017/02/navigation-preload
         if ('navigationPreload' in self.registration) {
@@ -46,6 +63,32 @@ self.addEventListener('activate', event => {
 
     // Tell the active service worker to take control of the page immediately.
     self.clients.claim();
+});
+
+// Allow the page to imperatively clear all caches + skip-waiting when it
+// detects a ChunkLoadError. The page posts { type: 'RESET_CACHES' } and
+// we nuke everything we control, then force any waiting SW to activate.
+self.addEventListener('message', event => {
+    if (!event.data || typeof event.data !== 'object') {
+        return;
+    }
+
+    if (event.data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+        return;
+    }
+
+    if (event.data.type === 'RESET_CACHES') {
+        event.waitUntil((async () => {
+            const cacheNames = await caches.keys();
+            await Promise.all(cacheNames.map(name => caches.delete(name)));
+            // Inform the page it can reload once caches are gone.
+            const clients = await self.clients.matchAll({ includeUncontrolled: true });
+            for (const client of clients) {
+                client.postMessage({ type: 'CACHES_RESET' });
+            }
+        })());
+    }
 });
 
 self.addEventListener('fetch', event => {

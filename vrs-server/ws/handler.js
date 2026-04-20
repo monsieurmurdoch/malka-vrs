@@ -269,6 +269,17 @@ function handleConnection(ws, req) {
                     await handleTTSQuickSpeak(ws, data);
                     break;
 
+                case 'heartbeat':
+                    // Client keepalive from InterpreterQueueService (sent every
+                    // 15s). The client's message handler treats 'heartbeat_ack'
+                    // as a no-op, so responding keeps the socket warm without
+                    // further client-side work. ('ping' is handled separately
+                    // above.)
+                    try {
+                        ws.send(JSON.stringify({ type: 'heartbeat_ack', timestamp: Date.now() }));
+                    } catch (e) { /* socket closed — ignore */ }
+                    break;
+
                 default:
                     sendWsError(ws, `Unsupported message type: ${String(data.type || 'unknown')}`, 'UNSUPPORTED_MESSAGE');
                     break;

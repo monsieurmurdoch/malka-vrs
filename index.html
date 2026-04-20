@@ -57,6 +57,58 @@
                         console.log(err);
                     });
             }
+
+            // One-shot ChunkLoadError recovery. After a deploy, a cached
+            // app.bundle can reference chunk hashes the server no longer has;
+            // webpack throws ChunkLoadError and (without this) the page can
+            // loop-reload forever. We detect a chunk-load failure, ask the
+            // service worker to purge caches, hard-reload once, and use a
+            // sessionStorage sentinel so we never loop.
+            const CHUNK_RECOVERY_KEY = 'malka:chunk-recovery-attempted';
+            const handleChunkLoadError = (event) => {
+                const msg = (event && (event.reason && (event.reason.message || event.reason))
+                    || (event && event.message) || '').toString();
+                const isChunkError = /ChunkLoadError|Loading chunk \d+ failed/i.test(msg);
+                if (!isChunkError) {
+                    return;
+                }
+                try {
+                    if (sessionStorage.getItem(CHUNK_RECOVERY_KEY) === '1') {
+                        // Already tried once this session — don't loop.
+                        console.warn('ChunkLoadError persisted after cache reset; not reloading again.');
+                        return;
+                    }
+                    sessionStorage.setItem(CHUNK_RECOVERY_KEY, '1');
+                } catch (e) { /* storage unavailable — best effort */ }
+
+                const reloadOnce = () => {
+                    // Cache-bust the navigation so the browser doesn't return
+                    // the same stale document that registered the bad bundle.
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('_swreset', Date.now().toString());
+                    window.location.replace(url.toString());
+                };
+
+                const resetAndReload = async () => {
+                    try {
+                        if ('caches' in window) {
+                            const keys = await caches.keys();
+                            await Promise.all(keys.map(k => caches.delete(k)));
+                        }
+                    } catch (e) { /* ignore */ }
+                    try {
+                        if ('serviceWorker' in navigator) {
+                            const regs = await navigator.serviceWorker.getRegistrations();
+                            await Promise.all(regs.map(r => r.unregister()));
+                        }
+                    } catch (e) { /* ignore */ }
+                    reloadOnce();
+                };
+
+                resetAndReload();
+            };
+            window.addEventListener('error', handleChunkLoadError);
+            window.addEventListener('unhandledrejection', handleChunkLoadError);
         });
     </script>
     <script>

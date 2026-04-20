@@ -143,9 +143,23 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", (req, res) => `'nonce-${res.locals.cspNonce}'`],
+            // 'wasm-unsafe-eval' is required by modern Chrome/Edge/Firefox for
+            // WebAssembly.instantiate() calls. Jitsi loads several wasm modules
+            // (olm, rnnoise, tflite, tfjs, face-landmarks). Without this directive
+            // the browser throws RuntimeError: abort(both async and sync fetching
+            // of the wasm failed) and retry loops on virtual-background /
+            // face-landmarks features.
+            scriptSrc: [
+                "'self'",
+                "'wasm-unsafe-eval'",
+                (req, res) => `'nonce-${res.locals.cspNonce}'`
+            ],
+            // Workers and wasm need explicit worker-src + allowed blob: for the
+            // Jitsi worker bundles (face-landmarks-worker, e2ee-worker, etc).
+            workerSrc: ["'self'", 'blob:'],
+            childSrc: ["'self'", 'blob:'],
             styleSrc: ["'self'", "'unsafe-inline'"],
-            imgSrc: ["'self'", 'data:'],
+            imgSrc: ["'self'", 'data:', 'blob:'],
             connectSrc: CONNECT_SRC,
             mediaSrc: ["'self'", 'blob:'],
             fontSrc: ["'self'"],
