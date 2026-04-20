@@ -88,6 +88,19 @@ function findInterpreterSocketByUserId(userId) {
     return null;
 }
 
+/**
+ * Broadcast a message to ALL WebSocket connections for a given user
+ * (except the optionally excluded one).  Used for cross-device contact sync.
+ */
+function broadcastToUserDevices(userId, message, excludeWs) {
+    const msg = JSON.stringify(message);
+    for (const client of clients.clients.values()) {
+        if (client.userId === userId && client.ws !== excludeWs && client.ws.readyState === WebSocket.OPEN) {
+            client.ws.send(msg);
+        }
+    }
+}
+
 module.exports = {
     clients,
     setWss,
@@ -97,5 +110,6 @@ module.exports = {
     broadcastToClients,
     broadcastQueueStatus,
     findClientSocketByUserId,
-    findInterpreterSocketByUserId
+    findInterpreterSocketByUserId,
+    broadcastToUserDevices
 };

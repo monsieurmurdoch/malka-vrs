@@ -271,7 +271,7 @@ class InterpreterQueueService {
             role: this.userRole,
             userId: fallbackUserId,
             name: fallbackName,
-            token: this.userRole === 'client' ? undefined : storedToken?.token
+            token: storedToken?.token
         });
     }
 
@@ -460,6 +460,10 @@ class InterpreterQueueService {
                 this.emit('p2pTargetDnd', message.data);
                 break;
 
+            case 'contacts_changed':
+                this.emit('contactsChanged', message.data);
+                break;
+
             default:
                 console.warn('Unknown queue message type:', message.type, message);
         }
@@ -538,6 +542,12 @@ class InterpreterQueueService {
         });
     }
 
+    public sendP2PCall(phoneNumber: string) {
+        this.send({
+            type: 'p2p_call',
+            data: { phoneNumber }
+        });
+    }
     public send(message: QueueMessage) {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify(message));
@@ -633,6 +643,8 @@ export const queueService = {
         getQueueServiceInstance()?.updateInterpreterStatus(...args),
     requestInterpreter: (...args: Parameters<InterpreterQueueService['requestInterpreter']>) =>
         getQueueServiceInstance()?.requestInterpreter(...args),
+    sendP2PCall: (...args: Parameters<InterpreterQueueService['sendP2PCall']>) =>
+        getQueueServiceInstance()?.sendP2PCall(...args),
     cancelRequest: (...args: Parameters<InterpreterQueueService['cancelRequest']>) =>
         getQueueServiceInstance()?.cancelRequest(...args),
     acceptRequest: (...args: Parameters<InterpreterQueueService['acceptRequest']>) =>

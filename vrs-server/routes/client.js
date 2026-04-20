@@ -87,6 +87,41 @@ router.get('/profile', authenticateUser, async (req, res) => {
 });
 
 // ============================================
+// UPDATE PROFILE
+// ============================================
+
+const updateProfileSchema = z.object({
+    name: nameSchema.optional(),
+    email: z.string().email().max(255).optional(),
+    organization: z.string().max(255).optional()
+});
+
+router.put('/profile', authenticateUser, validate(updateProfileSchema), async (req, res) => {
+    if (req.user.role !== 'client') {
+        return res.status(403).json({ error: 'Client access required', code: 'FORBIDDEN' });
+    }
+
+    try {
+        await db.updateClient(req.user.id, req.body);
+        const client = await db.getClient(req.user.id);
+        const phones = await db.getClientPhoneNumbers(req.user.id);
+        const primary = phones.find(p => p.is_primary);
+
+        res.json({
+            id: client.id,
+            name: client.name,
+            email: client.email,
+            organization: client.organization,
+            primaryPhone: primary?.phone_number || null,
+            phoneNumbers: phones
+        });
+    } catch (error) {
+        req.log.error({ err: error }, 'Client profile update error');
+        res.status(500).json({ error: 'Failed to update profile', code: 'INTERNAL_ERROR' });
+    }
+});
+
+// ============================================
 // CALL HISTORY
 // ============================================
 
