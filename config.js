@@ -673,9 +673,7 @@ var config = {
     // Configs for welcome page.
     welcomePage: {
         // Enable welcome page for VRS role selection
-        disabled: false,
-        // Use custom VRS welcome page
-        customUrl: 'vrs-welcome.html'
+        disabled: false
     },
 
     // Configs for the lobby screen.
