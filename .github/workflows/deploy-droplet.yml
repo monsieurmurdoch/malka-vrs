@@ -42,7 +42,8 @@ jobs:
             --exclude=deploy.tgz \
             --exclude=vrs-server/node_modules \
             --exclude=vrs-ops-server/node_modules \
-            -czf deploy.tgz .
+            -czf /tmp/deploy.tgz .
+          mv /tmp/deploy.tgz deploy.tgz
 
       - name: Upload bundle to droplet
         uses: appleboy/scp-action@v0.1.7
