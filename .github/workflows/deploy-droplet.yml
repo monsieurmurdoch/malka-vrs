@@ -39,6 +39,7 @@ jobs:
             --exclude=node_modules \
             --exclude=.tmp \
             --exclude=build \
+            --exclude=deploy.tgz \
             --exclude=vrs-server/node_modules \
             --exclude=vrs-ops-server/node_modules \
             -czf deploy.tgz .
