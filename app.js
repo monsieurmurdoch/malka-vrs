@@ -20,9 +20,19 @@ import API from './modules/API';
 import UI from './modules/UI/UI';
 import translation from './modules/translation/translation';
 
+const getOlmWasmUrl = path => {
+    if (!path || /^[a-z]+:/i.test(path) || path.startsWith('/')) {
+        return path;
+    }
+
+    return `${window.location.origin}/libs/${path}`;
+};
+
 // Initialize Olm as early as possible.
 if (window.Olm) {
-    window.Olm.init().catch(e => {
+    window.Olm.init({
+        locateFile: getOlmWasmUrl
+    }).catch(e => {
         console.error('Failed to initialize Olm, E2EE will be disabled', e);
         delete window.Olm;
     });
