@@ -1,8 +1,12 @@
-import { ExcalidrawApp } from '@jitsi/excalidraw';
 import i18next from 'i18next';
-import React, { useCallback, useRef } from 'react';
+import React, { Suspense, useCallback, useRef } from 'react';
 
 import { WHITEBOARD_UI_OPTIONS } from '../../constants';
+
+const LazyExcalidrawApp = React.lazy(() =>
+    import('@jitsi/excalidraw').then(module => ({
+        default: module.ExcalidrawApp
+    })));
 
 /**
  * Whiteboard wrapper for mobile.
@@ -45,21 +49,23 @@ const WhiteboardWrapper = ({
     return (
         <div className = { className }>
             <div className = 'excalidraw-wrapper'>
-                <ExcalidrawApp
-                    collabDetails = { collabDetails }
-                    collabServerUrl = { collabServerUrl }
-                    detectScroll = { true }
-                    excalidraw = {{
-                        isCollaborating: true,
-                        langCode: i18next.language,
+                <Suspense fallback = { null }>
+                    <LazyExcalidrawApp
+                        collabDetails = { collabDetails }
+                        collabServerUrl = { collabServerUrl }
+                        detectScroll = { true }
+                        excalidraw = {{
+                            isCollaborating: true,
+                            langCode: i18next.language,
 
-                        // @ts-ignore
-                        ref: excalidrawRef,
-                        theme: 'light',
-                        UIOptions: WHITEBOARD_UI_OPTIONS
-                    }}
-                    getCollabAPI = { getCollabAPI }
-                    getExcalidrawAPI = { getExcalidrawAPI } />
+                            // @ts-ignore
+                            ref: excalidrawRef,
+                            theme: 'light',
+                            UIOptions: WHITEBOARD_UI_OPTIONS
+                        }}
+                        getCollabAPI = { getCollabAPI }
+                        getExcalidrawAPI = { getExcalidrawAPI } />
+                </Suspense>
             </div>
 
 

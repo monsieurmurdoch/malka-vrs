@@ -81,6 +81,58 @@
             "app.bundle.min.js",
             "all.css"
         ];
+        var assetRecoveryAttemptKey = "assetRecoveryAttempted";
+        var hasRecoveredOnce = function() {
+            try {
+                return sessionStorage.getItem(assetRecoveryAttemptKey) === "1";
+            } catch (e) {
+                return false;
+            }
+        };
+        var markRecoveredOnce = function() {
+            try {
+                sessionStorage.setItem(assetRecoveryAttemptKey, "1");
+            } catch (e) {}
+        };
+        var normalizeRecoveryUrl = function() {
+            var url = new URL(window.location.href);
+
+            url.searchParams.delete("rCounter");
+            url.searchParams.set("_asset_recovery", Date.now().toString());
+
+            return url.toString();
+        };
+        var recoverFromAssetFailure = async function(fileRef) {
+            if (hasRecoveredOnce()) {
+                return false;
+            }
+
+            markRecoveredOnce();
+
+            try {
+                if ("serviceWorker" in navigator) {
+                    var registrations = await navigator.serviceWorker.getRegistrations();
+
+                    await Promise.all(registrations.map(function(registration) {
+                        return registration.unregister();
+                    }));
+                }
+            } catch (e) {}
+
+            try {
+                if ("caches" in window) {
+                    var cacheNames = await caches.keys();
+
+                    await Promise.all(cacheNames.map(function(cacheName) {
+                        return caches.delete(cacheName);
+                    }));
+                }
+            } catch (e) {}
+
+            window.location.replace(normalizeRecoveryUrl());
+
+            return true;
+        };
         var loadErrHandler = function(e) {
             var target = e.target;
             // Error on <script> and <link>(CSS)
@@ -90,6 +142,27 @@
                 && criticalFiles.some(
                     function(file) { return fileRef.indexOf(file) !== -1 })) {
                 window.onload = function() {
+                    if (hasRecoveredOnce()) {
+                        document.body.innerHTML
+                            = "<div style='"
+                            + "position: absolute;top: 50%;left: 50%;"
+                            + "text-align: center;"
+                            + "font-size: medium;"
+                            + "font-weight: 400;"
+                            + "transform: translate(-50%, -50%)'>"
+                            + "We couldn't load all required files after a cache reset."
+                            + "<br/>"
+                            + "Please hard refresh (Cmd+Shift+R) or clear site data, then try again."
+                            + "<br/><br/>"
+                            + "<div style='font-size:small;color:#FF991F;user-select:text;'>Missing " + fileRef + "</div>"
+                            + "<br/>"
+                            + "<a id='reloadLink' style='text-decoration: underline;font-size:small;' href='"
+                            + normalizeRecoveryUrl() + "'>reload now</a>"
+                            + "</div>";
+
+                        return;
+                    }
+
                     // The whole complex part below implements page reloads with
                     // "exponential backoff". The retry attempt is passes as
                     // "rCounter" query parameter
@@ -176,7 +249,13 @@
                         });
 
                     window.setTimeout(
-                        function () { window.location.replace(href); }, delay);
+                        function () {
+                            recoverFromAssetFailure(fileRef).then(function(recovered) {
+                                if (!recovered) {
+                                    window.location.replace(href);
+                                }
+                            });
+                        }, delay);
 
                     // Call extra handler if defined.
                     if (typeof postLoadErrorHandler === "function") {

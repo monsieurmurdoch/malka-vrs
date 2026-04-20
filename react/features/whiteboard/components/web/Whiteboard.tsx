@@ -1,7 +1,6 @@
-import { ExcalidrawApp } from '@jitsi/excalidraw';
 import clsx from 'clsx';
 import i18next from 'i18next';
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { Suspense, useCallback, useEffect, useRef } from 'react';
 import { WithTranslation } from 'react-i18next';
 import { useSelector } from 'react-redux';
 
@@ -25,6 +24,10 @@ import {
  * Space taken by meeting elements like the subject and the watermark.
  */
 const HEIGHT_OFFSET = 80;
+const LazyExcalidrawApp = React.lazy(() =>
+    import('@jitsi/excalidraw').then(module => ({
+        default: module.ExcalidrawApp
+    })));
 
 interface IDimensions {
 
@@ -139,20 +142,22 @@ const Whiteboard = (props: WithTranslation): JSX.Element => {
                                 { props.t('whiteboard.accessibilityLabel.heading') }
                             </span>
                         }
-                        <ExcalidrawApp
-                            collabDetails = { collabDetails }
-                            collabServerUrl = { collabServerUrl }
-                            excalidraw = {{
-                                isCollaborating: true,
-                                langCode: i18next.language,
+                        <Suspense fallback = { null }>
+                            <LazyExcalidrawApp
+                                collabDetails = { collabDetails }
+                                collabServerUrl = { collabServerUrl }
+                                excalidraw = {{
+                                    isCollaborating: true,
+                                    langCode: i18next.language,
 
-                                // @ts-ignore
-                                ref: excalidrawRef,
-                                theme: 'light',
-                                UIOptions: WHITEBOARD_UI_OPTIONS
-                            }}
-                            getCollabAPI = { getCollabAPI }
-                            getExcalidrawAPI = { getExcalidrawAPI } />
+                                    // @ts-ignore
+                                    ref: excalidrawRef,
+                                    theme: 'light',
+                                    UIOptions: WHITEBOARD_UI_OPTIONS
+                                }}
+                                getCollabAPI = { getCollabAPI }
+                                getExcalidrawAPI = { getExcalidrawAPI } />
+                        </Suspense>
                     </div>
                 )
             }

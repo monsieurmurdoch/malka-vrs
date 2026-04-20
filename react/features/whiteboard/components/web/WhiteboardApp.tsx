@@ -1,4 +1,3 @@
-import { generateCollaborationLinkData } from '@jitsi/excalidraw';
 import React, { ComponentType } from 'react';
 
 import BaseApp from '../../../base/app/components/BaseApp';
@@ -7,6 +6,7 @@ import JitsiThemeProvider from '../../../base/ui/components/JitsiThemeProvider.w
 import { decodeFromBase64URL } from '../../../base/util/httpUtils';
 import { parseURLParams } from '../../../base/util/parseURLParams';
 import { safeDecodeURIComponent } from '../../../base/util/uri';
+import { generateCollaborationLinkData } from '../../collabLinkData';
 import logger from '../../logger';
 
 import NoWhiteboardError from './NoWhiteboardError';

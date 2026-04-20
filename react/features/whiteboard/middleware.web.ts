@@ -1,4 +1,3 @@
-import { generateCollaborationLinkData } from '@jitsi/excalidraw';
 import { AnyAction } from 'redux';
 
 import { IStore } from '../app/types';
@@ -19,6 +18,7 @@ import {
     setupWhiteboard
 } from './actions';
 import WhiteboardLimitDialog from './components/web/WhiteboardLimitDialog';
+import { generateCollaborationLinkData } from './collabLinkData';
 import { WHITEBOARD_ID, WHITEBOARD_PARTICIPANT_NAME } from './constants';
 import {
     getCollabDetails,
