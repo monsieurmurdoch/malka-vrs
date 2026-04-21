@@ -20,9 +20,11 @@ COPY vrs-server/scripts ./vrs-server/scripts
 # Copy frontend assets (server.js serves them from /app)
 COPY *.html ./
 COPY *.js ./
-COPY whitelabel-runtime.js ./whitelabel-runtime.js
 COPY css ./css
+COPY scripts/whitelabel-prebuild.js ./scripts/whitelabel-prebuild.js
+COPY whitelabel ./whitelabel
 COPY images ./images
+RUN TENANT=${TENANT} node scripts/whitelabel-prebuild.js
 COPY fonts ./fonts
 COPY sounds ./sounds
 COPY libs ./libs
