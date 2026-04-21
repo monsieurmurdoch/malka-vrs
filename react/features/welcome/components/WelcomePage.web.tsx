@@ -328,7 +328,25 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
             <div
                 className = { `welcome vrs-auth-page ${contentClassName} ${footerClassName}` }
                 id = 'welcome_page'>
-                <div className = 'vrs-auth-fullscreen'>
+                <div className = { `vrs-auth-fullscreen ${themeClass}` }>
+                    <div
+                        aria-hidden = 'true'
+                        className = 'vrs-celestial-background'>
+                        <div className = 'vrs-starfield vrs-starfield--near' />
+                        <div className = 'vrs-starfield vrs-starfield--far' />
+                        <div className = 'vrs-orbit-ring vrs-orbit-ring--wide' />
+                        <div className = 'vrs-orbit-ring vrs-orbit-ring--tight' />
+                        <div className = 'vrs-auth-planet vrs-auth-planet--earth'>
+                            <span className = 'vrs-auth-planet-shade' />
+                        </div>
+                        <div className = 'vrs-auth-planet vrs-auth-planet--moon'>
+                            <span className = 'vrs-auth-crater vrs-auth-crater--one' />
+                            <span className = 'vrs-auth-crater vrs-auth-crater--two' />
+                            <span className = 'vrs-auth-crater vrs-auth-crater--three' />
+                        </div>
+                        <div className = 'vrs-auth-planet vrs-auth-planet--sun' />
+                    </div>
+
                     {/* Settings corner */}
                     <div className = 'welcome-page-settings'>
                         <SettingsButton

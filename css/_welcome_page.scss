@@ -18,7 +18,226 @@ body.welcome-page {
     justify-content: center;
     position: relative;
     background: var(--vrs-bg, linear-gradient(135deg, #1a4d6e 0%, #2d5a3d 50%, #4a3b2a 100%));
+    isolation: isolate;
+    overflow: hidden;
     transition: background 0.6s ease;
+}
+
+.vrs-celestial-background {
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    position: absolute;
+    z-index: 0;
+}
+
+.vrs-starfield {
+    inset: -10%;
+    opacity: 0.75;
+    position: absolute;
+    transform: translate3d(0, 0, 0);
+
+    &::before,
+    &::after {
+        background-image:
+            radial-gradient(circle, rgba(255, 255, 255, 0.9) 0 1px, transparent 1.6px),
+            radial-gradient(circle, rgba(255, 255, 255, 0.55) 0 1px, transparent 1.8px),
+            radial-gradient(circle, rgba(126, 184, 218, 0.5) 0 1px, transparent 2px);
+        background-position: 2% 8%, 58% 22%, 86% 68%;
+        background-size: 120px 120px, 190px 190px, 260px 260px;
+        content: '';
+        inset: 0;
+        position: absolute;
+    }
+
+    &::after {
+        filter: blur(0.2px);
+        opacity: 0.55;
+        transform: translate3d(42px, 18px, 0);
+    }
+}
+
+.vrs-starfield--near {
+    animation: vrs-drift-stars 28s linear infinite;
+}
+
+.vrs-starfield--far {
+    animation: vrs-drift-stars 54s linear infinite reverse;
+    opacity: 0.42;
+    transform: scale(1.2);
+}
+
+.vrs-orbit-ring {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    box-shadow: inset 0 0 60px rgba(126, 184, 218, 0.08);
+    position: absolute;
+}
+
+.vrs-orbit-ring--wide {
+    height: 72vw;
+    left: -14vw;
+    top: 10vh;
+    transform: rotate(-16deg);
+    width: 72vw;
+}
+
+.vrs-orbit-ring--tight {
+    bottom: -18vw;
+    height: 48vw;
+    right: -12vw;
+    transform: rotate(22deg);
+    width: 48vw;
+}
+
+.vrs-auth-planet {
+    border-radius: 50%;
+    position: absolute;
+    transform: translate3d(0, 0, 0);
+    transition:
+        filter 0.6s ease,
+        opacity 0.6s ease,
+        transform 0.6s ease;
+}
+
+.vrs-auth-planet--earth {
+    animation: vrs-float-earth 14s ease-in-out infinite;
+    background:
+        radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.45), transparent 0 9%, transparent 12%),
+        radial-gradient(circle at 32% 42%, #55d678 0 12%, transparent 13%),
+        radial-gradient(circle at 58% 34%, #3fb66a 0 9%, transparent 10%),
+        radial-gradient(circle at 52% 64%, #2f8b54 0 15%, transparent 16%),
+        linear-gradient(135deg, #76d8ff 0%, #1976b8 45%, #0d3f72 100%);
+    box-shadow:
+        -24px 18px 70px rgba(0, 0, 0, 0.5) inset,
+        0 0 70px rgba(76, 175, 80, 0.36),
+        0 0 140px rgba(69, 175, 255, 0.26);
+    height: clamp(180px, 26vw, 380px);
+    left: clamp(-72px, -4vw, 28px);
+    top: clamp(42px, 11vh, 120px);
+    width: clamp(180px, 26vw, 380px);
+}
+
+.vrs-auth-planet--earth::before {
+    background:
+        linear-gradient(18deg, transparent 0 34%, rgba(255, 255, 255, 0.36) 35% 40%, transparent 41%),
+        linear-gradient(-11deg, transparent 0 52%, rgba(255, 255, 255, 0.25) 53% 58%, transparent 59%);
+    border-radius: inherit;
+    content: '';
+    inset: 0;
+    mix-blend-mode: screen;
+    position: absolute;
+}
+
+.vrs-auth-planet-shade {
+    background: radial-gradient(circle at 70% 50%, transparent 0 42%, rgba(2, 6, 18, 0.48) 72%);
+    border-radius: inherit;
+    inset: 0;
+    position: absolute;
+}
+
+.vrs-auth-planet--moon {
+    animation: vrs-float-moon 11s ease-in-out infinite;
+    background:
+        radial-gradient(circle at 35% 32%, #ffffff 0 4%, transparent 5%),
+        radial-gradient(circle at 64% 54%, rgba(121, 139, 154, 0.42) 0 12%, transparent 13%),
+        linear-gradient(135deg, #f5f7f8 0%, #b9c3ca 55%, #768692 100%);
+    box-shadow:
+        -18px 16px 48px rgba(11, 21, 34, 0.46) inset,
+        0 0 62px rgba(201, 214, 223, 0.38);
+    height: clamp(110px, 15vw, 220px);
+    right: clamp(12px, 6vw, 120px);
+    top: clamp(60px, 16vh, 150px);
+    width: clamp(110px, 15vw, 220px);
+}
+
+.vrs-auth-crater {
+    background: rgba(101, 117, 132, 0.42);
+    border-radius: 50%;
+    box-shadow: inset 4px -3px 8px rgba(255, 255, 255, 0.28);
+    position: absolute;
+}
+
+.vrs-auth-crater--one {
+    height: 18%;
+    left: 27%;
+    top: 42%;
+    width: 18%;
+}
+
+.vrs-auth-crater--two {
+    height: 12%;
+    right: 25%;
+    top: 28%;
+    width: 12%;
+}
+
+.vrs-auth-crater--three {
+    bottom: 24%;
+    height: 10%;
+    right: 38%;
+    width: 10%;
+}
+
+.vrs-auth-planet--sun {
+    animation: vrs-float-sun 13s ease-in-out infinite;
+    background:
+        radial-gradient(circle at 34% 30%, #fff7b8 0 8%, transparent 9%),
+        radial-gradient(circle, #ffd56a 0%, #f2b94b 48%, #ca6f1d 100%);
+    box-shadow:
+        0 0 65px rgba(242, 185, 75, 0.72),
+        0 0 150px rgba(202, 111, 29, 0.48);
+    height: clamp(126px, 16vw, 240px);
+    opacity: 0;
+    right: clamp(-42px, -2vw, 42px);
+    top: clamp(28px, 9vh, 92px);
+    width: clamp(126px, 16vw, 240px);
+}
+
+.vrs-auth-fullscreen.earth {
+    .vrs-auth-planet--earth {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    .vrs-auth-planet--moon {
+        opacity: 0.82;
+        transform: scale(0.82) translate3d(24px, 8px, 0);
+    }
+}
+
+.vrs-auth-fullscreen.moon {
+    .vrs-auth-planet--earth {
+        filter: saturate(0.78) brightness(0.68);
+        opacity: 0.48;
+        transform: scale(0.72) translate3d(-28px, 18px, 0);
+    }
+
+    .vrs-auth-planet--moon {
+        opacity: 1;
+        transform: scale(1.08) translate3d(-34px, 12px, 0);
+    }
+
+    .vrs-orbit-ring {
+        border-color: rgba(201, 214, 223, 0.18);
+    }
+}
+
+.vrs-auth-fullscreen.sun {
+    .vrs-auth-planet--earth {
+        filter: saturate(1.05) brightness(0.82);
+        opacity: 0.62;
+        transform: scale(0.7) translate3d(-20px, 42px, 0);
+    }
+
+    .vrs-auth-planet--moon {
+        opacity: 0.35;
+        transform: scale(0.66) translate3d(40px, 10px, 0);
+    }
+
+    .vrs-auth-planet--sun {
+        opacity: 1;
+    }
 }
 
 .vrs-auth-card {
@@ -32,7 +251,12 @@ body.welcome-page {
     border-radius: 16px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
     position: relative;
-    z-index: 1;
+    z-index: 2;
+}
+
+.welcome-page-settings {
+    position: relative;
+    z-index: 3;
 }
 
 .vrs-auth-logo {
@@ -282,6 +506,21 @@ body.welcome-page {
 
 /* Responsive */
 @media (max-width: 520px) {
+    .vrs-auth-planet--earth {
+        left: -96px;
+        top: 34px;
+    }
+
+    .vrs-auth-planet--moon {
+        right: -34px;
+        top: 90px;
+    }
+
+    .vrs-orbit-ring--wide {
+        height: 120vw;
+        width: 120vw;
+    }
+
     .vrs-auth-card {
         margin: 16px;
         padding: 32px 24px 28px;
@@ -293,6 +532,58 @@ body.welcome-page {
 
     .vrs-auth-logo-text {
         font-size: 28px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .vrs-starfield,
+    .vrs-auth-planet--earth,
+    .vrs-auth-planet--moon,
+    .vrs-auth-planet--sun {
+        animation: none;
+    }
+}
+
+@keyframes vrs-drift-stars {
+    from {
+        transform: translate3d(0, 0, 0);
+    }
+
+    to {
+        transform: translate3d(-120px, 60px, 0);
+    }
+}
+
+@keyframes vrs-float-earth {
+    0%,
+    100% {
+        margin-top: 0;
+    }
+
+    50% {
+        margin-top: -16px;
+    }
+}
+
+@keyframes vrs-float-moon {
+    0%,
+    100% {
+        margin-top: 0;
+    }
+
+    50% {
+        margin-top: 14px;
+    }
+}
+
+@keyframes vrs-float-sun {
+    0%,
+    100% {
+        margin-top: 0;
+    }
+
+    50% {
+        margin-top: -12px;
     }
 }
 
