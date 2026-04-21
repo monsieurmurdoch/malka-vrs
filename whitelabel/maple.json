@@ -6,7 +6,7 @@
     "tagline": "Canadian Interpreting Services",
     "description": "Join a video interpretation session powered by Maple Communications Group",
     "supportUrl": "https://maplecommunications.ca/support",
-    "inviteDomain": ""
+    "inviteDomain": "vri.maplecomm.com"
   },
   "theme": {
     "primary": "#A31B1A",
@@ -26,17 +26,17 @@
     "chatBg": "#A31B1A"
   },
   "assets": {
-    "logo": "logo.png",
-    "logoWhite": "logo-white.png",
-    "favicon": "favicon.ico",
+    "logo": "logo.svg",
+    "logoWhite": "logo-white.svg",
+    "favicon": "favicon.svg",
     "faviconSvg": "favicon.svg",
-    "favicon16": "favicon-16x16.png",
-    "favicon32": "favicon-32x32.png",
-    "appleTouchIcon": "apple-touch-icon.png",
+    "favicon16": "",
+    "favicon32": "",
+    "appleTouchIcon": "",
     "welcomeBackground": ""
   },
   "features": {
-    "vrs": { "enabled": true },
+    "vrs": { "enabled": false },
     "vri": { "enabled": true },
     "voicemail": { "enabled": true },
     "recording": { "enabled": true },

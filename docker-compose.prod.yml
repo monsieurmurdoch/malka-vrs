@@ -18,6 +18,7 @@ services:
       - /var/www/certbot:/var/www/certbot:ro
     depends_on:
       - vrs
+      - vrs-maple
       - ops
       - prosody
 
@@ -96,6 +97,27 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.vrs-server
+      args:
+        TENANT: malka
+    <<: *common
+    env_file: .env
+    environment:
+      - PORT=3001
+      - NODE_ENV=production
+      - JITSI_DOMAIN=meet.jitsi
+      - DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@postgres:5432/${PGDATABASE:-malka_vrs}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      prosody:
+        condition: service_started
+
+  vrs-maple:
+    build:
+      context: .
+      dockerfile: Dockerfile.vrs-server
+      args:
+        TENANT: maple
     <<: *common
     env_file: .env
     environment:
