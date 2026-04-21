@@ -24,6 +24,7 @@ COPY css ./css
 COPY scripts/whitelabel-prebuild.js ./scripts/whitelabel-prebuild.js
 COPY whitelabel ./whitelabel
 COPY images ./images
+COPY favicon.ico ./favicon.ico
 RUN TENANT=${TENANT} node scripts/whitelabel-prebuild.js
 COPY fonts ./fonts
 COPY sounds ./sounds

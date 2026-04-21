@@ -1851,6 +1851,86 @@ async function isClientDND(clientId) {
 }
 
 // ============================================
+// DEVICE HANDOFF OPERATIONS
+// ============================================
+
+async function getAllActiveSessions() {
+    return await runQuery(
+        'SELECT * FROM active_sessions ORDER BY registered_at DESC'
+    );
+}
+
+async function upsertActiveSession({ userId, roomName, interpreterId = null, deviceId = null }) {
+    await runInsert(
+        `INSERT INTO active_sessions (user_id, room_name, interpreter_id, device_id)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (user_id) DO UPDATE SET
+            room_name = EXCLUDED.room_name,
+            interpreter_id = EXCLUDED.interpreter_id,
+            device_id = EXCLUDED.device_id,
+            updated_at = NOW()`,
+        [userId, roomName, interpreterId, deviceId]
+    );
+}
+
+async function deleteActiveSession(userId) {
+    return await runUpdate(
+        'DELETE FROM active_sessions WHERE user_id = $1',
+        [userId]
+    );
+}
+
+async function getAllActiveHandoffTokens() {
+    return await runQuery(
+        'SELECT * FROM handoff_tokens WHERE expires_at > NOW() ORDER BY created_at DESC'
+    );
+}
+
+async function storeHandoffToken({
+    token,
+    userId,
+    roomName,
+    interpreterId = null,
+    fromDeviceId = null,
+    targetDeviceId = null,
+    expiresAt
+}) {
+    await runInsert(
+        `INSERT INTO handoff_tokens
+            (token, user_id, room_name, interpreter_id, from_device_id, target_device_id, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (token) DO UPDATE SET
+            user_id = EXCLUDED.user_id,
+            room_name = EXCLUDED.room_name,
+            interpreter_id = EXCLUDED.interpreter_id,
+            from_device_id = EXCLUDED.from_device_id,
+            target_device_id = EXCLUDED.target_device_id,
+            expires_at = EXCLUDED.expires_at`,
+        [token, userId, roomName, interpreterId, fromDeviceId, targetDeviceId, new Date(expiresAt)]
+    );
+}
+
+async function deleteHandoffToken(token) {
+    return await runUpdate(
+        'DELETE FROM handoff_tokens WHERE token = $1',
+        [token]
+    );
+}
+
+async function deleteHandoffTokensByUser(userId) {
+    return await runUpdate(
+        'DELETE FROM handoff_tokens WHERE user_id = $1',
+        [userId]
+    );
+}
+
+async function deleteExpiredHandoffTokens() {
+    return await runUpdate(
+        'DELETE FROM handoff_tokens WHERE expires_at <= NOW()'
+    );
+}
+
+// ============================================
 // CALL TRANSFER OPERATIONS
 // ============================================
 
@@ -2672,6 +2752,15 @@ module.exports = {
     getClientPreferences,
     updateClientPreferences,
     isClientDND,
+    // Device handoff
+    getAllActiveSessions,
+    upsertActiveSession,
+    deleteActiveSession,
+    getAllActiveHandoffTokens,
+    storeHandoffToken,
+    deleteHandoffToken,
+    deleteHandoffTokensByUser,
+    deleteExpiredHandoffTokens,
     // Call transfers
     createCallTransfer,
     updateCallTransferStatus,

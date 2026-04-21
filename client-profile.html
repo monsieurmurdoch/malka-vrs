@@ -785,6 +785,14 @@
             } catch(e) { return null; }
         }
 
+        function escapeAttr(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
         function authHeaders() {
             const token = getToken();
             return token ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
@@ -1106,8 +1114,8 @@
                         <div class="overlay-caller-name">${call.callerName}</div>
                         <div class="overlay-status">Incoming P2P Call</div>
                         <div class="overlay-buttons">
-                            <button class="overlay-btn overlay-btn-accept" onclick="window.__p2pAccept()" title="Accept">&#10004;</button>
-                            <button class="overlay-btn overlay-btn-decline" onclick="window.__p2pDecline()" title="Decline">&#10006;</button>
+                            <button class="overlay-btn overlay-btn-accept" data-action="p2p-accept" title="Accept">&#10004;</button>
+                            <button class="overlay-btn overlay-btn-decline" data-action="p2p-decline" title="Decline">&#10006;</button>
                         </div>
                     </div>
                 `;
@@ -1125,7 +1133,7 @@
                         <div class="overlay-caller-name">Calling ${call.calleeName}...</div>
                         <div class="overlay-status">Ringing</div>
                         <div class="overlay-buttons">
-                            <button class="overlay-btn overlay-btn-cancel" onclick="window.__p2pCancel()" title="Cancel">&#10006;</button>
+                            <button class="overlay-btn overlay-btn-cancel" data-action="p2p-cancel" title="Cancel">&#10006;</button>
                         </div>
                     </div>
                 `;
@@ -1143,7 +1151,7 @@
                         <div class="overlay-caller-name">Finding an interpreter…</div>
                         <div class="overlay-status">Position in queue: ${q.position || 1} &nbsp;·&nbsp; Language: ${q.language || 'ASL'}</div>
                         <div class="overlay-buttons">
-                            <button class="overlay-btn overlay-btn-cancel" onclick="window.__cancelQueueRequest()" title="Cancel">&#10006;</button>
+                            <button class="overlay-btn overlay-btn-cancel" data-action="cancel-queue-request" title="Cancel">&#10006;</button>
                         </div>
                     </div>
                 `;
@@ -1342,9 +1350,9 @@
                         <div class="auth-subtitle">Access your VRS account</div>
 
                         <div class="auth-tabs">
-                            <button class="auth-tab ${tab === 'email' ? 'active' : ''}" onclick="window.__setAuthTab('email')">Email</button>
-                            <button class="auth-tab ${tab === 'phone' ? 'active' : ''}" onclick="window.__setAuthTab('phone')">Phone</button>
-                            <button class="auth-tab ${tab === 'sms' ? 'active' : ''}" onclick="window.__setAuthTab('sms')">SMS Code</button>
+                            <button class="auth-tab ${tab === 'email' ? 'active' : ''}" data-action="set-auth-tab" data-tab="email">Email</button>
+                            <button class="auth-tab ${tab === 'phone' ? 'active' : ''}" data-action="set-auth-tab" data-tab="phone">Phone</button>
+                            <button class="auth-tab ${tab === 'sms' ? 'active' : ''}" data-action="set-auth-tab" data-tab="sms">SMS Code</button>
                         </div>
 
                         ${state.authError ? '<div class="auth-error">' + state.authError + '</div>' : ''}
@@ -1353,8 +1361,8 @@
                         ${tab === 'email' ? `
                             <input type="email" id="login-email" class="auth-field" placeholder="Email address" autocomplete="email">
                             <input type="password" id="login-password" class="auth-field" placeholder="Password" autocomplete="current-password"
-                                onkeydown="if(event.key==='Enter')window.__loginEmail()">
-                            <button class="auth-submit" onclick="window.__loginEmail()" ${state.authLoading ? 'disabled' : ''}>
+                                data-enter-action="login-email">
+                            <button class="auth-submit" data-action="login-email" ${state.authLoading ? 'disabled' : ''}>
                                 ${state.authLoading ? 'Signing in...' : 'Sign In'}
                             </button>
                         ` : ''}
@@ -1362,27 +1370,27 @@
                         ${tab === 'phone' ? `
                             <input type="tel" id="login-phone" class="auth-field" placeholder="+1-555-XXXX" autocomplete="tel">
                             <input type="password" id="login-password" class="auth-field" placeholder="Password" autocomplete="current-password"
-                                onkeydown="if(event.key==='Enter')window.__loginPhone()">
-                            <button class="auth-submit" onclick="window.__loginPhone()" ${state.authLoading ? 'disabled' : ''}>
+                                data-enter-action="login-phone">
+                            <button class="auth-submit" data-action="login-phone" ${state.authLoading ? 'disabled' : ''}>
                                 ${state.authLoading ? 'Signing in...' : 'Sign In'}
                             </button>
                         ` : ''}
 
                         ${tab === 'sms' ? `
                             <input type="tel" id="sms-phone" class="auth-field" placeholder="+1-555-XXXX" autocomplete="tel">
-                            <button class="auth-submit" onclick="window.__requestOtp()" ${state.authLoading ? 'disabled' : ''}>
+                            <button class="auth-submit" data-action="request-otp" ${state.authLoading ? 'disabled' : ''}>
                                 ${state.authLoading ? 'Sending...' : 'Send Verification Code'}
                             </button>
                         ` : ''}
 
                         <div style="text-align:center;margin-top:12px">
-                            <a class="auth-link" onclick="window.__setAuthScreen('forgot')">Forgot password?</a>
+                            <a class="auth-link" href="#" data-action="set-auth-screen" data-screen="forgot">Forgot password?</a>
                         </div>
 
                         <div class="auth-divider">or</div>
 
                         <div class="auth-footer">
-                            Don't have an account? <a class="auth-link" onclick="window.__setAuthScreen('register')">Register</a>
+                            Don't have an account? <a class="auth-link" href="#" data-action="set-auth-screen" data-screen="register">Register</a>
                         </div>
                     </div>
                 </div>
@@ -1403,12 +1411,12 @@
                         <input type="email" id="reg-email" class="auth-field" placeholder="Email address" autocomplete="email">
                         <input type="password" id="reg-password" class="auth-field" placeholder="Password (min 8 characters)" autocomplete="new-password">
                         <input type="text" id="reg-org" class="auth-field" placeholder="Organization (optional)">
-                        <button class="auth-submit" onclick="window.__register()" ${state.authLoading ? 'disabled' : ''}>
+                        <button class="auth-submit" data-action="register" ${state.authLoading ? 'disabled' : ''}>
                             ${state.authLoading ? 'Creating account...' : 'Create Account'}
                         </button>
 
                         <div class="auth-footer">
-                            Already have an account? <a class="auth-link" onclick="window.__setAuthScreen('login')">Sign In</a>
+                            Already have an account? <a class="auth-link" href="#" data-action="set-auth-screen" data-screen="login">Sign In</a>
                         </div>
                     </div>
                 </div>
@@ -1427,13 +1435,13 @@
                         ${state.authSuccess ? '<div class="auth-success">' + state.authSuccess + '</div>' : ''}
 
                         <input type="email" id="forgot-email" class="auth-field" placeholder="Email address"
-                            onkeydown="if(event.key==='Enter')window.__forgotPassword()">
-                        <button class="auth-submit" onclick="window.__forgotPassword()" ${state.authLoading ? 'disabled' : ''}>
+                            data-enter-action="forgot-password">
+                        <button class="auth-submit" data-action="forgot-password" ${state.authLoading ? 'disabled' : ''}>
                             ${state.authLoading ? 'Sending...' : 'Send Reset Link'}
                         </button>
 
                         <div class="auth-footer">
-                            <a class="auth-link" onclick="window.__setAuthScreen('login')">Back to Sign In</a>
+                            <a class="auth-link" href="#" data-action="set-auth-screen" data-screen="login">Back to Sign In</a>
                         </div>
                     </div>
                 </div>
@@ -1453,8 +1461,8 @@
 
                         <input type="password" id="reset-new-password" class="auth-field" placeholder="New password (min 8 characters)" autocomplete="new-password">
                         <input type="password" id="reset-confirm-password" class="auth-field" placeholder="Confirm new password"
-                            onkeydown="if(event.key==='Enter')window.__resetPassword()">
-                        <button class="auth-submit" onclick="window.__resetPassword()" ${state.authLoading ? 'disabled' : ''}>
+                            data-enter-action="reset-password">
+                        <button class="auth-submit" data-action="reset-password" ${state.authLoading ? 'disabled' : ''}>
                             ${state.authLoading ? 'Resetting...' : 'Reset Password'}
                         </button>
                     </div>
@@ -1474,13 +1482,13 @@
 
                         <input type="text" id="otp-code" class="auth-field" placeholder="000000" maxlength="6"
                             style="text-align:center;font-size:24px;letter-spacing:8px;font-family:monospace"
-                            onkeydown="if(event.key==='Enter')window.__verifyOtp()" inputmode="numeric">
-                        <button class="auth-submit" onclick="window.__verifyOtp()" ${state.authLoading ? 'disabled' : ''}>
+                            data-enter-action="verify-otp" inputmode="numeric">
+                        <button class="auth-submit" data-action="verify-otp" ${state.authLoading ? 'disabled' : ''}>
                             ${state.authLoading ? 'Verifying...' : 'Verify & Sign In'}
                         </button>
 
                         <div style="text-align:center;margin-top:12px">
-                            <a class="auth-link" onclick="window.__setAuthScreen('login')">Back to Sign In</a>
+                            <a class="auth-link" href="#" data-action="set-auth-screen" data-screen="login">Back to Sign In</a>
                         </div>
                     </div>
                 </div>
@@ -1769,7 +1777,7 @@
                     </div>
                     <div class="profile-header-right">
                         <span class="profile-user-name">${user.name || user.email || ''}</span>
-                        <button class="sign-out-btn" onclick="window.__signOut()">Sign Out</button>
+                        <button class="sign-out-btn" data-action="sign-out">Sign Out</button>
                     </div>
                 </div>
 
@@ -1785,7 +1793,7 @@
                             <div class="card-title">Your VRS Number</div>
                             <div class="vrs-number">${profile?.primaryPhone || 'Not assigned'}</div>
                             <div class="vrs-number-label">Personal Video Relay Number</div>
-                            <button class="start-call-btn" onclick="window.__startCall()" style="margin-top:16px">
+                            <button class="start-call-btn" data-action="start-call" style="margin-top:16px">
                                 Start Instant Room
                             </button>
                         </div>
@@ -1795,8 +1803,8 @@
                             <div class="card-title">Call via Interpreter</div>
                             <div class="dialer-row">
                                 <input type="tel" id="dial-phone" class="dialer-input" placeholder="+1-555-XXXX"
-                                    onkeydown="if(event.key==='Enter')window.__dialViaInterpreter()">
-                                <button class="dialer-btn" onclick="window.__dialViaInterpreter()">Call</button>
+                                    data-enter-action="dial-via-interpreter">
+                                <button class="dialer-btn" data-action="dial-via-interpreter">Call</button>
                             </div>
                             <div style="font-size:12px;opacity:0.4">Enter a phone number — an interpreter will connect you</div>
                         </div>
@@ -1808,7 +1816,7 @@
                                 Type messages that are read aloud to the hearing party — no interpreter needed.
                                 For deaf users who prefer typing, or when no interpreter is available.
                             </div>
-                            <button class="start-call-btn" onclick="location.href='tts-panel.html'" style="background:rgba(52,152,219,0.5);border-color:rgba(52,152,219,0.7)">
+                            <button class="start-call-btn" data-action="open-tts" style="background:rgba(52,152,219,0.5);border-color:rgba(52,152,219,0.7)">
                                 Open TTS Panel
                             </button>
                         </div>
@@ -1823,7 +1831,7 @@
                                             <div class="active-room-info">${room.caller_name === user.name ? room.callee_name : room.caller_name}</div>
                                             <div class="active-room-time">Since ${formatDate(room.started_at)}</div>
                                         </div>
-                                        <button class="join-room-btn" onclick="window.__joinRoom('${room.room_name}')">Join</button>
+                                        <button class="join-room-btn" data-action="join-room" data-room="${escapeAttr(room.room_name)}">Join</button>
                                     </div>
                                 `).join('')}
                             </div>
@@ -1839,10 +1847,10 @@
                                             <div class="missed-call-name">${mc.caller_name || 'Unknown'}</div>
                                             <div class="missed-call-time">${formatDate(mc.created_at)}</div>
                                         </div>
-                                        <button class="call-back-btn" onclick="window.__callBack('${mc.caller_phone || ''}')">Call Back</button>
+                                        <button class="call-back-btn" data-action="call-back" data-phone="${escapeAttr(mc.caller_phone || '')}">Call Back</button>
                                     </div>
                                 `).join('')}
-                                <button style="margin-top:12px;padding:6px 12px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:6px;color:#fff;cursor:pointer;font-size:12px" onclick="window.__markMissedSeen()">Mark All Seen</button>
+                                <button style="margin-top:12px;padding:6px 12px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:6px;color:#fff;cursor:pointer;font-size:12px" data-action="mark-missed-seen">Mark All Seen</button>
                             </div>
                         ` : ''}
 
@@ -1852,13 +1860,13 @@
 
                             ${state.showAddForm || state.editEntry ? `
                                 <div class="inline-form">
-                                    <input type="text" placeholder="Contact name" value="${state.editEntry ? state.editEntry.name : state.newName}" onchange="window.__formField('name', this.value)">
-                                    <input type="tel" placeholder="Phone number" value="${state.editEntry ? state.editEntry.phone_number : state.newPhone}" onchange="window.__formField('phone', this.value)">
+                                    <input type="text" placeholder="Contact name" value="${escapeAttr(state.editEntry ? state.editEntry.name : state.newName)}" data-change-field="name">
+                                    <input type="tel" placeholder="Phone number" value="${escapeAttr(state.editEntry ? state.editEntry.phone_number : state.newPhone)}" data-change-field="phone">
                                     <div class="inline-form-actions">
-                                        <button class="btn-save" onclick="window.__saveSpeedDial()">
+                                        <button class="btn-save" data-action="save-speed-dial">
                                             ${state.editEntry ? 'Update' : 'Save'}
                                         </button>
-                                        <button class="btn-cancel" onclick="window.__cancelForm()">Cancel</button>
+                                        <button class="btn-cancel" data-action="cancel-form">Cancel</button>
                                     </div>
                                 </div>
                             ` : ''}
@@ -1866,10 +1874,10 @@
                             ${speedDial.length > 0 ? `
                                 <div class="speed-dial-grid">
                                     ${speedDial.map(entry => `
-                                        <div class="speed-dial-card" onclick="window.__callContact('${entry.phone_number}')">
+                                        <div class="speed-dial-card" data-action="call-contact" data-phone="${escapeAttr(entry.phone_number)}">
                                             <div class="speed-dial-actions">
-                                                <button onclick="event.stopPropagation(); window.__editEntry('${entry.id}')">Edit</button>
-                                                <button onclick="event.stopPropagation(); window.__deleteEntry('${entry.id}')">Del</button>
+                                                <button data-action="edit-entry" data-id="${escapeAttr(entry.id)}">Edit</button>
+                                                <button data-action="delete-entry" data-id="${escapeAttr(entry.id)}">Del</button>
                                             </div>
                                             <div class="speed-dial-name">${entry.name}</div>
                                             <div class="speed-dial-number">${entry.phone_number}</div>
@@ -1881,7 +1889,7 @@
                             `}
 
                             ${!state.showAddForm && !state.editEntry ? `
-                                <button class="add-speed-dial-btn" onclick="window.__showAddForm()">+ Add Contact</button>
+                                <button class="add-speed-dial-btn" data-action="show-add-form">+ Add Contact</button>
                             ` : ''}
                         </div>
                     </div>
@@ -1993,6 +2001,113 @@
             await loadSpeedDial();
             render();
         };
+
+        function runAction(action, element) {
+            switch (action) {
+                case 'set-auth-tab':
+                    window.__setAuthTab(element.dataset.tab);
+                    break;
+                case 'set-auth-screen':
+                    window.__setAuthScreen(element.dataset.screen);
+                    break;
+                case 'login-email':
+                    window.__loginEmail();
+                    break;
+                case 'login-phone':
+                    window.__loginPhone();
+                    break;
+                case 'request-otp':
+                    window.__requestOtp();
+                    break;
+                case 'register':
+                    window.__register();
+                    break;
+                case 'forgot-password':
+                    window.__forgotPassword();
+                    break;
+                case 'reset-password':
+                    window.__resetPassword();
+                    break;
+                case 'verify-otp':
+                    window.__verifyOtp();
+                    break;
+                case 'sign-out':
+                    window.__signOut();
+                    break;
+                case 'start-call':
+                    window.__startCall();
+                    break;
+                case 'dial-via-interpreter':
+                    window.__dialViaInterpreter();
+                    break;
+                case 'open-tts':
+                    window.location.href = 'tts-panel.html';
+                    break;
+                case 'join-room':
+                    window.__joinRoom(element.dataset.room);
+                    break;
+                case 'call-back':
+                    window.__callBack(element.dataset.phone);
+                    break;
+                case 'mark-missed-seen':
+                    window.__markMissedSeen();
+                    break;
+                case 'call-contact':
+                    window.__callContact(element.dataset.phone);
+                    break;
+                case 'show-add-form':
+                    window.__showAddForm();
+                    break;
+                case 'save-speed-dial':
+                    window.__saveSpeedDial();
+                    break;
+                case 'cancel-form':
+                    window.__cancelForm();
+                    break;
+                case 'edit-entry':
+                    window.__editEntry(element.dataset.id);
+                    break;
+                case 'delete-entry':
+                    window.__deleteEntry(element.dataset.id);
+                    break;
+                case 'p2p-accept':
+                    window.__p2pAccept();
+                    break;
+                case 'p2p-decline':
+                    window.__p2pDecline();
+                    break;
+                case 'p2p-cancel':
+                    window.__p2pCancel();
+                    break;
+                case 'cancel-queue-request':
+                    window.__cancelQueueRequest();
+                    break;
+            }
+        }
+
+        document.addEventListener('click', function(event) {
+            const target = event.target.closest('[data-action]');
+            if (!target) return;
+
+            event.preventDefault();
+            runAction(target.dataset.action, target);
+        });
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key !== 'Enter') return;
+            const target = event.target.closest('[data-enter-action]');
+            if (!target) return;
+
+            event.preventDefault();
+            runAction(target.dataset.enterAction, target);
+        });
+
+        document.addEventListener('change', function(event) {
+            const target = event.target.closest('[data-change-field]');
+            if (!target) return;
+
+            window.__formField(target.dataset.changeField, target.value);
+        });
 
         // ============================================
         // DATA LOADING
