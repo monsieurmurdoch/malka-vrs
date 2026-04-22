@@ -1,13 +1,13 @@
 # Enable this server block inside deploy/nginx.conf only after:
-# 1. vri.maplecomm.com resolves to the droplet IP.
-# 2. Let's Encrypt has issued /etc/letsencrypt/live/vri.maplecomm.com.
+# 1. vri.maplecomm.ca resolves to the droplet IP.
+# 2. Let's Encrypt has issued /etc/letsencrypt/live/vri.maplecomm.ca.
 
 server {
     listen 443 ssl http2;
-    server_name vri.maplecomm.com;
+    server_name vri.maplecomm.ca;
 
-    ssl_certificate /etc/letsencrypt/live/vri.maplecomm.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/vri.maplecomm.com/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/vri.maplecomm.ca/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/vri.maplecomm.ca/privkey.pem;
     ssl_session_timeout 1d;
     ssl_session_cache shared:SSL:10m;
     ssl_session_tickets off;
