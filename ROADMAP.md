@@ -266,7 +266,7 @@
 - [ ] Rotate `VRS_BOOTSTRAP_SUPERADMIN_PASSWORD` after first login
 - [ ] Automated backups for Docker volumes (vrs-data, ops-data)
 - [ ] DigitalOcean monitoring alerts (CPU, memory, disk)
-- [ ] Test SSL auto-renewal (certbot cron)
+- [x] Test SSL auto-renewal (certbot cron) — confirmed with `certbot renew --dry-run` for Maple and Malka certs on 2026-04-22
 
 ### Code Quality
 - [ ] Replace remaining `console.log` with structured Pino logger

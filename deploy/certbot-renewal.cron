@@ -1,0 +1,6 @@
+# Root crontab reference for Docker-based Let's Encrypt renewal.
+# Install by appending this line to root's crontab on the droplet.
+#
+# This uses `certbot renew` instead of one-off `certonly` so every renewal
+# config in /etc/letsencrypt/renewal is covered, including whitelabel hosts.
+23 3,15 * * * docker run --rm -v /etc/letsencrypt:/etc/letsencrypt -v /var/lib/letsencrypt:/var/lib/letsencrypt -v /var/www/certbot:/var/www/certbot certbot/certbot renew --quiet --no-random-sleep-on-renew && docker kill -s HUP malka-vrs-nginx-1 >/dev/null 2>&1
