@@ -77,6 +77,7 @@ async function ensureClient() {
     });
   }
 
+  await q('DELETE FROM client_phone_numbers WHERE client_id = $1', [client.id]);
   await queueDb.getClientPreferences(client.id);
   return queueDb.getClientByEmail(mapleClient.email);
 }
@@ -95,10 +96,10 @@ async function ensureVrsTestClient() {
     });
   }
 
+  await q('DELETE FROM client_phone_numbers WHERE phone_number = $1 OR client_id = $2', [mapleVrsClient.phoneNumber, client.id]);
   await q(
     `INSERT INTO client_phone_numbers (id, client_id, phone_number, is_primary, active)
-     VALUES ($1, $2, $3, true, true)
-     ON CONFLICT (phone_number) DO UPDATE SET client_id = EXCLUDED.client_id, is_primary = true, active = true`,
+     VALUES ($1, $2, $3, true, true)`,
     [uuidv4(), client.id, mapleVrsClient.phoneNumber]
   );
   await queueDb.getClientPreferences(client.id);

@@ -6,6 +6,59 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-25
 - Branch: `codex/main-prod-sync`
+- HEAD: `63808b4`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  scripts/seed-maple-vri-demo.mjs`
+  - `M  status.md`
+  - `M  vrs-server/dist/database.js`
+  - `M  vrs-server/src/database.ts`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-25T09:29:47.902Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `63808b4`
+- Note: Fixed Maple VRI/VRS phone-number crossover: VRI-only demo clients are kept phone-free and assigned VRS numbers are moved to one client before insert.
+- Snapshot:
+Local changes at sync time:
+  - `M scripts/seed-maple-vri-demo.mjs`
+  - `M status.md`
+  - `M vrs-server/dist/database.js`
+  - `M vrs-server/src/database.ts`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T09:29:26.796Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `63808b4`
+- Note: Fixed Maple VRI/VRS phone-number crossover: VRI-only demo clients are kept phone-free and assigned VRS numbers are moved to one client before insert.
+- Snapshot:
+Local changes at sync time:
+  - `M scripts/seed-maple-vri-demo.mjs`
+  - `M vrs-server/dist/database.js`
+  - `M vrs-server/src/database.ts`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T09:28:42.421Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
 - HEAD: `75df655`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -16,7 +69,7 @@ Local changes at sync time:
   - `M  vrs-welcome.html`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-25T09:15:20.995Z
 
 <!-- status:current:start -->

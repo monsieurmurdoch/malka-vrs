@@ -1303,6 +1303,11 @@ async function getClientPhoneNumbers(clientId: any) {
 async function assignClientPhoneNumber({ clientId, phoneNumber, isPrimary }: any) {
     const id = uuidv4();
 
+    await runUpdate(
+        'DELETE FROM client_phone_numbers WHERE phone_number = $1',
+        [phoneNumber]
+    );
+
     if (isPrimary) {
         await runUpdate(
             'UPDATE client_phone_numbers SET is_primary = false WHERE client_id = $1',
