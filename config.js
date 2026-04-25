@@ -808,7 +808,6 @@ var config = {
     toolbarButtons: [
        'camera',
        'chat',
-       'closedcaptions',
        'desktop',
        'fullscreen',
        'hangup',

@@ -18,7 +18,6 @@ import QueueStatusIndicator from '../../../interpreter-queue/components/web/Queu
 import InMeetingRequestNotification from '../../../interpreter-queue/components/web/InMeetingRequestNotification';
 import InterpreterStatusToggle from '../../../interpreter-queue/components/web/InterpreterStatusToggle';
 import QueueStatsDashboard from '../../../interpreter-queue/components/web/QueueStatsDashboard';
-import LanguageSwitcher from '../../../vrs-layout/components/LanguageSwitcher';
 import VRSLayout, { isVrsSession } from '../../../vrs-layout/components/VRSLayout';
 import { HandoffBanner, HandoffProgress, InterpreterHandoffNotification }
     from '../../../device-handoff';
@@ -324,9 +323,6 @@ class Conference extends AbstractConference<IProps, any> {
 
                         {/* Queue stats dashboard - for interpreters */}
                         {isInterpreter() && <QueueStatsDashboard />}
-
-                        {/* Language switcher - always available */}
-                        <LanguageSwitcher />
 
                         {/* Device handoff - companion device banner and progress overlay */}
                         <HandoffBanner />

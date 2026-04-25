@@ -6,6 +6,49 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-25
 - Branch: `codex/main-prod-sync`
+- HEAD: `fc864ad`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  client-profile.html`
+  - `M  config.js`
+  - `M  interface_config.js`
+  - `M  libs/app.bundle.min.js`
+  - `M  react/features/base/premeeting/components/web/PreMeetingScreen.tsx`
+  - `M  react/features/conference/components/web/Conference.tsx`
+  - `M  react/features/welcome/components/WelcomePage.web.tsx`
+  - `M  status.md`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-25T08:01:48.283Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `fc864ad`
+- Note: Moved language selection out of live rooms: removed the EN/flag language switcher from active room/prejoin/welcome surfaces, disabled in-room subtitle language UI, and added language preference to client profile settings.
+- Snapshot:
+Local changes at sync time:
+  - `M client-profile.html`
+  - `M config.js`
+  - `M interface_config.js`
+  - `M libs/app.bundle.min.js`
+  - `M react/features/base/premeeting/components/web/PreMeetingScreen.tsx`
+  - `M react/features/conference/components/web/Conference.tsx`
+  - `M react/features/welcome/components/WelcomePage.web.tsx`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T08:01:28.433Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
 - HEAD: `bd6df68`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -16,7 +59,7 @@ Local changes at sync time:
   - `M  status.md`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-25T07:55:12.417Z
 
 <!-- status:current:start -->

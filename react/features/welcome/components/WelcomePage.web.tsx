@@ -6,7 +6,6 @@ import SettingsButton from '../../settings/components/web/SettingsButton';
 import { SETTINGS_TABS } from '../../settings/constants';
 
 import { AbstractWelcomePage, IProps, _mapStateToProps } from './AbstractWelcomePage';
-import { LanguageSwitcher } from '../../vrs-layout/components';
 import { consumePendingRoomRedirect, setPersistentItem } from '../../vrs-auth/storage';
 import { isFeatureEnabled, getAppName, getLogoWhiteUrl } from '../../base/whitelabel/functions';
 
@@ -352,7 +351,6 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                         <SettingsButton
                             defaultTab = { SETTINGS_TABS.CALENDAR }
                             isDisplayedOnWelcomePage = { true } />
-                        <LanguageSwitcher />
                         {showAdditionalToolbarContent
                             ? <div
                                 className = 'settings-toolbar-content'

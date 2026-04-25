@@ -11,7 +11,6 @@ import { isButtonEnabled } from '../../../../toolbox/functions.web';
 import { getConferenceName } from '../../../conference/functions';
 import { PREMEETING_BUTTONS, THIRD_PARTY_PREJOIN_BUTTONS } from '../../../config/constants';
 import { withPixelLineHeight } from '../../../styles/functions.web';
-import { LanguageSwitcher } from '../../../../vrs-layout/components';
 
 import ConnectionStatus from './ConnectionStatus';
 import Preview from './Preview';
@@ -194,10 +193,6 @@ const PreMeetingScreen = ({
             <div style = { style }>
                 <div className = { classes.content }>
                     <ConnectionStatus />
-                    <div style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 300 }}>
-                        <LanguageSwitcher />
-                    </div>
-
                     <div className = { classes.contentControls }>
                         <h1 className = { classes.title }>
                             {title}

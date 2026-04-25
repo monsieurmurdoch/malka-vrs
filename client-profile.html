@@ -1281,6 +1281,18 @@
             setPersistentItem('vrs_dark_mode', selected);
         }
 
+        function getPreferredLanguage() {
+            const selected = getPersistentItem('vrs_preferred_language') || 'en';
+            return ['en', 'ar'].includes(selected) ? selected : 'en';
+        }
+
+        function applyLanguage(lang) {
+            const selected = ['en', 'ar'].includes(lang) ? lang : 'en';
+            document.documentElement.lang = selected;
+            document.documentElement.dir = selected === 'ar' ? 'rtl' : 'ltr';
+            setPersistentItem('vrs_preferred_language', selected);
+        }
+
         function wsSend(data) {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify(data));
@@ -1336,6 +1348,7 @@
             const config = new URLSearchParams({
                 'config.startWithAudioMuted': String(prefs.micDefaultOff),
                 'config.startWithVideoMuted': String(prefs.cameraDefaultOff),
+                'config.defaultLanguage': getPreferredLanguage(),
                 'config.prejoinConfig.enabled': String(!prefs.skipWaitingRoom)
             });
 
@@ -2426,6 +2439,7 @@
                 dnd_enabled: false,
                 dnd_message: '',
                 dark_mode: getPersistentItem('vrs_dark_mode') || 'system',
+                language: getPreferredLanguage(),
                 camera_default_off: true,
                 mic_default_off: true,
                 skip_waiting_room: false,
@@ -2594,6 +2608,13 @@
                                         <option value="light" ${preferences.dark_mode === 'light' ? 'selected' : ''}>Light</option>
                                     </select>
                                 </div>
+                                <div class="settings-row">
+                                    <label class="settings-label" for="settings-language">Language</label>
+                                    <select id="settings-language" class="settings-select">
+                                        <option value="en" ${getPreferredLanguage() === 'en' ? 'selected' : ''}>English</option>
+                                        <option value="ar" ${getPreferredLanguage() === 'ar' ? 'selected' : ''}>Arabic</option>
+                                    </select>
+                                </div>
                                 <label class="settings-toggle">
                                     <input id="settings-dnd" type="checkbox" ${checked(preferences.dnd_enabled)}>
                                     Do not disturb
@@ -2723,6 +2744,7 @@
             state.settingsStatus = null;
             try {
                 const darkMode = document.getElementById('settings-theme')?.value || 'system';
+                const language = document.getElementById('settings-language')?.value || 'en';
                 const response = await fetch(API_BASE + '/api/client/preferences', {
                     method: 'PUT',
                     headers: authHeaders(),
@@ -2742,6 +2764,7 @@
                 }
                 state.preferences = data;
                 applyTheme(data.dark_mode);
+                applyLanguage(language);
                 state.settingsStatus = { type: 'success', message: 'Preferences saved.' };
             } catch (error) {
                 state.settingsStatus = { type: 'error', message: error.message };
@@ -3066,8 +3089,10 @@
             if (data) {
                 state.preferences = data;
                 applyTheme(data.dark_mode);
+                applyLanguage(getPreferredLanguage());
             } else {
                 applyTheme(getPersistentItem('vrs_dark_mode') || 'system');
+                applyLanguage(getPreferredLanguage());
             }
         }
 
@@ -3087,6 +3112,7 @@
 
         async function init() {
             applyTheme(getPersistentItem('vrs_dark_mode') || 'system');
+            applyLanguage(getPreferredLanguage());
             const user = getUser();
             const token = getToken();
 
