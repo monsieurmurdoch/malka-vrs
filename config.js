@@ -1466,8 +1466,8 @@ var config = {
     //     ]
     // },
 
-    // Hides the conference subject
-    // hideConferenceSubject: false,
+    // Hides the raw generated room slug in the in-call header.
+    hideConferenceSubject: true,
 
     // Hides the conference timer.
     // hideConferenceTimer: false,
@@ -1479,17 +1479,7 @@ var config = {
     // hideParticipantsStats: true,
 
     // Sets the conference subject.
-    // For VRS rooms (path starts with /vrs-) show a friendly session label
-    // in the Jitsi header instead of the raw room ID.
-    subject: (function() {
-        if (typeof window !== 'undefined') {
-            const p = window.location.pathname;
-            if (p.match(/\/vrs-[a-z]+-[a-z]+-\d{4}/)) {
-                return 'Interpreter Session';
-            }
-        }
-        return undefined;
-    }()),
+    subject: 'Video Session',
 
     // Sets the conference local subject
     // localSubject: 'Conference Local Subject',

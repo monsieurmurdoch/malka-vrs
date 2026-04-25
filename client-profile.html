@@ -1321,32 +1321,49 @@
             alert('Video rooms need a secure browser context with camera and microphone support. Open this app over HTTPS and allow camera/mic access, then try again.');
         }
 
-        function buildRoomUrl(roomName, role) {
+        function removePersistentItem(key) {
+            try { localStorage.removeItem(key); } catch (e) {}
+            try { sessionStorage.removeItem(key); } catch (e) {}
+        }
+
+        function buildRoomUrl(roomName, role, options) {
             const prefs = getRoomPreferences();
-            const query = new URLSearchParams({ role: role || 'client' });
+            const opts = options || {};
+            const query = new URLSearchParams();
+            if (opts.includeRole !== false) {
+                query.set('role', role || 'client');
+            }
             const config = new URLSearchParams({
                 'config.startWithAudioMuted': String(prefs.micDefaultOff),
                 'config.startWithVideoMuted': String(prefs.cameraDefaultOff),
                 'config.prejoinConfig.enabled': String(!prefs.skipWaitingRoom)
             });
 
-            return `/${encodeURIComponent(roomName)}?${query.toString()}#${config.toString()}`;
+            const queryString = query.toString();
+            return `/${encodeURIComponent(roomName)}${queryString ? `?${queryString}` : ''}#${config.toString()}`;
         }
 
-        function navigateToRoom(roomName, role) {
+        function navigateToRoom(roomName, role, options) {
             if (!roomName) {
                 return;
             }
+            const opts = options || {};
 
             if (!canUseRealtimeMedia()) {
                 showSecureMediaWarning();
                 return;
             }
 
-            setPersistentItem('vrs_user_role', role || 'client');
-            setPersistentItem('vrs_client_auth', 'true');
+            if (opts.setVrsRole === false) {
+                removePersistentItem('vrs_user_role');
+                removePersistentItem('vrs_target_client');
+                removePersistentItem('vrs_client_auth');
+            } else {
+                setPersistentItem('vrs_user_role', role || 'client');
+                setPersistentItem('vrs_client_auth', 'true');
+            }
             persistRoomPreferences();
-            window.location.href = buildRoomUrl(roomName, role || 'client');
+            window.location.href = buildRoomUrl(roomName, role || 'client', opts);
         }
 
         // ============================================
@@ -2747,8 +2764,8 @@
         };
 
         window.__startCall = function() {
-            const roomName = 'vrs-' + Math.random().toString(36).substr(2, 9);
-            navigateToRoom(roomName, 'client');
+            const roomName = 'instant-' + Math.random().toString(36).substr(2, 9);
+            navigateToRoom(roomName, 'client', { includeRole: false, setVrsRole: false });
         };
 
         window.__callContact = function(phoneNumber) {
