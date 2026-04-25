@@ -165,7 +165,7 @@ router.post('/client/login', authLimiter, validate(loginSchema), async (req, res
                 email: client.email,
                 role: 'client',
                 phoneNumber: primary?.phone_number || null,
-                serviceModes: client.service_modes || ['vri'],
+                serviceModes: client.service_modes || ['vrs'],
                 tenantId: client.tenant_id || 'malka'
             }
         });
@@ -210,7 +210,7 @@ router.post('/interpreter/login', authLimiter, validate(loginSchema), async (req
                 email: interpreter.email,
                 role: 'interpreter',
                 languages: interpreter.languages,
-                serviceModes: interpreter.service_modes || ['vri'],
+                serviceModes: interpreter.service_modes || ['vrs'],
                 tenantId: interpreter.tenant_id || 'malka'
             }
         });

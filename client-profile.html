@@ -2703,8 +2703,13 @@
             const speedDial = state.speedDial;
             const missed = state.missedCalls;
             const activeRooms = state.activeRooms;
-            const serviceModes = Array.isArray(profile?.serviceModes) ? profile.serviceModes : (IS_MAPLE ? ['vri'] : ['vrs']);
+            const serviceModes = Array.isArray(profile?.serviceModes)
+                ? profile.serviceModes
+                : (Array.isArray(user.serviceModes) ? user.serviceModes : (IS_MAPLE ? ['vri'] : ['vrs']));
             const canUseVrs = serviceModes.includes('vrs');
+            const canUseVri = serviceModes.includes('vri');
+            const isVriOnly = canUseVri && !canUseVrs;
+            const profileServiceLabel = isVriOnly ? 'VRI' : SERVICE_LABEL;
             const preferences = state.preferences || {
                 dnd_enabled: false,
                 dnd_message: '',
@@ -2757,14 +2762,14 @@
                             <div class="card profile-summary">
                                 <div class="profile-summary-top">
                                     <div>
-                                        <div class="card-title">Your ${SERVICE_LABEL} Profile</div>
+                                        <div class="card-title">Your ${profileServiceLabel} Profile</div>
                                         <div class="vrs-number">${canUseVrs ? (profile?.primaryPhone || 'VRS test account') : 'VRI Ready'}</div>
-                                        <div class="vrs-number-label">${canUseVrs ? 'VRS phone access enabled' : 'Maple Video Remote Interpreting'}</div>
+                                        <div class="vrs-number-label">${canUseVrs ? 'VRS phone access enabled' : 'Video Remote Interpreting enabled'}</div>
                                     </div>
                                     <div class="vrs-number-label">Mic always starts muted</div>
                                 </div>
                                 <div class="quick-actions-grid">
-                                    <button class="start-call-btn" data-action="start-call">${IS_MAPLE && !canUseVrs ? 'Start VRI Session' : 'Start Instant Room'}</button>
+                                    <button class="start-call-btn" data-action="start-call">${isVriOnly ? 'Start VRI Session' : 'Start Instant Room'}</button>
                                     <button class="quick-action-btn" data-action="open-tts-panel">Open TTS Panel</button>
                                     <button class="quick-action-btn" data-action="sync-contacts">Sync Contacts</button>
                                 </div>

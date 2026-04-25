@@ -77,7 +77,7 @@ router.get('/profile', authenticateUser, async (req, res) => {
             name: client.name,
             email: client.email,
             organization: client.organization,
-            serviceModes: client.service_modes || ['vri'],
+            serviceModes: client.service_modes || ['vrs'],
             tenantId: client.tenant_id || 'malka',
             primaryPhone: primary?.phone_number || null,
             phoneNumbers: phones
@@ -114,7 +114,7 @@ router.put('/profile', authenticateUser, validate(updateProfileSchema), async (r
             name: client.name,
             email: client.email,
             organization: client.organization,
-            serviceModes: client.service_modes || ['vri'],
+            serviceModes: client.service_modes || ['vrs'],
             tenantId: client.tenant_id || 'malka',
             primaryPhone: primary?.phone_number || null,
             phoneNumbers: phones

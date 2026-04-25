@@ -6,6 +6,59 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-25
 - Branch: `codex/main-prod-sync`
+- HEAD: `8c3227a`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  client-profile.html`
+  - `M  status.md`
+  - `M  vrs-server/routes/auth.js`
+  - `M  vrs-server/routes/client.js`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-25T09:12:18.085Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `8c3227a`
+- Note: Made Malka client profile service-mode aware: VRS remains default, while Malka corporate VRI-only accounts render the VRI profile flow.
+- Snapshot:
+Local changes at sync time:
+  - `M client-profile.html`
+  - `M status.md`
+  - `M vrs-server/routes/auth.js`
+  - `M vrs-server/routes/client.js`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T09:11:51.516Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `8c3227a`
+- Note: Made Malka client profile service-mode aware: VRS remains default, while Malka corporate VRI-only accounts render the VRI profile flow.
+- Snapshot:
+Local changes at sync time:
+  - `M client-profile.html`
+  - `M vrs-server/routes/auth.js`
+  - `M vrs-server/routes/client.js`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T09:11:44.847Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
 - HEAD: `9f92528`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -14,7 +67,7 @@ Local changes at sync time:
   - `M  status.md`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-25T09:09:00.938Z
 
 <!-- status:current:start -->
