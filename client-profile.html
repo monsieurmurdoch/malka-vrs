@@ -1308,6 +1308,19 @@
             }
         }
 
+        function canUseRealtimeMedia() {
+            const isLocalhost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+            return Boolean(
+                window.isSecureContext
+                || isLocalhost
+                || window.location.protocol === 'https:'
+            ) && Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+        }
+
+        function showSecureMediaWarning() {
+            alert('Video rooms need a secure browser context with camera and microphone support. Open this app over HTTPS and allow camera/mic access, then try again.');
+        }
+
         function buildRoomUrl(roomName, role) {
             const prefs = getRoomPreferences();
             const query = new URLSearchParams({ role: role || 'client' });

@@ -147,7 +147,7 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", ((_req: unknown, res: any) => `'nonce-${res.locals.cspNonce}'`) as any],
+            scriptSrc: ["'self'", "'wasm-unsafe-eval'", ((_req: unknown, res: any) => `'nonce-${res.locals.cspNonce}'`) as any],
             styleSrc: ["'self'", "'unsafe-inline'"],
             imgSrc: ["'self'", 'data:'],
             connectSrc: CONNECT_SRC,
