@@ -968,21 +968,29 @@ function showAddInterpreterModal() {
     if (!email && !username) return;
 
     const languages = prompt('Languages (comma-separated, e.g., ASL, BSL):', 'ASL');
-    const modes = prompt('Service modes (comma-separated: vri, vrs):', 'vri');
-    const tenantId = prompt('Tenant ID:', location.hostname.includes('maplecomm.ca') ? 'maple' : 'malka');
+    const tenantId = prompt('Tenant ID:', defaultTenantId());
+    const modes = prompt('Service modes (comma-separated: vri, vrs):', defaultServiceModesForTenant(tenantId).join(','));
 
-    createInterpreter(name, email, languages.split(',').map(l => l.trim()), username, parseServiceModes(modes), tenantId);
+    createInterpreter(name, email, languages.split(',').map(l => l.trim()), username, parseServiceModes(modes, defaultServiceModesForTenant(tenantId)), tenantId);
 }
 
-function parseServiceModes(value) {
-    const modes = String(value || 'vri')
+function defaultTenantId() {
+    return location.hostname.includes('maplecomm.ca') ? 'maple' : 'malka';
+}
+
+function defaultServiceModesForTenant(tenantId = defaultTenantId()) {
+    return tenantId === 'maple' ? ['vri'] : ['vrs'];
+}
+
+function parseServiceModes(value, fallback = defaultServiceModesForTenant()) {
+    const modes = String(value || fallback.join(','))
         .split(',')
         .map(mode => mode.trim().toLowerCase())
         .filter(mode => mode === 'vri' || mode === 'vrs');
-    return modes.length ? Array.from(new Set(modes)) : ['vri'];
+    return modes.length ? Array.from(new Set(modes)) : fallback;
 }
 
-async function createInterpreter(name, email, languages, username, serviceModes = ['vri'], tenantId = 'malka') {
+async function createInterpreter(name, email, languages, username, serviceModes = defaultServiceModesForTenant(), tenantId = defaultTenantId()) {
     try {
         await opsApiCall('/admin/accounts', {
             method: 'POST',
@@ -1339,11 +1347,11 @@ function showAddClientModal() {
     const name = prompt('Client name:');
     if (!name) return;
     const email = prompt('Email:', '');
-    const organization = prompt('Organization:', location.hostname.includes('maplecomm.ca') ? 'Maple Corporate Pilot' : 'Personal');
-    const modes = prompt('Service modes (comma-separated: vri, vrs):', location.hostname.includes('maplecomm.ca') ? 'vri' : 'vrs');
-    const tenantId = prompt('Tenant ID:', location.hostname.includes('maplecomm.ca') ? 'maple' : 'malka');
+    const tenantId = prompt('Tenant ID:', defaultTenantId());
+    const organization = prompt('Organization:', tenantId === 'maple' ? 'Maple Corporate Pilot' : 'Personal');
+    const modes = prompt('Service modes (comma-separated: vri, vrs):', defaultServiceModesForTenant(tenantId).join(','));
 
-    createClient({ name, email, organization, serviceModes: parseServiceModes(modes), tenantId });
+    createClient({ name, email, organization, serviceModes: parseServiceModes(modes, defaultServiceModesForTenant(tenantId)), tenantId });
 }
 
 async function createClient(payload) {

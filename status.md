@@ -6,6 +6,53 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-25
 - Branch: `codex/main-prod-sync`
+- HEAD: `581a2b8`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  status.md`
+  - `M  vrs-admin-dashboard.js`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-25T09:35:44.166Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `581a2b8`
+- Note: Adjusted admin defaults so Malka-created clients/interpreters default VRS while Maple defaults VRI; service modes remain explicitly editable per account.
+- Snapshot:
+Local changes at sync time:
+  - `M status.md`
+  - `M vrs-admin-dashboard.js`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T09:35:33.918Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `581a2b8`
+- Note: Adjusted admin defaults so Malka-created clients/interpreters default VRS while Maple defaults VRI; service modes remain explicitly editable per account.
+- Snapshot:
+Local changes at sync time:
+  - `M vrs-admin-dashboard.js`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T09:35:06.511Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
 - HEAD: `63808b4`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -16,7 +63,7 @@ Local changes at sync time:
   - `M  vrs-server/src/database.ts`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-25T09:29:47.902Z
 
 <!-- status:current:start -->
