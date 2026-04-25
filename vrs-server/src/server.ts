@@ -185,15 +185,7 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 const staticRoot = path.join(__dirname, '..', '..');
 
-app.use((req: Request, res: Response, next: NextFunction) => {
-    if (!req.path.endsWith('.html') && req.path !== '/') {
-        return next();
-    }
-
-    const filePath = req.path === '/'
-        ? path.join(staticRoot, 'index.html')
-        : path.join(staticRoot, req.path);
-
+function renderHtmlWithIncludes(filePath: string, res: Response, next: NextFunction): void {
     if (!filePath.startsWith(staticRoot)) {
         return next();
     }
@@ -229,6 +221,22 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
         res.type('html').send(resolved);
     });
+}
+
+app.use((req: Request, res: Response, next: NextFunction) => {
+    if (!req.path.endsWith('.html') && req.path !== '/') {
+        return next();
+    }
+
+    const filePath = req.path === '/'
+        ? path.join(staticRoot, 'index.html')
+        : path.join(staticRoot, req.path);
+
+    if (!filePath.startsWith(staticRoot)) {
+        return next();
+    }
+
+    renderHtmlWithIncludes(filePath, res, next);
 });
 
 // Static files
@@ -416,6 +424,10 @@ app.use('/api/tts', ttsRouter);
 app.use('/api/google-contacts', googleContactsRouter);
 app.use('/api/billing', billingAdminRouter);
 app.use('/api/billing', billingDashboardRouter);
+
+app.get(/^\/(?:vrs|vri|p2p|voicemail)-[A-Za-z0-9-]+$/, (_req: Request, res: Response, next: NextFunction) => {
+    renderHtmlWithIncludes(path.join(staticRoot, 'index.html'), res, next);
+});
 
 // ============================================
 // ERROR HANDLER
