@@ -176,12 +176,15 @@ See `ROADMAP.md` for the full development plan, `RELEASES.md` for merge/deploy p
 ```
 malka-vrs-app/
 ├── vrs-server/              # Main backend (Express + WebSocket + PostgreSQL)
-│   ├── server.js            # API routes, WebSocket handlers
-│   ├── database.js          # PostgreSQL data layer
-│   └── lib/
-│       ├── queue-service.js # Interpreter queue matching
-│       ├── handoff-service.js# Device handoff tokens
-│       └── activity-logger.js
+│   ├── src/
+│   │   ├── server.ts        # API routes, WebSocket handlers
+│   │   ├── database.ts      # PostgreSQL data layer
+│   │   └── lib/
+│   │       ├── queue-service.ts
+│   │       ├── handoff-service.ts
+│   │       └── activity-logger.ts
+│   ├── database.js          # CommonJS bridge to dist/database.js for legacy routes
+│   └── routes/              # Legacy CommonJS route modules
 ├── vrs-ops-server/          # Admin dashboard backend (TypeScript)
 ├── twilio-voice-server/     # Twilio phone integration
 ├── react/                   # React components (Jitsi Meet fork)

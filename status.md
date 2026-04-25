@@ -6,32 +6,44 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-25
 - Branch: `codex/main-prod-sync`
-- HEAD: `e80d8f9`
+- HEAD: `caad47a`
 - Note: Pre-push project status sync.
 - Snapshot:
 Local changes at sync time:
-  - `M  .env.example`
-  - `A  .githooks/pre-commit`
-  - `A  .githooks/pre-push`
-  - `M  .github/workflows/ci.yml`
-  - `M  Dockerfile.ops-server`
-  - `A  Dockerfile.pgbouncer`
-  - `A  Dockerfile.postgres`
-  - `M  Dockerfile.vrs-server`
   - `M  README.md`
   - `M  ROADMAP.md`
-  - `M  client-profile.html`
-  - `M  deploy/nginx.conf`
-  - `A  deploy/pgbouncer/entrypoint.sh`
-  - `A  deploy/postgres/005-create-wal-archive.sh`
-  - `A  deploy/postgres/entrypoint.sh`
-  - `A  deploy/postgres/init-pgaudit.sql`
-  - `A  deploy/postgres/postgresql.conf`
-  - `M  docker-compose.prod.yml`
+  - `M  status.md`
+  - `M  vrs-server/database.js`
+  - `M  vrs-server/dist/database.js`
+  - `M  vrs-server/package.json`
+  - `M  vrs-server/src/database.ts`
 
 <!-- status:current:end -->
 ## Archive
-### Archived Update - 2026-04-25T00:13:40.873Z
+### Archived Update - 2026-04-25T06:27:19.519Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `feat/visual-voicemail`
+- HEAD: `aa6329f`
+- Note: TypeScript migration completed: vrs-server now runs from src/server.ts compiled to dist/server.js; src/database.ts is the canonical PostgreSQL data layer with typed query helpers/results and database.js is only a CommonJS bridge; queue-service, handoff-service, and activity-logger are migrated under src/lib; shared strict tsconfig is enabled for vrs-server and ops-server; vrs-server typecheck and build pass.
+- Snapshot:
+Local changes at sync time:
+  - `M README.md`
+  - `M ROADMAP.md`
+  - `D libs/alwaysontop.min.js.LICENSE.txt`
+  - `D libs/face-landmarks-worker.min.js.LICENSE.txt`
+  - `M vrs-server/database.js`
+  - `M vrs-server/src/database.ts`
+  - `?? "libs/alwaysontop.min 2.js"`
+  - `?? "libs/analytics-ga.min 2.js"`
+  - `?? "libs/emotion 4.bin"`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T06:24:36.123Z
 
 <!-- status:current:start -->
 ## Current Update

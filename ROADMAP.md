@@ -158,7 +158,6 @@
 
 **Server Modularization**
 - [x] Split monolithic server.js (~2300 lines) → route modules (auth, client, interpreter, admin, p2p, handoff)
-- [ ] Break up `vrs-server/database.js` — DB layer is now the main monolith and should be split by domain (auth, queue, voicemail, contacts, billing, handoff)
 
 **Structured Logging & Monitoring**
 - [x] Structured logger foundation (Pino) with redaction and module-scoped child loggers
@@ -190,12 +189,11 @@
 
 **TypeScript Migration**
 - [x] ops-server fully migrated to TypeScript
-- [ ] Migrate `vrs-server/server.js` → TypeScript (largest risk surface)
-- [ ] Migrate `vrs-server/database.js` → TypeScript with typed query results
-- [ ] Migrate `vrs-server/lib/*.js` (queue-service, handoff-service, activity-logger)
-- [ ] Unify build tooling: single `tsconfig` base shared by vrs-server and ops-server
-- [ ] Pick one canonical server runtime path — eliminate long-term JS/TS bifurcation between `server.js` / `routes/*.js` and `src/server.ts` / `src/lib/*.ts`
-- [ ] Enable strict mode (`strict: true` in tsconfig) for new files
+- [x] Migrate `vrs-server/server.js` → TypeScript (runtime starts from `dist/server.js`)
+- [x] Migrate `vrs-server/database.js` → TypeScript with typed query helpers/results (`src/database.ts`; top-level `database.js` is now only a CommonJS compatibility bridge)
+- [x] Migrate `vrs-server/lib/*.js` (queue-service, handoff-service, activity-logger)
+- [x] Unify build tooling: single `tsconfig` base shared by vrs-server and ops-server
+- [x] Enable strict mode (`strict: true` in tsconfig) for new files
 
 **Testing**
 - [x] Test framework established for `vrs-server` (Jest + ts-jest)
@@ -287,7 +285,7 @@
 - [ ] Rotate `VRS_BOOTSTRAP_SUPERADMIN_PASSWORD` after first login
 - [ ] Automated backups for PostgreSQL and object storage volumes (`pg-data`, `minio-data`)
 - [ ] DigitalOcean monitoring alerts (CPU, memory, disk)
-- [x] Test SSL auto-renewal (certbot cron) — confirmed with `certbot renew --dry-run` for Maple and Malka certs on 2026-04-22
+- [ ] Test SSL auto-renewal (certbot cron)
 
 ### Code Quality
 - [ ] Replace remaining `console.log` with structured Pino logger
@@ -343,10 +341,10 @@
 - [ ] This is the prerequisite for running multiple VRS server instances behind a load balancer
 
 ### TypeScript Completion
-- [ ] Migrate `vrs-server/server.js` → TypeScript
-- [ ] Migrate `vrs-server/database.js` → TypeScript with typed query results
-- [ ] Migrate `vrs-server/lib/*.js` (queue-service, handoff-service, activity-logger)
-- [ ] Unify `tsconfig` base shared by vrs-server and ops-server
+- [x] Migrate `vrs-server/server.js` → TypeScript
+- [x] Migrate `vrs-server/database.js` → TypeScript with typed query results
+- [x] Migrate `vrs-server/lib/*.js` (queue-service, handoff-service, activity-logger)
+- [x] Unify `tsconfig` base shared by vrs-server and ops-server
 
 ### Database Scaling
 > PostgreSQL is migrated. This section covers operational scaling.
