@@ -1,8 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <!-- Simplified maple leaf for favicon -->
-  <rect width="64" height="64" rx="12" fill="#A31B1A"/>
-  <g transform="translate(12, 6) scale(0.7)">
-    <path d="M28 0 L30 10 L40 6 L36 15 L46 13 L40 20 L50 24 L37 26 L42 36 L33 32 L30 42 L28 34 L26 42 L23 32 L14 36 L19 26 L6 24 L16 20 L10 13 L20 15 L16 6 L26 10 Z" fill="#FFFFFF"/>
-    <rect x="26" y="42" width="4" height="14" rx="1" fill="#FFFFFF"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-labelledby="title">
+  <title id="title">Maple Communications</title>
+  <rect width="64" height="64" rx="12" fill="#E00000"/>
+  <image href="maple-icon-white.png" x="7" y="7" width="50" height="50" preserveAspectRatio="xMidYMid meet"/>
 </svg>

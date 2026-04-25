@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+node scripts/sync-obsidian-status.mjs --mirror-only
+
+if ! git diff --quiet -- status.md ROADMAP.md; then
+  echo "status.md or ROADMAP.md changed during pre-push sync."
+  echo "Commit those updates so the pushed branch includes the same project status mirrored to Obsidian."
+  exit 1
+fi

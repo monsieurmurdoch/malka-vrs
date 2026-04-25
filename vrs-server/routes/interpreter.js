@@ -6,7 +6,7 @@ const express = require('express');
 const db = require('../database');
 const { verifyJwtToken, normalizeAuthClaims } = require('../lib/auth');
 const log = require('../lib/logger').module('interpreter');
-const { validate, nonNegativeIntSchema, z } = require('../lib/validation');
+const { validate, nameSchema, emailSchema, languageSchema, nonNegativeIntSchema, z } = require('../lib/validation');
 
 const router = express.Router();
 
@@ -23,6 +23,12 @@ const shiftsQuerySchema = z.object({
 const earningsQuerySchema = z.object({
     periodStart: z.string().min(1).optional(),
     periodEnd: z.string().min(1).optional()
+});
+
+const updateProfileSchema = z.object({
+    name: nameSchema.optional(),
+    email: emailSchema.optional(),
+    languages: z.array(languageSchema).min(1).optional()
 });
 
 function authenticateUser(req, res, next) {
@@ -72,7 +78,7 @@ router.get('/profile', authenticateUser, async (req, res) => {
 // UPDATE PROFILE
 // ============================================
 
-router.put('/profile', authenticateUser, async (req, res) => {
+router.put('/profile', authenticateUser, validate(updateProfileSchema), async (req, res) => {
     if (req.user.role !== 'interpreter') {
         return res.status(403).json({ error: 'Interpreter access required', code: 'FORBIDDEN' });
     }

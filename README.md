@@ -24,8 +24,8 @@ Built on [Jitsi Meet](https://github.com/jitsi/jitsi-meet) with custom backend s
      └────────┬──────┘ └─────────────┘ └──────┬──────┘
               │                                │
      ┌────────▼──────┐              ┌──────────▼──┐
-     │   SQLite DB   │              │ Prosody XMPP│
-     │   (vrs-data)  │              │ + Jicofo    │
+     │ PostgreSQL DB │              │ Prosody XMPP│
+     │  (pg-data)    │              │ + Jicofo    │
      └───────────────┘              └─────────────┘
 
      ┌───────────────┐
@@ -63,6 +63,7 @@ Edit `.env` and set at minimum:
 ```env
 VRS_SHARED_JWT_SECRET=<generate a random 64-char string>
 VRS_BOOTSTRAP_SUPERADMIN_PASSWORD=<choose a strong password>
+PGPASSWORD=<choose a strong PostgreSQL password>
 JICOFO_COMPONENT_SECRET=<random string>
 JICOFO_AUTH_PASSWORD=<random string>
 JVB_AUTH_PASSWORD=<random string>
@@ -174,9 +175,9 @@ See `ROADMAP.md` for the full development plan, `RELEASES.md` for merge/deploy p
 
 ```
 malka-vrs-app/
-├── vrs-server/              # Main backend (Express + WebSocket + SQLite)
+├── vrs-server/              # Main backend (Express + WebSocket + PostgreSQL)
 │   ├── server.js            # API routes, WebSocket handlers
-│   ├── database.js          # SQLite data layer
+│   ├── database.js          # PostgreSQL data layer
 │   └── lib/
 │       ├── queue-service.js # Interpreter queue matching
 │       ├── handoff-service.js# Device handoff tokens
@@ -197,17 +198,40 @@ malka-vrs-app/
 
 ## Demo Accounts
 
-The server seeds demo accounts on first run:
+Use the smoke seed script to create demo accounts and queue/call data for local or staging validation:
+
+```bash
+VRS_SHARED_JWT_SECRET=... \
+VRS_BOOTSTRAP_SUPERADMIN_PASSWORD=... \
+DATABASE_URL=postgresql://malka:malka@localhost:5432/malka_vrs \
+OPS_DATABASE_URL=postgresql://malka:malka@localhost:5432/malka_vrs \
+npm run seed:vrs-admin-smoke
+```
+
+PostgreSQL schema changes are tracked with `node-pg-migrate`:
+
+```bash
+DATABASE_URL=postgresql://malka:malka@localhost:5432/malka_vrs \
+OPS_DATABASE_URL=postgresql://malka:malka@localhost:5432/malka_vrs \
+npm run migrate:all
+```
+
+Runtime containers use PgBouncer (`pgbouncer:6432`) for pooled application traffic. Migration scripts should use direct Postgres URLs (`MIGRATION_DATABASE_URL` / `OPS_MIGRATION_DATABASE_URL`) so DDL does not run through transaction pooling.
 
 | Role | Email | Password |
 |------|-------|----------|
-| Client | (set via `.env`) | (set via `.env`) |
-| Interpreter | (set via `.env`) | (set via `.env`) |
+| VRS Client | `leila.mansour@example.com` | `Client123!` |
+| VRI Client | `vri.client@maple.example` | `Client123!` |
+| VRS Interpreter | `amina.hassan@malka.local` | `Interpreter123!` |
+| VRI Interpreter | `maya.chen@maple.local` | `Interpreter123!` |
+| Ops Admin | `opsadmin` | `Admin123!` |
+| Maple VRI Admin | `mapleadmin` | `MapleAdmin123!` |
+| Superadmin | `superadmin` | value of `VRS_BOOTSTRAP_SUPERADMIN_PASSWORD` |
 
 ## Tech Stack
 
 - **Frontend:** React 18, Jitsi Meet SDK, Material UI
-- **Backend:** Node.js, Express, WebSocket (ws), SQLite3
+- **Backend:** Node.js, Express, WebSocket (ws), PostgreSQL 16
 - **Auth:** JWT, bcrypt
 - **Video:** Jitsi Meet (Prosody + Jicofo + JVB), WebRTC
 - **Phone:** Twilio Voice API

@@ -218,8 +218,17 @@
     "build:malka": "TENANT=malka make all",
     "build:maple": "TENANT=maple make all",
     "whitelabel-prebuild": "node scripts/whitelabel-prebuild.js",
+    "status:sync": "node scripts/sync-obsidian-status.mjs",
+    "status:mirror": "node scripts/sync-obsidian-status.mjs --mirror-only",
+    "hooks:install": "git config core.hooksPath .githooks",
+    "migrate:vrs": "npm --prefix vrs-server run migrate",
+    "migrate:ops": "npm --prefix vrs-ops-server run migrate",
+    "migrate:all": "npm run migrate:vrs && npm run migrate:ops",
     "validate:vrs-stack": "node scripts/validate-vrs-stack.mjs",
+    "smoke:prod-backend": "VRS_VALIDATE_RESOLVE=app.malkacomm.com:443:138.197.121.127 VRS_QUEUE_BASE_URL=https://app.malkacomm.com VRS_OPS_BASE_URL=https://app.malkacomm.com/ops VRS_TWILIO_BASE_URL=https://app.malkacomm.com/twilio node scripts/validate-vrs-stack.mjs",
+    "smoke:maple-backend": "VRS_VALIDATE_RESOLVE=vri.maplecomm.ca:443:138.197.121.127 VRS_QUEUE_BASE_URL=https://vri.maplecomm.ca VRS_OPS_BASE_URL=https://vri.maplecomm.ca/ops VRS_TWILIO_BASE_URL=https://vri.maplecomm.ca/twilio node scripts/validate-vrs-stack.mjs",
     "seed:vrs-admin-smoke": "node scripts/seed-vrs-admin-smoke.mjs",
+    "seed:maple-vri-demo": "node scripts/seed-maple-vri-demo.mjs",
     "smoke:vrs-pages": "node scripts/smoke-vrs-pages.mjs"
   },
   "resolutions": {

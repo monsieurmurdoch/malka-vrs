@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'fs';
 import path from 'path';
+import { execFileSync } from 'child_process';
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
 const queueBaseUrl = process.env.VRS_QUEUE_BASE_URL || `http://localhost:${process.env.VRS_QUEUE_PORT || 3001}`;
@@ -8,6 +9,10 @@ const opsBaseUrl = process.env.VRS_OPS_BASE_URL || `http://localhost:${process.e
 const twilioBaseUrl = process.env.VRS_TWILIO_BASE_URL || `http://localhost:${process.env.VRS_TWILIO_PORT || 3002}`;
 const adminIdentifier = process.env.VRS_ADMIN_IDENTIFIER || process.env.VRS_BOOTSTRAP_SUPERADMIN_USERNAME || '';
 const adminPassword = process.env.VRS_ADMIN_PASSWORD || process.env.VRS_BOOTSTRAP_SUPERADMIN_PASSWORD || '';
+const curlResolveEntries = (process.env.VRS_VALIDATE_RESOLVE || '')
+  .split(',')
+  .map(entry => entry.trim())
+  .filter(Boolean);
 
 function exists(relativePath) {
   return fs.existsSync(path.join(repoRoot, relativePath));
@@ -21,9 +26,31 @@ async function parseJson(response) {
   return response.json().catch(() => ({}));
 }
 
+function buildCurlArgs(url) {
+  const args = ['-sS', '-L'];
+
+  for (const entry of curlResolveEntries) {
+    args.push('--resolve', entry);
+  }
+
+  args.push(
+    '--max-time',
+    String(Math.ceil(Number(process.env.VRS_VALIDATE_TIMEOUT_MS || 8000) / 1000)),
+    '-w',
+    '\n%{http_code}',
+    url
+  );
+
+  return args;
+}
+
 async function checkEndpoint(label, url, options = {}) {
+  let timeout;
+
   try {
-    const response = await fetch(url, { redirect: 'manual', ...options });
+    const controller = new AbortController();
+    timeout = setTimeout(() => controller.abort(), Number(process.env.VRS_VALIDATE_TIMEOUT_MS || 8000));
+    const response = await fetch(url, { redirect: 'manual', signal: controller.signal, ...options });
     const body = await parseJson(response);
 
     return {
@@ -35,6 +62,34 @@ async function checkEndpoint(label, url, options = {}) {
       url
     };
   } catch (error) {
+    if (!options.method && !options.body) {
+      try {
+        const raw = execFileSync('curl', buildCurlArgs(url), { encoding: 'utf8' });
+        const splitAt = raw.lastIndexOf('\n');
+        const text = splitAt === -1 ? raw : raw.slice(0, splitAt);
+        const status = Number(splitAt === -1 ? 0 : raw.slice(splitAt + 1));
+        const body = JSON.parse(text || '{}');
+
+        return {
+          body,
+          label,
+          ok: status >= 200 && status < 300,
+          status,
+          summary: body.status || body.ready || body.error || 'reachable',
+          url
+        };
+      } catch (curlError) {
+        return {
+          body: null,
+          label,
+          ok: false,
+          status: 'offline',
+          summary: curlError.message,
+          url
+        };
+      }
+    }
+
     return {
       body: null,
       label,
@@ -43,6 +98,10 @@ async function checkEndpoint(label, url, options = {}) {
       summary: error.message,
       url
     };
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
   }
 }
 

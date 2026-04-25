@@ -1,4 +1,4 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
 # Whitelabel tenant — set at build time (e.g. docker build --build-arg TENANT=maple)
 ARG TENANT=malka
@@ -7,15 +7,17 @@ WORKDIR /app
 
 # Copy dependency manifests first (layer caching)
 COPY vrs-server/package*.json ./vrs-server/
-RUN cd vrs-server && npm install --omit=dev
+RUN cd vrs-server && npm install
 
 # Copy server source (avoid copying local node_modules which has macOS binaries)
+COPY tsconfig.base.json ./tsconfig.base.json
 COPY vrs-server/server.js vrs-server/database.js vrs-server/*.json ./vrs-server/
 COPY vrs-server/lib ./vrs-server/lib
-COPY vrs-server/dist/lib ./vrs-server/dist/lib
+COPY vrs-server/src ./vrs-server/src
 COPY vrs-server/routes ./vrs-server/routes
 COPY vrs-server/ws ./vrs-server/ws
 COPY vrs-server/scripts ./vrs-server/scripts
+RUN cd vrs-server && npm run build && npm prune --omit=dev
 
 # Copy frontend assets (server.js serves them from /app)
 COPY *.html ./
@@ -28,8 +30,11 @@ COPY sounds ./sounds
 COPY libs ./libs
 COPY static ./static
 COPY manifest.json ./manifest.json
+COPY whitelabel ./whitelabel
+COPY scripts/whitelabel-prebuild.js ./scripts/whitelabel-prebuild.js
+RUN TENANT=${TENANT} node scripts/whitelabel-prebuild.js
 
 EXPOSE 3001
 
 WORKDIR /app/vrs-server
-CMD ["node", "server.js"]
+CMD ["node", "dist/server.js"]

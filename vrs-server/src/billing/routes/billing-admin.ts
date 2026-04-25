@@ -21,14 +21,26 @@ import type { CallType, BillingStatus } from '../config';
 
 export const router = Router();
 
+function single(value: unknown): string {
+    if (Array.isArray(value)) {
+        return value[0] ? String(value[0]) : '';
+    }
+    return value === undefined || value === null ? '' : String(value);
+}
+
+function queryNumber(value: unknown, fallback: number = 0): number {
+    const parsed = parseInt(single(value), 10);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 // ─── Rate Tiers ────────────────────────────────────────────
 
 /** GET /api/billing/rate-tiers — List rate tiers */
 router.get('/rate-tiers', async (_req: Request, res: Response) => {
     try {
         const filters: { callType?: CallType; isActive?: boolean } = {};
-        if (_req.query.callType) filters.callType = _req.query.callType as CallType;
-        if (_req.query.isActive !== undefined) filters.isActive = _req.query.isActive === 'true';
+        if (_req.query.callType) filters.callType = single(_req.query.callType) as CallType;
+        if (_req.query.isActive !== undefined) filters.isActive = single(_req.query.isActive) === 'true';
 
         const tiers = await getRateTiers(filters);
         res.json(tiers);
@@ -58,7 +70,7 @@ router.post('/rate-tiers', async (req: Request, res: Response) => {
 /** DELETE /api/billing/rate-tiers/:id — Deactivate a rate tier */
 router.delete('/rate-tiers/:id', async (req: Request, res: Response) => {
     try {
-        await deactivateRateTier(req.params.id);
+        await deactivateRateTier(single(req.params.id));
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: 'Failed to deactivate rate tier' });
@@ -71,13 +83,13 @@ router.delete('/rate-tiers/:id', async (req: Request, res: Response) => {
 router.get('/cdrs', async (req: Request, res: Response) => {
     try {
         const filters: any = {}; // eslint-disable-line @typescript-eslint/no-explicit-any
-        if (req.query.callType) filters.callType = req.query.callType as CallType;
-        if (req.query.billingStatus) filters.billingStatus = req.query.billingStatus as BillingStatus;
-        if (req.query.fromDate) filters.fromDate = req.query.fromDate as string;
-        if (req.query.toDate) filters.toDate = req.query.toDate as string;
-        if (req.query.corporateAccountId) filters.corporateAccountId = req.query.corporateAccountId as string;
-        if (req.query.limit) filters.limit = parseInt(req.query.limit as string, 10);
-        if (req.query.offset) filters.offset = parseInt(req.query.offset as string, 10);
+        if (req.query.callType) filters.callType = single(req.query.callType) as CallType;
+        if (req.query.billingStatus) filters.billingStatus = single(req.query.billingStatus) as BillingStatus;
+        if (req.query.fromDate) filters.fromDate = single(req.query.fromDate);
+        if (req.query.toDate) filters.toDate = single(req.query.toDate);
+        if (req.query.corporateAccountId) filters.corporateAccountId = single(req.query.corporateAccountId);
+        if (req.query.limit) filters.limit = queryNumber(req.query.limit);
+        if (req.query.offset) filters.offset = queryNumber(req.query.offset);
 
         const cdrs = await getCdrs(filters);
         res.json(cdrs);
@@ -89,10 +101,11 @@ router.get('/cdrs', async (req: Request, res: Response) => {
 /** GET /api/billing/cdrs/:id — Get CDR detail + status history */
 router.get('/cdrs/:id', async (req: Request, res: Response) => {
     try {
-        const cdr = await getCdrById(req.params.id);
+        const cdrId = single(req.params.id);
+        const cdr = await getCdrById(cdrId);
         if (!cdr) return res.status(404).json({ error: 'CDR not found' });
 
-        const history = await getCdrStatusHistory(req.params.id);
+        const history = await getCdrStatusHistory(cdrId);
         res.json({ cdr, statusHistory: history });
     } catch (err) {
         res.status(500).json({ error: 'Failed to fetch CDR' });
@@ -103,7 +116,7 @@ router.get('/cdrs/:id', async (req: Request, res: Response) => {
 router.post('/cdrs/:id/transition', async (req: Request, res: Response) => {
     try {
         await transitionCdrStatus(
-            req.params.id,
+            single(req.params.id),
             req.body.toStatus,
             (req as any).user?.id, // eslint-disable-line @typescript-eslint/no-explicit-any
             req.body.reason
@@ -134,9 +147,9 @@ router.post('/vrs/aggregate', async (req: Request, res: Response) => {
 /** GET /api/billing/vrs/export — Export VRS CDRs for TRS submission */
 router.get('/vrs/export', async (req: Request, res: Response) => {
     try {
-        const year = parseInt(req.query.year as string, 10);
-        const month = parseInt(req.query.month as string, 10);
-        const format = (req.query.format as string) || 'trs';
+        const year = queryNumber(req.query.year);
+        const month = queryNumber(req.query.month);
+        const format = single(req.query.format) || 'trs';
 
         const formatter: BillingFormatter = format === 'csv'
             ? new CsvFormatter()
@@ -215,7 +228,7 @@ router.post('/corporate', async (req: Request, res: Response) => {
 /** GET /api/billing/corporate/:id — Get corporate account */
 router.get('/corporate/:id', async (req: Request, res: Response) => {
     try {
-        const account = await getCorporateAccount(req.params.id);
+        const account = await getCorporateAccount(single(req.params.id));
         if (!account) return res.status(404).json({ error: 'Account not found' });
         res.json(account);
     } catch (err) {
@@ -227,7 +240,7 @@ router.get('/corporate/:id', async (req: Request, res: Response) => {
 router.post('/corporate/:id/invoices', async (req: Request, res: Response) => {
     try {
         const invoice = await generateInvoice(
-            req.params.id,
+            single(req.params.id),
             req.body.periodStart,
             req.body.periodEnd,
             (req as any).user?.id // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -243,7 +256,7 @@ router.post('/corporate/:id/invoices', async (req: Request, res: Response) => {
 router.post('/invoices/:id/issue', async (req: Request, res: Response) => {
     try {
         await issueInvoice(
-            req.params.id,
+            single(req.params.id),
             (req as any).user?.id // eslint-disable-line @typescript-eslint/no-explicit-any
         );
         res.json({ success: true });
@@ -256,7 +269,7 @@ router.post('/invoices/:id/issue', async (req: Request, res: Response) => {
 router.post('/invoices/:id/pay', async (req: Request, res: Response) => {
     try {
         await markInvoicePaid(
-            req.params.id,
+            single(req.params.id),
             req.body.stripePaymentId,
             (req as any).user?.id // eslint-disable-line @typescript-eslint/no-explicit-any
         );
@@ -282,8 +295,8 @@ router.post('/reconciliation/run', async (req: Request, res: Response) => {
 /** GET /api/billing/reconciliation — Get reconciliation report */
 router.get('/reconciliation', async (req: Request, res: Response) => {
     try {
-        const year = parseInt(req.query.year as string, 10);
-        const month = parseInt(req.query.month as string, 10);
+        const year = queryNumber(req.query.year);
+        const month = queryNumber(req.query.month);
         const report = await getReconciliationReport(year, month);
         res.json(report);
     } catch (err) {
@@ -295,7 +308,7 @@ router.get('/reconciliation', async (req: Request, res: Response) => {
 router.post('/reconciliation/:id/resolve', async (req: Request, res: Response) => {
     try {
         await resolveVariance(
-            req.params.id,
+            single(req.params.id),
             req.body.reason,
             (req as any).user?.id || 'system' // eslint-disable-line @typescript-eslint/no-explicit-any
         );
@@ -311,11 +324,11 @@ router.post('/reconciliation/:id/resolve', async (req: Request, res: Response) =
 router.get('/audit', async (req: Request, res: Response) => {
     try {
         const filters: any = {}; // eslint-disable-line @typescript-eslint/no-explicit-any
-        if (req.query.action) filters.action = req.query.action as string;
-        if (req.query.entityType) filters.entityType = req.query.entityType as string;
-        if (req.query.fromDate) filters.fromDate = req.query.fromDate as string;
-        if (req.query.toDate) filters.toDate = req.query.toDate as string;
-        if (req.query.limit) filters.limit = parseInt(req.query.limit as string, 10);
+        if (req.query.action) filters.action = single(req.query.action);
+        if (req.query.entityType) filters.entityType = single(req.query.entityType);
+        if (req.query.fromDate) filters.fromDate = single(req.query.fromDate);
+        if (req.query.toDate) filters.toDate = single(req.query.toDate);
+        if (req.query.limit) filters.limit = queryNumber(req.query.limit);
 
         const entries = await getAuditLog(filters);
         res.json(entries);

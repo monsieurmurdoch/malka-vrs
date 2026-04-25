@@ -13,7 +13,13 @@
  *   lib/auth.ts             — JWT helpers
  *   lib/queue-service.ts    — interpreter queue matching
  *   lib/handoff-service.ts  — device handoff token management
+ *   lib/metrics.js          — Prometheus metrics collection
+ *   lib/tracing.js          — OpenTelemetry distributed tracing
  */
+
+// Initialize OpenTelemetry before other imports so auto-instrumentation works.
+const tracing = require('../lib/tracing');
+tracing.initialize();
 
 try {
     require('dotenv').config();
@@ -29,6 +35,14 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
+
+type RequestWithLog = Request & { log?: { error: (data: unknown, message?: string) => void } };
+
+const metrics = require('../lib/metrics');
+const { httpMetricsMiddleware } = metrics;
+const log = require('../lib/logger').module('server');
+const { requestId, requestLogger } = require('../lib/middleware');
 
 // Services
 import * as db from './database';
@@ -37,20 +51,28 @@ import queueService from './lib/queue-service';
 import * as state from './lib/state';
 import * as auth from './lib/auth';
 import * as billingDb from './lib/billing-db';
+import * as handoffService from './lib/handoff-service';
+import * as voicemailService from './lib/voicemail-service';
+import { configureStorageService } from './lib/storage-service';
 
 // Route modules (still JS — migrated separately)
-const { router: authRouter, setLegacyFlag } = require('./routes/auth');
-const clientRouter = require('./routes/client');
-const interpreterRouter = require('./routes/interpreter');
-const adminRouter = require('./routes/admin');
-const handoffRouter = require('./routes/handoff');
+const { router: authRouter, setLegacyFlag } = require('../routes/auth');
+const clientRouter = require('../routes/client');
+const contactsRouter = require('../routes/contacts');
+const interpreterRouter = require('../routes/interpreter');
+const { router: adminRouter, setVoicemailServiceForAdmin } = require('../routes/admin');
+const handoffRouter = require('../routes/handoff');
+const { router: voicemailRouter, setVoicemailService } = require('../routes/voicemail');
+const ttsRouter = require('../routes/tts');
+const googleContactsRouter = require('../routes/google-contacts');
+const { validate, nameSchema, emailSchema, organizationSchema, z: zodLib } = require('../lib/validation');
 
 // Billing routes (TypeScript — compiled)
 const { router: billingAdminRouter } = require('./billing/routes/billing-admin');
 const { router: billingDashboardRouter } = require('./billing/routes/billing-dashboard');
 
 // WebSocket handler
-const { handleConnection } = require('./ws/handler');
+const { handleConnection } = require('../ws/handler');
 
 // ============================================
 // CONFIGURATION
@@ -116,11 +138,16 @@ app.use(cors({
     credentials: true
 }));
 
+app.use((_req: Request, res: Response, next: NextFunction) => {
+    res.locals.cspNonce = crypto.randomBytes(16).toString('base64');
+    next();
+});
+
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+            scriptSrc: ["'self'", ((_req: unknown, res: any) => `'nonce-${res.locals.cspNonce}'`) as any],
             styleSrc: ["'self'", "'unsafe-inline'"],
             imgSrc: ["'self'", 'data:'],
             connectSrc: CONNECT_SRC,
@@ -143,6 +170,10 @@ app.use('/api', rateLimit({
     },
     message: { error: 'Too many requests, please try again later.' }
 }));
+
+app.use(httpMetricsMiddleware);
+app.use(requestId);
+app.use(requestLogger);
 
 // Body parsing
 app.use(express.json({ limit: '1mb' }));
@@ -167,14 +198,15 @@ app.use((req: Request, res: Response, next: NextFunction) => {
         return next();
     }
 
-    fs.readFile(filePath, 'utf8', (err, data) => {
+    fs.readFile(filePath, 'utf8', (err: NodeJS.ErrnoException | null, data: string) => {
         if (err) {
             return next();
         }
 
+        const nonce = res.locals.cspNonce || '';
         const resolved = data.replace(
             /<!--#include virtual="([^"]+)"\s*-->/g,
-            (match, includePath) => {
+            (_match: string, includePath: string) => {
                 try {
                     const absPath = path.join(staticRoot, includePath);
                     if (absPath.startsWith(staticRoot)) {
@@ -185,7 +217,15 @@ app.use((req: Request, res: Response, next: NextFunction) => {
                 }
                 return '';
             }
-        );
+        )
+            .replace(/<script(?![^>]*\bsrc\b)([^>]*)>/gi, (match: string, attrs: string) => {
+                if (/\bnonce=/.test(attrs)) return match;
+                return `<script${attrs} nonce="${nonce}">`;
+            })
+            .replace(/<style([^>]*)>/gi, (match: string, attrs: string) => {
+                if (/\bnonce=/.test(attrs)) return match;
+                return `<style${attrs} nonce="${nonce}">`;
+            });
 
         res.type('html').send(resolved);
     });
@@ -300,43 +340,64 @@ app.get('/api/readiness', (_req: Request, res: Response) => {
     res.status(snapshot.ready ? 200 : 503).json(snapshot);
 });
 
+app.get('/health', (_req: Request, res: Response) => {
+    const ready = isDatabaseReady && Boolean(JWT_SECRET);
+    res.status(ready ? 200 : 503).json({
+        status: ready ? 'ok' : 'not_ready',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    });
+});
+
+app.get('/metrics', async (_req: Request, res: Response) => {
+    try {
+        const queueStatus = typeof queueService.getStatus === 'function'
+            ? queueService.getStatus()
+            : { activeInterpreters: [], paused: false, pendingRequests: [], queueSize: 0, totalMatches: 0 };
+
+        const m = metrics.metrics;
+        m.queueDepth.set(queueStatus.queueSize);
+        m.queuePaused.set(queueStatus.paused ? 1 : 0);
+        m.wsConnections.set({ role: 'interpreter' }, state.clients.interpreters.size);
+        m.wsConnections.set({ role: 'client' }, state.clients.clients.size);
+        m.wsConnections.set({ role: 'admin' }, state.clients.admins.size);
+        m.wsConnections.set({ role: 'total' }, wss.clients.size);
+
+        const jvbUrl = process.env.JVB_STATS_URL;
+        if (jvbUrl) {
+            await metrics.scrapeJvbStats(jvbUrl);
+        }
+
+        res.set('Content-Type', metrics.register.contentType);
+        res.end(await metrics.register.metrics());
+    } catch {
+        res.status(500).json({ error: 'Failed to collect metrics' });
+    }
+});
+
 // ============================================
 // PUBLIC VRS REGISTRATION (no auth)
 // ============================================
 
-function validateRequired(body: Record<string, unknown>, fields: string[]): string | null {
-    for (const field of fields) {
-        const value = body[field];
-        if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '')) {
-            return `Missing required field: ${field}`;
-        }
-    }
-    return null;
-}
+const registerSchema = zodLib.object({
+    name: nameSchema,
+    email: emailSchema.optional(),
+    role: zodLib.enum(['client']),
+    organization: organizationSchema
+});
 
-app.post('/api/vrs/register', async (req: Request, res: Response) => {
-    const validationError = validateRequired(req.body, ['name', 'role']);
-    if (validationError) {
-        return res.status(400).json({ error: validationError });
-    }
-
-    const { name, email, role } = req.body;
+app.post('/api/vrs/register', validate(registerSchema), async (req: Request, res: Response) => {
+    const { name, email } = req.body;
 
     try {
-        if (role === 'interpreter') {
-            return res.status(400).json({
-                error: 'Interpreter registration requires approval. Please contact administrator.'
-            });
-        }
-
         const clientId = await db.createClient({
             name, email, organization: req.body.organization || 'Personal'
         });
 
         res.json({ success: true, id: clientId });
     } catch (error) {
-        console.error('[Register] Error:', error);
-        res.status(500).json({ error: 'Registration failed' });
+        (req as RequestWithLog).log?.error({ err: error }, 'Registration failed');
+        res.status(500).json({ error: 'Registration failed', code: 'INTERNAL_ERROR' });
     }
 });
 
@@ -346,9 +407,13 @@ app.post('/api/vrs/register', async (req: Request, res: Response) => {
 
 app.use('/api/auth', authRouter);
 app.use('/api/client', clientRouter);
+app.use('/api/contacts', contactsRouter);
 app.use('/api/interpreter', interpreterRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/handoff', handoffRouter);
+app.use('/api/voicemail', voicemailRouter);
+app.use('/api/tts', ttsRouter);
+app.use('/api/google-contacts', googleContactsRouter);
 app.use('/api/billing', billingAdminRouter);
 app.use('/api/billing', billingDashboardRouter);
 
@@ -356,11 +421,12 @@ app.use('/api/billing', billingDashboardRouter);
 // ERROR HANDLER
 // ============================================
 
-app.use((error: Error, _req: Request, res: Response, _next: NextFunction) => {
-    console.error('[Server] Error:', error);
+app.use((error: Error, req: Request, res: Response, _next: NextFunction) => {
+    (req as RequestWithLog).log?.error({ err: error }, 'Unhandled server error');
     res.status(500).json({
         error: 'Internal server error',
-        message: process.env.NODE_ENV === 'development' ? error.message : undefined
+        code: 'INTERNAL_ERROR',
+        ...(process.env.NODE_ENV === 'development' && { details: { message: error.message } })
     });
 });
 
@@ -372,6 +438,8 @@ db.initialize().then(async () => {
     isDatabaseReady = true;
     queueService.broadcastToAdmins = (type: string, data: unknown) => state.broadcastToAdmins({ type, data });
     await queueService.initialize();
+    await handoffService.initialize();
+    await db.seedVoicemailSettings();
 
     // Initialize billing PostgreSQL (opt-in via BILLING_PG_HOST env var)
     try {
@@ -380,29 +448,48 @@ db.initialize().then(async () => {
         console.warn('[Server] Billing DB initialization failed (non-fatal):', billingErr instanceof Error ? billingErr.message : billingErr);
     }
 
+    if (process.env.MINIO_ENDPOINT) {
+        try {
+            const storage = configureStorageService({
+                endpoint: process.env.MINIO_ENDPOINT,
+                accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
+                secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
+                bucket: process.env.MINIO_BUCKET || 'voicemail'
+            });
+            await storage.initialize();
+            log.info('MinIO storage service initialized');
+        } catch (err) {
+            log.warn({ err }, 'MinIO initialization failed — voicemail storage unavailable');
+        }
+    }
+
+    const broadcastFn = (userId: string, message: object) => {
+        const client = state.clients.clients.get(userId);
+        if (client?.ws && client.ws.readyState === 1) {
+            client.ws.send(JSON.stringify(message));
+        }
+    };
+    await voicemailService.initialize(broadcastFn);
+    setVoicemailService(voicemailService);
+    setVoicemailServiceForAdmin(voicemailService);
+
     server.listen(PORT, () => {
-        console.log(`
-\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557
-\u2551           MalkaVRS Server Started Successfully!            \u2551
-\u2560\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2563
-\u2551  HTTP Server:   http://localhost:${PORT}                      \u2551
-\u2551  WebSocket:     ws://localhost:${PORT}/ws                     \u2551
-\u2551  API Base:      /api                                          \u2551
-\u2551  Admin Panel:   /vrs-admin-dashboard.html                     \u2551
-\u2560\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2563
-\u2551  Environment:   ${process.env.NODE_ENV || 'development'}                       \u2551
-\u2551  Readiness:     http://localhost:${PORT}/api/readiness               \u2551
-\u255A\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255D
-        `);
+        log.info({ port: PORT, env: process.env.NODE_ENV || 'development' }, 'MalkaVRS server started');
+        log.info('  HTTP Server:   http://localhost:%d', PORT);
+        log.info('  WebSocket:     ws://localhost:%d/ws', PORT);
+        log.info('  API Base:      /api');
+        log.info('  Admin Panel:   /vrs-admin-dashboard.html');
+        log.info('  Health (Ops):  http://localhost:%d/health', PORT);
+        log.info('  Metrics:       http://localhost:%d/metrics', PORT);
 
         const warnings = getHealthWarnings();
         if (warnings.length) {
-            console.warn('[Server] Startup warnings:', warnings.join(', '));
+            log.warn({ warnings }, 'Startup warnings detected');
         }
     });
-}).catch(error => {
+}).catch((error: unknown) => {
     isDatabaseReady = false;
-    console.error('Failed to initialize database:', error);
+    log.fatal({ err: error }, 'Failed to initialize database');
     process.exit(1);
 });
 

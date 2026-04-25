@@ -143,7 +143,13 @@ const imagesDir = path.join(PROJECT_ROOT, 'images');
 if (fs.existsSync(tenantAssetsDir)) {
     const files = fs.readdirSync(tenantAssetsDir);
     for (const file of files) {
+        if (file.startsWith('.') || file.startsWith('._')) {
+            continue;
+        }
         const src = path.join(tenantAssetsDir, file);
+        if (!fs.statSync(src).isFile()) {
+            continue;
+        }
         const dest = path.join(imagesDir, file);
         fs.copyFileSync(src, dest);
         console.log(`[whitelabel] Copied asset: images/${file}`);

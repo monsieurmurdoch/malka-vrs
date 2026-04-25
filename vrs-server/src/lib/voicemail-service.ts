@@ -5,7 +5,7 @@
  * automatic expiry, and real-time notifications.
  *
  * Follows the pattern of handoff-service.ts and queue-service.ts:
- * in-memory Map for active state + SQLite for persistence.
+ * in-memory Map for active recording state + PostgreSQL for persistence.
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -299,7 +299,7 @@ async function getInbox(calleeId: string, limit: number = 20, offset: number = 0
     // Generate thumbnail presigned URLs
     const storage = getStorageService();
     const messagesWithThumbnails = await Promise.all(
-        messages.map(async (msg) => {
+        messages.map(async (msg: Record<string, unknown>) => {
             const result = { ...msg };
             if (storage?.isInitialized() && (msg as Record<string, unknown>).thumbnail_key) {
                 try {

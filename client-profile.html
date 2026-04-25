@@ -289,6 +289,128 @@
             border-color: #4caf50;
         }
 
+        .contacts-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        .contact-search {
+            flex: 1 1 180px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            padding: 10px 12px;
+        }
+
+        .contact-card {
+            align-items: center;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            gap: 12px;
+            padding: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .contact-card + .contact-card {
+            margin-top: 8px;
+        }
+
+        .contact-card:hover {
+            background: rgba(255,255,255,0.12);
+            border-color: #4caf50;
+        }
+
+        .contact-avatar {
+            align-items: center;
+            background: #4caf50;
+            border-radius: 999px;
+            color: #fff;
+            display: flex;
+            flex: 0 0 38px;
+            font-size: 14px;
+            font-weight: 800;
+            height: 38px;
+            justify-content: center;
+            width: 38px;
+        }
+
+        .contact-main {
+            min-width: 0;
+        }
+
+        .contact-name {
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .contact-meta {
+            font-size: 12px;
+            margin-top: 2px;
+            opacity: 0.56;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .contact-detail {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 10px;
+            margin-top: 14px;
+            padding: 14px;
+        }
+
+        .contact-detail-header {
+            align-items: flex-start;
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .contact-detail-title {
+            font-size: 18px;
+            font-weight: 800;
+        }
+
+        .contact-detail-subtitle {
+            font-size: 13px;
+            margin-top: 4px;
+            opacity: 0.62;
+        }
+
+        .timeline-item,
+        .note-item {
+            border-top: 1px solid rgba(255,255,255,0.08);
+            padding: 10px 0;
+        }
+
+        .timeline-title,
+        .note-content {
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .timeline-time,
+        .note-time {
+            font-size: 11px;
+            margin-top: 3px;
+            opacity: 0.45;
+        }
+
+        .contact-import-grid {
+            display: grid;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
         /* Inline form */
         .inline-form {
             background: rgba(255,255,255,0.06);
@@ -651,6 +773,235 @@
             opacity: 0.6;
         }
 
+        body.theme-light {
+            background: linear-gradient(135deg, #f6f9fb 0%, #e9f2ec 50%, #f6efe7 100%);
+            color: #16212a;
+        }
+
+        body.theme-light .profile-header,
+        body.theme-light .card {
+            background: rgba(255,255,255,0.78);
+            border-color: rgba(22,33,42,0.12);
+            color: #16212a;
+        }
+
+        body.theme-light .profile-user-name,
+        body.theme-light .card-title,
+        body.theme-light .vrs-number-label,
+        body.theme-light .empty-state {
+            color: #16212a;
+        }
+
+        body.theme-light .sign-out-btn,
+        body.theme-light .settings-input,
+        body.theme-light .settings-select,
+        body.theme-light .settings-textarea,
+        body.theme-light .inline-form input,
+        body.theme-light .dialer-input {
+            background: rgba(255,255,255,0.92);
+            border-color: rgba(22,33,42,0.16);
+            color: #16212a;
+        }
+
+        body.theme-light .sign-out-btn {
+            background: rgba(22,33,42,0.06);
+        }
+
+        .settings-grid {
+            display: grid;
+            gap: 14px;
+        }
+
+        .settings-row {
+            display: grid;
+            gap: 6px;
+        }
+
+        .settings-label {
+            font-size: 12px;
+            font-weight: 700;
+            opacity: 0.62;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .settings-input,
+        .settings-select,
+        .settings-textarea {
+            width: 100%;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            padding: 10px 12px;
+        }
+
+        .settings-textarea {
+            min-height: 72px;
+            resize: vertical;
+        }
+
+        .settings-input:focus,
+        .settings-select:focus,
+        .settings-textarea:focus {
+            border-color: #4caf50;
+            outline: none;
+        }
+
+        .settings-toggle {
+            align-items: center;
+            display: flex;
+            gap: 10px;
+            font-size: 14px;
+            opacity: 0.86;
+        }
+
+        .settings-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .settings-btn {
+            background: #4caf50;
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 700;
+            padding: 10px 16px;
+        }
+
+        .settings-btn.secondary {
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.18);
+        }
+
+        body.theme-light .settings-btn.secondary {
+            background: rgba(22,33,42,0.06);
+            border-color: rgba(22,33,42,0.14);
+            color: #16212a;
+        }
+
+        body.theme-maple {
+            background: #f7f7f7;
+            color: #111;
+        }
+
+        body.theme-maple .profile-header {
+            background: #e00000;
+            border-bottom: 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.14);
+        }
+
+        body.theme-maple .profile-header-logo {
+            height: 54px;
+            max-width: 230px;
+            object-fit: contain;
+        }
+
+        body.theme-maple .profile-header-title,
+        body.theme-maple .profile-user-name,
+        body.theme-maple .sign-out-btn {
+            color: #fff;
+            opacity: 1;
+        }
+
+        body.theme-maple .card,
+        body.theme-maple .auth-card {
+            background: #fff;
+            border: 1px solid rgba(0,0,0,0.1);
+            box-shadow: 0 8px 28px rgba(0,0,0,0.08);
+            color: #111;
+        }
+
+        body.theme-maple .auth-logo {
+            max-width: 280px;
+        }
+
+        body.theme-maple .card-title,
+        body.theme-maple .vrs-number-label,
+        body.theme-maple .empty-state,
+        body.theme-maple .auth-subtitle,
+        body.theme-maple .auth-footer,
+        body.theme-maple .settings-label {
+            color: #333;
+        }
+
+        body.theme-maple .vrs-number,
+        body.theme-maple .call-duration,
+        body.theme-maple .auth-link {
+            color: #e00000;
+        }
+
+        body.theme-maple .start-call-btn,
+        body.theme-maple .dialer-btn,
+        body.theme-maple .settings-btn,
+        body.theme-maple .auth-submit {
+            background: #e00000;
+            color: #fff;
+        }
+
+        body.theme-maple .start-call-btn:hover,
+        body.theme-maple .dialer-btn:hover,
+        body.theme-maple .settings-btn:hover,
+        body.theme-maple .auth-submit:hover {
+            background: #b40000;
+        }
+
+        body.theme-maple .sign-out-btn,
+        body.theme-maple .settings-btn.secondary {
+            background: rgba(255,255,255,0.14);
+            border-color: rgba(255,255,255,0.4);
+            color: #fff;
+        }
+
+        body.theme-maple .settings-input,
+        body.theme-maple .settings-select,
+        body.theme-maple .settings-textarea,
+        body.theme-maple .inline-form input,
+        body.theme-maple .dialer-input,
+        body.theme-maple .auth-field,
+        body.theme-maple .contact-search {
+            background: #fff;
+            border-color: rgba(0,0,0,0.18);
+            color: #111;
+        }
+
+        body.theme-maple .contact-card,
+        body.theme-maple .contact-detail {
+            background: #fff;
+            border-color: rgba(0,0,0,0.12);
+        }
+
+        body.theme-maple .contact-card:hover {
+            border-color: #e00000;
+        }
+
+        body.theme-maple .contact-avatar {
+            background: #e00000;
+        }
+
+        .settings-status {
+            border-radius: 8px;
+            font-size: 13px;
+            margin-top: 10px;
+            padding: 9px 11px;
+        }
+
+        .settings-status.success {
+            background: rgba(76,175,80,0.16);
+            color: #4caf50;
+        }
+
+        .settings-status.error {
+            background: rgba(244,67,54,0.16);
+            color: #f44336;
+        }
+
         .auth-divider {
             text-align: center;
             margin: 16px 0;
@@ -688,10 +1039,34 @@
     <!-- Hidden audio element for ringtone -->
     <audio id="ringtone" src="sounds/ring.mp3" loop preload="auto"></audio>
 
+    <script src="whitelabel-runtime.js"></script>
     <script src="config.js"></script>
     <script>
     (function() {
         const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const BRAND = window.__WHITELABEL__ || {};
+        const IS_MAPLE = BRAND.tenantId === 'maple' || window.location.hostname.includes('maplecomm.ca');
+        const SERVICE_LABEL = IS_MAPLE ? 'VRI' : 'VRS';
+
+        if (IS_MAPLE) {
+            document.body.classList.add('theme-maple');
+        }
+
+        function brandName() {
+            return IS_MAPLE ? 'MapleVRI' : (BRAND.appName || 'MalkaVRI');
+        }
+
+        function brandLogo(preferWhite) {
+            if (IS_MAPLE) {
+                return preferWhite
+                    ? (BRAND.assets?.logoWhite || 'images/logo-white.svg')
+                    : (BRAND.assets?.logo || 'images/logo.svg');
+            }
+
+            return preferWhite ? 'images/malka-logo-white.png' : 'images/malka-logo.png';
+        }
+
+        document.title = `${brandName()} - Client Profile`;
 
         function isLoopbackUrl(value) {
             if (!value) {
@@ -803,10 +1178,18 @@
         // State
         let state = {
             profile: null,
+            preferences: null,
             calls: [],
             speedDial: [],
+            contacts: [],
+            contactDetail: null,
+            contactSearch: '',
+            contactStatus: null,
+            contactSyncSince: getPersistentItem('vrs_contacts_sync_since') || '',
             missedCalls: [],
             activeRooms: [],
+            settingsStatus: null,
+            passwordStatus: null,
             showAddForm: false,
             editEntry: null,
             newName: '',
@@ -883,10 +1266,74 @@
             }
         }
 
+        function resolveTheme(mode) {
+            const selected = mode || getPersistentItem('vrs_dark_mode') || 'system';
+            if (selected === 'dark' || selected === 'light') {
+                return selected;
+            }
+            return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        }
+
+        function applyTheme(mode) {
+            const selected = mode || 'system';
+            const resolved = resolveTheme(selected);
+            document.body.classList.toggle('theme-light', resolved === 'light');
+            setPersistentItem('vrs_dark_mode', selected);
+        }
+
         function wsSend(data) {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify(data));
             }
+        }
+
+        function getRoomPreferences() {
+            const prefs = state.preferences || {};
+            return {
+                cameraDefaultOff: prefs.camera_default_off !== false,
+                micDefaultOff: prefs.mic_default_off !== false,
+                rememberMediaPermissions: prefs.remember_media_permissions !== false,
+                skipWaitingRoom: !!prefs.skip_waiting_room
+            };
+        }
+
+        function persistRoomPreferences() {
+            const prefs = getRoomPreferences();
+            if (prefs.rememberMediaPermissions) {
+                setPersistentItem('vrs_media_preferences', JSON.stringify({
+                    cameraDefaultOff: prefs.cameraDefaultOff,
+                    micDefaultOff: prefs.micDefaultOff,
+                    updatedAt: new Date().toISOString()
+                }));
+            }
+        }
+
+        function buildRoomUrl(roomName, role) {
+            const prefs = getRoomPreferences();
+            const query = new URLSearchParams({ role: role || 'client' });
+            const config = new URLSearchParams({
+                'config.startWithAudioMuted': String(prefs.micDefaultOff),
+                'config.startWithVideoMuted': String(prefs.cameraDefaultOff),
+                'config.prejoinConfig.enabled': String(!prefs.skipWaitingRoom)
+            });
+
+            return `/${encodeURIComponent(roomName)}?${query.toString()}#${config.toString()}`;
+        }
+
+        function navigateToRoom(roomName, role) {
+            if (!roomName) {
+                return;
+            }
+
+            if (!canUseRealtimeMedia()) {
+                showSecureMediaWarning();
+                return;
+            }
+
+            setPersistentItem('vrs_user_role', role || 'client');
+            setPersistentItem('vrs_client_auth', 'true');
+            persistRoomPreferences();
+            window.location.href = buildRoomUrl(roomName, role || 'client');
         }
 
         // ============================================
@@ -961,6 +1408,10 @@
                     }
                     break;
 
+                case 'contacts_changed':
+                    refreshContactsFromSync();
+                    break;
+
                 // ── VRS queue responses ──────────────────────────────────────
                 case 'request_queued':
                     // Server confirmed we're in queue. Show waiting UI.
@@ -974,7 +1425,7 @@
                     if (msg.data && msg.data.roomName) {
                         state.queueRequest = null;
                         setPersistentItem('vrs_user_role', 'client');
-                        window.location.href = '/' + msg.data.roomName + '?role=client';
+                        navigateToRoom(msg.data.roomName, 'client');
                     }
                     break;
 
@@ -1005,9 +1456,7 @@
             renderOverlays();
             stopRingtone();
             // Caller goes to the room
-            setPersistentItem('vrs_user_role', 'client');
-            setPersistentItem('vrs_client_auth', 'true');
-            window.location.href = '/' + data.roomName + '?role=client';
+            navigateToRoom(data.roomName, 'client');
         }
 
         function handleJoinRoom(data) {
@@ -1015,9 +1464,7 @@
             renderOverlays();
             stopRingtone();
             // Callee goes to the room
-            setPersistentItem('vrs_user_role', 'client');
-            setPersistentItem('vrs_client_auth', 'true');
-            window.location.href = '/' + data.roomName + '?role=client';
+            navigateToRoom(data.roomName, 'client');
         }
 
         function handleDeclined(data) {
@@ -1084,7 +1531,7 @@
 
         function showBrowserNotification(title, body) {
             if ('Notification' in window && Notification.permission === 'granted') {
-                new Notification(title, { body: body, icon: 'images/malka-logo-white.png' });
+                new Notification(title, { body: body, icon: brandLogo(true) });
             }
         }
 
@@ -1261,14 +1708,7 @@
         };
 
         window.__joinRoom = function(roomName) {
-            if (!canUseRealtimeMedia()) {
-                showSecureMediaWarning();
-                return;
-            }
-
-            setPersistentItem('vrs_user_role', 'client');
-            setPersistentItem('vrs_client_auth', 'true');
-            window.location.href = '/' + roomName + '?role=client';
+            navigateToRoom(roomName, 'client');
         };
 
         window.__callBack = function(phone) {
@@ -1297,6 +1737,122 @@
             const d = new Date(iso);
             return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                 + ', ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, function(char) {
+                return ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                })[char];
+            });
+        }
+
+        function checked(value) {
+            return value ? 'checked' : '';
+        }
+
+        function initials(name) {
+            return String(name || '?')
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map(part => part.charAt(0).toUpperCase())
+                .join('') || '?';
+        }
+
+        function renderTimelineItem(item) {
+            const type = item.type || 'event';
+            const data = item.data || {};
+            const title = type === 'call'
+                ? `Call ${data.duration_minutes ? `(${data.duration_minutes} min)` : ''}`
+                : type === 'note'
+                    ? 'Note'
+                    : type === 'voicemail'
+                        ? 'Voicemail'
+                        : type.replace(/_/g, ' ');
+
+            return `
+                <div class="timeline-item">
+                    <div class="timeline-title">${escapeHtml(title)}</div>
+                    <div class="timeline-time">${formatDate(item.timestamp || data.created_at || data.started_at)}</div>
+                </div>
+            `;
+        }
+
+        function renderContactsPanel() {
+            const contacts = state.contacts || [];
+            const detail = state.contactDetail;
+
+            return `
+                <div class="card" style="margin-top:24px">
+                    <div class="card-title">Contacts</div>
+                    <div class="contacts-toolbar">
+                        <input id="contact-search" class="contact-search" type="search" placeholder="Search contacts"
+                            value="${escapeHtml(state.contactSearch || '')}"
+                            onkeydown="if(event.key==='Enter')window.__searchContacts(this.value)">
+                        <button class="settings-btn secondary" onclick="window.__searchContacts(document.getElementById('contact-search')?.value || '')">Search</button>
+                        <button class="settings-btn secondary" onclick="window.__syncContacts()">Sync</button>
+                    </div>
+                    <div class="contacts-toolbar">
+                        <button class="settings-btn secondary" onclick="window.__importDeviceContacts()">Phone Contacts</button>
+                        <button class="settings-btn secondary" onclick="window.__connectGoogleContacts()">Google Contacts</button>
+                        <button class="settings-btn secondary" onclick="window.__migrateSpeedDial()">Sync Speed Dial</button>
+                        <label class="settings-btn secondary" style="display:inline-flex;align-items:center;gap:6px">
+                            Import CSV
+                            <input type="file" accept=".csv,text/csv" style="display:none" onchange="window.__importContactsFile(this.files && this.files[0])">
+                        </label>
+                    </div>
+                    ${state.contactStatus ? `<div class="settings-status ${state.contactStatus.type}">${escapeHtml(state.contactStatus.message)}</div>` : ''}
+
+                    ${contacts.length > 0 ? contacts.map(contact => `
+                        <div class="contact-card" onclick="window.__openContact('${contact.id}')">
+                            <div class="contact-avatar" style="${contact.avatar_color ? `background:${escapeHtml(contact.avatar_color)}` : ''}">${escapeHtml(initials(contact.name))}</div>
+                            <div class="contact-main">
+                                <div class="contact-name">${escapeHtml(contact.name)}</div>
+                                <div class="contact-meta">${escapeHtml([contact.phone_number, contact.email, contact.organization].filter(Boolean).join(' · ') || 'No contact details')}</div>
+                            </div>
+                        </div>
+                    `).join('') : '<div class="empty-state">No contacts yet. Import contacts or add speed dial entries.</div>'}
+
+                    ${detail ? `
+                        <div class="contact-detail">
+                            <div class="contact-detail-header">
+                                <div>
+                                    <div class="contact-detail-title">${escapeHtml(detail.name)}</div>
+                                    <div class="contact-detail-subtitle">${escapeHtml([detail.phone_number, detail.email, detail.organization].filter(Boolean).join(' · '))}</div>
+                                </div>
+                                <button class="settings-btn secondary" onclick="window.__closeContact()">Close</button>
+                            </div>
+                            <div class="settings-actions">
+                                ${detail.phone_number ? `<button class="settings-btn" onclick="window.__callContact('${escapeHtml(detail.phone_number)}')">Call</button>` : ''}
+                                <button class="settings-btn secondary" onclick="window.__toggleFavoriteContact('${detail.id}', ${detail.is_favorite ? 'false' : 'true'})">${detail.is_favorite ? 'Unfavorite' : 'Favorite'}</button>
+                            </div>
+                            ${detail.notes ? `<div style="font-size:13px;line-height:1.4;margin-top:12px;opacity:0.78">${escapeHtml(detail.notes)}</div>` : ''}
+                            <div class="contact-import-grid">
+                                <textarea id="contact-note" class="settings-textarea" placeholder="Add note"></textarea>
+                                <button class="settings-btn secondary" onclick="window.__addContactNote('${detail.id}')">Add Note</button>
+                            </div>
+                            <div style="margin-top:14px">
+                                <div class="settings-label">Notes</div>
+                                ${(detail.notesList || []).length ? detail.notesList.map(note => `
+                                    <div class="note-item">
+                                        <div class="note-content">${escapeHtml(note.content)}</div>
+                                        <div class="note-time">${formatDate(note.created_at)}</div>
+                                    </div>
+                                `).join('') : '<div class="empty-state">No notes yet.</div>'}
+                            </div>
+                            <div style="margin-top:14px">
+                                <div class="settings-label">History</div>
+                                ${(detail.timeline || []).length ? detail.timeline.map(renderTimelineItem).join('') : '<div class="empty-state">No calls, messages, or notes yet.</div>'}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
         }
 
         // ============================================
@@ -1337,9 +1893,9 @@
             app.innerHTML = `
                 <div class="auth-page">
                     <div class="auth-card">
-                        <img src="images/malka-logo-white.png" alt="MalkaVRS" class="auth-logo">
+                        <img src="${brandLogo(!IS_MAPLE)}" alt="${brandName()}" class="auth-logo">
                         <div class="auth-title">Sign In</div>
-                        <div class="auth-subtitle">Access your VRS account</div>
+                        <div class="auth-subtitle">Access your ${SERVICE_LABEL} account</div>
 
                         <div class="auth-tabs">
                             <button class="auth-tab ${tab === 'email' ? 'active' : ''}" onclick="window.__setAuthTab('email')">Email</button>
@@ -1393,9 +1949,9 @@
             app.innerHTML = `
                 <div class="auth-page">
                     <div class="auth-card">
-                        <img src="images/malka-logo-white.png" alt="MalkaVRS" class="auth-logo">
+                        <img src="${brandLogo(!IS_MAPLE)}" alt="${brandName()}" class="auth-logo">
                         <div class="auth-title">Register</div>
-                        <div class="auth-subtitle">Create your VRS account</div>
+                        <div class="auth-subtitle">Create your ${SERVICE_LABEL} account</div>
 
                         ${state.authError ? '<div class="auth-error">' + state.authError + '</div>' : ''}
 
@@ -1419,7 +1975,7 @@
             app.innerHTML = `
                 <div class="auth-page">
                     <div class="auth-card">
-                        <img src="images/malka-logo-white.png" alt="MalkaVRS" class="auth-logo">
+                        <img src="${brandLogo(!IS_MAPLE)}" alt="${brandName()}" class="auth-logo">
                         <div class="auth-title">Reset Password</div>
                         <div class="auth-subtitle">We'll send a reset link to your email</div>
 
@@ -1444,7 +2000,7 @@
             app.innerHTML = `
                 <div class="auth-page">
                     <div class="auth-card">
-                        <img src="images/malka-logo-white.png" alt="MalkaVRS" class="auth-logo">
+                        <img src="${brandLogo(!IS_MAPLE)}" alt="${brandName()}" class="auth-logo">
                         <div class="auth-title">Set New Password</div>
                         <div class="auth-subtitle">Enter your new password below</div>
 
@@ -1466,7 +2022,7 @@
             app.innerHTML = `
                 <div class="auth-page">
                     <div class="auth-card">
-                        <img src="images/malka-logo-white.png" alt="MalkaVRS" class="auth-logo">
+                        <img src="${brandLogo(!IS_MAPLE)}" alt="${brandName()}" class="auth-logo">
                         <div class="auth-title">Verify Code</div>
                         <div class="auth-subtitle">Enter the 6-digit code sent to ${state.otpPhoneNumber}</div>
 
@@ -1760,11 +2316,20 @@
             const speedDial = state.speedDial;
             const missed = state.missedCalls;
             const activeRooms = state.activeRooms;
+            const preferences = state.preferences || {
+                dnd_enabled: false,
+                dnd_message: '',
+                dark_mode: getPersistentItem('vrs_dark_mode') || 'system',
+                camera_default_off: true,
+                mic_default_off: true,
+                skip_waiting_room: false,
+                remember_media_permissions: true
+            };
 
             document.getElementById('app').innerHTML = `
                 <div class="profile-header">
                     <div class="profile-header-left">
-                        <img src="images/malka-logo-white.png" alt="MalkaVRI" class="profile-header-logo">
+                        <img src="${brandLogo(true)}" alt="${brandName()}" class="profile-header-logo">
                         <span class="profile-header-title">Client Profile</span>
                     </div>
                     <div class="profile-header-right">
@@ -1782,9 +2347,9 @@
                     <div>
                         <!-- VRS Number -->
                         <div class="card" style="margin-bottom:24px">
-                            <div class="card-title">Your VRS Number</div>
+                            <div class="card-title">Your ${SERVICE_LABEL} Profile</div>
                             <div class="vrs-number">${profile?.primaryPhone || 'Not assigned'}</div>
-                            <div class="vrs-number-label">Personal Video Relay Number</div>
+                            <div class="vrs-number-label">${IS_MAPLE ? 'Maple Video Remote Interpreting' : 'Personal Video Relay Number'}</div>
                             <button class="start-call-btn" onclick="window.__startCall()" style="margin-top:16px">
                                 Start Instant Room
                             </button>
@@ -1884,10 +2449,93 @@
                                 <button class="add-speed-dial-btn" onclick="window.__showAddForm()">+ Add Contact</button>
                             ` : ''}
                         </div>
+
+                        ${renderContactsPanel()}
                     </div>
 
                     <!-- Right column: Call History -->
                     <div>
+                        <div class="card" style="margin-bottom:24px">
+                            <div class="card-title">Profile Settings</div>
+                            <div class="settings-grid">
+                                <div class="settings-row">
+                                    <label class="settings-label" for="settings-name">Display Name</label>
+                                    <input id="settings-name" class="settings-input" type="text" value="${escapeHtml(profile?.name || user.name || '')}">
+                                </div>
+                                <div class="settings-row">
+                                    <label class="settings-label" for="settings-email">Email</label>
+                                    <input id="settings-email" class="settings-input" type="email" value="${escapeHtml(profile?.email || user.email || '')}">
+                                </div>
+                                <div class="settings-row">
+                                    <label class="settings-label" for="settings-organization">Organization</label>
+                                    <input id="settings-organization" class="settings-input" type="text" value="${escapeHtml(profile?.organization || '')}">
+                                </div>
+                                <div class="settings-actions">
+                                    <button class="settings-btn" onclick="window.__saveClientProfile()">Save Profile</button>
+                                </div>
+                            </div>
+                            ${state.settingsStatus ? `<div class="settings-status ${state.settingsStatus.type}">${escapeHtml(state.settingsStatus.message)}</div>` : ''}
+                        </div>
+
+                        <div class="card" style="margin-bottom:24px">
+                            <div class="card-title">Call Preferences</div>
+                            <div class="settings-grid">
+                                <div class="settings-row">
+                                    <label class="settings-label" for="settings-theme">Theme</label>
+                                    <select id="settings-theme" class="settings-select" onchange="window.__previewTheme(this.value)">
+                                        <option value="system" ${preferences.dark_mode === 'system' ? 'selected' : ''}>System</option>
+                                        <option value="dark" ${preferences.dark_mode === 'dark' ? 'selected' : ''}>Dark</option>
+                                        <option value="light" ${preferences.dark_mode === 'light' ? 'selected' : ''}>Light</option>
+                                    </select>
+                                </div>
+                                <label class="settings-toggle">
+                                    <input id="settings-dnd" type="checkbox" ${checked(preferences.dnd_enabled)}>
+                                    Do not disturb
+                                </label>
+                                <div class="settings-row">
+                                    <label class="settings-label" for="settings-dnd-message">DND Message</label>
+                                    <textarea id="settings-dnd-message" class="settings-textarea">${escapeHtml(preferences.dnd_message || '')}</textarea>
+                                </div>
+                                <label class="settings-toggle">
+                                    <input id="settings-camera-off" type="checkbox" ${checked(preferences.camera_default_off)}>
+                                    Camera off by default
+                                </label>
+                                <label class="settings-toggle">
+                                    <input id="settings-mic-off" type="checkbox" ${checked(preferences.mic_default_off)}>
+                                    Microphone off by default
+                                </label>
+                                <label class="settings-toggle">
+                                    <input id="settings-skip-waiting" type="checkbox" ${checked(preferences.skip_waiting_room)}>
+                                    Skip waiting room when possible
+                                </label>
+                                <label class="settings-toggle">
+                                    <input id="settings-remember-media" type="checkbox" ${checked(preferences.remember_media_permissions)}>
+                                    Remember media permissions
+                                </label>
+                                <div class="settings-actions">
+                                    <button class="settings-btn" onclick="window.__saveClientPreferences()">Save Preferences</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-bottom:24px">
+                            <div class="card-title">Password</div>
+                            <div class="settings-grid">
+                                <div class="settings-row">
+                                    <label class="settings-label" for="settings-current-password">Current Password</label>
+                                    <input id="settings-current-password" class="settings-input" type="password" autocomplete="current-password">
+                                </div>
+                                <div class="settings-row">
+                                    <label class="settings-label" for="settings-new-password">New Password</label>
+                                    <input id="settings-new-password" class="settings-input" type="password" autocomplete="new-password">
+                                </div>
+                                <div class="settings-actions">
+                                    <button class="settings-btn secondary" onclick="window.__changeClientPassword()">Update Password</button>
+                                </div>
+                            </div>
+                            ${state.passwordStatus ? `<div class="settings-status ${state.passwordStatus.type}">${escapeHtml(state.passwordStatus.message)}</div>` : ''}
+                        </div>
+
                         <div class="card">
                             <div class="card-title">Call History</div>
                             ${calls.length > 0 ? calls.map(call => `
@@ -1918,11 +2566,100 @@
             window.location.href = '/';
         };
 
+        async function submitJson(path, body) {
+            const response = await fetch(API_BASE + path, {
+                method: 'POST',
+                headers: authHeaders(),
+                body: JSON.stringify(body)
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.error || 'Request failed');
+            }
+            return data;
+        }
+
+        window.__previewTheme = function(mode) {
+            applyTheme(mode);
+        };
+
+        window.__saveClientProfile = async function() {
+            state.settingsStatus = null;
+            try {
+                const response = await fetch(API_BASE + '/api/client/profile', {
+                    method: 'PUT',
+                    headers: authHeaders(),
+                    body: JSON.stringify({
+                        name: document.getElementById('settings-name')?.value || '',
+                        email: document.getElementById('settings-email')?.value || '',
+                        organization: document.getElementById('settings-organization')?.value || ''
+                    })
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(data.error || 'Profile update failed');
+                }
+                state.profile = data;
+                const user = getUser() || {};
+                setPersistentItem('vrs_user_info', JSON.stringify({
+                    ...user,
+                    name: data.name,
+                    email: data.email
+                }));
+                state.settingsStatus = { type: 'success', message: 'Profile saved.' };
+            } catch (error) {
+                state.settingsStatus = { type: 'error', message: error.message };
+            }
+            render();
+        };
+
+        window.__saveClientPreferences = async function() {
+            state.settingsStatus = null;
+            try {
+                const darkMode = document.getElementById('settings-theme')?.value || 'system';
+                const response = await fetch(API_BASE + '/api/client/preferences', {
+                    method: 'PUT',
+                    headers: authHeaders(),
+                    body: JSON.stringify({
+                        dnd_enabled: !!document.getElementById('settings-dnd')?.checked,
+                        dnd_message: document.getElementById('settings-dnd-message')?.value || '',
+                        dark_mode: darkMode,
+                        camera_default_off: !!document.getElementById('settings-camera-off')?.checked,
+                        mic_default_off: !!document.getElementById('settings-mic-off')?.checked,
+                        skip_waiting_room: !!document.getElementById('settings-skip-waiting')?.checked,
+                        remember_media_permissions: !!document.getElementById('settings-remember-media')?.checked
+                    })
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(data.error || 'Preference update failed');
+                }
+                state.preferences = data;
+                applyTheme(data.dark_mode);
+                state.settingsStatus = { type: 'success', message: 'Preferences saved.' };
+            } catch (error) {
+                state.settingsStatus = { type: 'error', message: error.message };
+            }
+            render();
+        };
+
+        window.__changeClientPassword = async function() {
+            state.passwordStatus = null;
+            try {
+                await submitJson('/api/auth/password/change', {
+                    currentPassword: document.getElementById('settings-current-password')?.value || '',
+                    newPassword: document.getElementById('settings-new-password')?.value || ''
+                });
+                state.passwordStatus = { type: 'success', message: 'Password updated.' };
+            } catch (error) {
+                state.passwordStatus = { type: 'error', message: error.message };
+            }
+            render();
+        };
+
         window.__startCall = function() {
             const roomName = 'vrs-' + Math.random().toString(36).substr(2, 9);
-            setPersistentItem('vrs_user_role', 'client');
-            setPersistentItem('vrs_client_auth', 'true');
-            window.location.href = '/' + roomName + '?role=client';
+            navigateToRoom(roomName, 'client');
         };
 
         window.__callContact = function(phoneNumber) {
@@ -1994,9 +2731,208 @@
             render();
         };
 
+        window.__searchContacts = async function(search) {
+            state.contactSearch = search || '';
+            await loadContacts();
+            render();
+        };
+
+        window.__openContact = async function(id) {
+            const data = await apiFetch('/api/contacts/' + id);
+            if (data && data.contact) {
+                state.contactDetail = data.contact;
+            }
+            render();
+        };
+
+        window.__closeContact = function() {
+            state.contactDetail = null;
+            render();
+        };
+
+        window.__toggleFavoriteContact = async function(id, favorite) {
+            await apiFetch('/api/contacts/' + id, {
+                method: 'PUT',
+                body: JSON.stringify({ isFavorite: !!favorite })
+            });
+            await loadContacts();
+            if (state.contactDetail && state.contactDetail.id === id) {
+                await window.__openContact(id);
+                return;
+            }
+            render();
+        };
+
+        window.__addContactNote = async function(id) {
+            const textarea = document.getElementById('contact-note');
+            const content = textarea?.value?.trim();
+            if (!content) return;
+
+            const data = await apiFetch('/api/contacts/' + id + '/notes', {
+                method: 'POST',
+                body: JSON.stringify({ content })
+            });
+            if (data && data.note) {
+                state.contactStatus = { type: 'success', message: 'Note saved.' };
+            }
+            await window.__openContact(id);
+        };
+
+        window.__syncContacts = async function() {
+            await refreshContactsFromSync(true);
+        };
+
+        window.__importContactsFile = async function(file) {
+            if (!file) return;
+            try {
+                const text = await file.text();
+                const contacts = parseContactsCsv(text);
+                await importContactsList(contacts, 'CSV');
+            } catch (error) {
+                state.contactStatus = { type: 'error', message: error.message || 'Import failed.' };
+                render();
+            }
+        };
+
+        window.__importDeviceContacts = async function() {
+            if (!navigator.contacts || !navigator.contacts.select) {
+                state.contactStatus = { type: 'error', message: 'Phone contact picker is not available in this browser. Use CSV or Google import.' };
+                render();
+                return;
+            }
+
+            try {
+                const picked = await navigator.contacts.select(['name', 'email', 'tel'], { multiple: true });
+                const contacts = picked.map(contact => ({
+                    name: Array.isArray(contact.name) ? contact.name[0] : contact.name,
+                    email: Array.isArray(contact.email) ? contact.email[0] : contact.email,
+                    phone_number: Array.isArray(contact.tel) ? contact.tel[0] : contact.tel
+                })).filter(contact => contact.name || contact.email || contact.phone_number);
+                await importContactsList(contacts, 'phone');
+            } catch (error) {
+                if (error && error.name === 'AbortError') return;
+                state.contactStatus = { type: 'error', message: error.message || 'Phone contact import failed.' };
+                render();
+            }
+        };
+
+        window.__connectGoogleContacts = async function() {
+            try {
+                const auth = await apiFetch('/api/google-contacts/auth-url');
+                if (!auth || !auth.url) {
+                    throw new Error(auth?.error || 'Google Contacts is not configured.');
+                }
+
+                const popup = window.open(auth.url, 'google-contacts-auth', 'width=520,height=680');
+                state.contactStatus = { type: 'success', message: 'Complete Google sign-in, then this page will import selected contacts.' };
+                render();
+
+                const startedAt = Date.now();
+                const timer = setInterval(async () => {
+                    if ((popup && popup.closed) || Date.now() - startedAt > 120000) {
+                        clearInterval(timer);
+                        await fetchAndImportGoogleContacts();
+                    }
+                }, 1000);
+            } catch (error) {
+                state.contactStatus = { type: 'error', message: error.message || 'Google Contacts import failed.' };
+                render();
+            }
+        };
+
+        window.__migrateSpeedDial = async function() {
+            const data = await apiFetch('/api/contacts/migrate-speed-dial', { method: 'POST' });
+            state.contactStatus = { type: 'success', message: `Synced ${data?.migrated || 0} speed dial contact${data?.migrated === 1 ? '' : 's'} into contacts.` };
+            await loadContacts();
+            render();
+        };
+
         // ============================================
         // DATA LOADING
         // ============================================
+
+        function normalizeContactImport(entry) {
+            return {
+                name: entry.name || entry.Name || entry.fullName || entry['Full Name'] || entry.phone_number || entry.phoneNumber || entry.email || 'Unnamed Contact',
+                email: entry.email || entry.Email || '',
+                phone_number: entry.phone_number || entry.phoneNumber || entry.phone || entry.Phone || entry.tel || '',
+                organization: entry.organization || entry.Organization || entry.company || entry.Company || '',
+                notes: entry.notes || entry.Notes || ''
+            };
+        }
+
+        function parseContactsCsv(text) {
+            const lines = String(text || '').split(/\r?\n/).filter(line => line.trim());
+            if (!lines.length) {
+                throw new Error('No contacts found in file.');
+            }
+
+            const headers = lines[0].split(',').map(header => header.trim());
+            const contacts = lines.slice(1).map(line => {
+                const values = line.split(',').map(value => value.trim());
+                const row = {};
+                headers.forEach((header, index) => {
+                    row[header] = values[index] || '';
+                });
+                return normalizeContactImport(row);
+            }).filter(contact => contact.name || contact.phone_number || contact.email);
+
+            if (!contacts.length) {
+                throw new Error('No usable contacts found in file.');
+            }
+
+            return contacts;
+        }
+
+        async function importContactsList(contacts, source) {
+            if (!contacts.length) {
+                state.contactStatus = { type: 'error', message: 'No contacts selected.' };
+                render();
+                return;
+            }
+
+            const data = await apiFetch('/api/contacts/import', {
+                method: 'POST',
+                body: JSON.stringify({ contacts: contacts.map(normalizeContactImport) })
+            });
+            const imported = data?.imported || 0;
+            const skipped = data?.skipped || 0;
+            state.contactStatus = { type: 'success', message: `Imported ${imported} ${source} contact${imported === 1 ? '' : 's'}${skipped ? `; skipped ${skipped} duplicate${skipped === 1 ? '' : 's'}` : ''}.` };
+            await loadContacts();
+            render();
+        }
+
+        async function fetchAndImportGoogleContacts() {
+            try {
+                const data = await apiFetch('/api/google-contacts/fetch', { method: 'POST' });
+                const contacts = data?.contacts || [];
+                await importContactsList(contacts, 'Google');
+            } catch (error) {
+                state.contactStatus = { type: 'error', message: error.message || 'Google Contacts fetch failed.' };
+                render();
+            }
+        }
+
+        async function refreshContactsFromSync(showStatus) {
+            const since = state.contactSyncSince || getPersistentItem('vrs_contacts_sync_since') || '';
+            const path = '/api/contacts/sync' + (since ? `?since=${encodeURIComponent(since)}` : '');
+            const data = await apiFetch(path);
+            if (data && data.serverTimestamp) {
+                state.contactSyncSince = data.serverTimestamp;
+                setPersistentItem('vrs_contacts_sync_since', data.serverTimestamp);
+            }
+            if (!since || (data && data.changes && data.changes.length)) {
+                await loadContacts();
+                if (state.contactDetail) {
+                    const detail = await apiFetch('/api/contacts/' + state.contactDetail.id);
+                    state.contactDetail = detail?.contact || null;
+                }
+            }
+            if (showStatus) {
+                state.contactStatus = { type: 'success', message: 'Contacts synced across devices.' };
+            }
+            render();
+        }
 
         async function loadProfile() {
             const data = await apiFetch('/api/client/profile');
@@ -2011,6 +2947,22 @@
         async function loadSpeedDial() {
             const data = await apiFetch('/api/client/speed-dial');
             if (data && data.entries) state.speedDial = data.entries;
+        }
+
+        async function loadContacts() {
+            const query = state.contactSearch ? `?search=${encodeURIComponent(state.contactSearch)}` : '';
+            const data = await apiFetch('/api/contacts' + query);
+            if (data && data.contacts) state.contacts = data.contacts;
+        }
+
+        async function loadPreferences() {
+            const data = await apiFetch('/api/client/preferences');
+            if (data) {
+                state.preferences = data;
+                applyTheme(data.dark_mode);
+            } else {
+                applyTheme(getPersistentItem('vrs_dark_mode') || 'system');
+            }
         }
 
         async function loadMissedCalls() {
@@ -2028,6 +2980,7 @@
         // ============================================
 
         async function init() {
+            applyTheme(getPersistentItem('vrs_dark_mode') || 'system');
             const user = getUser();
             const token = getToken();
 
@@ -2046,12 +2999,18 @@
             }
 
             render();
-            await Promise.all([loadProfile(), loadCallHistory(), loadSpeedDial(), loadMissedCalls(), loadActiveRooms()]);
+            await Promise.all([loadProfile(), loadPreferences(), loadCallHistory(), loadSpeedDial(), loadContacts(), loadMissedCalls(), loadActiveRooms()]);
             render();
 
             // Connect WebSocket for real-time P2P calling
             connectWebSocket();
             requestNotificationPermission();
+            setInterval(() => refreshContactsFromSync(false), 60000);
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) {
+                    refreshContactsFromSync(false);
+                }
+            });
         }
 
         init();

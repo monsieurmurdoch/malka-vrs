@@ -6,7 +6,7 @@ const express = require('express');
 const db = require('../database');
 const { verifyJwtToken, normalizeAuthClaims } = require('../lib/auth');
 const log = require('../lib/logger').module('client');
-const { validate, nameSchema, phoneNumberSchema, nonNegativeIntSchema, z } = require('../lib/validation');
+const { validate, validatePayload, nameSchema, phoneNumberSchema, nonNegativeIntSchema, z } = require('../lib/validation');
 
 const router = express.Router();
 
@@ -325,14 +325,16 @@ router.put('/preferences', authenticateUser, async (req, res) => {
     }
 
     try {
-        const updates = validate(preferencesUpdateSchema, req.body);
+        const parsed = validatePayload(preferencesUpdateSchema, req.body);
+        if (!parsed.success) {
+            return res.status(400).json(parsed.error);
+        }
+
+        const updates = parsed.data;
         await db.updateClientPreferences(req.user.id, updates);
         const prefs = await db.getClientPreferences(req.user.id);
         res.json(prefs);
     } catch (error) {
-        if (error.code === 'VALIDATION_ERROR') {
-            return res.status(400).json({ error: error.message, code: 'VALIDATION_ERROR' });
-        }
         req.log.error({ err: error }, 'Update preferences error');
         res.status(500).json({ error: 'Failed to update preferences', code: 'INTERNAL_ERROR' });
     }

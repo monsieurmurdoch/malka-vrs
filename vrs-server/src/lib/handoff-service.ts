@@ -13,13 +13,14 @@
 
 import crypto from 'crypto';
 import { WebSocket } from 'ws';
+import * as db from '../database';
 
 interface Session {
     userId: string;
     roomName: string;
     interpreterId: string | null;
     deviceId: string;
-    ws: WebSocket;
+    ws: WebSocket | null;
     registeredAt: Date;
 }
 
@@ -53,6 +54,42 @@ const CLEANUP_INTERVAL_MS = 60 * 1000;
 // SESSION MANAGEMENT
 // ============================================
 
+async function initialize(): Promise<void> {
+    try {
+        const [sessions, tokens] = await Promise.all([
+            db.getAllActiveSessions(),
+            db.getAllActiveHandoffTokens()
+        ]);
+
+        for (const session of sessions as Array<Record<string, any>>) {
+            activeSessions.set(String(session.user_id), {
+                userId: String(session.user_id),
+                roomName: String(session.room_name || ''),
+                interpreterId: session.interpreter_id ? String(session.interpreter_id) : null,
+                deviceId: String(session.device_id || ''),
+                ws: null,
+                registeredAt: session.registered_at ? new Date(session.registered_at) : new Date()
+            });
+        }
+
+        for (const token of tokens as Array<Record<string, any>>) {
+            handoffTokens.set(String(token.token), {
+                userId: String(token.user_id),
+                roomName: String(token.room_name || ''),
+                interpreterId: token.interpreter_id ? String(token.interpreter_id) : null,
+                fromDeviceId: String(token.from_device_id || ''),
+                targetDeviceId: String(token.target_device_id || ''),
+                createdAt: token.created_at ? new Date(token.created_at) : new Date(),
+                expiresAt: token.expires_at ? new Date(token.expires_at).getTime() : Date.now()
+            });
+        }
+
+        await db.deleteExpiredHandoffTokens();
+    } catch (error) {
+        console.warn('[Handoff] Could not rehydrate from database, starting fresh:', error instanceof Error ? error.message : error);
+    }
+}
+
 /**
  * Register that a device is actively in a VRS call.
  */
@@ -65,6 +102,7 @@ function registerSession(userId: string, roomName: string, deviceId: string, ws:
         ws,
         registeredAt: new Date()
     });
+    void db.upsertActiveSession({ userId, roomName, interpreterId: null, deviceId });
 
     console.log(`[Handoff] Session registered: ${userId} on device ${deviceId} in room ${roomName}`);
 }
@@ -78,6 +116,7 @@ function unregisterSession(userId: string): void {
         console.log(`[Handoff] Session unregistered: ${userId} from device ${session.deviceId}`);
         activeSessions.delete(userId);
     }
+    void db.deleteActiveSession(userId);
 }
 
 /**
@@ -94,6 +133,19 @@ function updateSessionWs(userId: string, ws: WebSocket): void {
     const session = activeSessions.get(userId);
     if (session) {
         session.ws = ws;
+    }
+}
+
+function updateSessionInterpreter(userId: string, interpreterId: string | null): void {
+    const session = activeSessions.get(userId);
+    if (session) {
+        session.interpreterId = interpreterId;
+        void db.upsertActiveSession({
+            userId,
+            roomName: session.roomName,
+            interpreterId,
+            deviceId: session.deviceId
+        });
     }
 }
 
@@ -127,8 +179,10 @@ function prepareHandoff(userId: string, targetDeviceId: string): PrepareHandoffR
             handoffTokens.delete(token);
         }
     }
+    void db.deleteHandoffTokensByUser(userId);
 
     const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = Date.now() + TOKEN_EXPIRY_MS;
 
     handoffTokens.set(token, {
         userId,
@@ -137,7 +191,16 @@ function prepareHandoff(userId: string, targetDeviceId: string): PrepareHandoffR
         fromDeviceId: session.deviceId,
         targetDeviceId,
         createdAt: new Date(),
-        expiresAt: Date.now() + TOKEN_EXPIRY_MS
+        expiresAt
+    });
+    void db.storeHandoffToken({
+        token,
+        userId,
+        roomName: session.roomName,
+        interpreterId: session.interpreterId,
+        fromDeviceId: session.deviceId,
+        targetDeviceId,
+        expiresAt
     });
 
     console.log(`[Handoff] Token created for ${userId} → ${targetDeviceId}, room ${session.roomName}`);
@@ -174,11 +237,18 @@ function executeHandoff(token: string, newDeviceId: string): ExecuteHandoffResul
 
     // One-time use — remove immediately
     handoffTokens.delete(token);
+    void db.deleteHandoffToken(token);
 
     // Update the active session to point to the new device
     const session = activeSessions.get(data.userId);
     if (session) {
         session.deviceId = newDeviceId;
+        void db.upsertActiveSession({
+            userId: data.userId,
+            roomName: session.roomName,
+            interpreterId: session.interpreterId,
+            deviceId: newDeviceId
+        });
     }
 
     console.log(`[Handoff] Executed: ${data.userId} moved from ${data.fromDeviceId} to ${newDeviceId}, room ${data.roomName}`);
@@ -230,6 +300,7 @@ function cancelHandoff(userId: string): boolean {
     for (const [token, data] of handoffTokens) {
         if (data.userId === userId) {
             handoffTokens.delete(token);
+            void db.deleteHandoffTokensByUser(userId);
             console.log(`[Handoff] Cancelled for ${userId}`);
             return true;
         }
@@ -252,11 +323,13 @@ function cleanup(): void {
             console.log(`[Handoff] Cleaned up expired token for ${data.userId}`);
         }
     }
+    void db.deleteExpiredHandoffTokens();
 
     // Remove sessions with dead WebSocket connections
     for (const [userId, session] of activeSessions) {
         if (session.ws && session.ws.readyState !== 1) { // not OPEN
             activeSessions.delete(userId);
+            void db.deleteActiveSession(userId);
             console.log(`[Handoff] Cleaned up dead session for ${userId}`);
         }
     }
@@ -265,10 +338,12 @@ function cleanup(): void {
 const cleanupInterval = setInterval(cleanup, CLEANUP_INTERVAL_MS);
 
 export {
+    initialize,
     registerSession,
     unregisterSession,
     getActiveSession,
     updateSessionWs,
+    updateSessionInterpreter,
     prepareHandoff,
     executeHandoff,
     getHandoffStatus,

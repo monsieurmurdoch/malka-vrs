@@ -6,10 +6,26 @@
  * automatic expiry, and real-time notifications.
  *
  * Follows the pattern of handoff-service.ts and queue-service.ts:
- * in-memory Map for active state + SQLite for persistence.
+ * in-memory Map for active recording state + PostgreSQL for persistence.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.adminDeleteMessage = exports.getStats = exports.getAllMessagesForAdmin = exports.updateSetting = exports.getSettings = exports.expireOldMessages = exports.getUnreadCount = exports.markMessageSeen = exports.deleteMessage = exports.getMessageWithPlayback = exports.getInbox = exports.cancelRecording = exports.failRecording = exports.completeRecording = exports.startRecording = exports.shutdown = exports.initialize = void 0;
+exports.initialize = initialize;
+exports.shutdown = shutdown;
+exports.startRecording = startRecording;
+exports.completeRecording = completeRecording;
+exports.failRecording = failRecording;
+exports.cancelRecording = cancelRecording;
+exports.getInbox = getInbox;
+exports.getMessageWithPlayback = getMessageWithPlayback;
+exports.deleteMessage = deleteMessage;
+exports.markMessageSeen = markMessageSeen;
+exports.getUnreadCount = getUnreadCount;
+exports.expireOldMessages = expireOldMessages;
+exports.getSettings = getSettings;
+exports.updateSetting = updateSetting;
+exports.getAllMessagesForAdmin = getAllMessagesForAdmin;
+exports.getStats = getStats;
+exports.adminDeleteMessage = adminDeleteMessage;
 const uuid_1 = require("uuid");
 const database_1 = require("../database");
 const storage_service_1 = require("./storage-service");
@@ -67,7 +83,6 @@ async function initialize(broadcastFn) {
     }, CLEANUP_INTERVAL_MS);
     console.log('[Voicemail] Service initialized');
 }
-exports.initialize = initialize;
 // ============================================
 // RECORDING SESSION MANAGEMENT
 // ============================================
@@ -136,7 +151,6 @@ async function startRecording(callerId, calleeId, calleePhone) {
     await (0, database_1.logActivity)('voicemail_recording_started', `Voicemail recording started for room ${roomName}`, { messageId, callerId, calleeId }, callerId);
     return { messageId, roomName, maxDurationSeconds };
 }
-exports.startRecording = startRecording;
 async function completeRecording(messageId, storageKey, durationSeconds, fileSizeBytes) {
     const active = activeRecordings.get(messageId);
     // Update DB record
@@ -170,7 +184,6 @@ async function completeRecording(messageId, storageKey, durationSeconds, fileSiz
     }
     await (0, database_1.logActivity)('voicemail_recording_complete', `Voicemail ${messageId} is now available`, { messageId, durationSeconds, fileSizeBytes }, null);
 }
-exports.completeRecording = completeRecording;
 async function failRecording(messageId, reason) {
     await (0, database_1.updateVoicemailMessage)(messageId, {
         status: 'failed'
@@ -185,7 +198,6 @@ async function failRecording(messageId, reason) {
     }
     await (0, database_1.logActivity)('voicemail_recording_failed', `Voicemail ${messageId} failed: ${reason}`, { messageId, reason }, null);
 }
-exports.failRecording = failRecording;
 async function cancelRecording(messageId, callerId) {
     const active = activeRecordings.get(messageId);
     if (!active || active.callerId !== callerId) {
@@ -195,7 +207,6 @@ async function cancelRecording(messageId, callerId) {
     activeRecordings.delete(messageId);
     await (0, database_1.logActivity)('voicemail_recording_cancelled', `Voicemail ${messageId} cancelled by caller`, { messageId }, callerId);
 }
-exports.cancelRecording = cancelRecording;
 // ============================================
 // MESSAGE OPERATIONS
 // ============================================
@@ -225,7 +236,6 @@ async function getInbox(calleeId, limit = 20, offset = 0) {
         unreadCount: unreadCount
     };
 }
-exports.getInbox = getInbox;
 async function getMessageWithPlayback(messageId, requesterId) {
     const message = await (0, database_1.getVoicemailMessage)(messageId);
     if (!message) {
@@ -254,7 +264,6 @@ async function getMessageWithPlayback(messageId, requesterId) {
         playbackUrlExpiresAt: expiresAt
     };
 }
-exports.getMessageWithPlayback = getMessageWithPlayback;
 async function deleteMessage(messageId, requesterId) {
     const message = await (0, database_1.getVoicemailMessage)(messageId);
     if (!message) {
@@ -283,15 +292,12 @@ async function deleteMessage(messageId, requesterId) {
     await (0, database_1.deleteVoicemailMessage)(messageId);
     await (0, database_1.logActivity)('voicemail_deleted', `Voicemail ${messageId} deleted`, { messageId }, requesterId);
 }
-exports.deleteMessage = deleteMessage;
 async function markMessageSeen(messageId, calleeId) {
     await (0, database_1.markVoicemailSeen)(messageId, calleeId);
 }
-exports.markMessageSeen = markMessageSeen;
 async function getUnreadCount(calleeId) {
     return (0, database_1.getVoicemailUnreadCount)(calleeId);
 }
-exports.getUnreadCount = getUnreadCount;
 // ============================================
 // MESSAGE EXPIRY
 // ============================================
@@ -320,23 +326,19 @@ async function expireOldMessages() {
     }
     return expired.length;
 }
-exports.expireOldMessages = expireOldMessages;
 // ============================================
 // ADMIN OPERATIONS
 // ============================================
 async function getSettings() {
     return (0, database_1.getAllVoicemailSettings)();
 }
-exports.getSettings = getSettings;
 async function updateSetting(key, value, adminId) {
     await (0, database_1.setVoicemailSetting)(key, value, adminId);
     await (0, database_1.logActivity)('voicemail_setting_updated', `Voicemail setting ${key} updated`, { key, value }, adminId);
 }
-exports.updateSetting = updateSetting;
 async function getAllMessagesForAdmin(filters) {
     return (0, database_1.getVoicemailStorageStats)();
 }
-exports.getAllMessagesForAdmin = getAllMessagesForAdmin;
 async function getStats() {
     const stats = await (0, database_1.getVoicemailStorageStats)();
     return {
@@ -345,7 +347,6 @@ async function getStats() {
         activeRecordings: stats.active_recordings || 0
     };
 }
-exports.getStats = getStats;
 async function adminDeleteMessage(messageId) {
     const message = await (0, database_1.getVoicemailMessage)(messageId);
     if (!message) {
@@ -368,7 +369,6 @@ async function adminDeleteMessage(messageId) {
     await (0, database_1.deleteVoicemailMessage)(messageId);
     await (0, database_1.logActivity)('voicemail_admin_deleted', `Admin deleted voicemail ${messageId}`, { messageId }, null);
 }
-exports.adminDeleteMessage = adminDeleteMessage;
 // ============================================
 // SHUTDOWN
 // ============================================
@@ -380,5 +380,4 @@ function shutdown() {
     activeRecordings.clear();
     console.log('[Voicemail] Service shut down');
 }
-exports.shutdown = shutdown;
 //# sourceMappingURL=voicemail-service.js.map

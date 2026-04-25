@@ -272,6 +272,186 @@
 
         .auth-redirect p { opacity: 0.7; }
 
+        body.theme-light {
+            background: linear-gradient(135deg, #f7fbff 0%, #edf3f8 50%, #f5f7fa 100%);
+            color: #142231;
+        }
+
+        body.theme-light .profile-header,
+        body.theme-light .card,
+        body.theme-light .stat-card {
+            background: rgba(255,255,255,0.8);
+            border-color: rgba(20,34,49,0.12);
+            color: #142231;
+        }
+
+        body.theme-light .profile-user-name,
+        body.theme-light .card-title,
+        body.theme-light .empty-state {
+            color: #142231;
+        }
+
+        body.theme-light .settings-input,
+        body.theme-light .settings-select,
+        body.theme-light .sign-out-btn {
+            background: rgba(255,255,255,0.92);
+            border-color: rgba(20,34,49,0.16);
+            color: #142231;
+        }
+
+        .settings-grid {
+            display: grid;
+            gap: 14px;
+        }
+
+        .settings-row {
+            display: grid;
+            gap: 6px;
+        }
+
+        .settings-label {
+            font-size: 12px;
+            font-weight: 700;
+            opacity: 0.62;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .settings-input,
+        .settings-select {
+            width: 100%;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            padding: 10px 12px;
+        }
+
+        .settings-input:focus,
+        .settings-select:focus {
+            border-color: #7eb8da;
+            outline: none;
+        }
+
+        .settings-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .settings-btn {
+            background: #7eb8da;
+            border: none;
+            border-radius: 8px;
+            color: #0f1724;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 700;
+            padding: 10px 16px;
+        }
+
+        .settings-btn.secondary {
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.18);
+            color: #fff;
+        }
+
+        body.theme-light .settings-btn.secondary {
+            background: rgba(20,34,49,0.06);
+            border-color: rgba(20,34,49,0.14);
+            color: #142231;
+        }
+
+        body.theme-maple {
+            background: #f7f7f7;
+            color: #111;
+        }
+
+        body.theme-maple .profile-header {
+            background: #e00000;
+            border-bottom: 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.14);
+        }
+
+        body.theme-maple .profile-header-logo {
+            height: 54px;
+            max-width: 230px;
+            object-fit: contain;
+        }
+
+        body.theme-maple .profile-header-title,
+        body.theme-maple .profile-user-name,
+        body.theme-maple .sign-out-btn {
+            color: #fff;
+            opacity: 1;
+        }
+
+        body.theme-maple .card,
+        body.theme-maple .stat-card {
+            background: #fff;
+            border: 1px solid rgba(0,0,0,0.1);
+            box-shadow: 0 8px 28px rgba(0,0,0,0.08);
+            color: #111;
+        }
+
+        body.theme-maple .card-title,
+        body.theme-maple .empty-state,
+        body.theme-maple .stat-label,
+        body.theme-maple .settings-label {
+            color: #333;
+        }
+
+        body.theme-maple .stat-value,
+        body.theme-maple .earnings-total,
+        body.theme-maple .earnings-amount,
+        body.theme-maple .shift-hours {
+            color: #e00000;
+        }
+
+        body.theme-maple .join-queue-btn,
+        body.theme-maple .settings-btn {
+            background: #e00000;
+            color: #fff;
+        }
+
+        body.theme-maple .join-queue-btn:hover,
+        body.theme-maple .settings-btn:hover {
+            background: #b40000;
+        }
+
+        body.theme-maple .sign-out-btn,
+        body.theme-maple .settings-btn.secondary {
+            background: rgba(255,255,255,0.14);
+            border-color: rgba(255,255,255,0.4);
+            color: #fff;
+        }
+
+        body.theme-maple .settings-input,
+        body.theme-maple .settings-select {
+            background: #fff;
+            border-color: rgba(0,0,0,0.18);
+            color: #111;
+        }
+
+        .settings-status {
+            border-radius: 8px;
+            font-size: 13px;
+            margin-top: 10px;
+            padding: 9px 11px;
+        }
+
+        .settings-status.success {
+            background: rgba(76,175,80,0.16);
+            color: #66bb6a;
+        }
+
+        .settings-status.error {
+            background: rgba(244,67,54,0.16);
+            color: #ef5350;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .stats-bar {
@@ -308,10 +488,33 @@
 <body>
     <div id="app"></div>
 
+    <script src="whitelabel-runtime.js"></script>
     <script src="config.js"></script>
     <script>
     (function() {
         const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const BRAND = window.__WHITELABEL__ || {};
+        const IS_MAPLE = BRAND.tenantId === 'maple' || window.location.hostname.includes('maplecomm.ca');
+
+        if (IS_MAPLE) {
+            document.body.classList.add('theme-maple');
+        }
+
+        function brandName() {
+            return IS_MAPLE ? 'MapleVRI' : (BRAND.appName || 'MalkaVRI');
+        }
+
+        function brandLogo(preferWhite) {
+            if (IS_MAPLE) {
+                return preferWhite
+                    ? (BRAND.assets?.logoWhite || 'images/logo-white.svg')
+                    : (BRAND.assets?.logo || 'images/logo.svg');
+            }
+
+            return preferWhite ? 'images/malka-logo-white.png' : 'images/malka-logo.png';
+        }
+
+        document.title = `${brandName()} - Interpreter Profile`;
 
         function isLoopbackUrl(value) {
             if (!value) {
@@ -418,6 +621,8 @@
             shifts: [],
             earnings: [],
             calls: [],
+            settingsStatus: null,
+            passwordStatus: null,
             // Queue state
             available: false,
             pendingRequest: null   // { requestId, clientName, language, roomName, targetPhone }
@@ -482,6 +687,20 @@
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify(data));
             }
+        }
+
+        function resolveTheme(mode) {
+            const selected = mode || getPersistentItem('vrs_interpreter_theme') || 'system';
+            if (selected === 'dark' || selected === 'light') {
+                return selected;
+            }
+            return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        }
+
+        function applyTheme(mode) {
+            const selected = mode || 'system';
+            document.body.classList.toggle('theme-light', resolveTheme(selected) === 'light');
+            setPersistentItem('vrs_interpreter_theme', selected);
         }
 
         function handleWsMessage(msg) {
@@ -575,6 +794,18 @@
             return '$' + Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, function(char) {
+                return ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                })[char];
+            });
+        }
+
         function render() {
             const user = getUser();
             if (!user || user.role !== 'interpreter') {
@@ -584,6 +815,8 @@
             }
 
             const stats = state.stats || { totalCalls: 0, totalMinutes: 0, avgDuration: 0, totalEarnings: 0 };
+            const profile = state.profile || user;
+            const selectedTheme = getPersistentItem('vrs_interpreter_theme') || 'system';
             const totalHours = (stats.totalMinutes / 60).toFixed(1);
 
             // Build schedule grid for current week
@@ -641,7 +874,7 @@
             document.getElementById('app').innerHTML = `
                 <div class="profile-header">
                     <div class="profile-header-left">
-                        <img src="images/malka-logo-white.png" alt="MalkaVRI" class="profile-header-logo">
+                        <img src="${brandLogo(true)}" alt="${brandName()}" class="profile-header-logo">
                         <span class="profile-header-title">Interpreter Profile</span>
                     </div>
                     <div class="profile-header-right">
@@ -700,6 +933,54 @@
                                </button>`
                         }
                     </div>
+
+                    <div class="card">
+                        <div class="card-title">Profile Settings</div>
+                        <div class="settings-grid">
+                            <div class="settings-row">
+                                <label class="settings-label" for="interpreter-name">Display Name</label>
+                                <input id="interpreter-name" class="settings-input" type="text" value="${escapeHtml(profile.name || '')}">
+                            </div>
+                            <div class="settings-row">
+                                <label class="settings-label" for="interpreter-email">Email</label>
+                                <input id="interpreter-email" class="settings-input" type="email" value="${escapeHtml(profile.email || '')}">
+                            </div>
+                            <div class="settings-row">
+                                <label class="settings-label" for="interpreter-languages">Languages</label>
+                                <input id="interpreter-languages" class="settings-input" type="text" value="${escapeHtml((profile.languages || []).join(', '))}">
+                            </div>
+                            <div class="settings-row">
+                                <label class="settings-label" for="interpreter-theme">Theme</label>
+                                <select id="interpreter-theme" class="settings-select" onchange="window.__previewInterpreterTheme(this.value)">
+                                    <option value="system" ${selectedTheme === 'system' ? 'selected' : ''}>System</option>
+                                    <option value="dark" ${selectedTheme === 'dark' ? 'selected' : ''}>Dark</option>
+                                    <option value="light" ${selectedTheme === 'light' ? 'selected' : ''}>Light</option>
+                                </select>
+                            </div>
+                            <div class="settings-actions">
+                                <button class="settings-btn" onclick="window.__saveInterpreterProfile()">Save Profile</button>
+                            </div>
+                        </div>
+                        ${state.settingsStatus ? `<div class="settings-status ${state.settingsStatus.type}">${escapeHtml(state.settingsStatus.message)}</div>` : ''}
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">Password</div>
+                        <div class="settings-grid">
+                            <div class="settings-row">
+                                <label class="settings-label" for="interpreter-current-password">Current Password</label>
+                                <input id="interpreter-current-password" class="settings-input" type="password" autocomplete="current-password">
+                            </div>
+                            <div class="settings-row">
+                                <label class="settings-label" for="interpreter-new-password">New Password</label>
+                                <input id="interpreter-new-password" class="settings-input" type="password" autocomplete="new-password">
+                            </div>
+                            <div class="settings-actions">
+                                <button class="settings-btn secondary" onclick="window.__changeInterpreterPassword()">Update Password</button>
+                            </div>
+                        </div>
+                        ${state.passwordStatus ? `<div class="settings-status ${state.passwordStatus.type}">${escapeHtml(state.passwordStatus.message)}</div>` : ''}
+                    </div>
                 </div>
             `;
         }
@@ -708,6 +989,64 @@
         window.__signOut = function() {
             clearPersistentAuth();
             window.location.href = '/';
+        };
+
+        async function submitJson(path, method, body) {
+            const response = await fetch(API_BASE + path, {
+                method,
+                headers: authHeaders(),
+                body: JSON.stringify(body)
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.error || 'Request failed');
+            }
+            return data;
+        }
+
+        window.__previewInterpreterTheme = function(mode) {
+            applyTheme(mode);
+        };
+
+        window.__saveInterpreterProfile = async function() {
+            state.settingsStatus = null;
+            try {
+                const languages = (document.getElementById('interpreter-languages')?.value || '')
+                    .split(',')
+                    .map(value => value.trim())
+                    .filter(Boolean);
+                const profile = await submitJson('/api/interpreter/profile', 'PUT', {
+                    name: document.getElementById('interpreter-name')?.value || '',
+                    email: document.getElementById('interpreter-email')?.value || '',
+                    languages: languages.length ? languages : ['ASL']
+                });
+                state.profile = profile;
+                const user = getUser() || {};
+                setPersistentItem('vrs_user_info', JSON.stringify({
+                    ...user,
+                    name: profile.name,
+                    email: profile.email
+                }));
+                applyTheme(document.getElementById('interpreter-theme')?.value || 'system');
+                state.settingsStatus = { type: 'success', message: 'Profile saved.' };
+            } catch (error) {
+                state.settingsStatus = { type: 'error', message: error.message };
+            }
+            render();
+        };
+
+        window.__changeInterpreterPassword = async function() {
+            state.passwordStatus = null;
+            try {
+                await submitJson('/api/auth/password/change', 'POST', {
+                    currentPassword: document.getElementById('interpreter-current-password')?.value || '',
+                    newPassword: document.getElementById('interpreter-new-password')?.value || ''
+                });
+                state.passwordStatus = { type: 'success', message: 'Password updated.' };
+            } catch (error) {
+                state.passwordStatus = { type: 'error', message: error.message };
+            }
+            render();
         };
 
         /**
@@ -773,6 +1112,7 @@
 
         // Init
         async function init() {
+            applyTheme(getPersistentItem('vrs_interpreter_theme') || 'system');
             const user = getUser();
             const token = getToken();
             if (!user || !token || user.role !== 'interpreter') {
