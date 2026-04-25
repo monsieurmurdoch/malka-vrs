@@ -355,13 +355,26 @@ const Toolbox = ({
         const containerClassName = `toolbox-content${_isMobile || _isNarrowLayout ? ' toolbox-content-mobile' : ''}`;
 
         const { mainMenuButtons, overflowMenuButtons } = getVisibleButtons();
-        const raiseHandInOverflowMenu = overflowMenuButtons.some(({ key }) => key === 'raisehand');
+        const requestInterpreterButton = [ ...mainMenuButtons, ...overflowMenuButtons ]
+            .find(({ key }) => key === 'requestInterpreter');
+        const mainToolbarButtons = mainMenuButtons.filter(({ key }) => key !== 'requestInterpreter');
+        const overflowToolbarButtons = overflowMenuButtons.filter(({ key }) => key !== 'requestInterpreter');
+        const primaryButtonCount = Math.min(2, mainToolbarButtons.length);
+        const primaryToolbarButtons = mainToolbarButtons.slice(0, primaryButtonCount);
+        const secondaryToolbarButtons = mainToolbarButtons.slice(primaryButtonCount);
+        const raiseHandInOverflowMenu = overflowToolbarButtons.some(({ key }) => key === 'raisehand');
         const showReactionsInOverflowMenu = _shouldDisplayReactionsButtons
             && (
                 (!_reactionsButtonEnabled && (raiseHandInOverflowMenu || _isNarrowLayout || _isMobile))
-                    || overflowMenuButtons.some(({ key }) => key === 'reactions')
+                    || overflowToolbarButtons.some(({ key }) => key === 'reactions')
             );
         const showRaiseHandInReactionsMenu = showReactionsInOverflowMenu && raiseHandInOverflowMenu;
+        const renderToolbarButton = ({ Content, key, ...rest }: IToolboxButton) => Content !== Separator && (
+            <Content
+                { ...rest }
+                buttonKey = { key }
+                key = { key } />
+        );
 
         return (
             <div className = { containerClassName }>
@@ -376,16 +389,16 @@ const Toolbox = ({
                     <div
                         className = 'toolbox-content-items'
                         ref = { _toolboxRef }>
-                        {mainMenuButtons.map(({ Content, key, ...rest }) => Content !== Separator && (
-                            <Content
-                                { ...rest }
-                                buttonKey = { key }
-                                key = { key } />))}
+                        {primaryToolbarButtons.map(renderToolbarButton)}
 
-                        {Boolean(overflowMenuButtons.length) && (
+                        {requestInterpreterButton && renderToolbarButton(requestInterpreterButton)}
+
+                        {secondaryToolbarButtons.map(renderToolbarButton)}
+
+                        {Boolean(overflowToolbarButtons.length) && (
                             <OverflowMenuButton
                                 ariaControls = 'overflow-menu'
-                                buttons = { overflowMenuButtons.reduce<Array<IToolboxButton[]>>((acc, val) => {
+                                buttons = { overflowToolbarButtons.reduce<Array<IToolboxButton[]>>((acc, val) => {
                                     if (val.key === 'reactions' && showReactionsInOverflowMenu) {
                                         return acc;
                                     }

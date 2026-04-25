@@ -6,6 +6,43 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-25
 - Branch: `codex/main-prod-sync`
+- HEAD: `486bb34`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  index.html`
+  - `M  react/features/toolbox/components/web/RequestInterpreterButton.tsx`
+  - `M  react/features/toolbox/components/web/Toolbox.tsx`
+  - `M  status.md`
+  - `A  vrs-room-controls.js`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-25T08:10:51.757Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `486bb34`
+- Note: Added a dedicated in-room Request Interpreter toolbar action: central labeled button, yellow while pending, green once accepted/matched, wired to the existing /ws interpreter queue request/cancel flow.
+- Snapshot:
+Local changes at sync time:
+  - `M index.html`
+  - `M react/features/toolbox/components/web/RequestInterpreterButton.tsx`
+  - `M react/features/toolbox/components/web/Toolbox.tsx`
+  - `?? vrs-room-controls.js`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T08:10:30.738Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
 - HEAD: `fc864ad`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -20,7 +57,7 @@ Local changes at sync time:
   - `M  status.md`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-25T08:01:48.283Z
 
 <!-- status:current:start -->
