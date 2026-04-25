@@ -1,7 +1,7 @@
 # Malka VRS — Product & Engineering Roadmap
 
 > **Last updated**: April 2026
-> **Overall status**: ~80% built. Backend feature depth is strong, but release confidence now depends on PostgreSQL-only runtime alignment, ops-server persistence, Maple VRI demo readiness, live production verification, and regulatory/compliance work.
+> **Overall status**: ~80% built. Backend feature depth is strong, but release confidence now depends on PostgreSQL-only runtime alignment, ops-server persistence, Maple VRI demo readiness, live production verification, mobile app parity, and regulatory/compliance work.
 
 ---
 
@@ -248,9 +248,10 @@
 - [x] **Maple tenant config exists** — `TENANT=maple` generates Maple branding/runtime config
 - [x] **Maple VRI demo accounts** — VRI client, VRI interpreter, and Maple VRI admin are seedable and deployed on Droplet
 - [x] **VRI metadata in ops accounts** — account records carry `tenantId`, `serviceModes`, `permissions`, and `organization`
-- [ ] **Maple VRI first-screen flow** — tenant build should default users toward VRI instead of VRS language
-- [ ] **Admin moderation view** — filter/moderate by tenant and service mode (`vri` vs `vrs`)
-- [ ] **Interpreter permissions enforcement** — VRI-only interpreters should not receive VRS queue work
+- [x] **Maple VRI first-screen flow** — Maple/VRI-only clients default into VRI language and session affordances instead of VRS phone dialing
+- [x] **Admin service-mode controls** — admins can adjust client/interpreter `tenantId` and `serviceModes`
+- [x] **Interpreter permissions enforcement** — VRI-only interpreters do not receive VRS queue work
+- [ ] **Admin moderation filters** — filter live queue/activity by tenant and service mode (`vri` vs `vrs`)
 - [ ] **Call creation billing tag** — Maple VRI calls must be immutably tagged `call_type = vri`
 
 ### Client Profile & Settings
@@ -523,6 +524,8 @@
 
 ### Mobile Apps
 
+**Parity target**: iOS and Android should reach feature and backend parity with the main web app before broad launch. Mobile can ship staged pilots, but every staged release should name which web features it intentionally excludes.
+
 **US Market (3 Apps)**
 | App | Users | Key Features |
 |-----|-------|-------------|
@@ -542,6 +545,20 @@
 - [ ] Background call handling (CallKit on iOS, ConnectionService on Android)
 - [ ] Offline-capable contact list and call history
 - [ ] App Store / Play Store submission per brand per market
+
+**Feature + Backend Parity Track**
+- [ ] Shared backend contracts — mobile uses the same auth, profile preferences, contacts, call history, voicemail, queue, tenant, service-mode, and billing/account metadata APIs as web
+- [ ] Client profile parity — VRI/VRS first-screen modes, self-view, permission memory, media defaults, language preference, DND, password/account settings
+- [ ] Call flow parity — instant room, VRI room, VRS phone call through interpreter, in-room request-interpreter action, captions/language controls, contacts drawer, TTS/VCO, hold/transfer/conference where applicable
+- [ ] Contacts parity — sync across web/mobile, Google/phone-book import, full contact history, notes, favorites, block/merge/dedup
+- [ ] Visual voicemail parity — video voicemail inbox, playback, notifications, expiry, and storage-backed media fetch
+- [ ] Interpreter mobile parity decision — decide whether interpreter queue/availability/call acceptance ships as native mobile, responsive web, or a hybrid release
+- [ ] Admin mobile parity decision — decide whether moderation/admin stays web-only initially or gets a mobile-responsive admin surface
+- [ ] Push/background calling — APNs/FCM notifications, CallKit/ConnectionService integration, deep links into active rooms, reconnect/handoff behavior
+- [ ] Degraded network states — poor-network warnings, permission recovery, low-bandwidth defaults, retry/resume states
+- [ ] Tenant branding parity — Maple/Malka logos, colors, feature flags, and VRI/VRS defaults match web tenant configuration
+- [ ] Mobile QA matrix — iOS/Android, phone/tablet, Safari/Chrome/WebView, camera/mic permissions, orientation, Bluetooth audio, screen lock
+- [ ] Store readiness — privacy manifests, permission copy, screenshots, TestFlight/Play internal testing, crash reporting
 
 ### Interpreter Tools
 - [ ] Real-time interpreter analytics (avg wait time, call duration, utilization)
@@ -594,6 +611,6 @@
 
 **Quick wins**: Backend CI, backend prod smoke verification, Maple VRI account seeding, frontend settings pages, dark mode preference polish, contact cards/history/notes, contact sync/import hooks, and instant-room media preference handoff are complete. The remaining immediate smoke is the live media path: queue match, JVB media, admin moderation, and Twilio proxy health.
 
-**Current state**: The intended release line is PostgreSQL-only, and Droplet production now confirms VRS plus ops are running against PostgreSQL on both `app.malkacomm.com` and `vri.maplecomm.ca`. Maple VRI demo client, interpreter, and admin accounts authenticate, Maple contact workflow passes a production smoke for create/detail/note/sync/delete, and ops live dashboard state now has a PostgreSQL source of truth. The stack is strong enough for live Maple pilot validation, with the next risk concentrated in real call media, Twilio proxy health, admin moderation during a live queue match, and validating the new PgBouncer/pg_audit/WAL settings in a deploy smoke.
+**Current state**: The intended release line is PostgreSQL-only, and Droplet production now confirms VRS plus ops are running against PostgreSQL on both `app.malkacomm.com` and `vri.maplecomm.ca`. Maple VRI demo client, interpreter, and admin accounts authenticate, Maple contact workflow passes a production smoke for create/detail/note/sync/delete, and ops live dashboard state now has a PostgreSQL source of truth. The stack is strong enough for live Maple pilot validation, with the next risk concentrated in real call media, Twilio proxy health, admin moderation during a live queue match, validating the new PgBouncer/pg_audit/WAL settings in a deploy smoke, and bringing the mobile apps up to feature/backend parity with the main web app.
 
 **Scaling dependency chain**: PostgreSQL runtime verification → Redis state externalization → Stateless VRS server → Horizontal scaling → Multi-JVB → Geographic redundancy

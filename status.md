@@ -6,6 +6,53 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-25
 - Branch: `codex/main-prod-sync`
+- HEAD: `9f92528`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  ROADMAP.md`
+  - `M  status.md`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-25T09:09:00.938Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `9f92528`
+- Note: Updated roadmap with mobile app feature/backend parity workstream and refreshed Maple VRI demo status.
+- Snapshot:
+Local changes at sync time:
+  - `M ROADMAP.md`
+  - `M status.md`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T09:08:37.907Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `9f92528`
+- Note: Updated roadmap with mobile app feature/backend parity workstream and refreshed Maple VRI demo status.
+- Snapshot:
+Local changes at sync time:
+  - `M ROADMAP.md`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T09:08:29.929Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
 - HEAD: `a1ca443`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -13,7 +60,7 @@ Local changes at sync time:
   - `M  status.md`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-25T08:54:43.480Z
 
 <!-- status:current:start -->
