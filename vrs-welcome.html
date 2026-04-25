@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MapleVRI - Video Remote Interpreting</title>
+    <title>MalkaVRS</title>
     <style>
         body {
             margin: 0;
@@ -66,7 +66,7 @@
         (function() {
             const brand = window.__WHITELABEL__ || {};
             const isMaple = brand.tenantId === 'maple' || window.location.hostname.includes('maplecomm.ca');
-            const appName = isMaple ? 'MapleVRI' : (brand.appName || 'MalkaVRI');
+            const appName = isMaple ? 'MapleVRI' : (brand.appName || 'MalkaVRS');
             const logo = isMaple ? (brand.assets?.logo || 'images/logo.svg') : 'images/malka-logo.png';
             document.title = `${appName} - Video Remote Interpreting`;
             document.getElementById('brand-logo').src = logo;

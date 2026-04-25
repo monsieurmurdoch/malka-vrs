@@ -6,6 +6,59 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-25
 - Branch: `codex/main-prod-sync`
+- HEAD: `75df655`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  client-profile.html`
+  - `M  interpreter-profile.html`
+  - `M  status.md`
+  - `M  vrs-welcome.html`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-25T09:15:20.995Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `75df655`
+- Note: Clarified tenant/service separation: Maple and Malka branding stay isolated while VRS/VRI profile labels derive from account permissions.
+- Snapshot:
+Local changes at sync time:
+  - `M client-profile.html`
+  - `M interpreter-profile.html`
+  - `M status.md`
+  - `M vrs-welcome.html`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T09:14:47.878Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `75df655`
+- Note: Clarified tenant/service separation: Maple and Malka branding stay isolated while VRS/VRI profile labels derive from account permissions.
+- Snapshot:
+Local changes at sync time:
+  - `M client-profile.html`
+  - `M interpreter-profile.html`
+  - `M vrs-welcome.html`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T09:14:36.916Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
 - HEAD: `8c3227a`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -16,7 +69,7 @@ Local changes at sync time:
   - `M  vrs-server/routes/client.js`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-25T09:12:18.085Z
 
 <!-- status:current:start -->

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MalkaVRI - Client Profile</title>
+    <title>MalkaVRS - Client Profile</title>
     <link rel="stylesheet" href="css/all.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1255,7 +1255,7 @@
         }
 
         function brandName() {
-            return IS_MAPLE ? 'MapleVRI' : (BRAND.appName || 'MalkaVRI');
+            return IS_MAPLE ? 'MapleVRI' : (BRAND.appName || 'MalkaVRS');
         }
 
         function brandLogo(preferWhite) {
@@ -2709,7 +2709,9 @@
             const canUseVrs = serviceModes.includes('vrs');
             const canUseVri = serviceModes.includes('vri');
             const isVriOnly = canUseVri && !canUseVrs;
-            const profileServiceLabel = isVriOnly ? 'VRI' : SERVICE_LABEL;
+            const profileServiceLabel = canUseVrs && canUseVri
+                ? 'VRS/VRI'
+                : (canUseVri ? 'VRI' : (canUseVrs ? 'VRS' : SERVICE_LABEL));
             const preferences = state.preferences || {
                 dnd_enabled: false,
                 dnd_message: '',
