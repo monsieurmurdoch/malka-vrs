@@ -20,8 +20,15 @@ const mapleClient = {
   email: process.env.MAPLE_VRI_CLIENT_EMAIL || 'vri.client@maple.example',
   name: process.env.MAPLE_VRI_CLIENT_NAME || 'Maple VRI Client',
   organization: process.env.MAPLE_VRI_ORGANIZATION || 'Maple Corporate Pilot',
-  password: process.env.MAPLE_VRI_CLIENT_PASSWORD || 'Client123!',
-  phoneNumber: process.env.MAPLE_VRI_CLIENT_PHONE || '+15557647001'
+  password: process.env.MAPLE_VRI_CLIENT_PASSWORD || 'Client123!'
+};
+
+const mapleVrsClient = {
+  email: process.env.MAPLE_VRS_TEST_CLIENT_EMAIL || 'vrs.client@maple.example',
+  name: process.env.MAPLE_VRS_TEST_CLIENT_NAME || 'Maple VRS Test Client',
+  organization: process.env.MAPLE_VRI_ORGANIZATION || 'Maple Corporate Pilot',
+  password: process.env.MAPLE_VRS_TEST_CLIENT_PASSWORD || 'Client123!',
+  phoneNumber: process.env.MAPLE_VRS_TEST_CLIENT_PHONE || '+15557647001'
 };
 
 const mapleInterpreter = {
@@ -30,6 +37,14 @@ const mapleInterpreter = {
   name: process.env.MAPLE_VRI_INTERPRETER_NAME || 'Maya Chen',
   password: process.env.MAPLE_VRI_INTERPRETER_PASSWORD || 'Interpreter123!',
   username: process.env.MAPLE_VRI_INTERPRETER_USERNAME || 'maya.chen'
+};
+
+const mapleVrsInterpreter = {
+  email: process.env.MAPLE_VRS_TEST_INTERPRETER_EMAIL || 'vrs.interpreter@maple.example',
+  languages: ['ASL', 'English'],
+  name: process.env.MAPLE_VRS_TEST_INTERPRETER_NAME || 'Maple VRS Test Interpreter',
+  password: process.env.MAPLE_VRS_TEST_INTERPRETER_PASSWORD || 'Interpreter123!',
+  username: process.env.MAPLE_VRS_TEST_INTERPRETER_USERNAME || 'maple.vrs.test'
 };
 
 const mapleAdmin = {
@@ -51,43 +66,78 @@ async function q(sql, params = []) {
 async function ensureClient() {
   let client = await queueDb.getClientByEmail(mapleClient.email);
   if (!client) {
-    client = await queueDb.createClient(mapleClient);
+    client = await queueDb.createClient({ ...mapleClient, serviceModes: ['vri'], tenantId: 'maple' });
   } else {
     await queueDb.updateClient(client.id, {
       name: mapleClient.name,
       email: mapleClient.email,
-      organization: mapleClient.organization
+      organization: mapleClient.organization,
+      serviceModes: ['vri'],
+      tenantId: 'maple'
     });
-  }
-
-  const phones = await queueDb.getClientPhoneNumbers(client.id);
-  if (!phones.some(phone => phone.is_primary)) {
-    await q(
-      `INSERT INTO client_phone_numbers (id, client_id, phone_number, is_primary, active)
-       VALUES ($1, $2, $3, true, true)
-       ON CONFLICT (phone_number) DO UPDATE SET client_id = EXCLUDED.client_id, is_primary = true, active = true`,
-      [uuidv4(), client.id, mapleClient.phoneNumber]
-    );
   }
 
   await queueDb.getClientPreferences(client.id);
   return queueDb.getClientByEmail(mapleClient.email);
 }
 
+async function ensureVrsTestClient() {
+  let client = await queueDb.getClientByEmail(mapleVrsClient.email);
+  if (!client) {
+    client = await queueDb.createClient({ ...mapleVrsClient, serviceModes: ['vrs'], tenantId: 'maple' });
+  } else {
+    await queueDb.updateClient(client.id, {
+      name: mapleVrsClient.name,
+      email: mapleVrsClient.email,
+      organization: mapleVrsClient.organization,
+      serviceModes: ['vrs'],
+      tenantId: 'maple'
+    });
+  }
+
+  await q(
+    `INSERT INTO client_phone_numbers (id, client_id, phone_number, is_primary, active)
+     VALUES ($1, $2, $3, true, true)
+     ON CONFLICT (phone_number) DO UPDATE SET client_id = EXCLUDED.client_id, is_primary = true, active = true`,
+    [uuidv4(), client.id, mapleVrsClient.phoneNumber]
+  );
+  await queueDb.getClientPreferences(client.id);
+  return queueDb.getClientByEmail(mapleVrsClient.email);
+}
+
 async function ensureInterpreter() {
   let interpreter = await queueDb.getInterpreterByEmail(mapleInterpreter.email);
   if (!interpreter) {
-    interpreter = await queueDb.createInterpreter(mapleInterpreter);
+    interpreter = await queueDb.createInterpreter({ ...mapleInterpreter, serviceModes: ['vri'], tenantId: 'maple' });
   }
 
   await queueDb.updateInterpreter(interpreter.id, {
     active: true,
     email: mapleInterpreter.email,
     languages: mapleInterpreter.languages,
-    name: mapleInterpreter.name
+    name: mapleInterpreter.name,
+    serviceModes: ['vri'],
+    tenantId: 'maple'
   });
   await q('UPDATE interpreters SET status = $1, last_active = NOW() WHERE id = $2', ['online', interpreter.id]);
   return queueDb.getInterpreterByEmail(mapleInterpreter.email);
+}
+
+async function ensureVrsTestInterpreter() {
+  let interpreter = await queueDb.getInterpreterByEmail(mapleVrsInterpreter.email);
+  if (!interpreter) {
+    interpreter = await queueDb.createInterpreter({ ...mapleVrsInterpreter, serviceModes: ['vrs'], tenantId: 'maple' });
+  }
+
+  await queueDb.updateInterpreter(interpreter.id, {
+    active: true,
+    email: mapleVrsInterpreter.email,
+    languages: mapleVrsInterpreter.languages,
+    name: mapleVrsInterpreter.name,
+    serviceModes: ['vrs'],
+    tenantId: 'maple'
+  });
+  return queueDb.getInterpreterByEmail(mapleVrsInterpreter.email);
 }
 
 async function ensureOpsSchema(pool) {
@@ -148,7 +198,7 @@ async function upsertOpsAccount(pool, account) {
     account.role,
     passwordHash,
     JSON.stringify(account.languages),
-    JSON.stringify(['vri']),
+    JSON.stringify(account.serviceModes || ['vri']),
     JSON.stringify(account.permissions)
   ]);
 }
@@ -170,6 +220,12 @@ async function ensureOpsAccounts() {
       ...mapleInterpreter,
       permissions: ['tenant:maple', 'vri:interpret'],
       role: 'interpreter'
+    });
+    await upsertOpsAccount(pool, {
+      ...mapleVrsInterpreter,
+      permissions: ['tenant:maple', 'vrs:interpret'],
+      role: 'interpreter',
+      serviceModes: ['vrs']
     });
     await pool.query(
       'INSERT INTO ops_audit (id, event, details, created_at) VALUES ($1, $2, $3::jsonb, $4)',
@@ -193,7 +249,9 @@ async function ensureOpsAccounts() {
 async function main() {
   await queueDb.initialize();
   const client = await ensureClient();
+  const vrsClient = await ensureVrsTestClient();
   const interpreter = await ensureInterpreter();
+  const vrsInterpreter = await ensureVrsTestInterpreter();
   const ops = await ensureOpsAccounts();
 
   await queueDb.logActivity('maple_vri_demo_seeded', 'Maple VRI demo accounts ensured', {
@@ -205,11 +263,15 @@ async function main() {
   console.log(JSON.stringify({
     credentials: {
       client: { email: mapleClient.email, password: mapleClient.password },
+      vrsTestClient: { email: mapleVrsClient.email, password: mapleVrsClient.password, phoneNumber: mapleVrsClient.phoneNumber },
       interpreter: { password: mapleInterpreter.password, username: mapleInterpreter.username },
+      vrsTestInterpreter: { password: mapleVrsInterpreter.password, username: mapleVrsInterpreter.username },
       mapleAdmin: { password: mapleAdmin.password, username: mapleAdmin.username }
     },
     client: { email: client.email, id: client.id, name: client.name },
+    vrsTestClient: { email: vrsClient.email, id: vrsClient.id, name: vrsClient.name },
     interpreter: { email: interpreter.email, id: interpreter.id, name: interpreter.name },
+    vrsTestInterpreter: { email: vrsInterpreter.email, id: vrsInterpreter.id, name: vrsInterpreter.name },
     ops,
     success: true
   }, null, 2));

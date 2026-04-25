@@ -33,6 +33,19 @@ type QueryParams = readonly unknown[];
 
 let pgPool = undefined as unknown as Pool;
 
+function normalizeServiceModes(value: any, fallback: string[] = ['vrs']): string[] {
+    let raw = value;
+    if (typeof value === 'string') {
+        try {
+            raw = JSON.parse(value);
+        } catch {
+            raw = [];
+        }
+    }
+    const modes = Array.isArray(raw) ? raw.filter(mode => mode === 'vri' || mode === 'vrs') : [];
+    return modes.length ? modes : fallback;
+}
+
 // ============================================
 // DATABASE INITIALIZATION
 // ============================================
@@ -80,6 +93,8 @@ async function createTables() {
             email TEXT UNIQUE NOT NULL,
             password_hash TEXT,
             languages JSONB DEFAULT '["ASL"]',
+            service_modes JSONB DEFAULT '["vrs"]',
+            tenant_id TEXT DEFAULT 'malka',
             status TEXT DEFAULT 'offline',
             active BOOLEAN DEFAULT true,
             created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -106,6 +121,8 @@ async function createTables() {
             email TEXT UNIQUE NOT NULL,
             password_hash TEXT,
             organization TEXT DEFAULT 'Personal',
+            service_modes JSONB DEFAULT '["vrs"]',
+            tenant_id TEXT DEFAULT 'malka',
             created_at TIMESTAMPTZ DEFAULT NOW(),
             last_call TIMESTAMPTZ
         );
@@ -293,6 +310,10 @@ async function createTables() {
         ALTER TABLE calls ADD COLUMN IF NOT EXISTS callee_id TEXT;
         ALTER TABLE calls ADD COLUMN IF NOT EXISTS call_type TEXT;
         ALTER TABLE queue_requests ADD COLUMN IF NOT EXISTS target_phone TEXT;
+        ALTER TABLE clients ADD COLUMN IF NOT EXISTS service_modes JSONB DEFAULT '["vrs"]';
+        ALTER TABLE clients ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'malka';
+        ALTER TABLE interpreters ADD COLUMN IF NOT EXISTS service_modes JSONB DEFAULT '["vrs"]';
+        ALTER TABLE interpreters ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'malka';
         ALTER TABLE missed_calls ADD COLUMN IF NOT EXISTS callee_client_id TEXT;
         ALTER TABLE missed_calls ADD COLUMN IF NOT EXISTS room_name TEXT;
         ALTER TABLE missed_calls ADD COLUMN IF NOT EXISTS seen BOOLEAN DEFAULT false;
@@ -659,6 +680,7 @@ async function getAllInterpreters() {
     return interpreters.map(i => ({
         ...i,
         languages: typeof i.languages === 'string' ? JSON.parse(i.languages) : (i.languages || []),
+        service_modes: normalizeServiceModes(i.service_modes),
         total_calls: Number(i.total_calls) || 0,
         calls_today: Number(i.calls_today) || 0,
         total_minutes: Number(i.total_minutes) || 0,
@@ -673,7 +695,8 @@ async function getInterpreter(id: any) {
     const i = rows[0];
     return {
         ...i,
-        languages: typeof i.languages === 'string' ? JSON.parse(i.languages) : (i.languages || [])
+        languages: typeof i.languages === 'string' ? JSON.parse(i.languages) : (i.languages || []),
+        service_modes: normalizeServiceModes(i.service_modes)
     };
 }
 
@@ -684,23 +707,26 @@ async function getInterpreterByEmail(email: any) {
     const i = rows[0];
     return {
         ...i,
-        languages: typeof i.languages === 'string' ? JSON.parse(i.languages) : (i.languages || [])
+        languages: typeof i.languages === 'string' ? JSON.parse(i.languages) : (i.languages || []),
+        service_modes: normalizeServiceModes(i.service_modes)
     };
 }
 
-async function createInterpreter({ name, email, languages, password }: any) {
+async function createInterpreter({ name, email, languages, password, serviceModes, service_modes, tenantId, tenant_id }: any) {
     const id = uuidv4();
     const passwordHash = await bcrypt.hash(password || 'changeme', 10);
+    const modes = normalizeServiceModes(serviceModes || service_modes);
+    const tenant = tenantId || tenant_id || 'malka';
 
     await runInsert(
-        'INSERT INTO interpreters (id, name, email, password_hash, languages) VALUES ($1, $2, $3, $4, $5)',
-        [id, name, email, passwordHash, JSON.stringify(languages || ['ASL'])]
+        'INSERT INTO interpreters (id, name, email, password_hash, languages, service_modes, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [id, name, email, passwordHash, JSON.stringify(languages || ['ASL']), JSON.stringify(modes), tenant]
     );
 
-    return { id, name, email };
+    return { id, name, email, service_modes: modes, tenant_id: tenant };
 }
 
-async function updateInterpreter(id: any, { name, email, languages, active }: any) {
+async function updateInterpreter(id: any, { name, email, languages, active, serviceModes, service_modes, tenantId, tenant_id }: any) {
     const updates = [];
     const params = [];
     let paramIdx = 1;
@@ -720,6 +746,16 @@ async function updateInterpreter(id: any, { name, email, languages, active }: an
     if (active !== undefined) {
         updates.push(`active = $${paramIdx++}`);
         params.push(!!active);
+    }
+    const modes = serviceModes || service_modes;
+    if (modes !== undefined) {
+        updates.push(`service_modes = $${paramIdx++}`);
+        params.push(JSON.stringify(normalizeServiceModes(modes)));
+    }
+    const tenant = tenantId || tenant_id;
+    if (tenant !== undefined) {
+        updates.push(`tenant_id = $${paramIdx++}`);
+        params.push(tenant);
     }
 
     if (updates.length > 0) {
@@ -883,16 +919,17 @@ async function getAllClients() {
 
     return clients.map(c => ({
         ...c,
+        service_modes: normalizeServiceModes(c.service_modes),
         total_calls: Number(c.total_calls) || 0
     }));
 }
 
 async function getClient(id: any) {
     const rows = await runQuery('SELECT * FROM clients WHERE id = $1', [id]);
-    return rows[0];
+    return rows[0] ? { ...rows[0], service_modes: normalizeServiceModes(rows[0].service_modes) } : rows[0];
 }
 
-async function updateClient(id: any, { name, email, organization }: any) {
+async function updateClient(id: any, { name, email, organization, serviceModes, service_modes, tenantId, tenant_id }: any) {
     const updates = [];
     const params = [];
     let paramIdx = 1;
@@ -909,6 +946,16 @@ async function updateClient(id: any, { name, email, organization }: any) {
         updates.push(`organization = $${paramIdx++}`);
         params.push(organization);
     }
+    const modes = serviceModes || service_modes;
+    if (modes !== undefined) {
+        updates.push(`service_modes = $${paramIdx++}`);
+        params.push(JSON.stringify(normalizeServiceModes(modes)));
+    }
+    const tenant = tenantId || tenant_id;
+    if (tenant !== undefined) {
+        updates.push(`tenant_id = $${paramIdx++}`);
+        params.push(tenant);
+    }
 
     if (updates.length === 0) return 0;
 
@@ -921,19 +968,21 @@ async function updateClient(id: any, { name, email, organization }: any) {
 
 async function getClientByEmail(email: any) {
     const rows = await runQuery('SELECT * FROM clients WHERE email = $1', [email]);
-    return rows[0];
+    return rows[0] ? { ...rows[0], service_modes: normalizeServiceModes(rows[0].service_modes) } : rows[0];
 }
 
-async function createClient({ name, email, organization, password }: any) {
+async function createClient({ name, email, organization, password, serviceModes, service_modes, tenantId, tenant_id }: any) {
     const id = uuidv4();
     const passwordHash = password ? await bcrypt.hash(password, 10) : null;
+    const modes = normalizeServiceModes(serviceModes || service_modes);
+    const tenant = tenantId || tenant_id || 'malka';
 
     await runInsert(
-        'INSERT INTO clients (id, name, email, password_hash, organization) VALUES ($1, $2, $3, $4, $5)',
-        [id, name, email, passwordHash, organization || 'Personal']
+        'INSERT INTO clients (id, name, email, password_hash, organization, service_modes, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [id, name, email, passwordHash, organization || 'Personal', JSON.stringify(modes), tenant]
     );
 
-    return { id, name, email, organization };
+    return { id, name, email, organization, service_modes: modes, tenant_id: tenant };
 }
 
 // ============================================
@@ -1368,7 +1417,7 @@ async function getClientByPhoneNumber(phoneNumber: any) {
          WHERE cpn.phone_number = $1 AND cpn.active = true`,
         [phoneNumber]
     );
-    return rows[0] || null;
+    return rows[0] ? { ...rows[0], service_modes: normalizeServiceModes(rows[0].service_modes) } : null;
 }
 
 async function createP2PCall({ callerId, calleeId, roomName }: any) {

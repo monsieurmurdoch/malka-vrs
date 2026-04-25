@@ -2703,6 +2703,8 @@
             const speedDial = state.speedDial;
             const missed = state.missedCalls;
             const activeRooms = state.activeRooms;
+            const serviceModes = Array.isArray(profile?.serviceModes) ? profile.serviceModes : (IS_MAPLE ? ['vri'] : ['vrs']);
+            const canUseVrs = serviceModes.includes('vrs');
             const preferences = state.preferences || {
                 dnd_enabled: false,
                 dnd_message: '',
@@ -2756,22 +2758,26 @@
                                 <div class="profile-summary-top">
                                     <div>
                                         <div class="card-title">Your ${SERVICE_LABEL} Profile</div>
-                                        <div class="vrs-number">${profile?.primaryPhone || 'Not assigned'}</div>
-                                        <div class="vrs-number-label">${IS_MAPLE ? 'Maple Video Remote Interpreting' : 'Personal Video Relay Number'}</div>
+                                        <div class="vrs-number">${canUseVrs ? (profile?.primaryPhone || 'VRS test account') : 'VRI Ready'}</div>
+                                        <div class="vrs-number-label">${canUseVrs ? 'VRS phone access enabled' : 'Maple Video Remote Interpreting'}</div>
                                     </div>
                                     <div class="vrs-number-label">Mic always starts muted</div>
                                 </div>
                                 <div class="quick-actions-grid">
-                                    <button class="start-call-btn" data-action="start-call">Start Instant Room</button>
+                                    <button class="start-call-btn" data-action="start-call">${IS_MAPLE && !canUseVrs ? 'Start VRI Session' : 'Start Instant Room'}</button>
                                     <button class="quick-action-btn" data-action="open-tts-panel">Open TTS Panel</button>
                                     <button class="quick-action-btn" data-action="sync-contacts">Sync Contacts</button>
                                 </div>
                                 <div>
-                                    <div class="card-title">Call via Interpreter</div>
+                                    <div class="card-title">${canUseVrs ? 'Call via Interpreter' : 'VRI Session'}</div>
                                     <div class="dialer-row">
-                                        <input type="tel" id="dial-phone" class="dialer-input" placeholder="+1-555-XXXX"
-                                            data-enter-action="dial-via-interpreter">
-                                        <button class="dialer-btn" data-action="dial-via-interpreter">Call</button>
+                                        ${canUseVrs ? `
+                                            <input type="tel" id="dial-phone" class="dialer-input" placeholder="+1-555-XXXX"
+                                                data-enter-action="dial-via-interpreter">
+                                            <button class="dialer-btn" data-action="dial-via-interpreter">Call</button>
+                                        ` : `
+                                            <button class="dialer-btn" data-action="start-call" style="width:100%">Start VRI Room</button>
+                                        `}
                                     </div>
                                 </div>
                             </div>

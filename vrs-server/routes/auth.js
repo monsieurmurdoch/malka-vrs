@@ -31,6 +31,15 @@ function setLegacyFlag(val) {
     LEGACY_ADMIN_LOGIN_ENABLED = val;
 }
 
+function inferTenantId(req) {
+    const host = String(req.headers['x-forwarded-host'] || req.hostname || '').toLowerCase();
+    return host.includes('maplecomm.ca') || host.includes('maple') ? 'maple' : 'malka';
+}
+
+function defaultClientServiceModes(tenantId) {
+    return tenantId === 'maple' ? ['vri'] : ['vrs'];
+}
+
 const clientRegisterSchema = z.object({
     name: nameSchema,
     email: emailSchema,
@@ -88,32 +97,36 @@ router.post('/client/register', authLimiter, validate(clientRegisterSchema), asy
             return res.status(409).json({ error: 'Email already registered', code: 'CONFLICT' });
         }
 
-        const client = await db.createClient({ name, email, password, organization });
+        const tenantId = inferTenantId(req);
+        const serviceModes = defaultClientServiceModes(tenantId);
+        const client = await db.createClient({ name, email, password, organization, serviceModes, tenantId });
 
-        // Assign a unique phone number with collision retry
         let phoneNum;
-        for (let attempt = 0; attempt < 10; attempt++) {
-            const candidate = `+1-555-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, '0')}`;
-            const taken = await db.getClientByPhoneNumber(candidate);
-            if (!taken) {
-                phoneNum = candidate;
-                break;
+        if (serviceModes.includes('vrs')) {
+            // Assign a unique phone number with collision retry for VRS-capable clients.
+            for (let attempt = 0; attempt < 10; attempt++) {
+                const candidate = `+1-555-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, '0')}`;
+                const taken = await db.getClientByPhoneNumber(candidate);
+                if (!taken) {
+                    phoneNum = candidate;
+                    break;
+                }
             }
+            if (!phoneNum) {
+                const { v4: uuidv4 } = require('uuid');
+                phoneNum = `+1-555-${uuidv4().substring(0, 4)}`;
+            }
+            await db.assignClientPhoneNumber({ clientId: client.id, phoneNumber: phoneNum, isPrimary: true });
         }
-        if (!phoneNum) {
-            const { v4: uuidv4 } = require('uuid');
-            phoneNum = `+1-555-${uuidv4().substring(0, 4)}`;
-        }
-        await db.assignClientPhoneNumber({ clientId: client.id, phoneNumber: phoneNum, isPrimary: true });
 
         const token = signToken({ id: client.id, email, name, role: 'client' });
 
-        activityLogger.log('client_registered', { clientId: client.id, name, email });
+        activityLogger.log('client_registered', { clientId: client.id, name, email, tenantId, serviceModes });
 
         res.json({
             success: true,
             token,
-            user: { id: client.id, name, email, role: 'client', phoneNumber: phoneNum }
+            user: { id: client.id, name, email, role: 'client', phoneNumber: phoneNum || null, serviceModes, tenantId }
         });
     } catch (error) {
         req.log.error({ err: error }, 'Client registration failed');
@@ -151,7 +164,9 @@ router.post('/client/login', authLimiter, validate(loginSchema), async (req, res
                 name: client.name,
                 email: client.email,
                 role: 'client',
-                phoneNumber: primary?.phone_number || null
+                phoneNumber: primary?.phone_number || null,
+                serviceModes: client.service_modes || ['vri'],
+                tenantId: client.tenant_id || 'malka'
             }
         });
     } catch (error) {
@@ -194,7 +209,9 @@ router.post('/interpreter/login', authLimiter, validate(loginSchema), async (req
                 name: interpreter.name,
                 email: interpreter.email,
                 role: 'interpreter',
-                languages: interpreter.languages
+                languages: interpreter.languages,
+                serviceModes: interpreter.service_modes || ['vri'],
+                tenantId: interpreter.tenant_id || 'malka'
             }
         });
     } catch (error) {
@@ -315,7 +332,9 @@ router.post('/client/phone-login', authLimiter, validate(phoneLoginSchema), asyn
                 name: client.name,
                 email: client.email,
                 role: 'client',
-                phoneNumber: primary?.phone_number || phoneNumber
+                phoneNumber: primary?.phone_number || phoneNumber,
+                serviceModes: client.service_modes || ['vrs'],
+                tenantId: client.tenant_id || 'malka'
             }
         });
     } catch (error) {
@@ -392,7 +411,9 @@ router.post('/otp/verify', authLimiter, validate(otpVerifySchema), async (req, r
                 name: client.name,
                 email: client.email,
                 role: 'client',
-                phoneNumber: primary?.phone_number || phoneNumber
+                phoneNumber: primary?.phone_number || phoneNumber,
+                serviceModes: client.service_modes || ['vrs'],
+                tenantId: client.tenant_id || 'malka'
             }
         });
     } catch (error) {

@@ -6,7 +6,7 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-25
 - Branch: `codex/main-prod-sync`
-- HEAD: `8629240`
+- HEAD: `a1ca443`
 - Note: Pre-push project status sync.
 - Snapshot:
 Local changes at sync time:
@@ -14,6 +14,90 @@ Local changes at sync time:
 
 <!-- status:current:end -->
 ## Archive
+### Archived Update - 2026-04-25T08:54:43.480Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `a1ca443`
+- Note: Committed Maple VRI default profile mode: Maple-created clients are VRI-only without phone numbers unless VRS is explicitly enabled, admin can adjust service modes, and demo seed includes separate VRS test accounts.
+- Snapshot:
+No local changes at sync time.
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T08:54:31.973Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `85ac5a1`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  client-profile.html`
+  - `M  scripts/seed-maple-vri-demo.mjs`
+  - `M  status.md`
+  - `M  vrs-admin-dashboard.html`
+  - `M  vrs-admin-dashboard.js`
+  - `M  vrs-server/dist/database.js`
+  - `M  vrs-server/lib/queue-service.js`
+  - `M  vrs-server/lib/validation.js`
+  - `M  vrs-server/routes/admin.js`
+  - `M  vrs-server/routes/auth.js`
+  - `M  vrs-server/routes/client.js`
+  - `M  vrs-server/src/database.ts`
+  - `M  vrs-server/src/lib/queue-service.ts`
+  - `M  vrs-server/ws/handler.js`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T08:54:04.950Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `85ac5a1`
+- Note: Added Maple VRI-first account permissions: clients/interpreters now carry service modes, Maple client profile hides VRS phone affordances for VRI-only accounts, admin dashboard can adjust VRI/VRS permissions, and Maple seed creates VRI defaults plus VRS test accounts.
+- Snapshot:
+Local changes at sync time:
+  - `M client-profile.html`
+  - `M scripts/seed-maple-vri-demo.mjs`
+  - `M vrs-admin-dashboard.html`
+  - `M vrs-admin-dashboard.js`
+  - `M vrs-server/dist/database.js`
+  - `M vrs-server/lib/queue-service.js`
+  - `M vrs-server/lib/validation.js`
+  - `M vrs-server/routes/admin.js`
+  - `M vrs-server/routes/auth.js`
+  - `M vrs-server/routes/client.js`
+  - `M vrs-server/src/database.ts`
+  - `M vrs-server/src/lib/queue-service.ts`
+  - `M vrs-server/ws/handler.js`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T08:53:32.204Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `8629240`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  status.md`
+
+<!-- status:current:end -->
+
 ### Archived Update - 2026-04-25T08:35:02.421Z
 
 <!-- status:current:start -->

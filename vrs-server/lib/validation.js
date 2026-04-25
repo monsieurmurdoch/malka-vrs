@@ -64,6 +64,10 @@ const languageSchema = z.string().min(1).max(20).transform(sanitizeText);
 
 const languagesArraySchema = z.array(languageSchema).min(1).optional().default(['ASL']);
 
+const serviceModeSchema = z.enum(['vri', 'vrs']);
+
+const serviceModesArraySchema = z.array(serviceModeSchema).min(1).optional();
+
 // ============================================
 // EXPRESS ERROR FORMAT
 // ============================================
@@ -138,6 +142,8 @@ module.exports = {
     uuidSchema,
     languageSchema,
     languagesArraySchema,
+    serviceModeSchema,
+    serviceModesArraySchema,
     // Helpers
     formatValidationErrors,
     validate,

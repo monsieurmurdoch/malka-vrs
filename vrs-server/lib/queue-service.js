@@ -92,7 +92,7 @@ async function initialize() {
 // CLIENT REQUESTS
 // ============================================
 
-async function requestInterpreter({ clientId, clientName, language, roomName, targetPhone = null }) {
+async function requestInterpreter({ clientId, clientName, language, roomName, targetPhone = null, callType }) {
     if (paused) {
         return {
             success: false,
@@ -119,7 +119,8 @@ async function requestInterpreter({ clientId, clientName, language, roomName, ta
         roomName,
         position,
         status: 'waiting',
-        createdAt: new Date()
+        createdAt: new Date(),
+        callType: callType || (targetPhone ? 'vrs' : 'vri')
     };
 
     queue.set(id, request);
@@ -163,15 +164,16 @@ async function cancelRequest(requestId) {
 // INTERPRETER AVAILABILITY
 // ============================================
 
-function interpreterAvailable(interpreterId, interpreterName, languages = ['ASL']) {
+function interpreterAvailable(interpreterId, interpreterName, languages = ['ASL'], serviceModes = ['vrs']) {
     availableInterpreters.set(interpreterId, {
         id: interpreterId,
         name: interpreterName,
         languages,
+        serviceModes,
         availableAt: new Date()
     });
 
-    log.info({ interpreterId, interpreterName, languages }, 'Interpreter now available');
+    log.info({ interpreterId, interpreterName, languages, serviceModes }, 'Interpreter now available');
 
     return { success: true };
 }
@@ -289,9 +291,11 @@ async function tryMatch() {
 }
 
 function findBestMatch(request, interpreters) {
+    const requestMode = request.callType || (request.targetPhone || request.target_phone ? 'vrs' : 'vri');
     // Find interpreters who match the language
     const matching = interpreters.filter(interp =>
         interp.languages && interp.languages.includes(request.language)
+        && (!interp.serviceModes || interp.serviceModes.includes(requestMode))
     );
 
     if (matching.length === 0) {

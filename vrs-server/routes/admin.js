@@ -11,7 +11,7 @@ const queueService = require('../lib/queue-service');
 const log = require('../lib/logger').module('admin');
 const {
     validate, nameSchema, emailSchema, passwordSchema,
-    languagesArraySchema, nonNegativeIntSchema, z
+    languagesArraySchema, serviceModesArraySchema, nonNegativeIntSchema, z
 } = require('../lib/validation');
 
 const router = express.Router();
@@ -47,6 +47,8 @@ const createInterpreterSchema = z.object({
     name: nameSchema,
     email: emailSchema,
     languages: languagesArraySchema,
+    serviceModes: serviceModesArraySchema,
+    tenantId: z.string().min(1).max(60).optional(),
     password: passwordSchema.optional()
 });
 
@@ -54,13 +56,25 @@ const updateInterpreterSchema = z.object({
     name: nameSchema.optional(),
     email: emailSchema.optional(),
     languages: languagesArraySchema,
+    serviceModes: serviceModesArraySchema,
+    tenantId: z.string().min(1).max(60).optional(),
     active: z.boolean().optional()
 });
 
 const createClientSchema = z.object({
     name: nameSchema,
     email: emailSchema.optional(),
-    organization: z.string().min(1).max(200).optional()
+    organization: z.string().min(1).max(200).optional(),
+    serviceModes: serviceModesArraySchema,
+    tenantId: z.string().min(1).max(60).optional()
+});
+
+const updateClientSchema = z.object({
+    name: nameSchema.optional(),
+    email: emailSchema.optional(),
+    organization: z.string().min(1).max(200).optional(),
+    serviceModes: serviceModesArraySchema,
+    tenantId: z.string().min(1).max(60).optional()
 });
 
 const createCaptionerSchema = z.object({
@@ -147,11 +161,11 @@ router.get('/interpreters', authenticateAdmin, async (req, res) => {
 });
 
 router.post('/interpreters', validate(createInterpreterSchema), authenticateAdmin, async (req, res) => {
-    const { name, email, languages, password } = req.body;
+    const { name, email, languages, password, serviceModes, tenantId } = req.body;
 
     try {
         const interpreterId = await db.createInterpreter({
-            name, email, languages, password
+            name, email, languages, password, serviceModes, tenantId
         });
 
         activityLogger.log('interpreter_created', {
@@ -167,13 +181,13 @@ router.post('/interpreters', validate(createInterpreterSchema), authenticateAdmi
 
 router.put('/interpreters/:id', validate(updateInterpreterSchema), authenticateAdmin, async (req, res) => {
     const { id } = req.params;
-    const { name, email, languages, active } = req.body;
+    const { name, email, languages, active, serviceModes, tenantId } = req.body;
 
     try {
-        await db.updateInterpreter(id, { name, email, languages, active });
+        await db.updateInterpreter(id, { name, email, languages, active, serviceModes, tenantId });
 
         activityLogger.log('interpreter_updated', {
-            adminId: req.admin.id, interpreterId: id, updates: { name, email, languages, active }
+            adminId: req.admin.id, interpreterId: id, updates: { name, email, languages, active, serviceModes, tenantId }
         });
 
         res.json({ success: true });
@@ -283,19 +297,37 @@ router.get('/clients', authenticateAdmin, async (req, res) => {
 });
 
 router.post('/clients', validate(createClientSchema), authenticateAdmin, async (req, res) => {
-    const { name, email, organization } = req.body;
+    const { name, email, organization, serviceModes, tenantId } = req.body;
 
     try {
-        const clientId = await db.createClient({ name, email, organization });
+        const client = await db.createClient({ name, email, organization, serviceModes, tenantId });
 
         activityLogger.log('client_created', {
-            adminId: req.admin.id, clientId, name, email, organization
+            adminId: req.admin.id, clientId: client.id, name, email, organization, serviceModes, tenantId
         });
 
-        res.json({ success: true, id: clientId });
+        res.json({ success: true, id: client.id });
     } catch (error) {
         req.log.error({ err: error }, 'Create client error');
         res.status(500).json({ error: 'Failed to create client', code: 'INTERNAL_ERROR' });
+    }
+});
+
+router.put('/clients/:id', validate(updateClientSchema), authenticateAdmin, async (req, res) => {
+    const { id } = req.params;
+    const { name, email, organization, serviceModes, tenantId } = req.body;
+
+    try {
+        await db.updateClient(id, { name, email, organization, serviceModes, tenantId });
+
+        activityLogger.log('client_updated', {
+            adminId: req.admin.id, clientId: id, updates: { name, email, organization, serviceModes, tenantId }
+        });
+
+        res.json({ success: true });
+    } catch (error) {
+        req.log.error({ err: error }, 'Update client error');
+        res.status(500).json({ error: 'Failed to update client', code: 'INTERNAL_ERROR' });
     }
 });
 

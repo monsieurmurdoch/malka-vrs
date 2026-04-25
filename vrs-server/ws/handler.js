@@ -424,7 +424,7 @@ function coerceInterpreterStatus(payload = {}) {
 // INTERPRETER STATUS
 // ============================================
 
-function handleInterpreterStatus(ws, data) {
+async function handleInterpreterStatus(ws, data) {
     const wsClient = ws.clientInfo;
     if (!wsClient || !wsClient.authenticated) {
         ws.send(JSON.stringify({ type: 'error', data: { message: 'Authentication required.' } }));
@@ -447,10 +447,14 @@ function handleInterpreterStatus(ws, data) {
         if (entry.ws === ws) {
             entry.status = status;
             entry.languages = languages || entry.languages;
+            if (!entry.serviceModes) {
+                const interpreter = await db.getInterpreter(entry.userId).catch(() => null);
+                entry.serviceModes = interpreter?.service_modes || ['vrs'];
+            }
 
             state.broadcastToAdmins({
                 type: 'interpreter_status_changed',
-                data: { id: entry.userId, name: entry.name, status, languages: entry.languages, timestamp: Date.now() }
+                data: { id: entry.userId, name: entry.name, status, languages: entry.languages, serviceModes: entry.serviceModes, timestamp: Date.now() }
             });
 
             activityLogger.log('interpreter_status_change', {
@@ -458,7 +462,7 @@ function handleInterpreterStatus(ws, data) {
             });
 
             if (status === 'online' || status === 'available' || status === 'active') {
-                queueService.interpreterAvailable(entry.userId, entry.name, languages);
+                queueService.interpreterAvailable(entry.userId, entry.name, entry.languages, entry.serviceModes);
                 notifyInterpreterOfPendingRequests(ws);
             } else if (status === 'offline' || status === 'busy' || status === 'inactive') {
                 queueService.interpreterUnavailable(entry.userId);
@@ -491,12 +495,23 @@ async function handleInterpreterRequest(ws, data) {
         }));
         return;
     }
+    const callType = targetPhone ? 'vrs' : 'vri';
+    const clientRecord = await db.getClient(client.userId).catch(() => null);
+    const clientModes = clientRecord?.service_modes || client.serviceModes || ['vrs'];
+    if (!clientModes.includes(callType)) {
+        ws.send(JSON.stringify({
+            type: 'error',
+            data: { message: callType === 'vrs' ? 'This account is not enabled for VRS phone calls.' : 'This account is not enabled for VRI sessions.' }
+        }));
+        return;
+    }
 
     const result = await queueService.requestInterpreter({
         clientId: client.userId,
         clientName: payload.clientName || client.name || 'Guest',
         language: payload.language || 'ASL',
         targetPhone,
+        callType,
         roomName: payload.roomName || generateFriendlyRoomName()
     });
 

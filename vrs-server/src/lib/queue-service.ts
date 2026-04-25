@@ -28,6 +28,7 @@ interface AvailableInterpreter {
     id: string;
     name: string;
     languages: string[];
+    serviceModes?: Array<'vri' | 'vrs'>;
     availableAt: Date;
 }
 
@@ -190,15 +191,16 @@ async function cancelRequest(requestId: string): Promise<{ success: boolean; mes
 // INTERPRETER AVAILABILITY
 // ============================================
 
-function interpreterAvailable(interpreterId: string, interpreterName: string, languages: string[] = ['ASL']): { success: boolean } {
+function interpreterAvailable(interpreterId: string, interpreterName: string, languages: string[] = ['ASL'], serviceModes: Array<'vri' | 'vrs'> = ['vrs']): { success: boolean } {
     availableInterpreters.set(interpreterId, {
         id: interpreterId,
         name: interpreterName,
         languages,
+        serviceModes,
         availableAt: new Date()
     });
 
-    console.log(`[Queue] Interpreter ${interpreterName} (${languages.join(', ')}) is now available`);
+    console.log(`[Queue] Interpreter ${interpreterName} (${languages.join(', ')}) is now available for ${serviceModes.join(', ')}`);
 
     return { success: true };
 }
@@ -325,10 +327,12 @@ async function tryMatch(): Promise<void> {
     }
 }
 
-function findBestMatch(request: { language: string }, interpreters: AvailableInterpreter[]): AvailableInterpreter | null {
+function findBestMatch(request: { language: string; callType?: 'vri' | 'vrs'; targetPhone?: string | null; target_phone?: string | null }, interpreters: AvailableInterpreter[]): AvailableInterpreter | null {
+    const requestMode = request.callType || (request.targetPhone || request.target_phone ? 'vrs' : 'vri');
     // Find interpreters who match the language
     const matching = interpreters.filter(interp =>
         interp.languages && interp.languages.includes(request.language)
+        && (!interp.serviceModes || interp.serviceModes.includes(requestMode))
     );
 
     if (matching.length === 0) {

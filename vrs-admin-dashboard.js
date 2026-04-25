@@ -136,6 +136,7 @@ function setupEventListeners() {
     document.getElementById('addInterpreterBtn')?.addEventListener('click', showAddInterpreterModal);
     document.getElementById('addCaptionerBtn')?.addEventListener('click', showAddCaptionerModal);
     document.getElementById('addAccountBtn')?.addEventListener('click', showAddAccountModal);
+    document.getElementById('addClientBtn')?.addEventListener('click', showAddClientModal);
 
     // Filter changes
     document.getElementById('interpreterStatusFilter')?.addEventListener('change', filterInterpreters);
@@ -867,7 +868,7 @@ function renderInterpretersTable(interpreters) {
     if (interpreters.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 24px;">
                     No interpreters found
                 </td>
             </tr>
@@ -889,6 +890,7 @@ function renderInterpretersTable(interpreters) {
                 <td><div style="font-weight: 500;">${interp.name}</div></td>
                 <td style="color: var(--text-secondary);">${interp.email}</td>
                 <td>${Array.isArray(interp.languages) ? interp.languages.join(', ') : interp.languages}</td>
+                <td>${formatServiceModes(interp.service_modes)}</td>
                 <td>
                     <span class="status-badge ${statusClass}">
                         <span class="status-dot"></span>
@@ -904,6 +906,12 @@ function renderInterpretersTable(interpreters) {
             </tr>
         `;
     }).join('');
+}
+
+function formatServiceModes(modes) {
+    const values = Array.isArray(modes) ? modes : [];
+    if (!values.length) return 'VRI';
+    return values.map(mode => String(mode).toUpperCase()).join(', ');
 }
 
 function formatLastActive(interp) {
@@ -960,11 +968,21 @@ function showAddInterpreterModal() {
     if (!email && !username) return;
 
     const languages = prompt('Languages (comma-separated, e.g., ASL, BSL):', 'ASL');
+    const modes = prompt('Service modes (comma-separated: vri, vrs):', 'vri');
+    const tenantId = prompt('Tenant ID:', location.hostname.includes('maplecomm.ca') ? 'maple' : 'malka');
 
-    createInterpreter(name, email, languages.split(',').map(l => l.trim()), username);
+    createInterpreter(name, email, languages.split(',').map(l => l.trim()), username, parseServiceModes(modes), tenantId);
 }
 
-async function createInterpreter(name, email, languages, username) {
+function parseServiceModes(value) {
+    const modes = String(value || 'vri')
+        .split(',')
+        .map(mode => mode.trim().toLowerCase())
+        .filter(mode => mode === 'vri' || mode === 'vrs');
+    return modes.length ? Array.from(new Set(modes)) : ['vri'];
+}
+
+async function createInterpreter(name, email, languages, username, serviceModes = ['vri'], tenantId = 'malka') {
     try {
         await opsApiCall('/admin/accounts', {
             method: 'POST',
@@ -974,13 +992,15 @@ async function createInterpreter(name, email, languages, username) {
                 name,
                 password: 'interpreter123!',
                 role: 'interpreter',
+                serviceModes,
+                tenantId,
                 username
             })
         });
 
         await apiCall('/admin/interpreters', {
             method: 'POST',
-            body: JSON.stringify({ name, email, languages, password: 'interpreter123!' })
+            body: JSON.stringify({ name, email, languages, password: 'interpreter123!', serviceModes, tenantId })
         });
 
         alert(`Interpreter created successfully.\n${username ? `username: ${username}\n` : ''}${email ? `email: ${email}\n` : ''}password: interpreter123!`);
@@ -989,6 +1009,27 @@ async function createInterpreter(name, email, languages, username) {
         loadMonitoringSummary();
     } catch (error) {
         alert('Failed to create interpreter: ' + error.message);
+    }
+}
+
+async function editInterpreter(id) {
+    const interp = allInterpreters.find(item => String(item.id) === String(id));
+    if (!interp) return;
+
+    const modes = prompt('Service modes (comma-separated: vri, vrs):', formatServiceModes(interp.service_modes).toLowerCase());
+    if (!modes) return;
+    const tenantId = prompt('Tenant ID:', interp.tenant_id || (location.hostname.includes('maplecomm.ca') ? 'maple' : 'malka'));
+    if (!tenantId) return;
+
+    try {
+        await apiCall(`/admin/interpreters/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify({ serviceModes: parseServiceModes(modes), tenantId })
+        });
+        await loadInterpreters();
+        alert('Interpreter permissions updated.');
+    } catch (error) {
+        alert(`Failed to update interpreter: ${error.message}`);
     }
 }
 
@@ -1246,10 +1287,12 @@ async function createAccount(payload) {
 // CLIENTS
 // ============================================
 
+let allClients = [];
+
 async function loadClients() {
     try {
-        const clients = await apiCall('/admin/clients');
-        renderClientsTable(clients);
+        allClients = await apiCall('/admin/clients');
+        renderClientsTable(allClients);
     } catch (error) {
         console.error('[Clients] Error:', error);
     }
@@ -1262,7 +1305,7 @@ function renderClientsTable(clients) {
     if (clients.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 24px;">
                     No clients found
                 </td>
             </tr>
@@ -1275,14 +1318,66 @@ function renderClientsTable(clients) {
             <td><div style="font-weight: 500;">${client.name}</div></td>
             <td style="color: var(--text-secondary);">${client.email}</td>
             <td>${client.organization || 'Personal'}</td>
+            <td>${formatServiceModes(client.service_modes)}</td>
+            <td>${client.tenant_id || 'malka'}</td>
             <td>${client.total_calls || 0}</td>
             <td>${client.last_call || 'Never'}</td>
             <td>${formatDate(client.created_at)}</td>
             <td>
-                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">View</button>
+                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="editClientPermissions('${client.id}')">Permissions</button>
             </td>
         </tr>
     `).join('');
+}
+
+function showAddClientModal() {
+    if (currentAdminRole !== 'superadmin') {
+        alert('Only the superadmin account can create client accounts.');
+        return;
+    }
+
+    const name = prompt('Client name:');
+    if (!name) return;
+    const email = prompt('Email:', '');
+    const organization = prompt('Organization:', location.hostname.includes('maplecomm.ca') ? 'Maple Corporate Pilot' : 'Personal');
+    const modes = prompt('Service modes (comma-separated: vri, vrs):', location.hostname.includes('maplecomm.ca') ? 'vri' : 'vrs');
+    const tenantId = prompt('Tenant ID:', location.hostname.includes('maplecomm.ca') ? 'maple' : 'malka');
+
+    createClient({ name, email, organization, serviceModes: parseServiceModes(modes), tenantId });
+}
+
+async function createClient(payload) {
+    try {
+        await apiCall('/admin/clients', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        await loadClients();
+        alert('Client created.');
+    } catch (error) {
+        alert(`Failed to create client: ${error.message}`);
+    }
+}
+
+async function editClientPermissions(id) {
+    const client = allClients.find(item => String(item.id) === String(id));
+    if (!client) return;
+
+    const modes = prompt('Service modes (comma-separated: vri, vrs):', formatServiceModes(client.service_modes).toLowerCase());
+    if (!modes) return;
+    const tenantId = prompt('Tenant ID:', client.tenant_id || (location.hostname.includes('maplecomm.ca') ? 'maple' : 'malka'));
+    if (!tenantId) return;
+
+    try {
+        await apiCall(`/admin/clients/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify({ serviceModes: parseServiceModes(modes), tenantId })
+        });
+        await loadClients();
+        alert('Client permissions updated.');
+    } catch (error) {
+        alert(`Failed to update client: ${error.message}`);
+    }
 }
 
 function formatDate(dateStr) {
