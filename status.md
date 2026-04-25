@@ -6,6 +6,98 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-25
 - Branch: `codex/main-prod-sync`
+- HEAD: `8629240`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  status.md`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-25T08:35:02.421Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `8629240`
+- Note: Committed client profile home view refinement: self preview, clear primary call actions, collapsible settings/contacts/history, mobile scrolling, and enforced muted call starts.
+- Snapshot:
+No local changes at sync time.
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T08:34:43.524Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `173b50e`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  client-profile.html`
+  - `M  status.md`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T08:33:28.828Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `173b50e`
+- Note: Refined client profile into a cleaner home view: self camera preview, primary call actions, collapsible settings/contacts/history, mobile scrolling, and explicit mic-always-muted defaults.
+- Snapshot:
+Local changes at sync time:
+  - `M client-profile.html`
+  - `M status.md`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T08:32:47.411Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `173b50e`
+- Note: Refined client profile into a cleaner home view: self camera preview, primary call actions, collapsible settings/contacts/history, mobile scrolling, and explicit mic-always-muted defaults.
+- Snapshot:
+Local changes at sync time:
+  - `M client-profile.html`
+  - `M status.md`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T08:30:22.923Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `173b50e`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M client-profile.html`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T08:30:11.523Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
 - HEAD: `c184323`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -15,7 +107,7 @@ Local changes at sync time:
   - `M  status.md`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-25T08:14:00.825Z
 
 <!-- status:current:start -->
