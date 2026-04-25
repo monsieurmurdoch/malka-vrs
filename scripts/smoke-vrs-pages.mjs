@@ -12,6 +12,7 @@ const require = createRequire(import.meta.url);
 const WebSocket = require('ws');
 const vrsRequire = createRequire(pathToFileURL(path.join(repoRoot, 'vrs-server', 'server.js')));
 const jwt = vrsRequire('jsonwebtoken');
+const queueDb = vrsRequire('./database.js');
 
 const queueBaseUrl = process.env.VRS_QUEUE_BASE_URL || 'http://localhost:3001';
 const opsBaseUrl = process.env.VRS_OPS_BASE_URL || 'http://localhost:3003';
@@ -24,24 +25,21 @@ const clientEmail = process.env.VRS_SMOKE_CLIENT_EMAIL || 'leila.mansour@example
 const interpreterEmail = process.env.VRS_SMOKE_INTERPRETER_EMAIL || 'amina.hassan@malka.local';
 const adminIdentifier = process.env.VRS_ADMIN_IDENTIFIER || process.env.VRS_BOOTSTRAP_SUPERADMIN_USERNAME || 'superadmin';
 const adminPassword = process.env.VRS_ADMIN_PASSWORD || process.env.VRS_BOOTSTRAP_SUPERADMIN_PASSWORD || 'ValidationSuperadmin123';
-const queueDbPath = path.join(repoRoot, 'vrs-server', 'data', 'vrs.db');
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function runSql(sql) {
-    return execFileSync('sqlite3', [ '-separator', '\t', queueDbPath, sql ], { encoding: 'utf8' }).trim();
-}
+async function loadEntity(table, email) {
+    const row = table === 'clients'
+        ? await queueDb.getClientByEmail(email)
+        : await queueDb.getInterpreterByEmail(email);
 
-function loadEntity(table, email) {
-    const row = runSql(`SELECT id, name, email FROM ${table} WHERE email = '${email.replace(/'/g, "''")}' LIMIT 1;`);
     if (!row) {
         throw new Error(`Could not find ${table} record for ${email}`);
     }
 
-    const [ id, name, foundEmail ] = row.split('\t');
-    return { id, name, email: foundEmail };
+    return { id: row.id, name: row.name, email: row.email };
 }
 
 function signQueueToken(user, role) {
@@ -412,8 +410,9 @@ function printResult(result) {
 }
 
 async function main() {
-    const clientUser = loadEntity('clients', clientEmail);
-    const interpreterUser = loadEntity('interpreters', interpreterEmail);
+    await queueDb.initialize();
+    const clientUser = await loadEntity('clients', clientEmail);
+    const interpreterUser = await loadEntity('interpreters', interpreterEmail);
     const adminStorage = await buildAdminStorage();
 
     const pageTarget = await createDebuggerTarget();
@@ -481,6 +480,7 @@ async function main() {
     } finally {
         await client.close();
         await closeDebuggerTarget(pageTarget.id);
+        await queueDb.pool()?.end?.();
     }
 
     for (const result of results) {

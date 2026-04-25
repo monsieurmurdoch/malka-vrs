@@ -20,10 +20,11 @@ import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import dotenv from 'dotenv';
 import { z, ZodError } from 'zod';
+import { Pool } from 'pg';
 
 dotenv.config();
 
-import { CallSession, Interpreter, Client, QueueStats, DailyStats, AuthToken, InterpreterStatus, CallStatus } from './types';
+import { CallSession, Interpreter, QueueStats, DailyStats, AuthToken, InterpreterStatus, CallStatus } from './types';
 
 const app: Express = express();
 const server = createServer(app);
@@ -42,6 +43,13 @@ const AUTH_WINDOW_MS = Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 *
 const AUTH_MAX_ATTEMPTS = Number(process.env.AUTH_RATE_LIMIT_MAX_ATTEMPTS || 5);
 const DATA_DIR = path.resolve(__dirname, '..', 'data');
 const OPS_STATE_FILE = path.join(DATA_DIR, 'ops-state.json');
+const OPS_DATABASE_URL = process.env.OPS_DATABASE_URL || process.env.DATABASE_URL || '';
+const OPS_PGHOST = process.env.OPS_PGHOST || process.env.PGHOST;
+const OPS_PGPORT = Number(process.env.OPS_PGPORT || process.env.PGPORT || 5432);
+const OPS_PGDATABASE = process.env.OPS_PGDATABASE || process.env.PGDATABASE || 'malka_vrs';
+const OPS_PGUSER = process.env.OPS_PGUSER || process.env.PGUSER || 'malka';
+const OPS_PGPASSWORD = process.env.OPS_PGPASSWORD || process.env.PGPASSWORD || 'malka';
+const OPS_POSTGRES_ENABLED = Boolean(OPS_DATABASE_URL || OPS_PGHOST);
 const BOOTSTRAP_SUPERADMIN_ENABLED = process.env.ENABLE_BOOTSTRAP_SUPERADMIN !== 'false';
 const BOOTSTRAP_SUPERADMIN_USERNAME = process.env.VRS_BOOTSTRAP_SUPERADMIN_USERNAME || 'superadmin';
 const BOOTSTRAP_SUPERADMIN_PASSWORD: string = process.env.VRS_BOOTSTRAP_SUPERADMIN_PASSWORD || '';
@@ -52,7 +60,7 @@ if (!BOOTSTRAP_SUPERADMIN_PASSWORD) {
 }
 const BOOTSTRAP_SUPERADMIN_NAME = process.env.VRS_BOOTSTRAP_SUPERADMIN_NAME || 'Malka Superadmin';
 const MAX_AUDIT_EVENTS = 500;
-const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:8080';
 
 // Middleware
 app.use(helmet());
@@ -115,13 +123,17 @@ const createAccountSchema = z.object({
     email: z.string().max(254).optional(),
     username: z.string().max(100).optional(),
     password: z.string().min(8).max(128),
-    role: z.enum(['admin', 'interpreter', 'superadmin']),
-    languages: z.array(z.string().max(20)).min(1).optional().default(['ASL'])
+    role: z.enum(['admin', 'captioner', 'interpreter', 'superadmin']),
+    languages: z.array(z.string().max(20)).min(1).optional().default(['ASL']),
+    organization: z.string().max(120).optional(),
+    permissions: z.array(z.string().max(80)).optional().default([]),
+    serviceModes: z.array(z.enum(['vrs', 'vri'])).min(1).optional().default(['vrs']),
+    tenantId: z.string().max(80).optional().default('malka')
 });
 
-// In-memory storage (replace with database in production)
+// Live ops state is PostgreSQL-backed when OPS_DATABASE_URL/OPS_PG* is set.
+// The maps are a local cache and development fallback, not the production source of truth.
 const interpreters: Map<string, Interpreter> = new Map();
-const clients: Map<string, Client> = new Map();
 const callSessions: Map<string, CallSession> = new Map();
 const activeCalls: Map<string, CallSession> = new Map();
 const dailyStats: Map<string, DailyStats> = new Map();
@@ -138,8 +150,12 @@ type AuthDirectoryRecord = {
     lastLoginAt?: string;
     languages?: string[];
     name?: string;
+    organization?: string;
     passwordHash?: string;
+    permissions?: string[];
     role?: 'admin' | 'captioner' | 'interpreter' | 'superadmin';
+    serviceModes?: string[];
+    tenantId?: string;
     username?: string;
 };
 
@@ -156,6 +172,10 @@ type PersistedOpsState = {
     accounts: AuthDirectoryRecord[];
     audit: OpsAuditEvent[];
 };
+
+let opsPool: Pool | null = null;
+let opsStorage: 'postgres' | 'json' = OPS_POSTGRES_ENABLED ? 'postgres' : 'json';
+let opsStorageReady = false;
 
 function ensureDataDir() {
     if (!fs.existsSync(DATA_DIR)) {
@@ -241,7 +261,11 @@ function normalizeAccountRecord(record: AuthDirectoryRecord): AuthDirectoryRecor
         id: record.id || uuidv4(),
         languages: record.languages || [ 'ASL' ],
         name: normalizedName,
+        organization: record.organization?.trim() || '',
         role: record.role || 'interpreter',
+        permissions: Array.isArray(record.permissions) ? record.permissions : [],
+        serviceModes: Array.isArray(record.serviceModes) && record.serviceModes.length ? record.serviceModes : [ 'vrs' ],
+        tenantId: record.tenantId?.trim() || 'malka',
         username
     };
 }
@@ -281,11 +305,662 @@ const persistedOpsState = loadPersistedOpsState();
 let authDirectory = mergeAccountRecords(loadAuthDirectory(), persistedOpsState.accounts);
 let auditEvents: OpsAuditEvent[] = Array.isArray(persistedOpsState.audit) ? persistedOpsState.audit : [];
 
-function persistOpsState() {
+function asDate(value: Date | string | null | undefined): Date | undefined {
+    if (!value) {
+        return undefined;
+    }
+
+    return value instanceof Date ? value : new Date(value);
+}
+
+function normalizeCallSession(call: CallSession): CallSession {
+    return {
+        ...call,
+        matchedAt: asDate(call.matchedAt),
+        requestedAt: asDate(call.requestedAt) || new Date(),
+        startedAt: asDate(call.startedAt),
+        endedAt: asDate(call.endedAt),
+        tags: Array.isArray(call.tags) ? call.tags : []
+    };
+}
+
+function normalizeInterpreterRecord(interpreter: Interpreter): Interpreter {
+    return {
+        ...interpreter,
+        createdAt: asDate(interpreter.createdAt) || new Date(),
+        lastLogin: asDate(interpreter.lastLogin),
+        languages: Array.isArray(interpreter.languages) ? interpreter.languages : [ 'ASL' ],
+        totalCallsToday: Number(interpreter.totalCallsToday || 0),
+        totalMinutesToday: Number(interpreter.totalMinutesToday || 0)
+    };
+}
+
+function callFromRow(row: any): CallSession {
+    return normalizeCallSession({
+        clientId: row.client_id,
+        clientName: row.client_name,
+        duration: row.duration ?? undefined,
+        endedAt: row.ended_at,
+        hearingPartyPhone: row.hearing_party_phone || undefined,
+        id: row.id,
+        interpreterId: row.interpreter_id || undefined,
+        interpreterName: row.interpreter_name || undefined,
+        language: row.language,
+        matchedAt: row.matched_at,
+        notes: row.notes || undefined,
+        qualityMetrics: row.quality_metrics || undefined,
+        recordingId: row.recording_id || undefined,
+        recordingUrl: row.recording_url || undefined,
+        requestedAt: row.requested_at,
+        roomId: row.room_id,
+        startedAt: row.started_at,
+        status: row.status,
+        tags: row.tags || [],
+        waitTime: row.wait_time ?? undefined
+    });
+}
+
+function interpreterFromRow(row: any): Interpreter {
+    return normalizeInterpreterRecord({
+        averageCallDuration: row.average_call_duration ?? undefined,
+        createdAt: row.created_at,
+        currentCallId: row.current_call_id || undefined,
+        email: row.email,
+        id: row.id,
+        languages: row.languages || [ 'ASL' ],
+        lastLogin: row.last_login || undefined,
+        name: row.name,
+        rating: row.rating ?? undefined,
+        role: 'interpreter',
+        status: row.status,
+        totalCallsToday: Number(row.total_calls_today || 0),
+        totalMinutesToday: Number(row.total_minutes_today || 0)
+    });
+}
+
+async function initializePostgresOpsState(): Promise<PersistedOpsState | null> {
+    if (!OPS_POSTGRES_ENABLED) {
+        return null;
+    }
+
+    opsPool = new Pool(OPS_DATABASE_URL
+        ? {
+            connectionString: OPS_DATABASE_URL,
+            max: Number(process.env.OPS_PG_POOL_MAX || 10),
+            idleTimeoutMillis: 30000,
+            connectionTimeoutMillis: 5000
+        }
+        : {
+            database: OPS_PGDATABASE,
+            host: OPS_PGHOST,
+            idleTimeoutMillis: 30000,
+            max: Number(process.env.OPS_PG_POOL_MAX || 10),
+            password: OPS_PGPASSWORD,
+            port: OPS_PGPORT,
+            user: OPS_PGUSER,
+            connectionTimeoutMillis: 5000
+        });
+
+    await opsPool.query(`
+        CREATE TABLE IF NOT EXISTS ops_accounts (
+            id TEXT PRIMARY KEY,
+            username TEXT UNIQUE,
+            email TEXT UNIQUE,
+            name TEXT NOT NULL,
+            role TEXT NOT NULL CHECK (role IN ('admin', 'captioner', 'interpreter', 'superadmin')),
+            password_hash TEXT NOT NULL,
+            languages JSONB NOT NULL DEFAULT '["ASL"]',
+            service_modes JSONB NOT NULL DEFAULT '["vrs"]',
+            permissions JSONB NOT NULL DEFAULT '[]',
+            tenant_id TEXT NOT NULL DEFAULT 'malka',
+            organization TEXT NOT NULL DEFAULT '',
+            active BOOLEAN NOT NULL DEFAULT true,
+            created_by TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            last_login_at TIMESTAMPTZ
+        );
+
+        CREATE TABLE IF NOT EXISTS ops_audit (
+            id TEXT PRIMARY KEY,
+            event TEXT NOT NULL,
+            details JSONB NOT NULL DEFAULT '{}',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS ops_interpreters (
+            id TEXT PRIMARY KEY,
+            email TEXT NOT NULL,
+            name TEXT NOT NULL,
+            languages JSONB NOT NULL DEFAULT '["ASL"]',
+            status TEXT NOT NULL DEFAULT 'offline',
+            current_call_id TEXT,
+            total_calls_today INTEGER NOT NULL DEFAULT 0,
+            total_minutes_today INTEGER NOT NULL DEFAULT 0,
+            average_call_duration REAL,
+            rating REAL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            last_login TIMESTAMPTZ,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS ops_call_sessions (
+            id TEXT PRIMARY KEY,
+            room_id TEXT NOT NULL,
+            client_id TEXT NOT NULL,
+            client_name TEXT NOT NULL,
+            interpreter_id TEXT,
+            interpreter_name TEXT,
+            hearing_party_phone TEXT,
+            requested_at TIMESTAMPTZ NOT NULL,
+            matched_at TIMESTAMPTZ,
+            started_at TIMESTAMPTZ,
+            ended_at TIMESTAMPTZ,
+            status TEXT NOT NULL,
+            language TEXT NOT NULL,
+            wait_time INTEGER,
+            duration INTEGER,
+            quality_metrics JSONB,
+            recording_url TEXT,
+            recording_id TEXT,
+            notes TEXT,
+            tags JSONB NOT NULL DEFAULT '[]',
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS ops_daily_stats (
+            date DATE PRIMARY KEY,
+            total_calls INTEGER NOT NULL DEFAULT 0,
+            completed_calls INTEGER NOT NULL DEFAULT 0,
+            abandoned_calls INTEGER NOT NULL DEFAULT 0,
+            average_wait_time INTEGER NOT NULL DEFAULT 0,
+            average_call_duration INTEGER NOT NULL DEFAULT 0,
+            peak_hour INTEGER NOT NULL DEFAULT 0,
+            interpreter_minutes REAL NOT NULL DEFAULT 0,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_ops_accounts_role ON ops_accounts(role);
+        CREATE INDEX IF NOT EXISTS idx_ops_accounts_tenant ON ops_accounts(tenant_id);
+        CREATE INDEX IF NOT EXISTS idx_ops_audit_created_at ON ops_audit(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_ops_interpreters_status ON ops_interpreters(status);
+        CREATE INDEX IF NOT EXISTS idx_ops_call_sessions_status ON ops_call_sessions(status);
+        CREATE INDEX IF NOT EXISTS idx_ops_call_sessions_interpreter ON ops_call_sessions(interpreter_id);
+        CREATE INDEX IF NOT EXISTS idx_ops_call_sessions_requested_at ON ops_call_sessions(requested_at DESC);
+    `);
+
+    if (persistedOpsState.accounts.length) {
+        const existing = await opsPool.query('SELECT COUNT(*)::int AS count FROM ops_accounts');
+        if (!Number(existing.rows[0]?.count || 0)) {
+            for (const record of persistedOpsState.accounts.map(normalizeAccountRecord)) {
+                await upsertOpsAccount(record);
+            }
+            for (const event of auditEvents) {
+                await insertOpsAudit(event);
+            }
+        }
+    }
+
+    const [accountsResult, auditResult, interpreterResult, callResult, statsResult] = await Promise.all([
+        opsPool.query(`
+            SELECT
+                id, username, email, name, role, password_hash, languages,
+                service_modes, permissions, tenant_id, organization, active,
+                created_by, created_at, last_login_at
+            FROM ops_accounts
+            ORDER BY created_at DESC
+        `),
+        opsPool.query(`
+            SELECT id, event, details, created_at
+            FROM ops_audit
+            ORDER BY created_at DESC
+            LIMIT $1
+        `, [MAX_AUDIT_EVENTS]),
+        opsPool.query(`
+            SELECT
+                id, email, name, languages, status, current_call_id,
+                total_calls_today, total_minutes_today, average_call_duration,
+                rating, created_at, last_login
+            FROM ops_interpreters
+            ORDER BY updated_at DESC
+        `),
+        opsPool.query(`
+            SELECT
+                id, room_id, client_id, client_name, interpreter_id, interpreter_name,
+                hearing_party_phone, requested_at, matched_at, started_at, ended_at,
+                status, language, wait_time, duration, quality_metrics, recording_url,
+                recording_id, notes, tags
+            FROM ops_call_sessions
+            ORDER BY requested_at DESC
+        `),
+        opsPool.query(`
+            SELECT
+                date::text AS date, total_calls, completed_calls, abandoned_calls,
+                average_wait_time, average_call_duration, peak_hour, interpreter_minutes
+            FROM ops_daily_stats
+        `)
+    ]);
+
+    interpreters.clear();
+    interpreterResult.rows.map(interpreterFromRow).forEach(interpreter => {
+        interpreters.set(interpreter.id, interpreter);
+    });
+
+    callSessions.clear();
+    activeCalls.clear();
+    callResult.rows.map(callFromRow).forEach(call => {
+        callSessions.set(call.id, call);
+        if (call.status === 'active') {
+            activeCalls.set(call.id, call);
+        }
+    });
+
+    dailyStats.clear();
+    statsResult.rows.forEach(row => {
+        dailyStats.set(row.date, {
+            abandonedCalls: Number(row.abandoned_calls || 0),
+            averageCallDuration: Number(row.average_call_duration || 0),
+            averageWaitTime: Number(row.average_wait_time || 0),
+            completedCalls: Number(row.completed_calls || 0),
+            date: row.date,
+            interpreterMinutes: Number(row.interpreter_minutes || 0),
+            peakHour: Number(row.peak_hour || 0),
+            totalCalls: Number(row.total_calls || 0)
+        });
+    });
+
+    opsStorageReady = true;
+
+    return {
+        accounts: accountsResult.rows.map(row => normalizeAccountRecord({
+            active: row.active,
+            createdAt: row.created_at?.toISOString?.() || String(row.created_at || ''),
+            createdBy: row.created_by || '',
+            email: row.email || '',
+            id: row.id,
+            languages: row.languages || [ 'ASL' ],
+            lastLoginAt: row.last_login_at?.toISOString?.() || null,
+            name: row.name,
+            organization: row.organization || '',
+            passwordHash: row.password_hash,
+            permissions: row.permissions || [],
+            role: row.role,
+            serviceModes: row.service_modes || [ 'vrs' ],
+            tenantId: row.tenant_id || 'malka',
+            username: row.username || ''
+        })),
+        audit: auditResult.rows.map(row => ({
+            details: row.details || {},
+            event: row.event,
+            id: row.id,
+            timestamp: row.created_at?.toISOString?.() || String(row.created_at || '')
+        }))
+    };
+}
+
+async function upsertOpsAccount(record: AuthDirectoryRecord) {
+    if (!opsPool) {
+        return;
+    }
+
+    const normalized = normalizeAccountRecord(record);
+
+    await opsPool.query(`
+        INSERT INTO ops_accounts (
+            id, username, email, name, role, password_hash, languages,
+            service_modes, permissions, tenant_id, organization, active,
+            created_by, created_at, last_login_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10, $11, $12, $13, $14, $15)
+        ON CONFLICT (id) DO UPDATE SET
+            username = EXCLUDED.username,
+            email = EXCLUDED.email,
+            name = EXCLUDED.name,
+            role = EXCLUDED.role,
+            password_hash = EXCLUDED.password_hash,
+            languages = EXCLUDED.languages,
+            service_modes = EXCLUDED.service_modes,
+            permissions = EXCLUDED.permissions,
+            tenant_id = EXCLUDED.tenant_id,
+            organization = EXCLUDED.organization,
+            active = EXCLUDED.active,
+            created_by = EXCLUDED.created_by,
+            created_at = EXCLUDED.created_at,
+            last_login_at = EXCLUDED.last_login_at
+    `, [
+        normalized.id,
+        normalized.username || null,
+        normalized.email || null,
+        normalized.name,
+        normalized.role,
+        normalized.passwordHash,
+        JSON.stringify(normalized.languages || [ 'ASL' ]),
+        JSON.stringify(normalized.serviceModes || [ 'vrs' ]),
+        JSON.stringify(normalized.permissions || []),
+        normalized.tenantId || 'malka',
+        normalized.organization || '',
+        normalized.active !== false,
+        normalized.createdBy || null,
+        normalized.createdAt || new Date().toISOString(),
+        normalized.lastLoginAt || null
+    ]);
+}
+
+async function persistOpsState() {
+    if (opsPool) {
+        await Promise.all(authDirectory.map(record => upsertOpsAccount(record)));
+        return;
+    }
+
     savePersistedOpsState({
         accounts: authDirectory,
         audit: auditEvents
     });
+    opsStorageReady = true;
+}
+
+async function insertOpsAudit(auditEntry: OpsAuditEvent) {
+    if (!opsPool) {
+        return;
+    }
+
+    await opsPool.query(`
+        INSERT INTO ops_audit (id, event, details, created_at)
+        VALUES ($1, $2, $3::jsonb, $4)
+        ON CONFLICT (id) DO NOTHING
+    `, [
+        auditEntry.id,
+        auditEntry.event,
+        JSON.stringify(auditEntry.details || {}),
+        auditEntry.timestamp
+    ]);
+}
+
+async function upsertOpsInterpreter(interpreter: Interpreter) {
+    const normalized = normalizeInterpreterRecord(interpreter);
+    interpreters.set(normalized.id, normalized);
+
+    if (!opsPool) {
+        return normalized;
+    }
+
+    await opsPool.query(`
+        INSERT INTO ops_interpreters (
+            id, email, name, languages, status, current_call_id,
+            total_calls_today, total_minutes_today, average_call_duration,
+            rating, created_at, last_login, updated_at
+        )
+        VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+        ON CONFLICT (id) DO UPDATE SET
+            email = EXCLUDED.email,
+            name = EXCLUDED.name,
+            languages = EXCLUDED.languages,
+            status = EXCLUDED.status,
+            current_call_id = EXCLUDED.current_call_id,
+            total_calls_today = EXCLUDED.total_calls_today,
+            total_minutes_today = EXCLUDED.total_minutes_today,
+            average_call_duration = EXCLUDED.average_call_duration,
+            rating = EXCLUDED.rating,
+            created_at = EXCLUDED.created_at,
+            last_login = EXCLUDED.last_login,
+            updated_at = NOW()
+    `, [
+        normalized.id,
+        normalized.email,
+        normalized.name,
+        JSON.stringify(normalized.languages || [ 'ASL' ]),
+        normalized.status,
+        normalized.currentCallId || null,
+        normalized.totalCallsToday || 0,
+        normalized.totalMinutesToday || 0,
+        normalized.averageCallDuration ?? null,
+        normalized.rating ?? null,
+        normalized.createdAt,
+        normalized.lastLogin || null
+    ]);
+
+    return normalized;
+}
+
+async function upsertOpsCallSession(call: CallSession) {
+    const normalized = normalizeCallSession(call);
+    callSessions.set(normalized.id, normalized);
+    if (normalized.status === 'active') {
+        activeCalls.set(normalized.id, normalized);
+    } else {
+        activeCalls.delete(normalized.id);
+    }
+
+    if (!opsPool) {
+        return normalized;
+    }
+
+    await opsPool.query(`
+        INSERT INTO ops_call_sessions (
+            id, room_id, client_id, client_name, interpreter_id, interpreter_name,
+            hearing_party_phone, requested_at, matched_at, started_at, ended_at,
+            status, language, wait_time, duration, quality_metrics, recording_url,
+            recording_id, notes, tags, updated_at
+        )
+        VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+            $11, $12, $13, $14, $15, $16::jsonb, $17, $18, $19, $20::jsonb, NOW()
+        )
+        ON CONFLICT (id) DO UPDATE SET
+            room_id = EXCLUDED.room_id,
+            client_id = EXCLUDED.client_id,
+            client_name = EXCLUDED.client_name,
+            interpreter_id = EXCLUDED.interpreter_id,
+            interpreter_name = EXCLUDED.interpreter_name,
+            hearing_party_phone = EXCLUDED.hearing_party_phone,
+            requested_at = EXCLUDED.requested_at,
+            matched_at = EXCLUDED.matched_at,
+            started_at = EXCLUDED.started_at,
+            ended_at = EXCLUDED.ended_at,
+            status = EXCLUDED.status,
+            language = EXCLUDED.language,
+            wait_time = EXCLUDED.wait_time,
+            duration = EXCLUDED.duration,
+            quality_metrics = EXCLUDED.quality_metrics,
+            recording_url = EXCLUDED.recording_url,
+            recording_id = EXCLUDED.recording_id,
+            notes = EXCLUDED.notes,
+            tags = EXCLUDED.tags,
+            updated_at = NOW()
+    `, [
+        normalized.id,
+        normalized.roomId,
+        normalized.clientId,
+        normalized.clientName,
+        normalized.interpreterId || null,
+        normalized.interpreterName || null,
+        normalized.hearingPartyPhone || null,
+        normalized.requestedAt,
+        normalized.matchedAt || null,
+        normalized.startedAt || null,
+        normalized.endedAt || null,
+        normalized.status,
+        normalized.language,
+        normalized.waitTime ?? null,
+        normalized.duration ?? null,
+        normalized.qualityMetrics ? JSON.stringify(normalized.qualityMetrics) : null,
+        normalized.recordingUrl || null,
+        normalized.recordingId || null,
+        normalized.notes || null,
+        JSON.stringify(normalized.tags || [])
+    ]);
+
+    return normalized;
+}
+
+async function upsertOpsDailyStats(stats: DailyStats) {
+    dailyStats.set(stats.date, stats);
+
+    if (!opsPool) {
+        return;
+    }
+
+    await opsPool.query(`
+        INSERT INTO ops_daily_stats (
+            date, total_calls, completed_calls, abandoned_calls,
+            average_wait_time, average_call_duration, peak_hour,
+            interpreter_minutes, updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+        ON CONFLICT (date) DO UPDATE SET
+            total_calls = EXCLUDED.total_calls,
+            completed_calls = EXCLUDED.completed_calls,
+            abandoned_calls = EXCLUDED.abandoned_calls,
+            average_wait_time = EXCLUDED.average_wait_time,
+            average_call_duration = EXCLUDED.average_call_duration,
+            peak_hour = EXCLUDED.peak_hour,
+            interpreter_minutes = EXCLUDED.interpreter_minutes,
+            updated_at = NOW()
+    `, [
+        stats.date,
+        stats.totalCalls,
+        stats.completedCalls,
+        stats.abandonedCalls,
+        stats.averageWaitTime,
+        stats.averageCallDuration,
+        stats.peakHour,
+        stats.interpreterMinutes
+    ]);
+}
+
+async function getOpsInterpreters(status?: string): Promise<Interpreter[]> {
+    if (!opsPool) {
+        const values = Array.from(interpreters.values());
+        return status ? values.filter(interpreter => interpreter.status === status) : values;
+    }
+
+    const result = status
+        ? await opsPool.query(`
+            SELECT
+                id, email, name, languages, status, current_call_id,
+                total_calls_today, total_minutes_today, average_call_duration,
+                rating, created_at, last_login
+            FROM ops_interpreters
+            WHERE status = $1
+            ORDER BY updated_at DESC
+        `, [status])
+        : await opsPool.query(`
+            SELECT
+                id, email, name, languages, status, current_call_id,
+                total_calls_today, total_minutes_today, average_call_duration,
+                rating, created_at, last_login
+            FROM ops_interpreters
+            ORDER BY updated_at DESC
+        `);
+
+    const rows = result.rows.map(interpreterFromRow);
+    rows.forEach(interpreter => interpreters.set(interpreter.id, interpreter));
+    return rows;
+}
+
+async function getOpsInterpreter(interpreterId: string): Promise<Interpreter | undefined> {
+    if (!opsPool) {
+        return interpreters.get(interpreterId);
+    }
+
+    const result = await opsPool.query(`
+        SELECT
+            id, email, name, languages, status, current_call_id,
+            total_calls_today, total_minutes_today, average_call_duration,
+            rating, created_at, last_login
+        FROM ops_interpreters
+        WHERE id = $1
+    `, [interpreterId]);
+
+    if (!result.rows[0]) {
+        return undefined;
+    }
+
+    const interpreter = interpreterFromRow(result.rows[0]);
+    interpreters.set(interpreter.id, interpreter);
+    return interpreter;
+}
+
+async function getOpsCall(callId: string): Promise<CallSession | undefined> {
+    if (!opsPool) {
+        return callSessions.get(callId);
+    }
+
+    const result = await opsPool.query(`
+        SELECT
+            id, room_id, client_id, client_name, interpreter_id, interpreter_name,
+            hearing_party_phone, requested_at, matched_at, started_at, ended_at,
+            status, language, wait_time, duration, quality_metrics, recording_url,
+            recording_id, notes, tags
+        FROM ops_call_sessions
+        WHERE id = $1
+    `, [callId]);
+
+    if (!result.rows[0]) {
+        return undefined;
+    }
+
+    const call = callFromRow(result.rows[0]);
+    callSessions.set(call.id, call);
+    if (call.status === 'active') {
+        activeCalls.set(call.id, call);
+    }
+    return call;
+}
+
+async function getOpsCalls(filters: {
+    date?: string;
+    interpreterId?: string;
+    limit?: number;
+    status?: string;
+} = {}): Promise<CallSession[]> {
+    if (!opsPool) {
+        let calls = Array.from(callSessions.values());
+        if (filters.status) calls = calls.filter(call => call.status === filters.status);
+        if (filters.interpreterId) calls = calls.filter(call => call.interpreterId === filters.interpreterId);
+        if (filters.date) {
+            const filterDate = new Date(filters.date).toDateString();
+            calls = calls.filter(call => call.requestedAt.toDateString() === filterDate);
+        }
+        return calls
+            .sort((a, b) => b.requestedAt.getTime() - a.requestedAt.getTime())
+            .slice(0, filters.limit || 100);
+    }
+
+    const clauses: string[] = [];
+    const params: unknown[] = [];
+
+    if (filters.status) {
+        params.push(filters.status);
+        clauses.push(`status = $${params.length}`);
+    }
+
+    if (filters.interpreterId) {
+        params.push(filters.interpreterId);
+        clauses.push(`interpreter_id = $${params.length}`);
+    }
+
+    if (filters.date) {
+        params.push(filters.date);
+        clauses.push(`requested_at::date = $${params.length}::date`);
+    }
+
+    params.push(Math.min(Math.max(Number(filters.limit || 100), 1), 500));
+
+    const result = await opsPool.query(`
+        SELECT
+            id, room_id, client_id, client_name, interpreter_id, interpreter_name,
+            hearing_party_phone, requested_at, matched_at, started_at, ended_at,
+            status, language, wait_time, duration, quality_metrics, recording_url,
+            recording_id, notes, tags
+        FROM ops_call_sessions
+        ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''}
+        ORDER BY requested_at DESC
+        LIMIT $${params.length}
+    `, params);
+
+    const calls = result.rows.map(callFromRow);
+    calls.forEach(call => callSessions.set(call.id, call));
+    return calls;
 }
 
 function sanitizeAccount(record: AuthDirectoryRecord) {
@@ -298,7 +973,11 @@ function sanitizeAccount(record: AuthDirectoryRecord) {
         languages: record.languages || [],
         lastLoginAt: record.lastLoginAt || null,
         name: record.name,
+        organization: record.organization || '',
+        permissions: record.permissions || [],
         role: record.role,
+        serviceModes: record.serviceModes || [ 'vrs' ],
+        tenantId: record.tenantId || 'malka',
         username: record.username || ''
     };
 }
@@ -312,7 +991,8 @@ function recordOpsAudit(event: string, details: Record<string, unknown>) {
     };
 
     auditEvents = [ auditEntry, ...auditEvents ].slice(0, MAX_AUDIT_EVENTS);
-    persistOpsState();
+    void persistOpsState();
+    void insertOpsAudit(auditEntry);
 
     if (typeof broadcastEvent === 'function') {
         broadcastEvent('ops_audit', auditEntry);
@@ -339,7 +1019,7 @@ function findAuthRecord(identifier: string, role?: 'admin' | 'captioner' | 'inte
     }) || null;
 }
 
-function assertBootstrapSuperadmin() {
+async function assertBootstrapSuperadmin() {
     if (!BOOTSTRAP_SUPERADMIN_ENABLED) {
         return;
     }
@@ -358,13 +1038,13 @@ function assertBootstrapSuperadmin() {
         authDirectory = authDirectory.map(record =>
             record.id === existing.id ? updatedBootstrap : record
         );
-        persistOpsState();
+        await persistOpsState();
         return;
     }
 
     const bootstrapRecord = createBootstrapSuperadminRecord();
     authDirectory = [ bootstrapRecord, ...authDirectory ];
-    persistOpsState();
+    await persistOpsState();
     console.warn(`[Security] Bootstrap superadmin enabled for local ops: ${BOOTSTRAP_SUPERADMIN_USERNAME} / ${BOOTSTRAP_SUPERADMIN_PASSWORD}`);
 }
 
@@ -417,8 +1097,20 @@ function assertSecureConfig() {
     }
 }
 
-assertBootstrapSuperadmin();
-assertSecureConfig();
+async function initializeOpsState() {
+    const postgresState = await initializePostgresOpsState();
+    if (postgresState) {
+        authDirectory = mergeAccountRecords(loadAuthDirectory(), postgresState.accounts);
+        auditEvents = Array.isArray(postgresState.audit) ? postgresState.audit : [];
+        opsStorage = 'postgres';
+    } else {
+        opsStorage = 'json';
+        opsStorageReady = fs.existsSync(OPS_STATE_FILE);
+    }
+
+    await assertBootstrapSuperadmin();
+    assertSecureConfig();
+}
 
 function getOpsWarnings() {
     const warnings: string[] = [];
@@ -444,13 +1136,14 @@ function getOpsHealthSnapshot() {
     const warnings = getOpsWarnings();
     const authDirectoryConfigured = authDirectory.length > 0;
     const storageFileExists = fs.existsSync(OPS_STATE_FILE);
-    const ready = Boolean(JWT_SECRET) && authDirectoryConfigured && storageFileExists;
+    const ready = Boolean(JWT_SECRET) && authDirectoryConfigured && opsStorageReady;
 
     return {
         checks: {
             authConfigured: Boolean(JWT_SECRET),
             authDirectoryConfigured,
-            persistentStateAccessible: storageFileExists,
+            persistentStateAccessible: opsStorageReady,
+            postgresReady: opsStorage === 'postgres' && opsStorageReady,
             websocketReady: Boolean(wss)
         },
         ready,
@@ -463,8 +1156,9 @@ function getOpsHealthSnapshot() {
             auth: authDirectoryConfigured ? 'ready' : 'missing_credentials',
             opsWebSocketClients: wsClients.size,
             queueApi: 'external',
+            storage: opsStorage,
             storageFile: OPS_STATE_FILE,
-            storageState: storageFileExists ? 'ready' : 'missing'
+            storageState: opsStorageReady ? 'ready' : storageFileExists ? 'file_only' : 'missing'
         }
     };
 }
@@ -612,7 +1306,7 @@ app.post('/api/auth/login', validateRequest(loginSchema), async (req: Request, r
             ...authDirectory[accountIndex],
             lastLoginAt: new Date().toISOString()
         };
-        persistOpsState();
+        await persistOpsState();
     }
 
     const token = jwt.sign(
@@ -685,131 +1379,125 @@ app.get('/api/readiness', (_req: Request, res: Response) => {
 /**
  * Log a new call request
  */
-app.post('/api/calls', authenticateToken, validateRequest(createCallSchema), (req: Request, res: Response) => {
+app.post('/api/calls', authenticateToken, validateRequest(createCallSchema), async (req: Request, res: Response, next: NextFunction) => {
     const { clientId, clientName, language, roomId } = req.body;
 
-    const callId = uuidv4();
-    const call: CallSession = {
-        id: callId,
-        roomId: roomId || `vrs-${callId}`,
-        clientId: clientId || 'anonymous',
-        clientName: clientName || 'Guest',
-        language: language || 'ASL',
-        status: 'waiting',
-        requestedAt: new Date()
-    };
+    try {
+        const callId = uuidv4();
+        const call: CallSession = await upsertOpsCallSession({
+            id: callId,
+            roomId: roomId || `vrs-${callId}`,
+            clientId: clientId || 'anonymous',
+            clientName: clientName || 'Guest',
+            language: language || 'ASL',
+            status: 'waiting',
+            requestedAt: new Date()
+        });
 
-    callSessions.set(callId, call);
+        broadcastEvent('call_request', call);
 
-    // Broadcast to WebSocket clients
-    broadcastEvent('call_request', call);
-
-    res.status(201).json(call);
+        res.status(201).json(call);
+    } catch (error) {
+        next(error);
+    }
 });
 
 /**
  * Update call status
  */
-app.patch('/api/calls/:callId', authenticateToken, validateRequest(updateCallSchema), (req: Request, res: Response) => {
+app.patch('/api/calls/:callId', authenticateToken, validateRequest(updateCallSchema), async (req: Request, res: Response, next: NextFunction) => {
     const { callId } = req.params;
     const updates = req.body;
 
-    const call = callSessions.get(callId);
-    if (!call) {
-        res.status(404).json({ error: 'Call not found', code: 'NOT_FOUND' });
-        return;
-    }
-
-    // Apply updates
-    Object.assign(call, updates);
-
-    // Handle status changes
-    if (updates.status === 'active' && !call.startedAt) {
-        call.startedAt = new Date();
-        call.matchedAt = call.matchedAt || new Date();
-        call.waitTime = Math.round((call.matchedAt.getTime() - call.requestedAt.getTime()) / 1000);
-        activeCalls.set(callId, call);
-
-        // Update interpreter status
-        if (call.interpreterId) {
-            const interpreter = interpreters.get(call.interpreterId);
-            if (interpreter) {
-                interpreter.status = 'busy';
-                interpreter.currentCallId = callId;
-            }
+    try {
+        const call = await getOpsCall(callId);
+        if (!call) {
+            res.status(404).json({ error: 'Call not found', code: 'NOT_FOUND' });
+            return;
         }
-    }
 
-    if (updates.status === 'ended' || updates.status === 'abandoned') {
-        call.endedAt = new Date();
-        if (call.startedAt) {
-            call.duration = Math.round((call.endedAt.getTime() - call.startedAt.getTime()) / 1000);
-        }
-        activeCalls.delete(callId);
+        Object.assign(call, updates);
 
-        // Update interpreter status
-        if (call.interpreterId) {
-            const interpreter = interpreters.get(call.interpreterId);
-            if (interpreter) {
-                interpreter.status = 'available';
-                interpreter.currentCallId = undefined;
-                interpreter.totalCallsToday++;
-                interpreter.totalMinutesToday += Math.round((call.duration || 0) / 60);
+        if (updates.status === 'active' && !call.startedAt) {
+            call.startedAt = new Date();
+            call.matchedAt = call.matchedAt || new Date();
+            call.waitTime = Math.round((call.matchedAt.getTime() - call.requestedAt.getTime()) / 1000);
+
+            if (call.interpreterId) {
+                const interpreter = await getOpsInterpreter(call.interpreterId);
+                if (interpreter) {
+                    interpreter.status = 'busy';
+                    interpreter.currentCallId = callId;
+                    await upsertOpsInterpreter(interpreter);
+                }
             }
         }
 
-        // Update daily stats
-        updateDailyStats(call);
+        if (updates.status === 'ended' || updates.status === 'abandoned') {
+            call.endedAt = new Date();
+            if (call.startedAt) {
+                call.duration = Math.round((call.endedAt.getTime() - call.startedAt.getTime()) / 1000);
+            }
+
+            if (call.interpreterId) {
+                const interpreter = await getOpsInterpreter(call.interpreterId);
+                if (interpreter) {
+                    interpreter.status = 'available';
+                    interpreter.currentCallId = undefined;
+                    interpreter.totalCallsToday++;
+                    interpreter.totalMinutesToday += Math.round((call.duration || 0) / 60);
+                    await upsertOpsInterpreter(interpreter);
+                }
+            }
+
+            await updateDailyStats(call);
+        }
+
+        const persistedCall = await upsertOpsCallSession(call);
+        broadcastEvent('call_update', persistedCall);
+
+        res.json(persistedCall);
+    } catch (error) {
+        next(error);
     }
-
-    // Broadcast update
-    broadcastEvent('call_update', call);
-
-    res.json(call);
 });
 
 /**
  * Get call history
  */
-app.get('/api/calls', authenticateToken, requireRole('admin', 'interpreter'), (req: Request, res: Response) => {
+app.get('/api/calls', authenticateToken, requireRole('admin', 'interpreter'), async (req: Request, res: Response, next: NextFunction) => {
     const { status, date, interpreterId, limit = 100 } = req.query;
 
-    let calls = Array.from(callSessions.values());
-
-    // Filters
-    if (status) {
-        calls = calls.filter(c => c.status === status);
+    try {
+        const calls = await getOpsCalls({
+            date: date ? String(date) : undefined,
+            interpreterId: interpreterId ? String(interpreterId) : undefined,
+            limit: Number(limit),
+            status: status ? String(status) : undefined
+        });
+        res.json(calls);
+    } catch (error) {
+        next(error);
     }
-    if (date) {
-        const filterDate = new Date(date as string).toDateString();
-        calls = calls.filter(c => c.requestedAt.toDateString() === filterDate);
-    }
-    if (interpreterId) {
-        calls = calls.filter(c => c.interpreterId === interpreterId);
-    }
-
-    // Sort by most recent first
-    calls.sort((a, b) => b.requestedAt.getTime() - a.requestedAt.getTime());
-
-    // Limit
-    calls = calls.slice(0, Number(limit));
-
-    res.json(calls);
 });
 
 /**
  * Get single call details
  */
-app.get('/api/calls/:callId', authenticateToken, (req: Request, res: Response) => {
+app.get('/api/calls/:callId', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     const { callId } = req.params;
-    const call = callSessions.get(callId);
 
-    if (!call) {
-        res.status(404).json({ error: 'Call not found', code: 'NOT_FOUND' });
-        return;
+    try {
+        const call = await getOpsCall(callId);
+        if (!call) {
+            res.status(404).json({ error: 'Call not found', code: 'NOT_FOUND' });
+            return;
+        }
+
+        res.json(call);
+    } catch (error) {
+        next(error);
     }
-
-    res.json(call);
 });
 
 // ==================== Interpreter Endpoints ====================
@@ -817,88 +1505,91 @@ app.get('/api/calls/:callId', authenticateToken, (req: Request, res: Response) =
 /**
  * Get all interpreters
  */
-app.get('/api/interpreters', authenticateToken, (req: Request, res: Response) => {
+app.get('/api/interpreters', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     const { status } = req.query;
 
-    let interpreterList = Array.from(interpreters.values());
-
-    if (status) {
-        interpreterList = interpreterList.filter(i => i.status === status);
+    try {
+        const interpreterList = await getOpsInterpreters(status ? String(status) : undefined);
+        res.json(interpreterList);
+    } catch (error) {
+        next(error);
     }
-
-    res.json(interpreterList);
 });
 
 /**
  * Update interpreter status
  */
-app.patch('/api/interpreters/:interpreterId/status', authenticateToken, validateRequest(updateInterpreterStatusSchema), (req: Request, res: Response) => {
+app.patch('/api/interpreters/:interpreterId/status', authenticateToken, validateRequest(updateInterpreterStatusSchema), async (req: Request, res: Response, next: NextFunction) => {
     const { interpreterId } = req.params;
     const { status } = req.body;
 
-    let interpreter = interpreters.get(interpreterId);
+    try {
+        let interpreter = await getOpsInterpreter(interpreterId);
 
-    if (!interpreter) {
-        // Create interpreter if doesn't exist
-        const user = (req as any).user as AuthToken;
-        interpreter = {
-            id: interpreterId,
-            email: user.email,
-            name: user.name,
-            role: 'interpreter',
-            languages: user.languages || ['ASL'],
-            status: status || 'available',
-            totalCallsToday: 0,
-            totalMinutesToday: 0,
-            createdAt: new Date()
-        };
-        interpreters.set(interpreterId, interpreter);
-    } else {
-        interpreter.status = status || interpreter.status;
+        if (!interpreter) {
+            const user = (req as any).user as AuthToken;
+            interpreter = {
+                id: interpreterId,
+                email: user.email,
+                name: user.name,
+                role: 'interpreter',
+                languages: user.languages || ['ASL'],
+                status: status || 'available',
+                totalCallsToday: 0,
+                totalMinutesToday: 0,
+                createdAt: new Date()
+            };
+        } else {
+            interpreter.status = status || interpreter.status;
+        }
+
+        const persistedInterpreter = await upsertOpsInterpreter(interpreter);
+        broadcastEvent('interpreter_status', persistedInterpreter);
+
+        res.json(persistedInterpreter);
+    } catch (error) {
+        next(error);
     }
-
-    // Broadcast status change
-    broadcastEvent('interpreter_status', interpreter);
-
-    res.json(interpreter);
 });
 
 /**
  * Get interpreter stats
  */
-app.get('/api/interpreters/:interpreterId/stats', authenticateToken, (req: Request, res: Response) => {
+app.get('/api/interpreters/:interpreterId/stats', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
     const { interpreterId } = req.params;
 
-    const interpreter = interpreters.get(interpreterId);
-    if (!interpreter) {
-        res.status(404).json({ error: 'Interpreter not found', code: 'NOT_FOUND' });
-        return;
+    try {
+        const interpreter = await getOpsInterpreter(interpreterId);
+        if (!interpreter) {
+            res.status(404).json({ error: 'Interpreter not found', code: 'NOT_FOUND' });
+            return;
+        }
+
+        const today = new Date().toISOString().slice(0, 10);
+        const todayCalls = await getOpsCalls({ date: today, interpreterId, limit: 500 });
+
+        const stats = {
+            interpreter: {
+                id: interpreter.id,
+                name: interpreter.name,
+                status: interpreter.status,
+                languages: interpreter.languages
+            },
+            today: {
+                totalCalls: todayCalls.length,
+                completedCalls: todayCalls.filter(c => c.status === 'ended').length,
+                totalMinutes: interpreter.totalMinutesToday,
+                averageCallDuration: todayCalls.length > 0
+                    ? Math.round(todayCalls.reduce((sum, c) => sum + (c.duration || 0), 0) / todayCalls.length)
+                    : 0
+            },
+            currentCall: interpreter.currentCallId ? await getOpsCall(interpreter.currentCallId) : null
+        };
+
+        res.json(stats);
+    } catch (error) {
+        next(error);
     }
-
-    // Get calls for this interpreter today
-    const today = new Date().toDateString();
-    const todayCalls = Array.from(callSessions.values())
-        .filter(c => c.interpreterId === interpreterId && c.requestedAt.toDateString() === today);
-
-    const stats = {
-        interpreter: {
-            id: interpreter.id,
-            name: interpreter.name,
-            status: interpreter.status,
-            languages: interpreter.languages
-        },
-        today: {
-            totalCalls: todayCalls.length,
-            completedCalls: todayCalls.filter(c => c.status === 'ended').length,
-            totalMinutes: interpreter.totalMinutesToday,
-            averageCallDuration: todayCalls.length > 0
-                ? Math.round(todayCalls.reduce((sum, c) => sum + (c.duration || 0), 0) / todayCalls.length)
-                : 0
-        },
-        currentCall: interpreter.currentCallId ? callSessions.get(interpreter.currentCallId) : null
-    };
-
-    res.json(stats);
 });
 
 // ==================== Dashboard Endpoints ====================
@@ -906,96 +1597,98 @@ app.get('/api/interpreters/:interpreterId/stats', authenticateToken, (req: Reque
 /**
  * Get queue stats
  */
-app.get('/api/dashboard/queue', authenticateToken, (req: Request, res: Response) => {
-    const pendingCalls = Array.from(callSessions.values())
-        .filter(c => c.status === 'waiting');
+app.get('/api/dashboard/queue', authenticateToken, async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+        const pendingCalls = await getOpsCalls({ status: 'waiting', limit: 500 });
+        const allInterpreters = await getOpsInterpreters();
+        const availableInterpreters = allInterpreters.filter(i => i.status === 'available');
+        const waitTimes = pendingCalls.map(c => Math.round((Date.now() - c.requestedAt.getTime()) / 1000));
 
-    const availableInterpreters = Array.from(interpreters.values())
-        .filter(i => i.status === 'available');
+        const stats: QueueStats = {
+            pendingRequests: pendingCalls.length,
+            activeInterpreters: allInterpreters.length,
+            availableInterpreters: availableInterpreters.length,
+            averageWaitTime: waitTimes.length > 0
+                ? Math.round(waitTimes.reduce((a, b) => a + b, 0) / waitTimes.length)
+                : 0,
+            longestWaitTime: waitTimes.length > 0 ? Math.max(...waitTimes) : 0
+        };
 
-    const waitTimes = pendingCalls
-        .map(c => Math.round((Date.now() - c.requestedAt.getTime()) / 1000));
-
-    const stats: QueueStats = {
-        pendingRequests: pendingCalls.length,
-        activeInterpreters: interpreters.size,
-        availableInterpreters: availableInterpreters.length,
-        averageWaitTime: waitTimes.length > 0
-            ? Math.round(waitTimes.reduce((a, b) => a + b, 0) / waitTimes.length)
-            : 0,
-        longestWaitTime: waitTimes.length > 0 ? Math.max(...waitTimes) : 0
-    };
-
-    res.json(stats);
+        res.json(stats);
+    } catch (error) {
+        next(error);
+    }
 });
 
 /**
  * Get live dashboard data
  */
-app.get('/api/dashboard/live', authenticateToken, (req: Request, res: Response) => {
-    const activeInterpreters = Array.from(interpreters.values())
-        .filter(i => i.status !== 'offline');
+app.get('/api/dashboard/live', authenticateToken, async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+        const allInterpreters = await getOpsInterpreters();
+        const activeInterpreters = allInterpreters.filter(i => i.status !== 'offline');
+        const pendingCalls = await getOpsCalls({ status: 'waiting', limit: 500 });
+        const currentCalls = await getOpsCalls({ status: 'active', limit: 500 });
 
-    const pendingCalls = Array.from(callSessions.values())
-        .filter(c => c.status === 'waiting');
-
-    const currentCalls = Array.from(activeCalls.values());
-
-    res.json({
-        timestamp: new Date(),
-        interpreters: {
-            total: interpreters.size,
-            online: activeInterpreters.length,
-            available: activeInterpreters.filter(i => i.status === 'available').length,
-            busy: activeInterpreters.filter(i => i.status === 'busy').length,
-            onBreak: activeInterpreters.filter(i => i.status === 'break').length
-        },
-        queue: {
-            pending: pendingCalls.length,
-            averageWait: calculateAverageWait(pendingCalls)
-        },
-        calls: {
-            active: currentCalls.length,
-            list: currentCalls.map(c => ({
-                id: c.id,
-                clientName: c.clientName,
-                interpreterName: c.interpreterName,
-                language: c.language,
-                duration: c.startedAt ? Math.round((Date.now() - c.startedAt.getTime()) / 1000) : 0
-            }))
-        }
-    });
+        res.json({
+            timestamp: new Date(),
+            interpreters: {
+                total: allInterpreters.length,
+                online: activeInterpreters.length,
+                available: activeInterpreters.filter(i => i.status === 'available').length,
+                busy: activeInterpreters.filter(i => i.status === 'busy').length,
+                onBreak: activeInterpreters.filter(i => i.status === 'break').length
+            },
+            queue: {
+                pending: pendingCalls.length,
+                averageWait: calculateAverageWait(pendingCalls)
+            },
+            calls: {
+                active: currentCalls.length,
+                list: currentCalls.map(c => ({
+                    id: c.id,
+                    clientName: c.clientName,
+                    interpreterName: c.interpreterName,
+                    language: c.language,
+                    duration: c.startedAt ? Math.round((Date.now() - c.startedAt.getTime()) / 1000) : 0
+                }))
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
 });
 
 /**
  * Get daily stats
  */
-app.get('/api/dashboard/stats/:date?', authenticateToken, requireRole('admin', 'superadmin'), (req: Request, res: Response) => {
+app.get('/api/dashboard/stats/:date?', authenticateToken, requireRole('admin', 'superadmin'), async (req: Request, res: Response, next: NextFunction) => {
     const date = req.params.date || new Date().toISOString().split('T')[0];
 
-    let stats = dailyStats.get(date);
+    try {
+        let stats = dailyStats.get(date);
 
-    if (!stats) {
-        // Calculate stats for the date
-        const targetDate = new Date(date);
-        const dayCalls = Array.from(callSessions.values())
-            .filter(c => c.requestedAt.toDateString() === targetDate.toDateString());
+        if (!stats) {
+            const dayCalls = await getOpsCalls({ date, limit: 500 });
 
-        stats = {
-            date,
-            totalCalls: dayCalls.length,
-            completedCalls: dayCalls.filter(c => c.status === 'ended').length,
-            abandonedCalls: dayCalls.filter(c => c.status === 'abandoned').length,
-            averageWaitTime: calculateAverage(dayCalls.map(c => c.waitTime || 0)),
-            averageCallDuration: calculateAverage(dayCalls.map(c => c.duration || 0)),
-            peakHour: calculatePeakHour(dayCalls),
-            interpreterMinutes: dayCalls.reduce((sum, c) => sum + (c.duration || 0), 0) / 60
-        };
+            stats = {
+                date,
+                totalCalls: dayCalls.length,
+                completedCalls: dayCalls.filter(c => c.status === 'ended').length,
+                abandonedCalls: dayCalls.filter(c => c.status === 'abandoned').length,
+                averageWaitTime: calculateAverage(dayCalls.map(c => c.waitTime || 0)),
+                averageCallDuration: calculateAverage(dayCalls.map(c => c.duration || 0)),
+                peakHour: calculatePeakHour(dayCalls),
+                interpreterMinutes: dayCalls.reduce((sum, c) => sum + (c.duration || 0), 0) / 60
+            };
 
-        dailyStats.set(date, stats);
+            await upsertOpsDailyStats(stats);
+        }
+
+        res.json(stats);
+    } catch (error) {
+        next(error);
     }
-
-    res.json(stats);
 });
 
 function ensureUniqueAccountFields(account: AuthDirectoryRecord, existingId?: string) {
@@ -1025,7 +1718,7 @@ app.get('/api/admin/accounts', authenticateToken, requireRole('superadmin'), (_r
 
 app.post('/api/admin/accounts', authenticateToken, requireRole('superadmin'), validateRequest(createAccountSchema), async (req: Request, res: Response) => {
     const actor = (req as any).user as AuthToken;
-    const { email, languages, name, password, role, username } = req.body;
+    const { email, languages, name, organization, password, permissions, role, serviceModes, tenantId, username } = req.body;
     const normalizedRole = role === 'superadmin'
         ? 'superadmin'
         : role === 'admin'
@@ -1059,8 +1752,12 @@ app.post('/api/admin/accounts', authenticateToken, requireRole('superadmin'), va
         email: String(email || '').trim(),
         languages: Array.isArray(languages) && languages.length ? languages : [ 'ASL' ],
         name: normalizedName,
+        organization: String(organization || '').trim(),
         passwordHash: await bcrypt.hash(password, 10),
+        permissions: Array.isArray(permissions) ? permissions : [],
         role: normalizedRole,
+        serviceModes: Array.isArray(serviceModes) && serviceModes.length ? serviceModes : [ 'vrs' ],
+        tenantId: String(tenantId || 'malka').trim() || 'malka',
         username: normalizedUsername
     });
 
@@ -1070,13 +1767,15 @@ app.post('/api/admin/accounts', authenticateToken, requireRole('superadmin'), va
     }
 
     authDirectory = [ nextAccount, ...authDirectory ];
-    persistOpsState();
+    await persistOpsState();
     recordOpsAudit('account_created', {
         accountId: nextAccount.id,
         actorId: actor.userId,
         actorRole: actor.role,
         createdRole: normalizedRole,
         email: getAccountPublicEmail(nextAccount),
+        serviceModes: nextAccount.serviceModes || [ 'vrs' ],
+        tenantId: nextAccount.tenantId || 'malka',
         username: nextAccount.username || ''
     });
 
@@ -1098,31 +1797,40 @@ app.get('/api/admin/audit', authenticateToken, requireRole('admin', 'superadmin'
     res.json(auditEvents.slice(0, limit));
 });
 
-app.get('/api/admin/monitoring/summary', authenticateToken, requireRole('admin', 'superadmin'), (_req: Request, res: Response) => {
+app.get('/api/admin/monitoring/summary', authenticateToken, requireRole('admin', 'superadmin'), async (_req: Request, res: Response, next: NextFunction) => {
     const now = Date.now();
     const authFailures = Array.from(authAttemptStore.values())
         .filter(entry => entry.expiresAt > now)
         .reduce((sum, entry) => sum + entry.attempts, 0);
     const health = getOpsHealthSnapshot();
 
-    res.json({
-        auth: {
-            activeAccounts: authDirectory.filter(account => account.active !== false).length,
-            bootstrapSuperadminEnabled: BOOTSTRAP_SUPERADMIN_ENABLED,
-            lockedOutBuckets: Array.from(authAttemptStore.values()).filter(entry => entry.expiresAt > now).length,
-            recentFailedAttempts: authFailures
-        },
-        queue: {
-            activeCalls: activeCalls.size,
-            pendingRequests: Array.from(callSessions.values()).filter(call => call.status === 'waiting').length
-        },
-        ready: health.ready,
-        services: health.services,
-        status: health.status,
-        timestamp: health.timestamp,
-        uptime: health.uptime,
-        warnings: health.warnings
-    });
+    try {
+        const [activeCallList, pendingCallList] = await Promise.all([
+            getOpsCalls({ status: 'active', limit: 500 }),
+            getOpsCalls({ status: 'waiting', limit: 500 })
+        ]);
+
+        res.json({
+            auth: {
+                activeAccounts: authDirectory.filter(account => account.active !== false).length,
+                bootstrapSuperadminEnabled: BOOTSTRAP_SUPERADMIN_ENABLED,
+                lockedOutBuckets: Array.from(authAttemptStore.values()).filter(entry => entry.expiresAt > now).length,
+                recentFailedAttempts: authFailures
+            },
+            queue: {
+                activeCalls: activeCallList.length,
+                pendingRequests: pendingCallList.length
+            },
+            ready: health.ready,
+            services: health.services,
+            status: health.status,
+            timestamp: health.timestamp,
+            uptime: health.uptime,
+            warnings: health.warnings
+        });
+    } catch (error) {
+        next(error);
+    }
 });
 
 // ==================== WebSocket ====================
@@ -1131,8 +1839,7 @@ wss.on('connection', (ws: WebSocket) => {
     console.log('WebSocket client connected');
     wsClients.add(ws);
 
-    // Send initial state
-    sendInitialState(ws);
+    void sendInitialState(ws);
 
     ws.on('close', () => {
         wsClients.delete(ws);
@@ -1145,16 +1852,28 @@ wss.on('connection', (ws: WebSocket) => {
     });
 });
 
-function sendInitialState(ws: WebSocket): void {
-    const state = {
-        type: 'initial_state',
-        data: {
-            interpreters: Array.from(interpreters.values()),
-            pendingCalls: Array.from(callSessions.values()).filter(c => c.status === 'waiting'),
-            activeCalls: Array.from(activeCalls.values())
+async function sendInitialState(ws: WebSocket): Promise<void> {
+    try {
+        const [initialInterpreters, pendingCalls, activeCallList] = await Promise.all([
+            getOpsInterpreters(),
+            getOpsCalls({ status: 'waiting', limit: 500 }),
+            getOpsCalls({ status: 'active', limit: 500 })
+        ]);
+        const state = {
+            type: 'initial_state',
+            data: {
+                interpreters: initialInterpreters,
+                pendingCalls,
+                activeCalls: activeCallList
+            }
+        };
+
+        if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(state));
         }
-    };
-    ws.send(JSON.stringify(state));
+    } catch (error) {
+        console.error('[OpsServer] Failed to send initial WebSocket state:', error);
+    }
 }
 
 function broadcastEvent(eventType: string, data: any): void {
@@ -1190,7 +1909,7 @@ function calculatePeakHour(calls: CallSession[]): number {
     return hourCounts.indexOf(Math.max(...hourCounts));
 }
 
-function updateDailyStats(call: CallSession): void {
+async function updateDailyStats(call: CallSession): Promise<void> {
     const date = call.requestedAt.toISOString().split('T')[0];
     let stats = dailyStats.get(date);
 
@@ -1212,7 +1931,7 @@ function updateDailyStats(call: CallSession): void {
     if (call.status === 'abandoned') stats.abandonedCalls++;
     if (call.duration) stats.interpreterMinutes += call.duration / 60;
 
-    dailyStats.set(date, stats);
+    await upsertOpsDailyStats(stats);
 }
 
 // ==================== Start Server ====================
@@ -1226,16 +1945,21 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
     });
 });
 
-server.listen(PORT, () => {
-    console.log(`🚀 VRS Ops Server running on port ${PORT}`);
-    console.log(`📊 Dashboard API: http://localhost:${PORT}/api/dashboard/live`);
-    console.log(`🔌 WebSocket: ws://localhost:${PORT}/ws`);
-    console.log(`🩺 Readiness: http://localhost:${PORT}/api/readiness`);
+initializeOpsState().then(() => {
+    server.listen(PORT, () => {
+        console.log(`VRS Ops Server running on port ${PORT}`);
+        console.log(`Dashboard API: http://localhost:${PORT}/api/dashboard/live`);
+        console.log(`WebSocket: ws://localhost:${PORT}/ws`);
+        console.log(`Readiness: http://localhost:${PORT}/api/readiness`);
 
-    const warnings = getOpsWarnings();
-    if (warnings.length) {
-        console.warn('[Ops] Startup warnings:', warnings.join(', '));
-    }
+        const warnings = getOpsWarnings();
+        if (warnings.length) {
+            console.warn('[Ops] Startup warnings:', warnings.join(', '));
+        }
+    });
+}).catch(error => {
+    console.error('[Ops] Failed to initialize persistent state:', error);
+    process.exit(1);
 });
 
 export { app, server, wss };

@@ -1824,6 +1824,11 @@ async function updateClientPreferences(clientId, updates) {
     const params = [];
     let idx = 1;
 
+    await runInsert(
+        `INSERT INTO client_preferences (client_id) VALUES ($1) ON CONFLICT DO NOTHING`,
+        [clientId]
+    );
+
     for (const key of allowed) {
         if (updates[key] !== undefined) {
             fields.push(`${key} = $${idx++}`);
@@ -1855,15 +1860,13 @@ async function isClientDND(clientId) {
 // ============================================
 
 async function getAllActiveSessions() {
-    return await runQuery(
-        'SELECT * FROM active_sessions ORDER BY registered_at DESC'
-    );
+    return await runQuery('SELECT * FROM active_sessions ORDER BY updated_at DESC');
 }
 
 async function upsertActiveSession({ userId, roomName, interpreterId = null, deviceId = null }) {
     await runInsert(
-        `INSERT INTO active_sessions (user_id, room_name, interpreter_id, device_id)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO active_sessions (user_id, room_name, interpreter_id, device_id, registered_at, updated_at)
+         VALUES ($1, $2, $3, $4, NOW(), NOW())
          ON CONFLICT (user_id) DO UPDATE SET
             room_name = EXCLUDED.room_name,
             interpreter_id = EXCLUDED.interpreter_id,
@@ -1874,10 +1877,7 @@ async function upsertActiveSession({ userId, roomName, interpreterId = null, dev
 }
 
 async function deleteActiveSession(userId) {
-    return await runUpdate(
-        'DELETE FROM active_sessions WHERE user_id = $1',
-        [userId]
-    );
+    return await runUpdate('DELETE FROM active_sessions WHERE user_id = $1', [userId]);
 }
 
 async function getAllActiveHandoffTokens() {
@@ -1886,19 +1886,11 @@ async function getAllActiveHandoffTokens() {
     );
 }
 
-async function storeHandoffToken({
-    token,
-    userId,
-    roomName,
-    interpreterId = null,
-    fromDeviceId = null,
-    targetDeviceId = null,
-    expiresAt
-}) {
+async function storeHandoffToken({ token, userId, roomName, interpreterId = null, fromDeviceId = null, targetDeviceId = null, expiresAt }) {
     await runInsert(
-        `INSERT INTO handoff_tokens
-            (token, user_id, room_name, interpreter_id, from_device_id, target_device_id, expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `INSERT INTO handoff_tokens (
+            token, user_id, room_name, interpreter_id, from_device_id, target_device_id, expires_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, to_timestamp($7 / 1000.0))
          ON CONFLICT (token) DO UPDATE SET
             user_id = EXCLUDED.user_id,
             room_name = EXCLUDED.room_name,
@@ -1906,28 +1898,20 @@ async function storeHandoffToken({
             from_device_id = EXCLUDED.from_device_id,
             target_device_id = EXCLUDED.target_device_id,
             expires_at = EXCLUDED.expires_at`,
-        [token, userId, roomName, interpreterId, fromDeviceId, targetDeviceId, new Date(expiresAt)]
+        [token, userId, roomName, interpreterId, fromDeviceId, targetDeviceId, expiresAt]
     );
 }
 
 async function deleteHandoffToken(token) {
-    return await runUpdate(
-        'DELETE FROM handoff_tokens WHERE token = $1',
-        [token]
-    );
+    return await runUpdate('DELETE FROM handoff_tokens WHERE token = $1', [token]);
 }
 
 async function deleteHandoffTokensByUser(userId) {
-    return await runUpdate(
-        'DELETE FROM handoff_tokens WHERE user_id = $1',
-        [userId]
-    );
+    return await runUpdate('DELETE FROM handoff_tokens WHERE user_id = $1', [userId]);
 }
 
 async function deleteExpiredHandoffTokens() {
-    return await runUpdate(
-        'DELETE FROM handoff_tokens WHERE expires_at <= NOW()'
-    );
+    return await runUpdate('DELETE FROM handoff_tokens WHERE expires_at <= NOW()');
 }
 
 // ============================================

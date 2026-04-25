@@ -452,6 +452,22 @@ router.post('/import', authenticateClient, async (req, res) => {
     try {
         const result = await db.importContacts(req.user.id, contacts);
         res.json(result);
+
+        try {
+            await db.logContactChange({
+                clientId: req.user.id,
+                entityType: 'contact',
+                entityId: 'bulk-import',
+                action: 'import',
+                snapshot: result
+            });
+            state.broadcastToUserDevices(req.user.id, {
+                type: 'contacts_changed',
+                data: { action: 'import', entityType: 'contact', result }
+            });
+        } catch (e) {
+            console.error('[Contact Import Sync Log] Error:', e);
+        }
     } catch (error) {
         console.error('[Import Contacts] Error:', error);
         res.status(500).json({ error: 'Failed to import contacts' });
@@ -470,6 +486,22 @@ router.post('/migrate-speed-dial', authenticateClient, async (req, res) => {
         const migrated = await db.migrateSpeedDialToContacts(req.user.id);
         await db.ensureDefaultGroups(req.user.id);
         res.json({ success: true, migrated });
+
+        try {
+            await db.logContactChange({
+                clientId: req.user.id,
+                entityType: 'contact',
+                entityId: 'speed-dial-migration',
+                action: 'import',
+                snapshot: { migrated }
+            });
+            state.broadcastToUserDevices(req.user.id, {
+                type: 'contacts_changed',
+                data: { action: 'import', entityType: 'contact', migrated }
+            });
+        } catch (e) {
+            console.error('[Speed Dial Migration Sync Log] Error:', e);
+        }
     } catch (error) {
         console.error('[Migrate Speed Dial] Error:', error);
         res.status(500).json({ error: 'Failed to migrate speed dial' });

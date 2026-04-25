@@ -3,50 +3,76 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MalkaVRI - Video Remote Interpreting</title>
+    <title>MapleVRI - Video Remote Interpreting</title>
     <style>
         body {
             margin: 0;
-            background: linear-gradient(135deg, #1a4d6e 0%, #2d5a3d 50%, #4a3b2a 100%);
+            background: #f7f7f7;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            color: #fff;
+            color: #111;
         }
         .panel {
             max-width: 520px;
             text-align: center;
-            padding: 24px;
+            padding: 32px;
             border-radius: 12px;
-            background: rgba(0, 0, 0, 0.22);
+            background: #fff;
+            border-top: 8px solid #e00000;
+            box-shadow: 0 12px 36px rgba(0,0,0,0.12);
+        }
+        img {
+            max-width: 320px;
+            width: 100%;
+            margin-bottom: 18px;
         }
         h1 {
             margin: 0 0 12px;
             font-size: 24px;
+            color: #e00000;
         }
         p {
             margin: 0 0 18px;
-            opacity: 0.9;
+            color: #333;
             line-height: 1.5;
         }
         a.button {
             display: inline-block;
             text-decoration: none;
             color: #fff;
-            background: #2a7cff;
+            background: #e00000;
             border-radius: 8px;
             padding: 10px 16px;
             font-weight: 600;
+        }
+
+        a.button:hover {
+            background: #b40000;
         }
     </style>
 </head>
 <body>
     <div class="panel">
-        <h1>MalkaVRI</h1>
+        <img id="brand-logo" src="images/logo.svg" alt="MapleVRI">
+        <h1 id="brand-title">MapleVRI</h1>
         <p>This page is a fallback entry point. Use the main app entry below.</p>
         <a class="button" href="/">Open Main App</a>
     </div>
+    <script src="whitelabel-runtime.js"></script>
+    <script>
+        (function() {
+            const brand = window.__WHITELABEL__ || {};
+            const isMaple = brand.tenantId === 'maple' || window.location.hostname.includes('maplecomm.ca');
+            const appName = isMaple ? 'MapleVRI' : (brand.appName || 'MalkaVRI');
+            const logo = isMaple ? (brand.assets?.logo || 'images/logo.svg') : 'images/malka-logo.png';
+            document.title = `${appName} - Video Remote Interpreting`;
+            document.getElementById('brand-logo').src = logo;
+            document.getElementById('brand-logo').alt = appName;
+            document.getElementById('brand-title').textContent = appName;
+        })();
+    </script>
 </body>
 </html>

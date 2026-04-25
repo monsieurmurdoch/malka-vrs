@@ -79,7 +79,9 @@ services:
 
   # ─── PostgreSQL ───────────────────────────────────────────
   postgres:
-    image: postgres:16-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
     <<: *common
     environment:
       - POSTGRES_USER=${PGUSER:-malka}
@@ -87,8 +89,37 @@ services:
       - POSTGRES_DB=${PGDATABASE:-malka_vrs}
     volumes:
       - pg-data:/var/lib/postgresql/data
+      - pg-wal-archive:/var/lib/postgresql/wal_archive
+      - ./deploy/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./deploy/postgres/005-create-wal-archive.sh:/docker-entrypoint-initdb.d/005-create-wal-archive.sh:ro
+      - ./deploy/postgres/init-pgaudit.sql:/docker-entrypoint-initdb.d/010-init-pgaudit.sql:ro
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-malka}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pgbouncer:
+    build:
+      context: .
+      dockerfile: Dockerfile.pgbouncer
+    <<: *common
+    environment:
+      - PGDATABASE=${PGDATABASE:-malka_vrs}
+      - PGUSER=${PGUSER:-malka}
+      - PGPASSWORD=${PGPASSWORD:-malka}
+      - PGBOUNCER_POSTGRES_HOST=postgres
+      - PGBOUNCER_POSTGRES_PORT=5432
+      - PGBOUNCER_POOL_MODE=${PGBOUNCER_POOL_MODE:-transaction}
+      - PGBOUNCER_MAX_CLIENT_CONN=${PGBOUNCER_MAX_CLIENT_CONN:-200}
+      - PGBOUNCER_DEFAULT_POOL_SIZE=${PGBOUNCER_DEFAULT_POOL_SIZE:-25}
+      - PGBOUNCER_RESERVE_POOL_SIZE=${PGBOUNCER_RESERVE_POOL_SIZE:-5}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "PGPASSWORD=${PGPASSWORD:-malka} pg_isready -h 127.0.0.1 -p 6432 -U ${PGUSER:-malka} -d ${PGDATABASE:-malka_vrs}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -105,9 +136,10 @@ services:
       - PORT=3001
       - NODE_ENV=production
       - JITSI_DOMAIN=meet.jitsi
-      - DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@postgres:5432/${PGDATABASE:-malka_vrs}
+      - DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@pgbouncer:6432/${PGDATABASE:-malka_vrs}
+      - MIGRATION_DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@postgres:5432/${PGDATABASE:-malka_vrs}
     depends_on:
-      postgres:
+      pgbouncer:
         condition: service_healthy
       prosody:
         condition: service_started
@@ -124,9 +156,10 @@ services:
       - PORT=3001
       - NODE_ENV=production
       - JITSI_DOMAIN=meet.jitsi
-      - DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@postgres:5432/${PGDATABASE:-malka_vrs}
+      - DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@pgbouncer:6432/${PGDATABASE:-malka_vrs}
+      - MIGRATION_DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@postgres:5432/${PGDATABASE:-malka_vrs}
     depends_on:
-      postgres:
+      pgbouncer:
         condition: service_healthy
       prosody:
         condition: service_started
@@ -140,8 +173,11 @@ services:
     environment:
       - PORT=3003
       - NODE_ENV=production
-    volumes:
-      - ops-data:/app/data
+      - OPS_DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@pgbouncer:6432/${PGDATABASE:-malka_vrs}
+      - OPS_MIGRATION_DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@postgres:5432/${PGDATABASE:-malka_vrs}
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
 
   twilio:
     build:
@@ -162,4 +198,4 @@ networks:
 volumes:
   prosody-data:
   pg-data:
-  ops-data:
+  pg-wal-archive:

@@ -1,0 +1,10 @@
+FROM postgres:16
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends postgresql-16-pgaudit \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY deploy/postgres/entrypoint.sh /usr/local/bin/malka-postgres-entrypoint.sh
+RUN chmod +x /usr/local/bin/malka-postgres-entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/malka-postgres-entrypoint.sh"]

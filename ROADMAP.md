@@ -1,7 +1,7 @@
 # Malka VRS — Product & Engineering Roadmap
 
 > **Last updated**: April 2026
-> **Overall status**: ~80% built. Backend is mature. The remaining gap is primarily frontend UX, production verification, and regulatory/compliance work.
+> **Overall status**: ~80% built. Backend feature depth is strong, but release confidence now depends on PostgreSQL-only runtime alignment, ops-server persistence, Maple VRI demo readiness, live production verification, and regulatory/compliance work.
 
 ---
 
@@ -12,7 +12,7 @@
 
 - [x] Webpack dev server serving VRS welcome page
 - [x] Backend services running (VRS :3001, Ops :3003)
-- [x] Demo accounts seeded (2 clients, 2 interpreters)
+- [x] Demo accounts seeded for VRS and Maple VRI smoke testing
 - [x] Earth/Moon celestial visuals with NASA imagery
 - [x] react-native-ble-plx web build fix (platform-split BleAdapter)
 - [x] SCSS build pipeline compiling `_welcome_page.scss` → `css/all.css`
@@ -80,9 +80,9 @@
 - [x] Logged-in-only instant-room invite links
 - [x] Instant-room invite suggestions
 - [x] Speed dial → unified contacts migration
-- [ ] Contact cards — tap for full history (calls, messages, notes)
-- [ ] Contact sync across devices (web + mobile)
-- [ ] Import from Google Contacts API or phone address book
+- [x] Contact cards — tap for full history (calls, messages, notes)
+- [x] Contact sync across devices (web + mobile web via API sync, WebSocket invalidation, and polling)
+- [x] Import from Google Contacts API or phone address book (Google OAuth env required; phone picker depends on browser support)
 
 **Text-to-Speech (TTS) / VCO**
 - [x] In-call text box — deaf user types, TTS reads aloud
@@ -101,9 +101,9 @@
 - [x] In-call text chat
 - [x] Wait screen — position in queue + estimated wait time
 - [x] Default display name prefilled from signed-in user
-- [ ] Instant-room fast join (skip waiting room)
-- [ ] Instant-room media defaults (camera + mic off by default)
-- [ ] Remember media permission preference
+- [x] Instant-room fast join (skip waiting room)
+- [x] Instant-room media defaults (camera + mic off by default)
+- [x] Remember media permission preference
 - [x] Dark mode
 
 **Auto-Captioning**
@@ -143,18 +143,18 @@
 - [x] WebSocket message size limit — 64KB max, rejects oversized payloads before JSON parse
 - [x] `uuid.substr()` → `.substring()` (already correct)
 
-**PostgreSQL Migration**
-- [x] Port PostgreSQL migration work into the current modular server on a dedicated hardening branch
-- [x] Restore missing DB APIs needed by voicemail, handoff, server state, and queue flows
-- [x] Add PostgreSQL 16 to docker-compose test/prod definitions on the hardening branch
-- [x] Isolated runtime validation against PostgreSQL: readiness, queue match flow, and core auth/WS paths
-- [ ] Merge PostgreSQL hardening branch into `main`
-- [ ] Replace SQLite on the production release line after one clean cutover smoke
-- [ ] Migrate ops-server from JSON file storage to PostgreSQL
-- [ ] Schema migration tooling (`node-pg-migrate`) for future schema changes
-- [ ] Add `pg_audit` extension for FCC-compliant audit logging
-- [ ] Configure WAL archiving for point-in-time recovery
-- [ ] Set up PgBouncer connection pooling (multi-server architecture)
+**PostgreSQL Runtime Alignment**
+- [x] VRS server runtime uses PostgreSQL as the canonical app database
+- [x] Local and production Docker Compose include PostgreSQL 16 for app data
+- [x] Smoke seed path creates VRS and Maple VRI demo data against PostgreSQL
+- [x] Ops-server account/audit persistence has PostgreSQL support
+- [x] Verify Droplet production is running the PostgreSQL-backed VRS server and ops-server
+- [x] Retire stale SQLite-era server/docs/test paths
+- [x] Migrate remaining ops live dashboard state from process memory to PostgreSQL
+- [x] Schema migration tooling (`node-pg-migrate`) for future schema changes
+- [x] Add `pg_audit` extension for FCC-compliant audit logging
+- [x] Configure WAL archiving foundation for point-in-time recovery
+- [x] Set up PgBouncer connection pooling (multi-server architecture)
 
 **Server Modularization**
 - [x] Split monolithic server.js (~2300 lines) → route modules (auth, client, interpreter, admin, p2p, handoff)
@@ -236,24 +236,44 @@
 
 > **The product has real feature depth now. The main work is tightening release discipline, validating live flows, and only then widening the surface area.**
 
+### Immediate Fix: Runtime & CI
+- [x] **Single VRS runtime path** — local start now targets top-level PostgreSQL `server.js`
+- [x] **Local compose PostgreSQL** — dev stack now has primary `postgres` and VRS/ops DB URLs
+- [x] **Ops-server PostgreSQL accounts/audit** — admin directory no longer depends only on `ops-state.json`
+- [x] **CI backend jobs** — run vrs-server tests, ops-server build, and compose config validation on PRs
+- [x] **Prod backend smoke on Droplet** — VRS health/readiness and ops Postgres readiness verified on main and Maple domains
+- [x] **Maple admin/client/interpreter login smoke** — VRI client, VRI interpreter, and Maple admin can authenticate on `vri.maplecomm.ca`
+- [ ] **Prod media/call smoke on Droplet** — WebSocket queue match, JVB UDP media, and live admin moderation during a real call
+- [ ] **Twilio reverse-proxy smoke** — `/twilio/health` and `/twilio/api/readiness` currently return 502 through nginx
+
+### Immediate Fix: Maple VRI Demo
+- [x] **Maple tenant config exists** — `TENANT=maple` generates Maple branding/runtime config
+- [x] **Maple VRI demo accounts** — VRI client, VRI interpreter, and Maple VRI admin are seedable and deployed on Droplet
+- [x] **VRI metadata in ops accounts** — account records carry `tenantId`, `serviceModes`, `permissions`, and `organization`
+- [ ] **Maple VRI first-screen flow** — tenant build should default users toward VRI instead of VRS language
+- [ ] **Admin moderation view** — filter/moderate by tenant and service mode (`vri` vs `vrs`)
+- [ ] **Interpreter permissions enforcement** — VRI-only interpreters should not receive VRS queue work
+- [ ] **Call creation billing tag** — Maple VRI calls must be immutably tagged `call_type = vri`
+
 ### Client Profile & Settings
-- [ ] **Client profile page** in React web — display name, email, organization, VRS phone number, avatar
-- [ ] **Account settings** in profile page — connect existing backend (`GET/PUT /api/client/preferences`): DND, dark mode, media defaults
-- [ ] **Password change** flow in settings
+- [x] **Client profile page** in current web — display name, email, organization, and VRS phone number
+- [x] **Account settings** in profile page — connected existing backend (`GET/PUT /api/client/preferences`): DND, dark mode, media defaults
+- [x] **Password change** flow in settings
 - [ ] **Notification preferences** — wire backend preferences to React UI
 
 ### Interpreter Profile & Controls
-- [ ] **Interpreter profile page** in React web — name, email, languages, status, avatar
-- [ ] **Availability toggle** — bring the legacy `interpreter-profile.html` queue toggle into React
-- [ ] **Interpreter settings** — connect backend (`/api/interpreter/profile`) to React UI
+- [x] **Interpreter profile page** in current web — name, email, languages, queue status, and stats
+- [x] **Availability toggle** — current `interpreter-profile.html` queue toggle is live
+- [x] **Interpreter settings** — connected backend (`/api/interpreter/profile`) to current web UI
 
 ### Contacts Integration
-- [ ] **Dial from contacts** — click a contact to initiate a call (not just in prejoin)
+- [x] **Dial from contacts** — contact detail card can launch an instant room call
 - [ ] **Add to contacts from call history** — one-click save from recent calls
-- [ ] **Contact cards** — tap contact for full history: calls, messages, notes
+- [x] **Contact cards** — tap contact for full history: calls, messages, notes
 
 ### UI Polish
-- [ ] **Dark mode** — reduce eye strain; auto-detect system preference
+- [x] **Dark mode foundation** — dark surfaces exist in current web/admin views
+- [x] **Dark mode preference polish** — system/light/dark preference persists on client and interpreter profile pages
 - [ ] **Responsive layout** audit for desktop + tablet
 - [ ] **Accessibility audit** (WCAG 2.1 AA minimum — critical for deaf users)
 
@@ -263,8 +283,9 @@
 
 ### Deployment Verification
 - [ ] Verify JVB media flows (UDP 10000) — test a real end-to-end video call
+- [ ] Fix `/twilio/*` production proxy/health path returning 502
 - [ ] Rotate `VRS_BOOTSTRAP_SUPERADMIN_PASSWORD` after first login
-- [ ] Automated backups for Docker volumes (vrs-data, ops-data)
+- [ ] Automated backups for PostgreSQL and object storage volumes (`pg-data`, `minio-data`)
 - [ ] DigitalOcean monitoring alerts (CPU, memory, disk)
 - [x] Test SSL auto-renewal (certbot cron) — confirmed with `certbot renew --dry-run` for Maple and Malka certs on 2026-04-22
 
@@ -330,13 +351,13 @@
 ### Database Scaling
 > PostgreSQL is migrated. This section covers operational scaling.
 
-- [ ] **Connection pooling** — PgBouncer in transaction mode (required for many concurrent WebSocket handlers)
+- [x] **Connection pooling** — PgBouncer in transaction mode (required for many concurrent WebSocket handlers)
 - [ ] **Read replicas** — offload dashboard queries and analytics to read replicas
 - [ ] **Partitioning** — partition `calls` table by month, `activity_log` by month (large tables grow fast)
 - [ ] **Index tuning** — analyze query plans for hot paths (queue matching, call history, dashboard stats)
 - [ ] **Prepared statements** — convert frequent queries to prepared statements for parse overhead reduction
 - [ ] **Vacuum / autovacuum tuning** — aggressive autovacuum on `calls` and `activity_log` (high churn tables)
-- [ ] Schema migration tooling (`node-pg-migrate`)
+- [x] Schema migration tooling (`node-pg-migrate`)
 
 ### Testing
 - [ ] Unit tests: queue logic (priority, matching, state transitions)
@@ -571,10 +592,10 @@
 
 **Critical path**: FCC certification is the longest lead item. File as early as possible — all engineering work proceeds in parallel.
 
-**Scaling bottleneck**: Redis externalization is the gate to handling real production traffic. Current single-server architecture cannot support more than ~100-200 concurrent calls. Redis should be the first scale task after frontend UX is stable.
+**Scaling bottleneck**: Redis externalization is the next gate to handling real production traffic. PostgreSQL runtime alignment now has migration tooling, ops dashboard persistence, PgBouncer pooling, pg_audit configuration, and local WAL archive plumbing. The remaining durability step is an offsite base-backup/WAL restore drill before this should be treated as disaster-recovery complete.
 
-**Quick wins**: Frontend settings pages, dark mode, and CI pipeline are high-impact, low-risk items that immediately improve the product.
+**Quick wins**: Backend CI, backend prod smoke verification, Maple VRI account seeding, frontend settings pages, dark mode preference polish, contact cards/history/notes, contact sync/import hooks, and instant-room media preference handoff are complete. The remaining immediate smoke is the live media path: queue match, JVB media, admin moderation, and Twilio proxy health.
 
-**Current state**: Live production is still the hardened single-server SQLite release line. PostgreSQL is validated on a hardening branch but not cut over to prod yet. The stack is not production-scale yet, but it is strong enough for live smoke testing and internal demos.
+**Current state**: The intended release line is PostgreSQL-only, and Droplet production now confirms VRS plus ops are running against PostgreSQL on both `app.malkacomm.com` and `vri.maplecomm.ca`. Maple VRI demo client, interpreter, and admin accounts authenticate, Maple contact workflow passes a production smoke for create/detail/note/sync/delete, and ops live dashboard state now has a PostgreSQL source of truth. The stack is strong enough for live Maple pilot validation, with the next risk concentrated in real call media, Twilio proxy health, admin moderation during a live queue match, and validating the new PgBouncer/pg_audit/WAL settings in a deploy smoke.
 
-**Scaling dependency chain**: PostgreSQL cutover → Redis state externalization → Stateless VRS server → Horizontal scaling → Multi-JVB → Geographic redundancy
+**Scaling dependency chain**: PostgreSQL runtime verification → Redis state externalization → Stateless VRS server → Horizontal scaling → Multi-JVB → Geographic redundancy

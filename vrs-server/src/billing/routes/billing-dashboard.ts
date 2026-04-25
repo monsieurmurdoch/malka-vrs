@@ -12,6 +12,18 @@ import { getCorporateBillingSummary, getCorporateAccount } from '../vri-billing-
 
 export const router = Router();
 
+function single(value: unknown): string {
+    if (Array.isArray(value)) {
+        return value[0] ? String(value[0]) : '';
+    }
+    return value === undefined || value === null ? '' : String(value);
+}
+
+function queryNumber(value: unknown, fallback: number): number {
+    const parsed = parseInt(single(value), 10);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 // ─── Dashboard ─────────────────────────────────────────────
 
 /** GET /api/billing/dashboard/:accountId — Corporate billing summary */
@@ -21,7 +33,7 @@ router.get('/dashboard/:accountId', async (req: Request, res: Response) => {
             return res.status(503).json({ error: 'Billing not configured' });
         }
 
-        const summary = await getCorporateBillingSummary(req.params.accountId);
+        const summary = await getCorporateBillingSummary(single(req.params.accountId));
         res.json(summary);
     } catch (err) {
         res.status(500).json({ error: 'Failed to fetch billing summary' });
@@ -35,11 +47,11 @@ router.get('/dashboard/:accountId/cdrs', async (req: Request, res: Response) => 
             return res.status(503).json({ error: 'Billing not configured' });
         }
 
-        const limit = parseInt(req.query.limit as string, 10) || 50;
-        const offset = parseInt(req.query.offset as string, 10) || 0;
+        const limit = queryNumber(req.query.limit, 50);
+        const offset = queryNumber(req.query.offset, 0);
 
         const cdrs = await getCdrs({
-            corporateAccountId: req.params.accountId,
+            corporateAccountId: single(req.params.accountId),
             callType: 'vri',
             limit,
             offset,
@@ -57,7 +69,7 @@ router.get('/dashboard/:accountId/profile', async (req: Request, res: Response) 
             return res.status(503).json({ error: 'Billing not configured' });
         }
 
-        const account = await getCorporateAccount(req.params.accountId);
+        const account = await getCorporateAccount(single(req.params.accountId));
         if (!account) return res.status(404).json({ error: 'Account not found' });
 
         // Don't expose sensitive fields
