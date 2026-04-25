@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { connect } from 'react-redux';
 import { makeStyles } from 'tss-react/mui';
 
@@ -10,8 +10,6 @@ import type { IParticipant } from '../../base/participants/types';
 import { getVideoTrackByParticipant } from '../../base/tracks/functions.web';
 import CallWaitingOverlay from '../../call-management/components/CallWaitingOverlay';
 import InCallChatPanel from '../../call-management/components/InCallChatPanel';
-import { ClientProfile } from '../../vrs-profile';
-import { InterpreterProfile } from '../../vrs-profile';
 
 type VRSConferenceRole = 'client' | 'interpreter' | 'hearing';
 
@@ -240,40 +238,6 @@ const useStyles = makeStyles()(theme => ({
         fontSize: 12,
         fontWeight: 600,
         padding: theme.spacing(0.65, 1.2)
-    },
-
-    profileBtn: {
-        background: 'rgba(255, 255, 255, 0.08)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        borderRadius: '50%',
-        color: '#F5F8FB',
-        cursor: 'pointer',
-        fontSize: 16,
-        height: 32,
-        width: 32,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        '&:hover': { background: 'rgba(255, 255, 255, 0.15)' }
-    },
-
-    profileOverlay: {
-        position: 'fixed',
-        top: 0,
-        right: 0,
-        height: '100vh',
-        width: '340px',
-        maxWidth: '90vw',
-        backgroundColor: 'rgba(6, 19, 32, 0.98)',
-        borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
-        zIndex: 9999,
-        boxShadow: '-8px 0 30px rgba(0, 0, 0, 0.3)',
-        backdropFilter: 'blur(18px)',
-
-        '@media (max-width: 480px)': {
-            width: '100vw',
-            maxWidth: '100vw'
-        }
     }
 }));
 
@@ -426,25 +390,7 @@ function getPaneEmptyMessage(role: VRSConferenceRole, hasParticipant: boolean) {
 
 const VRSLayout = ({ _extras, _panes, _roomName }: IProps) => {
     const { classes, cx } = useStyles();
-    const [showProfile, setShowProfile] = useState(false);
-    const vrsRole = getStoredVrsRole();
     const visiblePanes = _panes.filter(pane => Boolean(pane.participant));
-
-    useEffect(() => {
-        if (!showProfile) {
-            return;
-        }
-
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
-                setShowProfile(false);
-            }
-        };
-
-        document.addEventListener('keydown', handleKeyDown);
-
-        return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [ showProfile ]);
 
     if (!visiblePanes.length) {
         return null;
@@ -460,28 +406,6 @@ const VRSLayout = ({ _extras, _panes, _roomName }: IProps) => {
             ) }>
             {/* Call waiting overlay — renders only when an incoming call arrives */}
             <CallWaitingOverlay />
-
-            {/* Profile button — top-right fixed */}
-            {(vrsRole === 'client' || vrsRole === 'interpreter') && (
-                <button
-                    aria-label = 'Open profile settings'
-                    className = { classes.profileBtn }
-                    onClick = { () => setShowProfile(true) }
-                    style = {{ position: 'fixed', top: 12, right: 12, zIndex: 9998 }}
-                    type = 'button'>&#9786;</button>
-            )}
-
-            {/* Profile slide-in overlay */}
-            {showProfile && (
-                <div
-                    aria-modal = 'true'
-                    className = { classes.profileOverlay }
-                    role = 'dialog'>
-                    {vrsRole === 'client'
-                        ? <ClientProfile onClose = { () => setShowProfile(false) } />
-                        : <InterpreterProfile onClose = { () => setShowProfile(false) } />}
-                </div>
-            )}
 
             {visiblePanes.map(pane => {
                 const participantName = getParticipantName(pane.participant, pane.title);

@@ -6,6 +6,42 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-25
 - Branch: `codex/main-prod-sync`
+- HEAD: `bd6df68`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  config.js`
+  - `M  libs/app.bundle.min.js`
+  - `M  react/features/vrs-layout/components/VRSLayout.tsx`
+  - `M  status.md`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-25T07:55:12.417Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `bd6df68`
+- Note: Removed in-room settings/profile controls from Jitsi rooms: constrained toolbar to call actions only and removed the VRS profile bubble so settings live on the client profile page.
+- Snapshot:
+Local changes at sync time:
+  - `M config.js`
+  - `M libs/app.bundle.min.js`
+  - `M react/features/vrs-layout/components/VRSLayout.tsx`
+  - `M status.md`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T07:54:04.617Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
 - HEAD: `2dec29f`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -16,7 +52,7 @@ Local changes at sync time:
   - `M  vrs-server/src/server.ts`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-25T07:47:58.457Z
 
 <!-- status:current:start -->
