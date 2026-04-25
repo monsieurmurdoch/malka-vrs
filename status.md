@@ -6,6 +6,39 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-25
 - Branch: `codex/main-prod-sync`
+- HEAD: `c184323`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  config.js`
+  - `M  interface_config.js`
+  - `M  status.md`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-25T08:14:00.825Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
+- HEAD: `c184323`
+- Note: Reconciled captions vs language controls: restored the in-room captions/subtitles option while keeping the standalone EN/flag language switcher removed from room surfaces.
+- Snapshot:
+Local changes at sync time:
+  - `M config.js`
+  - `M interface_config.js`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-25T08:13:44.873Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-25
+- Branch: `codex/main-prod-sync`
 - HEAD: `486bb34`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -17,7 +50,7 @@ Local changes at sync time:
   - `A  vrs-room-controls.js`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-25T08:10:51.757Z
 
 <!-- status:current:start -->
