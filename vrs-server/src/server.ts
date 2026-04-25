@@ -152,6 +152,7 @@ app.use(helmet({
             imgSrc: ["'self'", 'data:'],
             connectSrc: CONNECT_SRC,
             mediaSrc: ["'self'", 'blob:'],
+            workerSrc: ["'self'", 'blob:'],
             fontSrc: ["'self'"],
             upgradeInsecureRequests: null
         }

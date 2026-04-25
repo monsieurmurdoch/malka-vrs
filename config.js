@@ -60,7 +60,7 @@ var config = {
         // focus: 'focus.jitsi-meet.example.com',
 
         // XMPP MUC domain. FIXME: use XEP-0030 to discover it.
-        muc: 'conference.' + subdomain + 'meet.jitsi',
+        muc: 'muc.' + subdomain + 'meet.jitsi',
     },
 
     // Route XMPP through the current origin in production so nginx can proxy
