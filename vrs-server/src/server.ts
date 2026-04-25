@@ -49,7 +49,6 @@ import * as db from './database';
 import * as activityLogger from './lib/activity-logger';
 import queueService from './lib/queue-service';
 import * as state from './lib/state';
-import * as auth from './lib/auth';
 import * as billingDb from './lib/billing-db';
 import * as handoffService from './lib/handoff-service';
 import * as voicemailService from './lib/voicemail-service';
@@ -66,6 +65,7 @@ const { router: voicemailRouter, setVoicemailService } = require('../routes/voic
 const ttsRouter = require('../routes/tts');
 const googleContactsRouter = require('../routes/google-contacts');
 const { validate, nameSchema, emailSchema, organizationSchema, z: zodLib } = require('../lib/validation');
+const auth = require('../lib/auth');
 
 // Billing routes (TypeScript — compiled)
 const { router: billingAdminRouter } = require('./billing/routes/billing-admin');
