@@ -66,6 +66,8 @@ router.get('/profile', authenticateUser, async (req, res) => {
             name: interpreter.name,
             email: interpreter.email,
             languages: interpreter.languages,
+            serviceModes: interpreter.service_modes || ['vrs'],
+            tenantId: interpreter.tenant_id || 'malka',
             active: interpreter.active
         });
     } catch (error) {
@@ -93,6 +95,8 @@ router.put('/profile', authenticateUser, validate(updateProfileSchema), async (r
             name: interpreter.name,
             email: interpreter.email,
             languages: interpreter.languages,
+            serviceModes: interpreter.service_modes || ['vrs'],
+            tenantId: interpreter.tenant_id || 'malka',
             active: interpreter.active
         });
     } catch (error) {

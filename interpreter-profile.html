@@ -13,6 +13,7 @@
             background: linear-gradient(135deg, #0f1724 0%, #1a2332 50%, #252f3f 100%);
             min-height: 100vh;
             color: #fff;
+            overflow-y: auto;
         }
 
         /* Header */
@@ -104,12 +105,12 @@
 
         /* Main grid */
         .profile-main {
-            max-width: 1100px;
+            max-width: 1180px;
             margin: 0 auto;
-            padding: 0 24px 32px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 24px;
+            padding: 24px 24px 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
         }
 
         /* Card */
@@ -126,6 +127,229 @@
             font-weight: 600;
             margin-bottom: 16px;
             color: rgba(255,255,255,0.9);
+        }
+
+        .profile-hero {
+            display: grid;
+            grid-template-columns: minmax(300px, 0.92fr) minmax(0, 1.45fr);
+            gap: 20px;
+            align-items: stretch;
+        }
+
+        .profile-stack {
+            display: grid;
+            gap: 20px;
+        }
+
+        .self-preview-card {
+            display: grid;
+            gap: 12px;
+        }
+
+        .self-preview-frame {
+            align-items: center;
+            aspect-ratio: 4 / 3;
+            background: rgba(0,0,0,0.28);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .self-preview-frame video {
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+            width: 100%;
+        }
+
+        .self-preview-placeholder {
+            color: rgba(255,255,255,0.72);
+            font-size: 14px;
+            line-height: 1.4;
+            padding: 18px;
+            text-align: center;
+        }
+
+        .self-preview-status {
+            font-size: 12px;
+            line-height: 1.4;
+            opacity: 0.62;
+        }
+
+        .self-preview-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .self-preview-actions .settings-btn {
+            flex: 1;
+        }
+
+        .profile-summary-top {
+            display: flex;
+            gap: 16px;
+            justify-content: space-between;
+            margin-bottom: 18px;
+        }
+
+        .profile-name {
+            font-size: 30px;
+            font-weight: 750;
+            letter-spacing: 0;
+            margin-bottom: 6px;
+        }
+
+        .profile-subtitle {
+            color: rgba(255,255,255,0.62);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .service-chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .service-chip {
+            align-items: center;
+            background: rgba(126,184,218,0.16);
+            border: 1px solid rgba(126,184,218,0.28);
+            border-radius: 999px;
+            color: #b8dcf1;
+            display: inline-flex;
+            font-size: 12px;
+            font-weight: 700;
+            min-height: 30px;
+            padding: 7px 11px;
+            text-transform: uppercase;
+        }
+
+        .readiness-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+            margin-bottom: 18px;
+        }
+
+        .readiness-item {
+            background: rgba(255,255,255,0.045);
+            border: 1px solid rgba(255,255,255,0.075);
+            border-radius: 8px;
+            padding: 12px;
+        }
+
+        .readiness-value {
+            color: #7eb8da;
+            font-size: 20px;
+            font-weight: 750;
+            margin-bottom: 3px;
+        }
+
+        .readiness-label {
+            font-size: 11px;
+            letter-spacing: 0.04em;
+            opacity: 0.58;
+            text-transform: uppercase;
+        }
+
+        .readiness-note {
+            color: rgba(255,255,255,0.62);
+            font-size: 13px;
+            line-height: 1.5;
+            margin-top: 12px;
+        }
+
+        .profile-tabs {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 10px;
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            overflow: hidden;
+        }
+
+        .profile-tab {
+            background: transparent;
+            border: 0;
+            color: rgba(255,255,255,0.58);
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 700;
+            min-height: 42px;
+            padding: 10px 8px;
+        }
+
+        .profile-tab.active {
+            background: rgba(255,255,255,0.12);
+            color: #fff;
+        }
+
+        .profile-tab:hover:not(.active) {
+            color: rgba(255,255,255,0.86);
+        }
+
+        .tab-panel {
+            min-height: 250px;
+        }
+
+        .tab-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 16px;
+        }
+
+        .assignment-state {
+            align-items: center;
+            display: flex;
+            gap: 12px;
+            justify-content: space-between;
+            padding: 12px 0;
+        }
+
+        .assignment-title {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .assignment-copy {
+            color: rgba(255,255,255,0.62);
+            font-size: 13px;
+            line-height: 1.5;
+            margin-top: 4px;
+        }
+
+        .call-item {
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            display: flex;
+            gap: 12px;
+            justify-content: space-between;
+            padding: 12px 0;
+        }
+
+        .call-item:last-child {
+            border-bottom: 0;
+        }
+
+        .call-name {
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .call-meta {
+            color: rgba(255,255,255,0.58);
+            font-size: 13px;
+            line-height: 1.45;
+        }
+
+        .call-duration {
+            color: #7eb8da;
+            font-weight: 700;
+            white-space: nowrap;
         }
 
         /* Schedule */
@@ -304,6 +528,25 @@
             gap: 14px;
         }
 
+        .settings-columns {
+            display: grid;
+            gap: 18px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .settings-group {
+            display: grid;
+            gap: 13px;
+        }
+
+        .settings-group-title {
+            color: rgba(255,255,255,0.82);
+            font-size: 13px;
+            font-weight: 750;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
         .settings-row {
             display: grid;
             gap: 6px;
@@ -358,6 +601,19 @@
             color: #fff;
         }
 
+        .settings-toggle {
+            align-items: center;
+            color: rgba(255,255,255,0.78);
+            display: flex;
+            font-size: 14px;
+            gap: 9px;
+            line-height: 1.4;
+        }
+
+        .settings-toggle input {
+            accent-color: #7eb8da;
+        }
+
         body.theme-light .settings-btn.secondary {
             background: rgba(20,34,49,0.06);
             border-color: rgba(20,34,49,0.14);
@@ -399,14 +655,46 @@
         body.theme-maple .card-title,
         body.theme-maple .empty-state,
         body.theme-maple .stat-label,
-        body.theme-maple .settings-label {
+        body.theme-maple .settings-label,
+        body.theme-maple .settings-group-title {
             color: #333;
         }
 
         body.theme-maple .stat-value,
         body.theme-maple .earnings-total,
         body.theme-maple .earnings-amount,
-        body.theme-maple .shift-hours {
+        body.theme-maple .shift-hours,
+        body.theme-maple .readiness-value,
+        body.theme-maple .call-duration {
+            color: #e00000;
+        }
+
+        body.theme-maple .profile-subtitle,
+        body.theme-maple .readiness-note,
+        body.theme-maple .assignment-copy,
+        body.theme-maple .call-meta,
+        body.theme-maple .settings-toggle {
+            color: #555;
+        }
+
+        body.theme-maple .profile-tab {
+            color: #555;
+        }
+
+        body.theme-maple .profile-tab.active {
+            background: #e00000;
+            color: #fff;
+        }
+
+        body.theme-maple .profile-tabs,
+        body.theme-maple .readiness-item {
+            background: #fff;
+            border-color: rgba(0,0,0,0.1);
+        }
+
+        body.theme-maple .service-chip {
+            background: rgba(224,0,0,0.08);
+            border-color: rgba(224,0,0,0.22);
             color: #e00000;
         }
 
@@ -435,6 +723,34 @@
             color: #111;
         }
 
+        body.theme-light .profile-subtitle,
+        body.theme-light .readiness-note,
+        body.theme-light .assignment-copy,
+        body.theme-light .call-meta,
+        body.theme-light .settings-toggle {
+            color: rgba(20,34,49,0.68);
+        }
+
+        body.theme-light .profile-tab {
+            color: rgba(20,34,49,0.58);
+        }
+
+        body.theme-light .profile-tab.active {
+            background: rgba(20,34,49,0.1);
+            color: #142231;
+        }
+
+        body.theme-light .profile-tabs,
+        body.theme-light .readiness-item,
+        body.theme-light .self-preview-frame {
+            background: rgba(255,255,255,0.72);
+            border-color: rgba(20,34,49,0.12);
+        }
+
+        body.theme-light .self-preview-placeholder {
+            color: rgba(20,34,49,0.62);
+        }
+
         .settings-status {
             border-radius: 8px;
             font-size: 13px;
@@ -458,9 +774,22 @@
                 grid-template-columns: repeat(2, 1fr);
             }
 
-            .profile-main {
+            .profile-hero,
+            .tab-grid,
+            .settings-columns {
                 grid-template-columns: 1fr;
-                padding: 0 16px 24px;
+            }
+
+            .readiness-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .profile-tabs {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .profile-main {
+                padding: 16px 16px 28px;
             }
 
             .profile-header {
@@ -477,6 +806,17 @@
         @media (max-width: 480px) {
             .stats-bar {
                 grid-template-columns: 1fr 1fr;
+            }
+
+            .profile-summary-top,
+            .assignment-state,
+            .call-item {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .service-chip-row {
+                justify-content: flex-start;
             }
 
             .stat-value {
@@ -621,12 +961,21 @@
             shifts: [],
             earnings: [],
             calls: [],
+            activeTab: getPersistentItem('vrs_interpreter_active_tab') || 'assignments',
+            mediaPreview: {
+                enabled: getPersistentItem('vrs_interpreter_self_preview_enabled') === 'true',
+                status: 'idle',
+                message: ''
+            },
             settingsStatus: null,
             passwordStatus: null,
             // Queue state
             available: false,
+            wsConnected: false,
             pendingRequest: null   // { requestId, clientName, language, roomName, targetPhone }
         };
+
+        let previewStream = null;
 
         // ============================================
         // WEBSOCKET — VRS queue connection
@@ -654,6 +1003,8 @@
             }
 
             ws.onopen = function() {
+                state.wsConnected = true;
+                render();
                 const user = getUser() || {};
                 ws.send(JSON.stringify({
                     type: 'auth',
@@ -675,6 +1026,8 @@
 
             ws.onclose = function() {
                 console.log('[WS] Disconnected, reconnecting…');
+                state.wsConnected = false;
+                render();
                 wsReconnectTimer = setTimeout(connectWS, 4000);
             };
 
@@ -703,6 +1056,101 @@
             setPersistentItem('vrs_interpreter_theme', selected);
         }
 
+        function getInterpreterPreferences() {
+            try {
+                const stored = JSON.parse(getPersistentItem('vrs_interpreter_media_preferences') || '{}');
+                return {
+                    cameraDefaultOff: stored.cameraDefaultOff !== false,
+                    rememberMediaPermissions: stored.rememberMediaPermissions !== false
+                };
+            } catch (error) {
+                return { cameraDefaultOff: true, rememberMediaPermissions: true };
+            }
+        }
+
+        function persistInterpreterPreferences(prefs) {
+            setPersistentItem('vrs_interpreter_media_preferences', JSON.stringify({
+                cameraDefaultOff: prefs.cameraDefaultOff !== false,
+                rememberMediaPermissions: prefs.rememberMediaPermissions !== false,
+                updatedAt: new Date().toISOString()
+            }));
+        }
+
+        function buildInterpreterRoomUrl(roomName) {
+            const prefs = getInterpreterPreferences();
+            const params = new URLSearchParams({
+                role: 'interpreter',
+                'config.startWithAudioMuted': 'true',
+                'config.startWithVideoMuted': String(prefs.cameraDefaultOff)
+            });
+            return '/' + encodeURIComponent(roomName) + '?' + params.toString();
+        }
+
+        function canUseRealtimeMedia() {
+            const isLocalhost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+            return Boolean(
+                window.isSecureContext
+                || isLocalhost
+                || window.location.protocol === 'https:'
+            ) && Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+        }
+
+        function attachSelfPreview() {
+            const video = document.getElementById('self-preview-video');
+            if (!video || !previewStream) return;
+            if (video.srcObject !== previewStream) {
+                video.srcObject = previewStream;
+            }
+            video.play().catch(() => {});
+        }
+
+        async function startSelfPreview(silent) {
+            if (previewStream) {
+                state.mediaPreview = { enabled: true, status: 'active', message: 'Camera preview is on. Interpreter rooms still start muted.' };
+                setPersistentItem('vrs_interpreter_self_preview_enabled', 'true');
+                attachSelfPreview();
+                if (!silent) render();
+                return;
+            }
+
+            if (!canUseRealtimeMedia()) {
+                state.mediaPreview = { enabled: false, status: 'error', message: 'Camera preview needs HTTPS and browser camera support.' };
+                setPersistentItem('vrs_interpreter_self_preview_enabled', 'false');
+                render();
+                return;
+            }
+
+            state.mediaPreview = { enabled: true, status: 'requesting', message: 'Waiting for camera permission...' };
+            setPersistentItem('vrs_interpreter_self_preview_enabled', 'true');
+            if (!silent) render();
+
+            try {
+                previewStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                state.mediaPreview = { enabled: true, status: 'active', message: 'Camera preview is on. Interpreter rooms still start muted.' };
+            } catch (error) {
+                state.mediaPreview = { enabled: false, status: 'error', message: 'Camera permission was not granted.' };
+                setPersistentItem('vrs_interpreter_self_preview_enabled', 'false');
+            }
+            render();
+        }
+
+        function stopSelfPreview() {
+            if (previewStream) {
+                previewStream.getTracks().forEach(track => track.stop());
+                previewStream = null;
+            }
+            state.mediaPreview = { enabled: false, status: 'idle', message: '' };
+            setPersistentItem('vrs_interpreter_self_preview_enabled', 'false');
+            render();
+        }
+
+        function syncSelfPreview() {
+            attachSelfPreview();
+            if (state.mediaPreview.enabled && !previewStream && state.mediaPreview.status !== 'requesting') {
+                startSelfPreview(true);
+            }
+        }
+
         function handleWsMessage(msg) {
             console.log('[WS] Received:', msg.type, msg);
             switch (msg.type) {
@@ -727,7 +1175,7 @@
                     if (msg.data && msg.data.roomName) {
                         clearTimeout(wsReconnectTimer);
                         setPersistentItem('vrs_user_role', 'interpreter');
-                        window.location.href = '/' + msg.data.roomName + '?role=interpreter';
+                        window.location.href = buildInterpreterRoomUrl(msg.data.roomName);
                     }
                     break;
 
@@ -794,7 +1242,10 @@
                 case 'decline-request': return window.__declineRequest();
                 case 'join-queue': return window.__joinQueue();
                 case 'save-profile': return window.__saveInterpreterProfile();
+                case 'set-interpreter-tab': return window.__setInterpreterTab(element.dataset.tab);
                 case 'sign-out': return window.__signOut();
+                case 'start-self-preview': return startSelfPreview(false);
+                case 'stop-self-preview': return stopSelfPreview();
                 default:
                     return;
             }
@@ -837,6 +1288,70 @@
             });
         }
 
+        function checked(value) {
+            return value ? 'checked' : '';
+        }
+
+        function formatDateTime(iso) {
+            if (!iso) return 'Not recorded';
+            const d = new Date(iso);
+            return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        }
+
+        function getServiceModes(profile, user) {
+            const modes = profile?.serviceModes || profile?.service_modes || user?.serviceModes || user?.service_modes;
+            if (Array.isArray(modes) && modes.length) {
+                return modes.map(mode => String(mode).toLowerCase());
+            }
+            return IS_MAPLE ? ['vri'] : ['vrs'];
+        }
+
+        function getServiceLabel(modes) {
+            const canUseVrs = modes.includes('vrs');
+            const canUseVri = modes.includes('vri');
+            if (canUseVrs && canUseVri) return 'VRS/VRI';
+            if (canUseVri) return 'VRI';
+            return 'VRS';
+        }
+
+        function renderServiceChips(modes, languages) {
+            const serviceChips = modes.map(mode => `<span class="service-chip">${escapeHtml(mode)}</span>`);
+            const languageChips = (languages || []).slice(0, 3).map(language => `<span class="service-chip">${escapeHtml(language)}</span>`);
+            return [...serviceChips, ...languageChips].join('');
+        }
+
+        function renderTabs() {
+            const tabs = [
+                ['assignments', 'Assignments'],
+                ['schedule', 'Schedule'],
+                ['billing', 'Billing'],
+                ['history', 'History'],
+                ['settings', 'Settings']
+            ];
+            return tabs.map(([id, label]) => `
+                <button class="profile-tab ${state.activeTab === id ? 'active' : ''}" data-action="set-interpreter-tab" data-tab="${id}">
+                    ${label}
+                </button>
+            `).join('');
+        }
+
+        function renderCallHistory(calls) {
+            if (!calls.length) {
+                return '<div class="empty-state">No call history yet</div>';
+            }
+
+            return calls.map(call => `
+                <div class="call-item">
+                    <div>
+                        <div class="call-name">${escapeHtml(call.client_name || 'Client')}</div>
+                        <div class="call-meta">${formatDateTime(call.started_at)} - ${escapeHtml(call.status || 'completed')}</div>
+                        <div class="call-meta">${escapeHtml(call.room_name || '')}</div>
+                    </div>
+                    <div class="call-duration">${Math.round(Number(call.duration_minutes || 0))} min</div>
+                </div>
+            `).join('');
+        }
+
         function render() {
             const user = getUser();
             if (!user || user.role !== 'interpreter') {
@@ -848,9 +1363,16 @@
             const stats = state.stats || { totalCalls: 0, totalMinutes: 0, avgDuration: 0, totalEarnings: 0 };
             const profile = state.profile || user;
             const selectedTheme = getPersistentItem('vrs_interpreter_theme') || 'system';
+            const preferences = getInterpreterPreferences();
             const totalHours = (stats.totalMinutes / 60).toFixed(1);
+            const modes = getServiceModes(profile, user);
+            const serviceLabel = getServiceLabel(modes);
+            const languages = profile.languages || user.languages || [];
+            const earnings = state.earnings || [];
+            const calls = state.calls || [];
+            const pending = state.pendingRequest;
+            const readinessStatus = state.available ? 'Available' : 'Not in queue';
 
-            // Build schedule grid for current week
             const today = new Date();
             const dayOfWeek = today.getDay();
             const monday = new Date(today);
@@ -877,30 +1399,164 @@
             }
             scheduleHTML += '</div>';
 
-            // Recent shifts
             const recentShifts = (state.shifts || []).slice(0, 5);
-            let shiftsHTML = '';
-            recentShifts.forEach(s => {
-                shiftsHTML += `
-                    <div class="shift-item">
-                        <span class="shift-date">${formatDate(s.date)}</span>
-                        <span class="shift-hours">${s.total_minutes ? Math.round(s.total_minutes / 60 * 10) / 10 + 'h' : s.start_time || 'scheduled'}</span>
-                        <span class="shift-status">${s.status || ''}</span>
-                    </div>
-                `;
-            });
+            const shiftsHTML = recentShifts.map(s => `
+                <div class="shift-item">
+                    <span class="shift-date">${formatDate(s.date)}</span>
+                    <span class="shift-hours">${s.total_minutes ? Math.round(s.total_minutes / 60 * 10) / 10 + 'h' : s.start_time || 'scheduled'}</span>
+                    <span class="shift-status">${escapeHtml(s.status || '')}</span>
+                </div>
+            `).join('');
 
-            // Earnings
-            const earnings = state.earnings || [];
-            let earningsHTML = '';
-            earnings.forEach(e => {
-                earningsHTML += `
-                    <div class="earnings-item">
-                        <span class="earnings-range">${e.period_start} — ${e.period_end}</span>
-                        <span class="earnings-amount">${formatCurrency(e.net_earnings || e.total_earnings)}</span>
+            const earningsHTML = earnings.map(e => `
+                <div class="earnings-item">
+                    <span class="earnings-range">${escapeHtml(e.period_start)} to ${escapeHtml(e.period_end)}</span>
+                    <span class="earnings-amount">${formatCurrency(e.net_earnings || e.total_earnings)}</span>
+                </div>
+            `).join('');
+
+            const assignmentsPanel = `
+                <div class="tab-grid">
+                    <div>
+                        <div class="assignment-state">
+                            <div>
+                                <div class="assignment-title">${pending ? 'Incoming request' : readinessStatus}</div>
+                                <div class="assignment-copy">
+                                    ${pending
+                                        ? `Client: ${escapeHtml(pending.clientName || 'Unknown')} - Language: ${escapeHtml(pending.language || 'ASL')}`
+                                        : (state.available ? 'You are available for matching.' : 'Go available when you are ready to receive VRS/VRI requests.')}
+                                </div>
+                            </div>
+                            ${state.available
+                                ? `<button class="join-queue-btn" style="background:#388e3c;cursor:default;max-width:260px" disabled>Available</button>`
+                                : `<button class="join-queue-btn" style="max-width:260px" data-action="join-queue">Join Queue</button>`}
+                        </div>
+                        ${pending ? `
+                            <div class="settings-actions">
+                                <button class="settings-btn" data-action="accept-request">Accept Request</button>
+                                <button class="settings-btn secondary" data-action="decline-request">Decline</button>
+                            </div>
+                        ` : ''}
                     </div>
-                `;
-            });
+                    <div class="readiness-item">
+                        <div class="readiness-label">Readiness</div>
+                        <div class="readiness-note">
+                            Camera default: ${preferences.cameraDefaultOff ? 'off' : 'on'}.
+                            Microphone always starts muted.
+                            Connection: ${state.wsConnected ? 'connected' : 'reconnecting'}.
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const schedulePanel = `
+                <div class="tab-grid">
+                    <div>
+                        <div class="card-title">Week</div>
+                        ${scheduleHTML}
+                    </div>
+                    <div>
+                        <div class="card-title">Recent Shifts</div>
+                        ${recentShifts.length > 0 ? shiftsHTML : '<div class="empty-state">No shifts scheduled</div>'}
+                    </div>
+                </div>
+            `;
+
+            const billingPanel = `
+                <div class="tab-grid">
+                    <div>
+                        <div class="card-title">Billing</div>
+                        <div class="earnings-total">${formatCurrency(stats.totalEarnings)}</div>
+                        <div class="earnings-period">Net earnings this month</div>
+                    </div>
+                    <div>
+                        <div class="card-title">Earnings Records</div>
+                        ${earnings.length > 0 ? earningsHTML : '<div class="empty-state">No earnings records yet</div>'}
+                    </div>
+                </div>
+            `;
+
+            const historyPanel = `
+                <div class="card-title">Call History</div>
+                ${renderCallHistory(calls)}
+            `;
+
+            const settingsPanel = `
+                <div class="settings-columns">
+                    <div class="settings-group">
+                        <div class="settings-group-title">Profile</div>
+                        <div class="settings-row">
+                            <label class="settings-label" for="interpreter-name">Display Name</label>
+                            <input id="interpreter-name" class="settings-input" type="text" value="${escapeHtml(profile.name || '')}">
+                        </div>
+                        <div class="settings-row">
+                            <label class="settings-label" for="interpreter-email">Email</label>
+                            <input id="interpreter-email" class="settings-input" type="email" value="${escapeHtml(profile.email || '')}">
+                        </div>
+                        <div class="settings-row">
+                            <label class="settings-label" for="interpreter-languages">Languages</label>
+                            <input id="interpreter-languages" class="settings-input" type="text" value="${escapeHtml((languages || []).join(', '))}">
+                        </div>
+                        <div class="settings-actions">
+                            <button class="settings-btn" data-action="save-profile">Save Profile</button>
+                        </div>
+                        ${state.settingsStatus ? `<div class="settings-status ${state.settingsStatus.type}">${escapeHtml(state.settingsStatus.message)}</div>` : ''}
+                    </div>
+
+                    <div class="settings-group">
+                        <div class="settings-group-title">Call Defaults</div>
+                        <div class="settings-row">
+                            <label class="settings-label" for="interpreter-theme">Theme</label>
+                            <select id="interpreter-theme" class="settings-select" data-change-action="preview-theme">
+                                <option value="system" ${selectedTheme === 'system' ? 'selected' : ''}>System</option>
+                                <option value="dark" ${selectedTheme === 'dark' ? 'selected' : ''}>Dark</option>
+                                <option value="light" ${selectedTheme === 'light' ? 'selected' : ''}>Light</option>
+                            </select>
+                        </div>
+                        <label class="settings-toggle">
+                            <input id="interpreter-camera-off" type="checkbox" ${checked(preferences.cameraDefaultOff)}>
+                            Camera off by default
+                        </label>
+                        <label class="settings-toggle">
+                            <input id="interpreter-mic-off" type="checkbox" checked disabled>
+                            Microphone always muted by default
+                        </label>
+                        <label class="settings-toggle">
+                            <input id="interpreter-remember-media" type="checkbox" ${checked(preferences.rememberMediaPermissions)}>
+                            Remember media permission
+                        </label>
+                        <div class="settings-actions">
+                            <button class="settings-btn" data-action="save-profile">Save Defaults</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="height:18px"></div>
+
+                <div class="settings-grid">
+                    <div class="settings-group-title">Password</div>
+                    <div class="settings-row">
+                        <label class="settings-label" for="interpreter-current-password">Current Password</label>
+                        <input id="interpreter-current-password" class="settings-input" type="password" autocomplete="current-password">
+                    </div>
+                    <div class="settings-row">
+                        <label class="settings-label" for="interpreter-new-password">New Password</label>
+                        <input id="interpreter-new-password" class="settings-input" type="password" autocomplete="new-password">
+                    </div>
+                    <div class="settings-actions">
+                        <button class="settings-btn secondary" data-action="change-password">Update Password</button>
+                    </div>
+                    ${state.passwordStatus ? `<div class="settings-status ${state.passwordStatus.type}">${escapeHtml(state.passwordStatus.message)}</div>` : ''}
+                </div>
+            `;
+
+            const panelByTab = {
+                assignments: assignmentsPanel,
+                schedule: schedulePanel,
+                billing: billingPanel,
+                history: historyPanel,
+                settings: settingsPanel
+            };
 
             document.getElementById('app').innerHTML = `
                 <div class="profile-header">
@@ -914,106 +1570,73 @@
                     </div>
                 </div>
 
-                <!-- Stats bar -->
-                <div class="stats-bar">
-                    <div class="stat-card">
-                        <div class="stat-value">${totalHours}</div>
-                        <div class="stat-label">Hours This Month</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${formatCurrency(stats.totalEarnings)}</div>
-                        <div class="stat-label">Earned This Month</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${stats.totalCalls}</div>
-                        <div class="stat-label">Calls This Month</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${Math.round(stats.avgDuration)}</div>
-                        <div class="stat-label">Avg Duration (min)</div>
-                    </div>
-                </div>
-
-                <!-- Schedule + Earnings -->
                 <div class="profile-main">
-                    <div class="card">
-                        <div class="card-title">Schedule</div>
-                        ${scheduleHTML}
-                        ${recentShifts.length > 0 ? `
-                            <div style="margin-top:12px">
-                                ${shiftsHTML}
+                    <div class="profile-hero">
+                        <div class="card self-preview-card">
+                            <div class="card-title">Self View</div>
+                            <div class="self-preview-frame">
+                                ${state.mediaPreview.status === 'active' ? '<video id="self-preview-video" autoplay muted playsinline></video>' : `
+                                    <div class="self-preview-placeholder">
+                                        ${state.mediaPreview.status === 'requesting' ? 'Waiting for camera permission...' : 'Turn on preview to check your camera before going available.'}
+                                    </div>
+                                `}
                             </div>
-                        ` : '<div class="empty-state">No shifts scheduled</div>'}
-                    </div>
-
-                    <div class="card">
-                        <div class="card-title">Earnings</div>
-                        <div class="earnings-total">${formatCurrency(stats.totalEarnings)}</div>
-                        <div class="earnings-period">Net earnings this month</div>
-                        ${earnings.length > 0 ? earningsHTML : '<div class="empty-state">No earnings records yet</div>'}
-                    </div>
-
-                    <!-- Join Queue -->
-                    <div class="join-queue-section">
-                        ${state.available
-                            ? `<button class="join-queue-btn" style="background:#388e3c;cursor:default" disabled>
-                                   ✓ Available — Waiting for Requests
-                               </button>`
-                            : `<button class="join-queue-btn" data-action="join-queue">
-                                   Join Queue — Go Available
-                               </button>`
-                        }
-                    </div>
-
-                    <div class="card">
-                        <div class="card-title">Profile Settings</div>
-                        <div class="settings-grid">
-                            <div class="settings-row">
-                                <label class="settings-label" for="interpreter-name">Display Name</label>
-                                <input id="interpreter-name" class="settings-input" type="text" value="${escapeHtml(profile.name || '')}">
-                            </div>
-                            <div class="settings-row">
-                                <label class="settings-label" for="interpreter-email">Email</label>
-                                <input id="interpreter-email" class="settings-input" type="email" value="${escapeHtml(profile.email || '')}">
-                            </div>
-                            <div class="settings-row">
-                                <label class="settings-label" for="interpreter-languages">Languages</label>
-                                <input id="interpreter-languages" class="settings-input" type="text" value="${escapeHtml((profile.languages || []).join(', '))}">
-                            </div>
-                            <div class="settings-row">
-                                <label class="settings-label" for="interpreter-theme">Theme</label>
-                                <select id="interpreter-theme" class="settings-select" data-change-action="preview-theme">
-                                    <option value="system" ${selectedTheme === 'system' ? 'selected' : ''}>System</option>
-                                    <option value="dark" ${selectedTheme === 'dark' ? 'selected' : ''}>Dark</option>
-                                    <option value="light" ${selectedTheme === 'light' ? 'selected' : ''}>Light</option>
-                                </select>
-                            </div>
-                            <div class="settings-actions">
-                                <button class="settings-btn" data-action="save-profile">Save Profile</button>
+                            <div class="self-preview-status">${escapeHtml(state.mediaPreview.message || 'Preview uses camera only. Microphone is always muted by default.')}</div>
+                            <div class="self-preview-actions">
+                                ${state.mediaPreview.status === 'active' ? `
+                                    <button class="settings-btn secondary" data-action="stop-self-preview">Turn Preview Off</button>
+                                ` : `
+                                    <button class="settings-btn" data-action="start-self-preview">Turn Preview On</button>
+                                `}
                             </div>
                         </div>
-                        ${state.settingsStatus ? `<div class="settings-status ${state.settingsStatus.type}">${escapeHtml(state.settingsStatus.message)}</div>` : ''}
-                    </div>
 
-                    <div class="card">
-                        <div class="card-title">Password</div>
-                        <div class="settings-grid">
-                            <div class="settings-row">
-                                <label class="settings-label" for="interpreter-current-password">Current Password</label>
-                                <input id="interpreter-current-password" class="settings-input" type="password" autocomplete="current-password">
-                            </div>
-                            <div class="settings-row">
-                                <label class="settings-label" for="interpreter-new-password">New Password</label>
-                                <input id="interpreter-new-password" class="settings-input" type="password" autocomplete="new-password">
-                            </div>
-                            <div class="settings-actions">
-                                <button class="settings-btn secondary" data-action="change-password">Update Password</button>
+                        <div class="profile-stack">
+                            <div class="card">
+                                <div class="profile-summary-top">
+                                    <div>
+                                        <div class="profile-name">${escapeHtml(profile.name || user.name || 'Interpreter')}</div>
+                                        <div class="profile-subtitle">${serviceLabel} interpreter profile - ${state.wsConnected ? 'Connected' : 'Reconnecting'}</div>
+                                    </div>
+                                    <div class="service-chip-row">${renderServiceChips(modes, languages)}</div>
+                                </div>
+                                <div class="readiness-grid">
+                                    <div class="readiness-item">
+                                        <div class="readiness-value">${readinessStatus}</div>
+                                        <div class="readiness-label">Queue</div>
+                                    </div>
+                                    <div class="readiness-item">
+                                        <div class="readiness-value">${totalHours}</div>
+                                        <div class="readiness-label">Hours</div>
+                                    </div>
+                                    <div class="readiness-item">
+                                        <div class="readiness-value">${stats.totalCalls}</div>
+                                        <div class="readiness-label">Calls</div>
+                                    </div>
+                                    <div class="readiness-item">
+                                        <div class="readiness-value">${formatCurrency(stats.totalEarnings)}</div>
+                                        <div class="readiness-label">Billing</div>
+                                    </div>
+                                </div>
+                                ${state.available
+                                    ? `<button class="join-queue-btn" style="background:#388e3c;cursor:default" disabled>Available - Waiting for Requests</button>`
+                                    : `<button class="join-queue-btn" data-action="join-queue">Join Queue - Go Available</button>`}
+                                <div class="readiness-note">
+                                    Camera default is ${preferences.cameraDefaultOff ? 'off' : 'on'}.
+                                    Microphone always starts muted.
+                                    Billing, schedule, and call history live in the tabs below.
+                                </div>
                             </div>
                         </div>
-                        ${state.passwordStatus ? `<div class="settings-status ${state.passwordStatus.type}">${escapeHtml(state.passwordStatus.message)}</div>` : ''}
+                    </div>
+
+                    <div class="profile-tabs">${renderTabs()}</div>
+                    <div class="card tab-panel">
+                        ${panelByTab[state.activeTab] || assignmentsPanel}
                     </div>
                 </div>
             `;
+            syncSelfPreview();
         }
 
         // Actions
@@ -1039,6 +1662,13 @@
             applyTheme(mode);
         };
 
+        window.__setInterpreterTab = function(tab) {
+            const allowed = ['assignments', 'schedule', 'billing', 'history', 'settings'];
+            state.activeTab = allowed.includes(tab) ? tab : 'assignments';
+            setPersistentItem('vrs_interpreter_active_tab', state.activeTab);
+            render();
+        };
+
         window.__saveInterpreterProfile = async function() {
             state.settingsStatus = null;
             try {
@@ -1059,6 +1689,10 @@
                     email: profile.email
                 }));
                 applyTheme(document.getElementById('interpreter-theme')?.value || 'system');
+                persistInterpreterPreferences({
+                    cameraDefaultOff: !!document.getElementById('interpreter-camera-off')?.checked,
+                    rememberMediaPermissions: !!document.getElementById('interpreter-remember-media')?.checked
+                });
                 state.settingsStatus = { type: 'success', message: 'Profile saved.' };
             } catch (error) {
                 state.settingsStatus = { type: 'error', message: error.message };

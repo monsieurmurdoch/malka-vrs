@@ -6,6 +6,39 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-26
 - Branch: `codex/main-prod-sync`
+- HEAD: `07e9c35`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  interpreter-profile.html`
+  - `M  status.md`
+  - `M  vrs-server/routes/interpreter.js`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-26T02:34:42.503Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-26
+- Branch: `codex/main-prod-sync`
+- HEAD: `07e9c35`
+- Note: Redesigned the global interpreter profile into a client-profile-style home with self view, readiness/queue controls, working tabs for assignments/schedule/billing/history/settings, local media defaults, and service-mode API metadata.
+- Snapshot:
+Local changes at sync time:
+  - `M interpreter-profile.html`
+  - `M vrs-server/routes/interpreter.js`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-26T02:34:25.761Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-26
+- Branch: `codex/main-prod-sync`
 - HEAD: `797b9f6`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -19,7 +52,7 @@ Local changes at sync time:
   - `M  whitelabel/maple.json`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-26T01:15:02.642Z
 
 <!-- status:current:start -->
