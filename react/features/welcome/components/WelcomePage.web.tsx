@@ -7,7 +7,13 @@ import { SETTINGS_TABS } from '../../settings/constants';
 
 import { AbstractWelcomePage, IProps, _mapStateToProps } from './AbstractWelcomePage';
 import { consumePendingRoomRedirect, setPersistentItem } from '../../vrs-auth/storage';
-import { isFeatureEnabled, getAppName, getLogoWhiteUrl } from '../../base/whitelabel/functions';
+import {
+    getAppName,
+    getLogoUrl,
+    getLogoWhiteUrl,
+    getWhitelabelConfig,
+    isFeatureEnabled
+} from '../../base/whitelabel/functions';
 
 declare var config: any;
 
@@ -333,6 +339,9 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
         const showInterpreterTab = hasInterpreterAccess();
         const canSelfRegister = isClient;
         const themeClass = isClient ? 'earth' : isInterpreter ? 'moon' : 'sun';
+        const tenantId = getWhitelabelConfig()?.tenantId || 'malka';
+        const tenantClass = `tenant-${tenantId}`;
+        const logoUrl = isClient ? getLogoUrl() : getLogoWhiteUrl();
         const tabIndicatorClass = isClient ? 'left' : isInterpreter ? 'center' : 'right';
         const subtitle = isLogin
             ? (isClient
@@ -348,7 +357,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
             <div
                 className = { `welcome vrs-auth-page ${contentClassName} ${footerClassName}` }
                 id = 'welcome_page'>
-                <div className = { `vrs-auth-fullscreen ${themeClass}` }>
+                <div className = { `vrs-auth-fullscreen ${themeClass} ${tenantClass}` }>
                     <div
                         aria-hidden = 'true'
                         className = 'vrs-celestial-background'>
@@ -387,7 +396,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                             <img
                                 alt = { getAppName() }
                                 className = 'vrs-auth-logo-img'
-                                src = { getLogoWhiteUrl() } />
+                                src = { logoUrl } />
                             <span className = { `vrs-auth-logo-text ${themeClass}` }>
                                 {getServiceBadgeLabel()}
                             </span>

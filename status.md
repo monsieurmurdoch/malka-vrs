@@ -6,6 +6,45 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-26
 - Branch: `codex/main-prod-sync`
+- HEAD: `2529858`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  client-profile.html`
+  - `M  css/_welcome_page.scss`
+  - `M  css/all.css`
+  - `M  libs/app.bundle.min.js`
+  - `M  react/features/welcome/components/WelcomePage.web.tsx`
+  - `M  status.md`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-26T05:23:02.978Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-26
+- Branch: `codex/main-prod-sync`
+- HEAD: `2529858`
+- Note: Applied the Malka website palette to the client profile and login surfaces: light mode is off-white/white with navy accents, dark mode is deep navy with white accents, and role login themes keep the planets while differentiating client/interpreter/captioner.
+- Snapshot:
+Local changes at sync time:
+  - `M client-profile.html`
+  - `M css/_welcome_page.scss`
+  - `M css/all.css`
+  - `M libs/app.bundle.min.js`
+  - `M react/features/welcome/components/WelcomePage.web.tsx`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-26T05:22:44.884Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-26
+- Branch: `codex/main-prod-sync`
 - HEAD: `07e9c35`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -15,7 +54,7 @@ Local changes at sync time:
   - `M  vrs-server/routes/interpreter.js`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-26T02:34:42.503Z
 
 <!-- status:current:start -->
