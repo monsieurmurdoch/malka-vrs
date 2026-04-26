@@ -4,6 +4,68 @@ This file is the project-level running status log. The current update stays at t
 <!-- status:current:start -->
 ## Current Update
 
+- Updated: 2026-04-26
+- Branch: `codex/main-prod-sync`
+- HEAD: `797b9f6`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  interpreter-profile.html`
+  - `M  libs/app.bundle.min.js`
+  - `M  react/features/welcome/components/WelcomePage.web.tsx`
+  - `M  status.md`
+  - `M  vrs-admin-dashboard.html`
+  - `M  vrs-admin-dashboard.js`
+  - `M  whitelabel/maple.json`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-26T01:15:02.642Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-26
+- Branch: `codex/main-prod-sync`
+- HEAD: `797b9f6`
+- Note: Fixed Maple client login tab gating, enabled Maple VRS/VRI entry, and converted interpreter/admin controls to CSP-safe delegated handlers.
+- Snapshot:
+Local changes at sync time:
+  - `M interpreter-profile.html`
+  - `M libs/app.bundle.min.js`
+  - `M react/features/welcome/components/WelcomePage.web.tsx`
+  - `M status.md`
+  - `M vrs-admin-dashboard.html`
+  - `M vrs-admin-dashboard.js`
+  - `M whitelabel/maple.json`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-26T01:14:26.635Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-26
+- Branch: `codex/main-prod-sync`
+- HEAD: `797b9f6`
+- Note: Fixed Maple client login tab gating, enabled Maple VRS/VRI entry, and converted interpreter/admin controls to CSP-safe delegated handlers.
+- Snapshot:
+Local changes at sync time:
+  - `M interpreter-profile.html`
+  - `M libs/app.bundle.min.js`
+  - `M react/features/welcome/components/WelcomePage.web.tsx`
+  - `M vrs-admin-dashboard.html`
+  - `M vrs-admin-dashboard.js`
+  - `M whitelabel/maple.json`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-26T00:44:50.069Z
+
+<!-- status:current:start -->
+## Current Update
+
 - Updated: 2026-04-25
 - Branch: `codex/main-prod-sync`
 - HEAD: `581a2b8`
@@ -14,7 +76,7 @@ Local changes at sync time:
   - `M  vrs-admin-dashboard.js`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-25T09:35:44.166Z
 
 <!-- status:current:start -->

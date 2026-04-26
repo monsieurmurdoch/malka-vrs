@@ -12,15 +12,34 @@ import { isFeatureEnabled, getAppName, getLogoWhiteUrl } from '../../base/whitel
 declare var config: any;
 
 function getInitialSelectedTab(): 'client' | 'interpreter' | 'captioner' {
-    if (isFeatureEnabled('vrs')) {
+    if (hasClientAccess()) {
         return 'client';
     }
 
-    if (isFeatureEnabled('vri')) {
+    if (hasInterpreterAccess()) {
         return 'interpreter';
     }
 
     return 'captioner';
+}
+
+function hasClientAccess(): boolean {
+    return isFeatureEnabled('vrs') || isFeatureEnabled('vri');
+}
+
+function hasInterpreterAccess(): boolean {
+    return isFeatureEnabled('vrs') || isFeatureEnabled('vri');
+}
+
+function getServiceBadgeLabel(): string {
+    const hasVrs = isFeatureEnabled('vrs');
+    const hasVri = isFeatureEnabled('vri');
+
+    if (hasVrs && hasVri) {
+        return 'VRS/VRI';
+    }
+
+    return hasVri ? 'VRI' : 'VRS';
 }
 
 /**
@@ -310,6 +329,8 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
         const isClient = selectedTab === 'client';
         const isInterpreter = selectedTab === 'interpreter';
         const isCaptioner = selectedTab === 'captioner';
+        const showClientTab = hasClientAccess();
+        const showInterpreterTab = hasInterpreterAccess();
         const canSelfRegister = isClient;
         const themeClass = isClient ? 'earth' : isInterpreter ? 'moon' : 'sun';
         const tabIndicatorClass = isClient ? 'left' : isInterpreter ? 'center' : 'right';
@@ -368,14 +389,14 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                                 className = 'vrs-auth-logo-img'
                                 src = { getLogoWhiteUrl() } />
                             <span className = { `vrs-auth-logo-text ${themeClass}` }>
-                                VRS
+                                {getServiceBadgeLabel()}
                             </span>
                         </div>
 
                         {/* Tab toggle */}
                         <div className = 'vrs-auth-tabs'>
                             <div className = { `vrs-auth-tab-indicator ${tabIndicatorClass}` } />
-                            {isFeatureEnabled('vrs') && (
+                            {showClientTab && (
                                 <button
                                     className = { `vrs-auth-tab ${isClient ? 'active' : ''}` }
                                     onClick = { () => this._handleTabSwitch('client') }
@@ -383,7 +404,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                                     Client
                                 </button>
                             )}
-                            {isFeatureEnabled('vri') && (
+                            {showInterpreterTab && (
                                 <button
                                     className = { `vrs-auth-tab ${isInterpreter ? 'active' : ''}` }
                                     onClick = { () => this._handleTabSwitch('interpreter') }

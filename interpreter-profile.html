@@ -767,11 +767,11 @@
                 <div style="opacity:0.75">Client: ${req.clientName || 'Unknown'} · Language: ${req.language || 'ASL'}</div>
                 ${req.targetPhone ? `<div style="opacity:0.75">Hearing Party: ${req.targetPhone}</div>` : ''}
                 <div style="display:flex;gap:16px;margin-top:8px">
-                    <button onclick="window.__acceptRequest()"
+                    <button data-action="accept-request"
                         style="padding:14px 32px;border-radius:50px;border:none;background:#4caf50;color:#fff;font-size:16px;cursor:pointer">
                         Accept
                     </button>
-                    <button onclick="window.__declineRequest()"
+                    <button data-action="decline-request"
                         style="padding:14px 32px;border-radius:50px;border:none;background:#f44336;color:#fff;font-size:16px;cursor:pointer">
                         Decline
                     </button>
@@ -783,6 +783,37 @@
             const el = document.getElementById('vrs-accept-overlay');
             if (el) el.remove();
         }
+
+        function dispatchUiAction(action, element, event) {
+            if (!action) return;
+            event?.preventDefault();
+
+            switch (action) {
+                case 'accept-request': return window.__acceptRequest();
+                case 'change-password': return window.__changeInterpreterPassword();
+                case 'decline-request': return window.__declineRequest();
+                case 'join-queue': return window.__joinQueue();
+                case 'save-profile': return window.__saveInterpreterProfile();
+                case 'sign-out': return window.__signOut();
+                default:
+                    return;
+            }
+        }
+
+        document.addEventListener('click', function(event) {
+            const actionElement = event.target.closest('[data-action]');
+            if (!actionElement || !document.body.contains(actionElement)) return;
+            if (actionElement.disabled) return;
+            dispatchUiAction(actionElement.dataset.action, actionElement, event);
+        });
+
+        document.addEventListener('change', function(event) {
+            const actionElement = event.target.closest('[data-change-action]');
+            if (!actionElement || !document.body.contains(actionElement)) return;
+            if (actionElement.dataset.changeAction === 'preview-theme') {
+                window.__previewInterpreterTheme(actionElement.value);
+            }
+        });
 
         function formatDate(iso) {
             if (!iso) return '';
@@ -879,7 +910,7 @@
                     </div>
                     <div class="profile-header-right">
                         <span class="profile-user-name">${user.name || user.email || ''}</span>
-                        <button class="sign-out-btn" onclick="window.__signOut()">Sign Out</button>
+                        <button class="sign-out-btn" data-action="sign-out">Sign Out</button>
                     </div>
                 </div>
 
@@ -928,7 +959,7 @@
                             ? `<button class="join-queue-btn" style="background:#388e3c;cursor:default" disabled>
                                    ✓ Available — Waiting for Requests
                                </button>`
-                            : `<button class="join-queue-btn" onclick="window.__joinQueue()">
+                            : `<button class="join-queue-btn" data-action="join-queue">
                                    Join Queue — Go Available
                                </button>`
                         }
@@ -951,14 +982,14 @@
                             </div>
                             <div class="settings-row">
                                 <label class="settings-label" for="interpreter-theme">Theme</label>
-                                <select id="interpreter-theme" class="settings-select" onchange="window.__previewInterpreterTheme(this.value)">
+                                <select id="interpreter-theme" class="settings-select" data-change-action="preview-theme">
                                     <option value="system" ${selectedTheme === 'system' ? 'selected' : ''}>System</option>
                                     <option value="dark" ${selectedTheme === 'dark' ? 'selected' : ''}>Dark</option>
                                     <option value="light" ${selectedTheme === 'light' ? 'selected' : ''}>Light</option>
                                 </select>
                             </div>
                             <div class="settings-actions">
-                                <button class="settings-btn" onclick="window.__saveInterpreterProfile()">Save Profile</button>
+                                <button class="settings-btn" data-action="save-profile">Save Profile</button>
                             </div>
                         </div>
                         ${state.settingsStatus ? `<div class="settings-status ${state.settingsStatus.type}">${escapeHtml(state.settingsStatus.message)}</div>` : ''}
@@ -976,7 +1007,7 @@
                                 <input id="interpreter-new-password" class="settings-input" type="password" autocomplete="new-password">
                             </div>
                             <div class="settings-actions">
-                                <button class="settings-btn secondary" onclick="window.__changeInterpreterPassword()">Update Password</button>
+                                <button class="settings-btn secondary" data-action="change-password">Update Password</button>
                             </div>
                         </div>
                         ${state.passwordStatus ? `<div class="settings-status ${state.passwordStatus.type}">${escapeHtml(state.passwordStatus.message)}</div>` : ''}

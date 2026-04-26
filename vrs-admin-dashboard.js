@@ -144,6 +144,38 @@ function setupEventListeners() {
 
     // Queue pause button
     document.getElementById('pauseQueueBtn')?.addEventListener('click', toggleQueue);
+
+    document.addEventListener('click', event => {
+        const navTarget = event.target.closest('[data-nav-tab]');
+        if (navTarget) {
+            event.preventDefault();
+            window.location.hash = navTarget.dataset.navTab;
+            return;
+        }
+
+        const actionTarget = event.target.closest('[data-action]');
+        if (!actionTarget) {
+            return;
+        }
+
+        event.preventDefault();
+        const id = actionTarget.dataset.id;
+
+        switch (actionTarget.dataset.action) {
+            case 'edit-interpreter':
+                editInterpreter(id);
+                break;
+            case 'edit-captioner':
+                editCaptioner(id);
+                break;
+            case 'edit-client-permissions':
+                editClientPermissions(id);
+                break;
+            case 'remove-from-queue':
+                removeFromQueue(id);
+                break;
+        }
+    });
 }
 
 function loadInitialData() {
@@ -901,7 +933,7 @@ function renderInterpretersTable(interpreters) {
                 <td>${interp.minutes_week || 0}</td>
                 <td>${formatLastActive(interp)}</td>
                 <td>
-                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="editInterpreter('${interp.id}')">Edit</button>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" data-action="edit-interpreter" data-id="${interp.id}">Edit</button>
                 </td>
             </tr>
         `;
@@ -1086,7 +1118,7 @@ function renderCaptionersTable(captioners) {
             </td>
             <td>${formatDate(captioner.created_at)}</td>
             <td>
-                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="editCaptioner('${captioner.id}')">Edit</button>
+                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" data-action="edit-captioner" data-id="${captioner.id}">Edit</button>
             </td>
         </tr>
     `).join('');
@@ -1332,7 +1364,7 @@ function renderClientsTable(clients) {
             <td>${client.last_call || 'Never'}</td>
             <td>${formatDate(client.created_at)}</td>
             <td>
-                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="editClientPermissions('${client.id}')">Permissions</button>
+                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" data-action="edit-client-permissions" data-id="${client.id}">Permissions</button>
             </td>
         </tr>
     `).join('');
@@ -1440,7 +1472,7 @@ function renderLiveQueue(queue) {
                 </div>
             </div>
             <div class="queue-actions">
-                <button class="btn btn-secondary" onclick="removeFromQueue('${item.id}')">Remove</button>
+                <button class="btn btn-secondary" data-action="remove-from-queue" data-id="${item.id}">Remove</button>
             </div>
         </div>
     `).join('');
