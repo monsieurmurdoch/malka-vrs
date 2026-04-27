@@ -6,6 +6,37 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-27
 - Branch: `codex/main-prod-sync`
+- HEAD: `2fd1241`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  deploy/nginx.conf`
+  - `M  status.md`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-27T06:49:07.273Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-27
+- Branch: `codex/main-prod-sync`
+- HEAD: `2fd1241`
+- Note: Diagnosed client login 404 on vri.malkacomm.com as DNS/domain routing: the hostname currently resolves to Vercel and returns DEPLOYMENT_NOT_FOUND, not the Droplet app. Prepared Droplet nginx HTTP ACME handling for vri.malkacomm.com so the cert can be issued after DNS is pointed to 138.197.121.127.
+- Snapshot:
+Local changes at sync time:
+  - `M deploy/nginx.conf`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-27T06:48:53.089Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-27
+- Branch: `codex/main-prod-sync`
 - HEAD: `338fbb5`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -15,7 +46,7 @@ Local changes at sync time:
   - `M  status.md`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-27T00:33:32.026Z
 
 <!-- status:current:start -->
