@@ -6,6 +6,37 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-27
 - Branch: `codex/main-prod-sync`
+- HEAD: `89954b2`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  status.md`
+  - `M  vrs-server/src/server.ts`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-27T06:53:18.550Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-27
+- Branch: `codex/main-prod-sync`
+- HEAD: `89954b2`
+- Note: Added forgiving auth aliases (/login, /client-login, /client) to the VRS server so client login renders once traffic reaches the Droplet. Verified the Droplet returns 200 for client-login when host resolution is forced to 138.197.121.127; public malkacomm app subdomains still resolve to Vercel.
+- Snapshot:
+Local changes at sync time:
+  - `M vrs-server/src/server.ts`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-27T06:52:59.748Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-27
+- Branch: `codex/main-prod-sync`
 - HEAD: `2fd1241`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -14,7 +45,7 @@ Local changes at sync time:
   - `M  status.md`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-27T06:49:07.273Z
 
 <!-- status:current:start -->

@@ -426,6 +426,10 @@ app.use('/api/google-contacts', googleContactsRouter);
 app.use('/api/billing', billingAdminRouter);
 app.use('/api/billing', billingDashboardRouter);
 
+app.get([ '/login', '/client-login', '/client' ], (_req: Request, res: Response, next: NextFunction) => {
+    renderHtmlWithIncludes(path.join(staticRoot, 'index.html'), res, next);
+});
+
 app.get(/^\/(?:instant|vrs|vri|p2p|voicemail)-[A-Za-z0-9-]+$/, (_req: Request, res: Response, next: NextFunction) => {
     renderHtmlWithIncludes(path.join(staticRoot, 'index.html'), res, next);
 });
