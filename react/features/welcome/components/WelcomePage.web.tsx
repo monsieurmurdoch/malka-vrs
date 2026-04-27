@@ -341,7 +341,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
         const themeClass = isClient ? 'earth' : isInterpreter ? 'moon' : 'sun';
         const tenantId = getWhitelabelConfig()?.tenantId || 'malka';
         const tenantClass = `tenant-${tenantId}`;
-        const logoUrl = isClient ? getLogoUrl() : getLogoWhiteUrl();
+        const logoUrl = isInterpreter ? getLogoWhiteUrl() : getLogoUrl();
         const tabIndicatorClass = isClient ? 'left' : isInterpreter ? 'center' : 'right';
         const subtitle = isLogin
             ? (isClient

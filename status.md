@@ -4,6 +4,56 @@ This file is the project-level running status log. The current update stays at t
 <!-- status:current:start -->
 ## Current Update
 
+- Updated: 2026-04-27
+- Branch: `codex/main-prod-sync`
+- HEAD: `338fbb5`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  libs/app.bundle.min.js`
+  - `M  react/features/welcome/components/WelcomePage.web.tsx`
+  - `M  status.md`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-27T00:33:32.026Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-27
+- Branch: `codex/main-prod-sync`
+- HEAD: `338fbb5`
+- Note: Fixed Malka auth logo selection so light login surfaces use the primary navy logo while the dark interpreter surface keeps the white logo. Reviewed the client profile hierarchy and identified the next UX pass: larger self-view, home-level contacts, and settings moved to a drawer/modal.
+- Snapshot:
+Local changes at sync time:
+  - `M libs/app.bundle.min.js`
+  - `M react/features/welcome/components/WelcomePage.web.tsx`
+  - `M status.md`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-27T00:33:21.361Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-27
+- Branch: `codex/main-prod-sync`
+- HEAD: `338fbb5`
+- Note: Fixed Malka auth logo selection so light login surfaces use the primary navy logo while the dark interpreter surface keeps the white logo. Reviewed the client profile hierarchy and identified the next UX pass: larger self-view, home-level contacts, and settings moved to a drawer/modal.
+- Snapshot:
+Local changes at sync time:
+  - `M libs/app.bundle.min.js`
+  - `M react/features/welcome/components/WelcomePage.web.tsx`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-27T00:13:03.628Z
+
+<!-- status:current:start -->
+## Current Update
+
 - Updated: 2026-04-26
 - Branch: `codex/main-prod-sync`
 - HEAD: `2529858`
@@ -18,7 +68,7 @@ Local changes at sync time:
   - `M  status.md`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-26T05:23:02.978Z
 
 <!-- status:current:start -->
