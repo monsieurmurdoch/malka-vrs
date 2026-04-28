@@ -6,6 +6,37 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-28
 - Branch: `codex/main-prod-sync`
+- HEAD: `4aeeba8`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  ROADMAP.md`
+  - `M  status.md`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-28T07:09:19.132Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
+- HEAD: `4aeeba8`
+- Note: Roadmap correction applied on main/prod-sync: restored the cleaned roadmap structure from the observability branch, removed the old collapsed completed sections that mixed checked and unchecked work, and clarified white-label status. Completed items now include tenant config files, TENANT build path, CSS tenant variables/assets, and the original Maple logo wordmark deployed in production. Remaining open items are separated into immediate production verification, Maple VRI pilot readiness, white-label hardening, observability, validation/error handling, scale, regulatory, and mobile parity.
+- Snapshot:
+Local changes at sync time:
+  - `MM ROADMAP.md`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-28T07:06:55.983Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
 - HEAD: `d2215db`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -19,7 +50,7 @@ Local changes at sync time:
   - `A  whitelabel/maple/assets/maple-logo-original.png`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-28T07:00:17.877Z
 
 <!-- status:current:start -->
