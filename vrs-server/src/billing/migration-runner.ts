@@ -9,7 +9,9 @@ import { Pool } from 'pg';
 import * as path from 'path';
 import * as fs from 'fs';
 
-const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
+const MIGRATIONS_DIR = fs.existsSync(path.join(__dirname, 'migrations'))
+    ? path.join(__dirname, 'migrations')
+    : path.join(__dirname, '../../src/billing/migrations');
 const MIGRATION_LOCK_ID = 77200042;
 const MIGRATIONS_TABLE = 'billing_schema_migrations';
 

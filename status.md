@@ -6,7 +6,7 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-28
 - Branch: `codex/main-prod-sync`
-- HEAD: `b3ff188`
+- HEAD: `0383e15`
 - Note: Pre-push project status sync.
 - Snapshot:
 Local changes at sync time:
@@ -14,6 +14,21 @@ Local changes at sync time:
 
 <!-- status:current:end -->
 ## Archive
+### Archived Update - 2026-04-28T23:17:09.675Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
+- HEAD: `b3ff188`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  vrs-server/src/billing/migration-runner.ts`
+
+<!-- status:current:end -->
+
 ### Archived Update - 2026-04-28T23:15:20.343Z
 
 <!-- status:current:start -->
