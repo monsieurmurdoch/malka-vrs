@@ -28,8 +28,8 @@
   "assets": {
     "logo": "logo.svg",
     "logoWhite": "logo-white.svg",
-    "favicon": "favicon.svg",
-    "faviconSvg": "favicon.svg",
+    "favicon": "maple-favicon.svg",
+    "faviconSvg": "maple-favicon.svg",
     "favicon16": "",
     "favicon32": "",
     "appleTouchIcon": "",
