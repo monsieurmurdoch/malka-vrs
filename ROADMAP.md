@@ -190,6 +190,10 @@
 - [ ] VRI call creation must immutably tag `call_type = vri`
 - [ ] Maple live pilot script: client login, interpreter login, request interpreter, admin view, end call
 - [ ] Confirm Maple copy never says "video relay" on VRI-only paths
+- [ ] VRI session invite model: client can prepare/add participants before interpreter match, but nobody enters a live room until an interpreter confirms
+- [ ] VRI invite links scoped to the queue/session object, expiring after session end or short unmatched timeout
+- [ ] VRI guest flow: invited Deaf/hearing participants land in waiting/prejoin and can join once the interpreter-connected room is live
+- [ ] In-room VRI invite button: obvious secondary toolbar action with copy link and future SMS/email send, not hidden in settings/extras
 
 ### Malka/Multi-Mode Product Logic
 - [ ] Confirm Malka VRI-only clients always land on the VRI profile/room flow

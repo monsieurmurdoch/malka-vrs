@@ -6,6 +6,37 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-28
 - Branch: `codex/main-prod-sync`
+- HEAD: `ab6cacb`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  ROADMAP.md`
+  - `M  status.md`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-28T08:40:10.556Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
+- HEAD: `ab6cacb`
+- Note: Added VRI session invite model to ROADMAP: pre-match participant preparation, session-scoped expiring links, guest waiting/prejoin flow, and in-room Invite toolbar action for refinement tomorrow.
+- Snapshot:
+Local changes at sync time:
+  - `M ROADMAP.md`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-28T08:39:27.480Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
 - HEAD: `e762944`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -19,7 +50,7 @@ Local changes at sync time:
   - `M  vrs-server/ws/handler.js`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-28T07:53:30.456Z
 
 <!-- status:current:start -->
