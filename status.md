@@ -6,6 +6,45 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-28
 - Branch: `codex/main-prod-sync`
+- HEAD: `e70b290`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  .env.example`
+  - `M  deploy/nginx.conf`
+  - `M  docker-compose.prod.yml`
+  - `M  status.md`
+  - `M  twilio-voice-server/package-lock.json`
+  - `M  twilio-voice-server/package.json`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-28T06:13:51.847Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
+- HEAD: `e70b290`
+- Note: Prod Twilio/ops routing smoke fixed: Twilio now starts with the production compose stack, declares its zod runtime dependency, and uses WEBHOOK_BASE_URL=https://app.malkacomm.com/twilio. Nginx /ops and /twilio routes now rewrite prefixes while using Docker DNS variables, avoiding stale upstream IPs after service restarts. Maple and Malka backend smokes pass for queue, ops, and Twilio readiness; Maple demo client login still returns 200.
+- Snapshot:
+Local changes at sync time:
+  - `M .env.example`
+  - `M deploy/nginx.conf`
+  - `M docker-compose.prod.yml`
+  - `M twilio-voice-server/package-lock.json`
+  - `M twilio-voice-server/package.json`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-28T06:13:10.528Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
 - HEAD: `18d231a`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -18,7 +57,7 @@ Local changes at sync time:
   - `M  status.md`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-28T05:53:38.297Z
 
 <!-- status:current:start -->

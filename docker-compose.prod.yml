@@ -20,6 +20,7 @@ services:
       - vrs
       - vrs-maple
       - ops
+      - twilio
       - prosody
 
   prosody:
@@ -190,8 +191,6 @@ services:
     environment:
       - TWILIO_PORT=3002
       - NODE_ENV=production
-    profiles:
-      - twilio
 
 networks:
   meet.jitsi:
