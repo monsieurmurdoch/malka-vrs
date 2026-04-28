@@ -26,6 +26,15 @@ export async function createCdr(input: CreateCdrInput): Promise<BillingCdr | nul
     if (!billingDb.isBillingDbReady()) return null;
 
     try {
+        const existing = await billingDb.query(
+            'SELECT * FROM billing_cdrs WHERE call_id = $1 ORDER BY created_at DESC LIMIT 1',
+            [input.callId]
+        );
+
+        if (existing.rows[0]) {
+            return mapCdrRow(existing.rows[0]);
+        }
+
         const { rateTierId, perMinuteRate } = await getEffectiveRate(
             input.callType,
             input.startTime

@@ -1078,12 +1078,28 @@
 
         function buildInterpreterRoomUrl(roomName) {
             const prefs = getInterpreterPreferences();
-            const params = new URLSearchParams({
-                role: 'interpreter',
+            const query = new URLSearchParams({
+                role: 'interpreter'
+            });
+            const config = new URLSearchParams({
                 'config.startWithAudioMuted': 'true',
                 'config.startWithVideoMuted': String(prefs.cameraDefaultOff)
             });
-            return '/' + encodeURIComponent(roomName) + '?' + params.toString();
+            return '/' + encodeURIComponent(roomName) + '?' + query.toString() + '#' + config.toString();
+        }
+
+        function persistActiveCall(data) {
+            if (!data || !data.callId) {
+                return;
+            }
+
+            setPersistentItem('vrs_active_call', JSON.stringify({
+                callId: data.callId,
+                callType: data.callType || (data.targetPhone ? 'vrs' : 'vri'),
+                roomName: data.roomName || '',
+                role: 'interpreter',
+                startedAt: new Date().toISOString()
+            }));
         }
 
         function canUseRealtimeMedia() {
@@ -1174,6 +1190,7 @@
                     // Server confirmed; navigate to the shared room.
                     if (msg.data && msg.data.roomName) {
                         clearTimeout(wsReconnectTimer);
+                        persistActiveCall(msg.data);
                         setPersistentItem('vrs_user_role', 'interpreter');
                         window.location.href = buildInterpreterRoomUrl(msg.data.roomName);
                     }

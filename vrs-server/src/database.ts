@@ -989,20 +989,24 @@ async function createClient({ name, email, organization, password, serviceModes,
 // CALL OPERATIONS
 // ============================================
 
-async function createCall({ clientId, interpreterId, roomName, language }: any) {
+async function createCall({ clientId, interpreterId, roomName, language, callType }: any) {
     const id = uuidv4();
 
     await runInsert(
-        'INSERT INTO calls (id, client_id, interpreter_id, room_name, language, status) VALUES ($1, $2, $3, $4, $5, $6)',
-        [id, clientId, interpreterId, roomName, language, 'active']
+        'INSERT INTO calls (id, client_id, interpreter_id, room_name, language, status, call_type) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [id, clientId, interpreterId, roomName, language, 'active', callType || 'vrs']
     );
 
     return id;
 }
 
 async function endCall(callId: any, durationMinutes: any) {
-    await runUpdate(
-        'UPDATE calls SET ended_at = NOW(), duration_minutes = $1, status = $2 WHERE id = $3',
+    return await runUpdate(
+        `UPDATE calls
+         SET ended_at = COALESCE(ended_at, NOW()),
+             duration_minutes = COALESCE(duration_minutes, $1),
+             status = $2
+         WHERE id = $3 AND status <> $2`,
         [durationMinutes, 'completed', callId]
     );
 }

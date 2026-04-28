@@ -1034,13 +1034,17 @@ async function createClient({ name, email, organization, password, serviceModes,
 // ============================================
 // CALL OPERATIONS
 // ============================================
-async function createCall({ clientId, interpreterId, roomName, language }) {
+async function createCall({ clientId, interpreterId, roomName, language, callType }) {
     const id = (0, uuid_1.v4)();
-    await runInsert('INSERT INTO calls (id, client_id, interpreter_id, room_name, language, status) VALUES ($1, $2, $3, $4, $5, $6)', [id, clientId, interpreterId, roomName, language, 'active']);
+    await runInsert('INSERT INTO calls (id, client_id, interpreter_id, room_name, language, status, call_type) VALUES ($1, $2, $3, $4, $5, $6, $7)', [id, clientId, interpreterId, roomName, language, 'active', callType || 'vrs']);
     return id;
 }
 async function endCall(callId, durationMinutes) {
-    await runUpdate('UPDATE calls SET ended_at = NOW(), duration_minutes = $1, status = $2 WHERE id = $3', [durationMinutes, 'completed', callId]);
+    return await runUpdate(`UPDATE calls
+         SET ended_at = COALESCE(ended_at, NOW()),
+             duration_minutes = COALESCE(duration_minutes, $1),
+             status = $2
+         WHERE id = $3 AND status <> $2`, [durationMinutes, 'completed', callId]);
 }
 async function getServerState(key) {
     const rows = await runQuery('SELECT value FROM server_state WHERE key = $1', [key]);

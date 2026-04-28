@@ -10,6 +10,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
+const MIGRATION_LOCK_ID = 77200042;
 
 async function ensureMigrationsTable(pool: Pool): Promise<void> {
     await pool.query(`
@@ -47,41 +48,50 @@ function discoverMigrations(): Map<number, { name: string; file: string }> {
 }
 
 export async function runMigrations(pool: Pool): Promise<void> {
-    await ensureMigrationsTable(pool);
-    const applied = await getAppliedVersions(pool);
-    const available = discoverMigrations();
+    const lockClient = await pool.connect();
 
-    const pending = Array.from(available.entries())
-        .filter(([version]) => !applied.has(version))
-        .sort(([a], [b]) => a - b);
+    try {
+        await lockClient.query('SELECT pg_advisory_lock($1)', [MIGRATION_LOCK_ID]);
 
-    if (pending.length === 0) {
-        console.log('[BillingDB] All migrations already applied.');
-        return;
-    }
+        await ensureMigrationsTable(pool);
+        const applied = await getAppliedVersions(pool);
+        const available = discoverMigrations();
 
-    for (const [version, { name, file }] of pending) {
-        console.log(`[BillingDB] Applying migration ${version}: ${name}`);
-        const sql = fs.readFileSync(file, 'utf8');
+        const pending = Array.from(available.entries())
+            .filter(([version]) => !applied.has(version))
+            .sort(([a], [b]) => a - b);
 
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-            await client.query(sql);
-            await client.query(
-                'INSERT INTO schema_migrations (version, name) VALUES ($1, $2)',
-                [version, name]
-            );
-            await client.query('COMMIT');
-            console.log(`[BillingDB] Migration ${version} applied successfully.`);
-        } catch (err) {
-            await client.query('ROLLBACK');
-            console.error(`[BillingDB] Migration ${version} failed:`, err);
-            throw err;
-        } finally {
-            client.release();
+        if (pending.length === 0) {
+            console.log('[BillingDB] All migrations already applied.');
+            return;
         }
-    }
 
-    console.log(`[BillingDB] ${pending.length} migration(s) applied.`);
+        for (const [version, { name, file }] of pending) {
+            console.log(`[BillingDB] Applying migration ${version}: ${name}`);
+            const sql = fs.readFileSync(file, 'utf8');
+
+            const client = await pool.connect();
+            try {
+                await client.query('BEGIN');
+                await client.query(sql);
+                await client.query(
+                    'INSERT INTO schema_migrations (version, name) VALUES ($1, $2)',
+                    [version, name]
+                );
+                await client.query('COMMIT');
+                console.log(`[BillingDB] Migration ${version} applied successfully.`);
+            } catch (err) {
+                await client.query('ROLLBACK');
+                console.error(`[BillingDB] Migration ${version} failed:`, err);
+                throw err;
+            } finally {
+                client.release();
+            }
+        }
+
+        console.log(`[BillingDB] ${pending.length} migration(s) applied.`);
+    } finally {
+        await lockClient.query('SELECT pg_advisory_unlock($1)', [MIGRATION_LOCK_ID]);
+        lockClient.release();
+    }
 }

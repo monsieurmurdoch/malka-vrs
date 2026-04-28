@@ -1747,6 +1747,20 @@
             try { sessionStorage.removeItem(key); } catch (e) {}
         }
 
+        function persistActiveCall(data, role) {
+            if (!data || !data.callId) {
+                return;
+            }
+
+            setPersistentItem('vrs_active_call', JSON.stringify({
+                callId: data.callId,
+                callType: data.callType || (data.targetPhone ? 'vrs' : 'vri'),
+                roomName: data.roomName || '',
+                role: role || 'client',
+                startedAt: new Date().toISOString()
+            }));
+        }
+
         function buildRoomUrl(roomName, role, options) {
             const prefs = getRoomPreferences();
             const opts = options || {};
@@ -1759,7 +1773,6 @@
             const config = new URLSearchParams({
                 'config.startWithAudioMuted': String(startWithAudioMuted),
                 'config.startWithVideoMuted': String(startWithVideoMuted),
-                'config.defaultLanguage': JSON.stringify(getPreferredLanguage()),
                 'config.prejoinConfig.enabled': String(!prefs.skipWaitingRoom)
             });
 
@@ -1879,6 +1892,7 @@
                     if (msg.data && msg.data.roomName) {
                         const callType = msg.data.callType || (msg.data.targetPhone ? 'vrs' : 'vri');
                         state.queueRequest = null;
+                        persistActiveCall(msg.data, 'client');
                         setPersistentItem('vrs_user_role', 'client');
                         navigateToRoom(msg.data.roomName, 'client', {
                             forceCameraOff: callType === 'vri',

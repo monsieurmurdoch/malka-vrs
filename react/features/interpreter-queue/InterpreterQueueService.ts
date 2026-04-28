@@ -53,6 +53,11 @@ interface StoredUserInfo {
     name?: string;
 }
 
+interface StoredActiveCall {
+    callId?: string;
+    roomName?: string;
+}
+
 function getDefaultQueueServiceUrl() {
     if (typeof window !== 'undefined') {
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -548,6 +553,29 @@ class InterpreterQueueService {
             data: { phoneNumber }
         });
     }
+
+    public endActiveCall() {
+        const activeCall = getStoredJson<StoredActiveCall>('vrs_active_call');
+        if (!activeCall?.callId) {
+            return;
+        }
+
+        this.send({
+            type: 'call_end',
+            data: {
+                callId: activeCall.callId,
+                roomName: activeCall.roomName
+            }
+        });
+
+        try {
+            localStorage.removeItem('vrs_active_call');
+            sessionStorage.removeItem('vrs_active_call');
+        } catch {
+            // Storage cleanup is best effort; duplicate call_end is idempotent server-side.
+        }
+    }
+
     public send(message: QueueMessage) {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify(message));
@@ -643,6 +671,7 @@ export const queueService = {
         getQueueServiceInstance()?.updateInterpreterStatus(...args),
     requestInterpreter: (...args: Parameters<InterpreterQueueService['requestInterpreter']>) =>
         getQueueServiceInstance()?.requestInterpreter(...args),
+    endActiveCall: () => getQueueServiceInstance()?.endActiveCall(),
     sendP2PCall: (...args: Parameters<InterpreterQueueService['sendP2PCall']>) =>
         getQueueServiceInstance()?.sendP2PCall(...args),
     cancelRequest: (...args: Parameters<InterpreterQueueService['cancelRequest']>) =>

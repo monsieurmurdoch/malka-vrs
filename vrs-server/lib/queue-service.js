@@ -321,11 +321,13 @@ async function completeMatch(request, interpreter) {
     queue.delete(request.id);
 
     // Create call record (with retry)
+    const callType = request.callType || (targetPhone ? 'vrs' : 'vri');
     const callId = await withRetry(() => db.createCall({
         clientId,
         interpreterId: interpreter.id,
         roomName,
-        language: request.language
+        language: request.language,
+        callType
     }));
 
     totalMatches += 1;

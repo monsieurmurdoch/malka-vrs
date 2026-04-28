@@ -43,6 +43,12 @@
         return urlRole !== 'interpreter' && urlRole !== 'captioner';
     }
 
+    function currentRole() {
+        return new URLSearchParams(window.location.search).get('role')
+            || getStored('vrs_user_role')
+            || 'client';
+    }
+
     function currentRoomName() {
         var parts = window.location.pathname.split('/').filter(Boolean);
         var last = parts[parts.length - 1] || '';
@@ -60,11 +66,12 @@
     function authPayload() {
         var user = getJson('vrs_user_info');
         var token = getJson('vrs_auth_token');
+        var role = currentRole();
         var id = user.id || token.userId || token.id || ('client-' + Date.now());
 
         return {
             type: 'auth',
-            role: 'client',
+            role: role,
             userId: id,
             name: clientName(),
             token: token.token
@@ -78,6 +85,42 @@
         }
 
         return false;
+    }
+
+    function removeStored(key) {
+        try { localStorage.removeItem(key); } catch (e) {}
+        try { sessionStorage.removeItem(key); } catch (e) {}
+    }
+
+    function activeCall() {
+        var call = getJson('vrs_active_call');
+
+        return call && call.callId ? call : null;
+    }
+
+    function sendActiveCallEnd() {
+        var call = activeCall();
+
+        if (!call) {
+            return;
+        }
+
+        send({
+            type: 'call_end',
+            data: {
+                callId: call.callId,
+                roomName: call.roomName || currentRoomName()
+            }
+        });
+        removeStored('vrs_active_call');
+    }
+
+    function roomUiReady() {
+        return Boolean(
+            document.querySelector('#videospace')
+            || document.querySelector('#largeVideo')
+            || document.querySelector('#largeVideoContainer')
+        );
     }
 
     function setState(nextState) {
@@ -242,7 +285,11 @@
     }
 
     function mountButton() {
-        if (!currentRoomName() || !isClientRoomUser() || document.querySelector(BUTTON_SELECTOR)) {
+        if (activeCall()) {
+            connectQueue();
+        }
+
+        if (!currentRoomName() || !isClientRoomUser() || !roomUiReady() || document.querySelector(BUTTON_SELECTOR)) {
             return;
         }
 
@@ -266,4 +313,7 @@
     } else {
         mountButton();
     }
+
+    window.addEventListener('pagehide', sendActiveCallEnd);
+    window.addEventListener('beforeunload', sendActiveCallEnd);
 })();

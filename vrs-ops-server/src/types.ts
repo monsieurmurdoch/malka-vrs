@@ -118,6 +118,8 @@ export interface AuthToken {
     email: string;
     username?: string;
     languages?: string[];
+    permissions?: string[];
+    tenantId?: string;
     iat: number;
     exp: number;
 }

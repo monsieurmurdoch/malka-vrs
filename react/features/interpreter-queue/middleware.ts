@@ -6,6 +6,7 @@
  */
 
 import MiddlewareRegistry from '../base/redux/MiddlewareRegistry';
+import { CONFERENCE_LEFT } from '../base/conference/actionTypes';
 import { queueService } from './InterpreterQueueService';
 import {
     interpreterRequestReceived,
@@ -30,6 +31,10 @@ function hasInterpreterSessionToken() {
 MiddlewareRegistry.register((store: { dispatch: Function; getState: Function; _interpreterQueueInitialized?: boolean }) =>
     (next: Function) => (action: { type: string; [key: string]: unknown }) => {
     const result = next(action);
+
+    if (action.type === CONFERENCE_LEFT) {
+        queueService.endActiveCall();
+    }
 
     // Initialize queue service listeners on first action
     if (!store._interpreterQueueInitialized) {

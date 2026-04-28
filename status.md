@@ -6,6 +6,38 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-28
 - Branch: `codex/main-prod-sync`
+- HEAD: `6e4e26b`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  client-profile.html`
+  - `M  docker-compose.prod.yml`
+  - `M  interpreter-profile.html`
+  - `M  react/features/interpreter-queue/InterpreterQueueService.ts`
+  - `M  react/features/interpreter-queue/middleware.ts`
+  - `M  vrs-ops-server/dist/index.d.ts.map`
+  - `M  vrs-ops-server/dist/index.js`
+  - `M  vrs-ops-server/dist/index.js.map`
+  - `M  vrs-ops-server/dist/types.d.ts`
+  - `M  vrs-ops-server/dist/types.d.ts.map`
+  - `M  vrs-ops-server/src/index.ts`
+  - `M  vrs-ops-server/src/types.ts`
+  - `M  vrs-room-controls.js`
+  - `M  vrs-server/dist/database.js`
+  - `M  vrs-server/lib/queue-service.js`
+  - `M  vrs-server/src/billing/cdr-service.ts`
+  - `M  vrs-server/src/billing/migration-runner.ts`
+  - `M  vrs-server/src/database.ts`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-28T23:12:29.752Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
 - HEAD: `e8f131c`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -14,7 +46,7 @@ Local changes at sync time:
   - `M  vrs-server/src/database.ts`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-28T21:39:44.116Z
 
 <!-- status:current:start -->

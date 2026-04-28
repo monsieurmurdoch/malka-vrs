@@ -97,6 +97,12 @@ const p2pEndSchema = z.object({
     durationMinutes: z.number().nonnegative().optional()
 });
 
+const callEndSchema = z.object({
+    callId: z.string().min(1),
+    roomName: z.string().optional(),
+    durationMinutes: z.number().nonnegative().optional()
+});
+
 const voicemailStartSchema = z.object({
     calleePhone: phoneNumberSchema.optional()
 });
@@ -223,6 +229,7 @@ const messageSchemas = {
     p2p_decline: p2pDeclineSchema,
     p2p_cancel: p2pCancelSchema,
     p2p_end: p2pEndSchema,
+    call_end: callEndSchema,
     voicemail_start: voicemailStartSchema,
     voicemail_cancel: voicemailMessageSchema,
     voicemail_delete: voicemailMessageSchema,

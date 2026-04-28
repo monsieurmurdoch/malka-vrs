@@ -1224,8 +1224,10 @@ async function getAuthRecord(identifier: string, password: string, role?: 'admin
         id: record.id!,
         languages: record.languages || [ 'ASL' ],
         name: record.name || record.username || getAccountLoginEmail(record).split('@')[0],
+        permissions: record.permissions || [],
         publicEmail: getAccountPublicEmail(record),
         role: record.role || (role || 'interpreter'),
+        tenantId: record.tenantId || 'malka',
         username: record.username || ''
     };
 }
@@ -1259,6 +1261,45 @@ function requireRole(...roles: string[]): (req: Request, res: Response, next: Ne
         }
         next();
     };
+}
+
+function getActorAccount(actor: AuthToken): AuthDirectoryRecord | undefined {
+    return authDirectory.find(record => record.id === actor.userId);
+}
+
+function getActorTenantId(actor: AuthToken): string {
+    return actor.tenantId || getActorAccount(actor)?.tenantId || 'malka';
+}
+
+function getActorPermissions(actor: AuthToken): string[] {
+    return actor.permissions || getActorAccount(actor)?.permissions || [];
+}
+
+function canManageTenantAccounts(actor: AuthToken): boolean {
+    if (actor.role === 'superadmin') {
+        return true;
+    }
+
+    if (actor.role !== 'admin') {
+        return false;
+    }
+
+    const permissions = new Set(getActorPermissions(actor));
+    return permissions.has('accounts:manage')
+        || permissions.has('interpreters:manage')
+        || permissions.has('vri:manage')
+        || permissions.has('vrs:manage');
+}
+
+function visibleAccountsForActor(actor: AuthToken): AuthDirectoryRecord[] {
+    if (actor.role === 'superadmin') {
+        return authDirectory;
+    }
+
+    const tenantId = getActorTenantId(actor);
+    return authDirectory.filter(account =>
+        account.tenantId === tenantId && account.role !== 'superadmin'
+    );
 }
 
 // ==================== Auth Endpoints ====================
@@ -1316,6 +1357,8 @@ app.post('/api/auth/login', validateRequest(loginSchema), async (req: Request, r
             email: authRecord.email,
             name: authRecord.name,
             languages: authRecord.languages,
+            permissions: authRecord.permissions,
+            tenantId: authRecord.tenantId,
             username: authRecord.username,
             iat: Math.floor(Date.now() / 1000),
             exp: Math.floor(Date.now() / 1000)
@@ -1341,6 +1384,8 @@ app.post('/api/auth/login', validateRequest(loginSchema), async (req: Request, r
             name: authRecord.name,
             role: authRecord.role,
             languages: authRecord.languages,
+            permissions: authRecord.permissions,
+            tenantId: authRecord.tenantId,
             username: authRecord.username
         }
     });
@@ -1359,6 +1404,8 @@ app.get('/api/auth/validate', authenticateToken, (req: Request, res: Response) =
             name: user.name,
             role: user.role,
             languages: user.languages,
+            permissions: getActorPermissions(user),
+            tenantId: getActorTenantId(user),
             username: user.username || ''
         }
     });
@@ -1707,8 +1754,14 @@ function ensureUniqueAccountFields(account: AuthDirectoryRecord, existingId?: st
     });
 }
 
-app.get('/api/admin/accounts', authenticateToken, requireRole('superadmin'), (_req: Request, res: Response) => {
-    const accounts = authDirectory
+app.get('/api/admin/accounts', authenticateToken, requireRole('admin', 'superadmin'), (req: Request, res: Response) => {
+    const actor = (req as any).user as AuthToken;
+    if (!canManageTenantAccounts(actor)) {
+        res.status(403).json({ error: 'Insufficient permissions', code: 'FORBIDDEN' });
+        return;
+    }
+
+    const accounts = visibleAccountsForActor(actor)
         .slice()
         .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
         .map(sanitizeAccount);
@@ -1716,7 +1769,7 @@ app.get('/api/admin/accounts', authenticateToken, requireRole('superadmin'), (_r
     res.json(accounts);
 });
 
-app.post('/api/admin/accounts', authenticateToken, requireRole('superadmin'), validateRequest(createAccountSchema), async (req: Request, res: Response) => {
+app.post('/api/admin/accounts', authenticateToken, requireRole('admin', 'superadmin'), validateRequest(createAccountSchema), async (req: Request, res: Response) => {
     const actor = (req as any).user as AuthToken;
     const { email, languages, name, organization, password, permissions, role, serviceModes, tenantId, username } = req.body;
     const normalizedRole = role === 'superadmin'
@@ -1731,8 +1784,18 @@ app.post('/api/admin/accounts', authenticateToken, requireRole('superadmin'), va
     const normalizedName = normalizeName(name || username || email);
     const normalizedUsername = normalizeUsername(username) || (!email ? createUsernameFromName(normalizedName) : '');
 
+    if (!canManageTenantAccounts(actor)) {
+        res.status(403).json({ error: 'Insufficient permissions', code: 'FORBIDDEN' });
+        return;
+    }
+
     if (!normalizedRole) {
         res.status(400).json({ error: 'Role must be superadmin, admin, captioner, or interpreter', code: 'VALIDATION_ERROR' });
+        return;
+    }
+
+    if (actor.role !== 'superadmin' && normalizedRole === 'superadmin') {
+        res.status(403).json({ error: 'Tenant admins cannot create superadmin accounts', code: 'FORBIDDEN' });
         return;
     }
 
@@ -1757,7 +1820,9 @@ app.post('/api/admin/accounts', authenticateToken, requireRole('superadmin'), va
         permissions: Array.isArray(permissions) ? permissions : [],
         role: normalizedRole,
         serviceModes: Array.isArray(serviceModes) && serviceModes.length ? serviceModes : [ 'vrs' ],
-        tenantId: String(tenantId || 'malka').trim() || 'malka',
+        tenantId: actor.role === 'superadmin'
+            ? (String(tenantId || 'malka').trim() || 'malka')
+            : getActorTenantId(actor),
         username: normalizedUsername
     });
 

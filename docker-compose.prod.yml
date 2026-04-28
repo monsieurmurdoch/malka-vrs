@@ -141,6 +141,11 @@ services:
       - JITSI_DOMAIN=meet.jitsi
       - DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@pgbouncer:6432/${PGDATABASE:-malka_vrs}
       - MIGRATION_DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@postgres:5432/${PGDATABASE:-malka_vrs}
+      - BILLING_PG_HOST=postgres
+      - BILLING_PG_PORT=5432
+      - BILLING_PG_DATABASE=${PGDATABASE:-malka_vrs}
+      - BILLING_PG_USER=${PGUSER:-malka}
+      - BILLING_PG_PASSWORD=${PGPASSWORD:-malka}
     depends_on:
       pgbouncer:
         condition: service_healthy
@@ -161,6 +166,11 @@ services:
       - JITSI_DOMAIN=meet.jitsi
       - DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@pgbouncer:6432/${PGDATABASE:-malka_vrs}
       - MIGRATION_DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@postgres:5432/${PGDATABASE:-malka_vrs}
+      - BILLING_PG_HOST=postgres
+      - BILLING_PG_PORT=5432
+      - BILLING_PG_DATABASE=${PGDATABASE:-malka_vrs}
+      - BILLING_PG_USER=${PGUSER:-malka}
+      - BILLING_PG_PASSWORD=${PGPASSWORD:-malka}
     depends_on:
       pgbouncer:
         condition: service_healthy

@@ -84,6 +84,42 @@ function requireOwnedUserId(ws, providedUserId, actionLabel) {
     return client;
 }
 
+function getCallDurationMinutes(call, requestedDuration) {
+    if (Number.isFinite(requestedDuration)) {
+        return Math.max(0, Math.ceil(requestedDuration));
+    }
+
+    if (!call || !call.started_at) {
+        return 0;
+    }
+
+    const startedAt = new Date(call.started_at).getTime();
+    if (!Number.isFinite(startedAt)) {
+        return 0;
+    }
+
+    return Math.max(0, Math.ceil((Date.now() - startedAt) / 60000));
+}
+
+async function createBillingCdrForCall(callId, fallbackCallType = 'vrs') {
+    const call = await db.getCall(callId);
+    if (!call || call.status !== 'completed') {
+        return null;
+    }
+
+    const { createCdr } = require('../dist/billing/cdr-service');
+    return createCdr({
+        callId: call.id,
+        callType: call.call_type || fallbackCallType,
+        callerId: call.client_id,
+        interpreterId: call.interpreter_id,
+        startTime: new Date(call.started_at),
+        endTime: call.ended_at ? new Date(call.ended_at) : new Date(),
+        durationSeconds: (call.duration_minutes || 0) * 60,
+        language: call.language,
+    });
+}
+
 // ============================================
 // CONNECTION HANDLER
 // ============================================
@@ -193,6 +229,10 @@ function handleConnection(ws, req) {
 
                 case 'p2p_end':
                     await handleP2PEnd(ws, data);
+                    break;
+
+                case 'call_end':
+                    await handleCallEnd(ws, data);
                     break;
 
                 case 'voicemail_start':
@@ -996,20 +1036,7 @@ async function handleP2PEnd(ws, data) {
 
     // Create billing CDR (best-effort, non-blocking)
     try {
-        const call = await db.getCall(callId);
-        if (call && call.status === 'completed') {
-            const { createCdr } = require('../dist/billing/cdr-service');
-            await createCdr({
-                callId: call.id,
-                callType: call.call_type || 'vrs',
-                callerId: call.client_id,
-                interpreterId: call.interpreter_id,
-                startTime: new Date(call.started_at),
-                endTime: call.ended_at ? new Date(call.ended_at) : new Date(),
-                durationSeconds: (call.duration_minutes || 0) * 60,
-                language: call.language,
-            });
-        }
+        await createBillingCdrForCall(callId, 'vrs');
     } catch (cdrErr) {
         // Non-fatal: CDR creation failure should not disrupt call flow
         log.warn({ err: cdrErr, callId }, 'Billing CDR creation failed (non-fatal)');
@@ -1024,6 +1051,55 @@ async function handleP2PEnd(ws, data) {
     }
 
     activityLogger.log('p2p_call_ended', { callId, roomName, endedBy: client.userId });
+}
+
+async function handleCallEnd(ws, data) {
+    const client = ws.clientInfo;
+    const payload = data.data || {};
+
+    if (!client || !client.authenticated) {
+        sendWsError(ws, 'Authentication required.', 'AUTH_REQUIRED');
+        return;
+    }
+
+    const { callId, roomName } = payload;
+    if (!callId) {
+        sendWsError(ws, 'callId is required.', 'VALIDATION_ERROR');
+        return;
+    }
+
+    try {
+        const call = await db.getCall(callId);
+        if (!call) {
+            sendWsError(ws, 'Call not found.', 'NOT_FOUND');
+            return;
+        }
+
+        const isParticipant = String(call.client_id || '') === String(client.userId)
+            || String(call.interpreter_id || '') === String(client.userId);
+        const isOps = client.role === 'admin' || client.role === 'superadmin';
+
+        if (!isParticipant && !isOps) {
+            sendWsError(ws, 'You cannot end this call.', 'FORBIDDEN');
+            return;
+        }
+
+        const durationMinutes = getCallDurationMinutes(call, payload.durationMinutes);
+        await db.endCall(callId, durationMinutes);
+
+        try {
+            await createBillingCdrForCall(callId, call.call_type || 'vrs');
+        } catch (cdrErr) {
+            log.warn({ err: cdrErr, callId }, 'Billing CDR creation failed (non-fatal)');
+        }
+
+        sendWsMessage(ws, 'call_ended', { callId, roomName, durationMinutes });
+        activityLogger.log('call_ended', { callId, roomName, endedBy: client.userId, durationMinutes });
+        log.info({ callId, durationMinutes, endedBy: client.userId }, 'Queue call ended');
+    } catch (err) {
+        log.error({ err, callId }, 'Queue call end error');
+        sendWsError(ws, 'Failed to end call.', 'INTERNAL_ERROR');
+    }
 }
 
 // ============================================
@@ -1595,6 +1671,12 @@ async function handleVCOEnd(ws, data) {
     try {
         await db.endCall(callId, payload.durationMinutes || 0);
         ttsService.endSession(callId);
+
+        try {
+            await createBillingCdrForCall(callId, 'vrs');
+        } catch (cdrErr) {
+            log.warn({ err: cdrErr, callId }, 'Billing CDR creation failed (non-fatal)');
+        }
 
         ws.send(JSON.stringify({
             type: 'vco_ended',
