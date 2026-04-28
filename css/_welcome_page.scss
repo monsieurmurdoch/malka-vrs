@@ -691,6 +691,115 @@ body.welcome-page {
     }
 }
 
+/* Maple VRI whitelabel palette */
+.vrs-auth-fullscreen.tenant-maple {
+    --maple-red: #e00000;
+    --maple-red-dark: #a90000;
+    --maple-red-soft: #fff1f1;
+    --maple-border: #f0d7d7;
+    --maple-ink: #171717;
+    --maple-muted: #666;
+
+    background:
+        radial-gradient(circle at 12% 12%, rgba(224, 0, 0, 0.08), transparent 26%),
+        linear-gradient(135deg, #fff 0%, #fff7f7 54%, #f7eeee 100%);
+
+    .vrs-celestial-background {
+        opacity: 0.3;
+    }
+
+    .vrs-starfield,
+    .vrs-orbit-ring,
+    .vrs-auth-planet {
+        display: none;
+    }
+
+    .vrs-auth-card {
+        background: rgba(255, 255, 255, 0.94);
+        border-color: var(--maple-border);
+        box-shadow: 0 24px 72px rgba(69, 0, 0, 0.13);
+        color: var(--maple-ink);
+    }
+
+    .vrs-auth-logo {
+        align-items: center;
+        margin-bottom: 28px;
+    }
+
+    .vrs-auth-logo-img {
+        max-width: 270px;
+        width: min(100%, 270px);
+    }
+
+    .vrs-auth-logo-text {
+        display: none;
+    }
+
+    .vrs-auth-tabs {
+        background: var(--maple-red-soft);
+        border: 1px solid var(--maple-border);
+    }
+
+    .vrs-auth-tab-indicator {
+        background: var(--maple-red);
+        box-shadow: 0 8px 18px rgba(224, 0, 0, 0.2);
+    }
+
+    .vrs-auth-tab {
+        color: var(--maple-muted);
+
+        &.active {
+            color: #fff;
+        }
+    }
+
+    .vrs-auth-subtitle,
+    .vrs-auth-field label,
+    .vrs-auth-switch {
+        color: var(--maple-muted);
+    }
+
+    .vrs-auth-field input {
+        background: #fff;
+        border-color: var(--maple-border);
+        color: var(--maple-ink);
+
+        &::placeholder {
+            color: rgba(102, 102, 102, 0.5);
+        }
+
+        &:focus {
+            border-color: var(--maple-red);
+            box-shadow: 0 0 0 3px rgba(224, 0, 0, 0.12);
+        }
+    }
+
+    .vrs-auth-submit {
+        background: var(--maple-red);
+        color: #fff;
+
+        &:hover:not(:disabled) {
+            background: var(--maple-red-dark);
+            box-shadow: 0 4px 16px rgba(224, 0, 0, 0.24);
+            transform: translateY(-1px);
+        }
+    }
+
+    .vrs-auth-switch button {
+        color: var(--maple-red);
+
+        &:hover {
+            color: var(--maple-red-dark);
+        }
+    }
+
+    .vrs-auth-error {
+        background: #fff5f5;
+        border-color: rgba(224, 0, 0, 0.28);
+        color: var(--maple-red-dark);
+    }
+}
+
 /* Responsive */
 @media (max-width: 520px) {
     .vrs-auth-planet--earth {

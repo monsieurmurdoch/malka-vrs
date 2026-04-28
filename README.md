@@ -224,7 +224,7 @@ Runtime containers use PgBouncer (`pgbouncer:6432`) for pooled application traff
 | Role | Email | Password |
 |------|-------|----------|
 | VRS Client | `leila.mansour@example.com` | `Client123!` |
-| VRI Client | `vri.client@maple.example` | `Client123!` |
+| VRI Client | `vri.client@maplecomm.example` | `Client123!` |
 | VRS Interpreter | `amina.hassan@malka.local` | `Interpreter123!` |
 | VRI Interpreter | `maya.chen@maple.local` | `Interpreter123!` |
 | Ops Admin | `opsadmin` | `Admin123!` |

@@ -17,7 +17,7 @@ const databaseUrl = process.env.DATABASE_URL || '';
 const opsDatabaseUrl = process.env.OPS_DATABASE_URL || databaseUrl;
 
 const mapleClient = {
-  email: process.env.MAPLE_VRI_CLIENT_EMAIL || 'vri.client@maple.example',
+  email: process.env.MAPLE_VRI_CLIENT_EMAIL || 'vri.client@maplecomm.example',
   name: process.env.MAPLE_VRI_CLIENT_NAME || 'Maple VRI Client',
   organization: process.env.MAPLE_VRI_ORGANIZATION || 'Maple Corporate Pilot',
   password: process.env.MAPLE_VRI_CLIENT_PASSWORD || 'Client123!'

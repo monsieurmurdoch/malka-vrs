@@ -229,6 +229,7 @@
     "smoke:maple-backend": "VRS_VALIDATE_RESOLVE=vri.maplecomm.ca:443:138.197.121.127 VRS_QUEUE_BASE_URL=https://vri.maplecomm.ca VRS_OPS_BASE_URL=https://vri.maplecomm.ca/ops VRS_TWILIO_BASE_URL=https://vri.maplecomm.ca/twilio node scripts/validate-vrs-stack.mjs",
     "seed:vrs-admin-smoke": "node scripts/seed-vrs-admin-smoke.mjs",
     "seed:maple-vri-demo": "node scripts/seed-maple-vri-demo.mjs",
+    "seed:tenant-demo": "node scripts/seed-tenant-demo-accounts.mjs",
     "smoke:vrs-pages": "node scripts/smoke-vrs-pages.mjs"
   },
   "resolutions": {

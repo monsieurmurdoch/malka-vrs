@@ -4,6 +4,51 @@ This file is the project-level running status log. The current update stays at t
 <!-- status:current:start -->
 ## Current Update
 
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
+- HEAD: `d43e280`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  README.md`
+  - `M  css/_welcome_page.scss`
+  - `M  css/all.css`
+  - `M  package.json`
+  - `M  scripts/seed-maple-vri-demo.mjs`
+  - `A  scripts/seed-tenant-demo-accounts.mjs`
+  - `M  status.md`
+  - `M  whitelabel/maple/assets/logo-white.svg`
+  - `M  whitelabel/maple/assets/logo.svg`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-28T05:10:16.410Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
+- HEAD: `d43e280`
+- Note: Reworked Maple login branding to use a clean horizontal Maple Communications mark with a red/white tenant-auth palette, seeded fresh Malka and Maple demo accounts for client/interpreter/captioner/admin, and smoke-tested all eight logins. Maple public host passes; Malka app smoke passes via Droplet host override while public DNS still points app subdomains at Vercel.
+- Snapshot:
+Local changes at sync time:
+  - `M README.md`
+  - `M css/_welcome_page.scss`
+  - `M css/all.css`
+  - `M package.json`
+  - `M scripts/seed-maple-vri-demo.mjs`
+  - `M whitelabel/maple/assets/logo-white.svg`
+  - `M whitelabel/maple/assets/logo.svg`
+  - `?? scripts/seed-tenant-demo-accounts.mjs`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-28T05:09:58.109Z
+
+<!-- status:current:start -->
+## Current Update
+
 - Updated: 2026-04-27
 - Branch: `codex/main-prod-sync`
 - HEAD: `89954b2`
@@ -14,7 +59,7 @@ Local changes at sync time:
   - `M  vrs-server/src/server.ts`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-27T06:53:18.550Z
 
 <!-- status:current:start -->

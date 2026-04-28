@@ -1,7 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 120" role="img" aria-labelledby="title">
-  <title id="title">Maple Communications Group MapleVRI</title>
-  <image href="maple-icon-white.png" x="0" y="18" width="84" height="84" preserveAspectRatio="xMidYMid meet"/>
-  <text x="102" y="54" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#FFFFFF">Maple Communications</text>
-  <text x="102" y="83" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700" fill="#FFFFFF">MapleVRI</text>
-  <text x="216" y="83" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="500" fill="#FFFFFF" opacity="0.82">Video Remote Interpreting</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 570 128" role="img" aria-labelledby="title">
+  <title id="title">Maple Communications</title>
+  <image href="maple-icon-white.png" x="0" y="0" width="128" height="128" preserveAspectRatio="xMidYMid meet"/>
+  <text x="166" y="78" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700" letter-spacing="14">COMMUNICATIONS</text>
 </svg>
