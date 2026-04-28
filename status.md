@@ -5,6 +5,35 @@ This file is the project-level running status log. The current update stays at t
 ## Current Update
 
 - Updated: 2026-04-28
+- Branch: `codex/logging-observability`
+- HEAD: `d2215db`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  status.md`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-28T06:24:16.387Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/logging-observability`
+- HEAD: `d2215db`
+- Note: Created codex/logging-observability branch from current main/prod sync for structured logging and observability work. Scope: finish replacing remaining console.log usage with structured Pino logging across VRS/ops/Twilio, standardize LOG_LEVEL behavior and JSON production output, extend request/correlation IDs across services, add call lifecycle logs, and evaluate DigitalOcean monitoring versus external APM.
+- Snapshot:
+No local changes at sync time.
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-28T06:23:34.215Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
 - Branch: `codex/main-prod-sync`
 - HEAD: `e70b290`
 - Note: Pre-push project status sync.
@@ -18,7 +47,7 @@ Local changes at sync time:
   - `M  twilio-voice-server/package.json`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-28T06:13:51.847Z
 
 <!-- status:current:start -->
