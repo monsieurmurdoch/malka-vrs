@@ -115,9 +115,22 @@
         removeStored('vrs_active_call');
     }
 
+    function waitingRoomVisible() {
+        return Boolean(
+            document.querySelector('[data-testid="prejoin.screen"]')
+            || document.querySelector('.lobby-screen')
+            || document.querySelector('.prejoin-dialog-container')
+        );
+    }
+
     function roomUiReady() {
+        if (waitingRoomVisible()) {
+            return false;
+        }
+
         return Boolean(
             document.querySelector('#vrs-layout-root')
+            || document.querySelector('#videospace')
             || document.querySelector('#largeVideo')
             || document.querySelector('#largeVideoContainer')
         );
