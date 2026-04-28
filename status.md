@@ -6,6 +6,44 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-28
 - Branch: `codex/main-prod-sync`
+- HEAD: `616dfd6`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  css/_welcome_page.scss`
+  - `M  css/all.css`
+  - `M  libs/app.bundle.min.js`
+  - `M  react/features/welcome/components/WelcomePage.web.tsx`
+  - `M  status.md`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-28T05:21:34.461Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
+- HEAD: `616dfd6`
+- Note: Adjusted Maple auth screen per feedback: all Maple login roles now use the white Maple mark on a red login card with white buttons and consistent client/interpreter/captioner styling.
+- Snapshot:
+Local changes at sync time:
+  - `M css/_welcome_page.scss`
+  - `M css/all.css`
+  - `M libs/app.bundle.min.js`
+  - `M react/features/welcome/components/WelcomePage.web.tsx`
+  - `M status.md`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-28T05:18:40.646Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
 - HEAD: `d43e280`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -21,7 +59,7 @@ Local changes at sync time:
   - `M  whitelabel/maple/assets/logo.svg`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-28T05:10:16.410Z
 
 <!-- status:current:start -->

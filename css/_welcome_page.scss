@@ -696,7 +696,7 @@ body.welcome-page {
     --maple-red: #e00000;
     --maple-red-dark: #a90000;
     --maple-red-soft: #fff1f1;
-    --maple-border: #f0d7d7;
+    --maple-border: rgba(255, 255, 255, 0.28);
     --maple-ink: #171717;
     --maple-muted: #666;
 
@@ -715,10 +715,10 @@ body.welcome-page {
     }
 
     .vrs-auth-card {
-        background: rgba(255, 255, 255, 0.94);
+        background: linear-gradient(160deg, var(--maple-red) 0%, var(--maple-red-dark) 100%);
         border-color: var(--maple-border);
-        box-shadow: 0 24px 72px rgba(69, 0, 0, 0.13);
-        color: var(--maple-ink);
+        box-shadow: 0 24px 72px rgba(69, 0, 0, 0.18);
+        color: #fff;
     }
 
     .vrs-auth-logo {
@@ -736,32 +736,32 @@ body.welcome-page {
     }
 
     .vrs-auth-tabs {
-        background: var(--maple-red-soft);
-        border: 1px solid var(--maple-border);
+        background: rgba(255, 255, 255, 0.14);
+        border: 1px solid rgba(255, 255, 255, 0.22);
     }
 
     .vrs-auth-tab-indicator {
-        background: var(--maple-red);
-        box-shadow: 0 8px 18px rgba(224, 0, 0, 0.2);
+        background: #fff;
+        box-shadow: 0 8px 18px rgba(69, 0, 0, 0.18);
     }
 
     .vrs-auth-tab {
-        color: var(--maple-muted);
+        color: rgba(255, 255, 255, 0.7);
 
         &.active {
-            color: #fff;
+            color: var(--maple-red-dark);
         }
     }
 
     .vrs-auth-subtitle,
     .vrs-auth-field label,
     .vrs-auth-switch {
-        color: var(--maple-muted);
+        color: rgba(255, 255, 255, 0.78);
     }
 
     .vrs-auth-field input {
-        background: #fff;
-        border-color: var(--maple-border);
+        background: rgba(255, 255, 255, 0.96);
+        border-color: rgba(255, 255, 255, 0.38);
         color: var(--maple-ink);
 
         &::placeholder {
@@ -769,33 +769,34 @@ body.welcome-page {
         }
 
         &:focus {
-            border-color: var(--maple-red);
-            box-shadow: 0 0 0 3px rgba(224, 0, 0, 0.12);
+            border-color: #fff;
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.18);
         }
     }
 
     .vrs-auth-submit {
-        background: var(--maple-red);
-        color: #fff;
+        background: #fff;
+        color: var(--maple-red-dark);
 
         &:hover:not(:disabled) {
-            background: var(--maple-red-dark);
-            box-shadow: 0 4px 16px rgba(224, 0, 0, 0.24);
+            background: var(--maple-red-soft);
+            box-shadow: 0 4px 16px rgba(69, 0, 0, 0.22);
             transform: translateY(-1px);
         }
     }
 
     .vrs-auth-switch button {
-        color: var(--maple-red);
+        color: #fff;
+        text-decoration-color: rgba(255, 255, 255, 0.68);
 
         &:hover {
-            color: var(--maple-red-dark);
+            color: var(--maple-red-soft);
         }
     }
 
     .vrs-auth-error {
-        background: #fff5f5;
-        border-color: rgba(224, 0, 0, 0.28);
+        background: rgba(255, 255, 255, 0.92);
+        border-color: rgba(255, 255, 255, 0.5);
         color: var(--maple-red-dark);
     }
 }
