@@ -6,6 +6,68 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-28
 - Branch: `codex/main-prod-sync`
+- HEAD: `e762944`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  client-profile.html`
+  - `M  libs/app.bundle.min.js`
+  - `M  react/features/app/actions.web.ts`
+  - `M  react/features/base/conference/actions.ts`
+  - `M  static/close.js`
+  - `M  status.md`
+  - `M  vrs-server/ws/handler.js`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-28T07:53:30.456Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
+- HEAD: `e762944`
+- Note: Tightened VRI client flow so VRI-only accounts request an interpreter before entering a room, enlarged/enabled self-view by default, hid TTS and manual sync controls from VRI profile, preserved auth on room leave, added end-meeting fallback, and made close-page thanks tenant-aware.
+- Snapshot:
+Local changes at sync time:
+  - `M client-profile.html`
+  - `M libs/app.bundle.min.js`
+  - `M react/features/app/actions.web.ts`
+  - `M react/features/base/conference/actions.ts`
+  - `M static/close.js`
+  - `M status.md`
+  - `M vrs-server/ws/handler.js`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-28T07:52:04.895Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
+- HEAD: `e762944`
+- Note: Tightened VRI client flow so VRI-only accounts request an interpreter before entering a room, enlarged/enabled self-view by default, hid TTS and manual sync controls from VRI profile, preserved auth on room leave, added end-meeting fallback, and made close-page thanks tenant-aware.
+- Snapshot:
+Local changes at sync time:
+  - `M client-profile.html`
+  - `M libs/app.bundle.min.js`
+  - `M react/features/app/actions.web.ts`
+  - `M react/features/base/conference/actions.ts`
+  - `M static/close.js`
+  - `M vrs-server/ws/handler.js`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-28T07:51:41.529Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
 - HEAD: `85df10f`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -17,7 +79,7 @@ Local changes at sync time:
   - `M  status.md`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-28T07:34:41.078Z
 
 <!-- status:current:start -->

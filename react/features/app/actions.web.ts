@@ -26,6 +26,35 @@ import { IStore } from './types';
 
 export * from './actions.any';
 
+function getVrsAuthenticatedReturnPath(): string | undefined {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const token = window.localStorage.getItem('vrs_auth_token') || window.sessionStorage.getItem('vrs_auth_token');
+    const userInfo = window.localStorage.getItem('vrs_user_info') || window.sessionStorage.getItem('vrs_user_info');
+
+    if (!token || !userInfo) {
+        return;
+    }
+
+    try {
+        const { role } = JSON.parse(userInfo);
+
+        if (role === 'client') {
+            return '/client-profile.html';
+        }
+        if (role === 'interpreter') {
+            return '/interpreter-profile.html';
+        }
+        if (role === 'captioner') {
+            return '/captioner-profile.html';
+        }
+    } catch {
+        return;
+    }
+}
+
 
 /**
  * Triggers an in-app navigation to a specific route. Allows navigation to be
@@ -94,6 +123,13 @@ export function appNavigate(uri?: string) {
  */
 export function maybeRedirectToWelcomePage(options: { feedbackSubmitted?: boolean; showThankYou?: boolean; } = {}) {
     return (dispatch: IStore['dispatch'], getState: IStore['getState']) => {
+        const vrsReturnPath = getVrsAuthenticatedReturnPath();
+
+        if (vrsReturnPath) {
+            dispatch(redirectToStaticPage(vrsReturnPath));
+
+            return;
+        }
 
         const {
             enableClosePage

@@ -681,7 +681,14 @@ export function endConference() {
     return async (dispatch: IStore['dispatch'], getState: IStore['getState']) => {
         const { conference } = getConferenceState(toState(getState));
 
-        conference?.end();
+        if (conference?.end) {
+            conference.end();
+            setTimeout(() => dispatch(hangup(false)), 750);
+
+            return;
+        }
+
+        dispatch(hangup(false));
     };
 }
 

@@ -81,7 +81,7 @@
 
         .profile-hero {
             display: grid;
-            grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+            grid-template-columns: minmax(420px, 1.1fr) minmax(0, 0.9fr);
             gap: 18px;
             align-items: stretch;
         }
@@ -105,7 +105,7 @@
 
         .quick-actions-grid {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 10px;
         }
 
@@ -270,6 +270,7 @@
             justify-content: center;
             overflow: hidden;
             position: relative;
+            min-height: clamp(280px, 34vw, 500px);
         }
 
         .self-preview-frame video {
@@ -1480,6 +1481,29 @@
             } catch(e) { return null; }
         }
 
+        function getServiceModes() {
+            const user = getUser();
+            if (state.profile && Array.isArray(state.profile.serviceModes)) {
+                return state.profile.serviceModes;
+            }
+            if (user && Array.isArray(user.serviceModes)) {
+                return user.serviceModes;
+            }
+            return IS_MAPLE ? ['vri'] : ['vrs'];
+        }
+
+        function canUseVrsMode() {
+            return getServiceModes().includes('vrs');
+        }
+
+        function canUseVriMode() {
+            return getServiceModes().includes('vri');
+        }
+
+        function isVriOnlyAccount() {
+            return canUseVriMode() && !canUseVrsMode();
+        }
+
         function authHeaders() {
             const token = getToken();
             return token ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
@@ -1487,9 +1511,12 @@
 
         async function apiFetch(path, options = {}) {
             const res = await fetch(API_BASE + path, { ...options, headers: { ...authHeaders(), ...(options.headers || {}) } });
-            if (res.status === 401 || res.status === 403) {
+            if (res.status === 401) {
                 clearPersistentAuth();
                 window.location.href = '/';
+                return null;
+            }
+            if (res.status === 403) {
                 return null;
             }
             return res.json();
@@ -1511,7 +1538,7 @@
             settingsStatus: null,
             passwordStatus: null,
             mediaPreview: {
-                enabled: getPersistentItem('vrs_self_preview_enabled') === 'true',
+                enabled: getPersistentItem('vrs_self_preview_enabled') !== 'false',
                 status: 'idle',
                 message: ''
             },
@@ -1723,13 +1750,15 @@
         function buildRoomUrl(roomName, role, options) {
             const prefs = getRoomPreferences();
             const opts = options || {};
+            const startWithAudioMuted = opts.forceMicMuted || prefs.micDefaultOff;
+            const startWithVideoMuted = opts.forceCameraOff || prefs.cameraDefaultOff;
             const query = new URLSearchParams();
             if (opts.includeRole !== false) {
                 query.set('role', role || 'client');
             }
             const config = new URLSearchParams({
-                'config.startWithAudioMuted': String(prefs.micDefaultOff),
-                'config.startWithVideoMuted': String(prefs.cameraDefaultOff),
+                'config.startWithAudioMuted': String(startWithAudioMuted),
+                'config.startWithVideoMuted': String(startWithVideoMuted),
                 'config.defaultLanguage': JSON.stringify(getPreferredLanguage()),
                 'config.prejoinConfig.enabled': String(!prefs.skipWaitingRoom)
             });
@@ -1848,9 +1877,13 @@
                 case 'meeting_initiated':
                     // Interpreter accepted — navigate both parties to the shared room.
                     if (msg.data && msg.data.roomName) {
+                        const callType = msg.data.callType || (msg.data.targetPhone ? 'vrs' : 'vri');
                         state.queueRequest = null;
                         setPersistentItem('vrs_user_role', 'client');
-                        navigateToRoom(msg.data.roomName, 'client');
+                        navigateToRoom(msg.data.roomName, 'client', {
+                            forceCameraOff: callType === 'vri',
+                            forceMicMuted: true
+                        });
                     }
                     break;
 
@@ -2041,7 +2074,7 @@
             });
             // Optimistic UI: show the queue overlay immediately; the server
             // will correct position/roomName when it replies with request_queued.
-            state.queueRequest = { position: 1, language: language || 'ASL' };
+            state.queueRequest = { position: 1, language: language || 'ASL', callType: 'vri' };
             renderOverlays();
         };
 
@@ -2133,6 +2166,10 @@
         };
 
         window.__joinRoom = function(roomName) {
+            if (isVriOnlyAccount()) {
+                window.__requestInterpreter('ASL');
+                return;
+            }
             navigateToRoom(roomName, 'client');
         };
 
@@ -2188,6 +2225,7 @@
                 case 'p2p-decline': return window.__p2pDecline();
                 case 'p2p-cancel': return window.__p2pCancel();
                 case 'cancel-queue-request': return window.__cancelQueueRequest();
+                case 'request-interpreter': return window.__requestInterpreter('ASL');
                 case 'search-contacts': return window.__searchContacts(document.getElementById('contact-search')?.value || '');
                 case 'sync-contacts': return window.__syncContacts();
                 case 'import-device-contacts': return window.__importDeviceContacts();
@@ -2214,6 +2252,7 @@
                 case 'start-call': return window.__startCall();
                 case 'dial-via-interpreter': return window.__dialViaInterpreter();
                 case 'open-tts-panel':
+                    if (isVriOnlyAccount()) return;
                     window.location.href = 'tts-panel.html';
                     return;
                 case 'join-room': return window.__joinRoom(element.dataset.roomName);
@@ -2299,12 +2338,10 @@
                             value="${escapeHtml(state.contactSearch || '')}"
                             data-enter-action="search-contacts">
                         <button class="settings-btn secondary" data-action="search-contacts">Search</button>
-                        <button class="settings-btn secondary" data-action="sync-contacts">Sync</button>
                     </div>
                     <div class="contacts-toolbar">
                         <button class="settings-btn secondary" data-action="import-device-contacts">Phone Contacts</button>
                         <button class="settings-btn secondary" data-action="connect-google-contacts">Google Contacts</button>
-                        <button class="settings-btn secondary" data-action="migrate-speed-dial">Sync Speed Dial</button>
                         <label class="settings-btn secondary" style="display:inline-flex;align-items:center;gap:6px">
                             Import CSV
                             <input type="file" accept=".csv,text/csv" style="display:none" data-change-action="import-contacts-file">
@@ -2821,9 +2858,7 @@
             const speedDial = state.speedDial;
             const missed = state.missedCalls;
             const activeRooms = state.activeRooms;
-            const serviceModes = Array.isArray(profile?.serviceModes)
-                ? profile.serviceModes
-                : (Array.isArray(user.serviceModes) ? user.serviceModes : (IS_MAPLE ? ['vri'] : ['vrs']));
+            const serviceModes = getServiceModes();
             const canUseVrs = serviceModes.includes('vrs');
             const canUseVri = serviceModes.includes('vri');
             const isVriOnly = canUseVri && !canUseVrs;
@@ -2864,7 +2899,7 @@
                             <div class="self-preview-frame">
                                 ${state.mediaPreview.status === 'active' ? '<video id="self-preview-video" autoplay muted playsinline></video>' : `
                                     <div class="self-preview-placeholder">
-                                        ${state.mediaPreview.status === 'requesting' ? 'Waiting for camera permission...' : 'Turn on preview to check your camera before joining a room.'}
+                                        ${state.mediaPreview.status === 'requesting' ? 'Waiting for camera permission...' : 'Allow camera access to see yourself before joining a room.'}
                                     </div>
                                 `}
                             </div>
@@ -2889,9 +2924,8 @@
                                     <div class="vrs-number-label">Mic always starts muted</div>
                                 </div>
                                 <div class="quick-actions-grid">
-                                    <button class="start-call-btn" data-action="start-call">${isVriOnly ? 'Start VRI Session' : 'Start Instant Room'}</button>
-                                    <button class="quick-action-btn" data-action="open-tts-panel">Open TTS Panel</button>
-                                    <button class="quick-action-btn" data-action="sync-contacts">Sync Contacts</button>
+                                    <button class="start-call-btn" data-action="${isVriOnly ? 'request-interpreter' : 'start-call'}">${isVriOnly ? 'Request Interpreter' : 'Start Instant Room'}</button>
+                                    ${canUseVrs ? '<button class="quick-action-btn" data-action="open-tts-panel">Open TTS Panel</button>' : ''}
                                 </div>
                                 <div>
                                     <div class="card-title">${canUseVrs ? 'Call via Interpreter' : 'VRI Session'}</div>
@@ -2901,9 +2935,10 @@
                                                 data-enter-action="dial-via-interpreter">
                                             <button class="dialer-btn" data-action="dial-via-interpreter">Call</button>
                                         ` : `
-                                            <button class="dialer-btn" data-action="start-call" style="width:100%">Start VRI Room</button>
+                                            <button class="dialer-btn" data-action="request-interpreter" style="width:100%">Request Interpreter</button>
                                         `}
                                     </div>
+                                    ${isVriOnly ? '<div class="vrs-number-label">You will enter the video room after an interpreter confirms.</div>' : ''}
                                 </div>
                             </div>
 
@@ -2918,7 +2953,9 @@
                                                         <div class="active-room-info">${room.caller_name === user.name ? room.callee_name : room.caller_name}</div>
                                                         <div class="active-room-time">Since ${formatDate(room.started_at)}</div>
                                                     </div>
-                                                    <button class="join-room-btn" data-action="join-room" data-room-name="${escapeHtml(room.room_name)}">Join</button>
+                                                    ${isVriOnly
+                                                        ? '<span class="vrs-number-label">Interpreter required</span>'
+                                                        : `<button class="join-room-btn" data-action="join-room" data-room-name="${escapeHtml(room.room_name)}">Join</button>`}
                                                 </div>
                                             `).join('')}
                                         </div>
@@ -3209,6 +3246,10 @@
         };
 
         window.__startCall = function() {
+            if (isVriOnlyAccount()) {
+                window.__requestInterpreter('ASL');
+                return;
+            }
             const roomName = 'instant-' + Math.random().toString(36).substr(2, 9);
             navigateToRoom(roomName, 'client', { includeRole: false, setVrsRole: false });
         };

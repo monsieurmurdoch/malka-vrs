@@ -527,7 +527,8 @@ async function handleInterpreterRequest(ws, data) {
             position: result.position,
             roomName: result.request.roomName,
             language: result.request.language,
-            targetPhone: result.request.targetPhone || null
+            targetPhone: result.request.targetPhone || null,
+            callType
         }
     }));
 
@@ -593,7 +594,8 @@ async function handleAcceptRequest(ws, data) {
         clientId: result.clientId, clientName: result.clientName,
         interpreterId: interpreter.userId, interpreterName: interpreter.name,
         language: request.language,
-        targetPhone: request.targetPhone || null
+        targetPhone: request.targetPhone || null,
+        callType: request.callType || (request.targetPhone ? 'vrs' : 'vri')
     };
 
     ws.send(JSON.stringify({ type: 'request_accepted', data: meetingData }));
