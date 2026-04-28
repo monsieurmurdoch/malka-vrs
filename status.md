@@ -6,6 +6,49 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-28
 - Branch: `codex/main-prod-sync`
+- HEAD: `67e9c00`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  .env.example`
+  - `M  css/_welcome_page.scss`
+  - `M  css/all.css`
+  - `M  libs/app.bundle.min.js`
+  - `M  react/features/welcome/components/WelcomePage.web.tsx`
+  - `M  status.md`
+  - `M  vrs-server/server.js`
+  - `M  vrs-server/src/server.ts`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-28T05:33:56.610Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
+- HEAD: `67e9c00`
+- Note: Fixed Maple browser login 500 by adding Maple/Malka public app origins to VRS CORS and changing disallowed origins to avoid Express 500s; Maple client browser-like POSTs now return 200 with access-control-allow-origin. Also made Maple auth logo load the icon PNG directly with a CSS wordmark so the mark no longer disappears.
+- Snapshot:
+Local changes at sync time:
+  - `M .env.example`
+  - `M css/_welcome_page.scss`
+  - `M css/all.css`
+  - `M libs/app.bundle.min.js`
+  - `M react/features/welcome/components/WelcomePage.web.tsx`
+  - `M vrs-server/server.js`
+  - `M vrs-server/src/server.ts`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-28T05:33:34.929Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
 - HEAD: `616dfd6`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -17,7 +60,7 @@ Local changes at sync time:
   - `M  status.md`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-28T05:21:34.461Z
 
 <!-- status:current:start -->

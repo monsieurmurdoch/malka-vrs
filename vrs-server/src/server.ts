@@ -109,7 +109,26 @@ setLegacyFlag(LEGACY_ADMIN_LOGIN_ENABLED);
 // SECURITY MIDDLEWARE
 // ============================================
 
-const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:8080,https://localhost:8080,http://localhost:3002,http://localhost:3003')
+const DEFAULT_CORS_ORIGINS = [
+    'http://localhost:8080',
+    'https://localhost:8080',
+    'http://localhost:3002',
+    'http://localhost:3003',
+    'http://localhost:3001',
+    'http://138.197.121.127',
+    'https://138.197.121.127',
+    'http://vrs.malkacomm.com',
+    'https://vrs.malkacomm.com',
+    'http://vri.malkacomm.com',
+    'https://vri.malkacomm.com',
+    'http://app.malkacomm.com',
+    'https://app.malkacomm.com',
+    'http://www.malkavrs.com',
+    'https://www.malkavrs.com',
+    'http://vri.maplecomm.ca',
+    'https://vri.maplecomm.ca'
+].join(',');
+const CORS_ORIGINS = (process.env.CORS_ORIGINS || DEFAULT_CORS_ORIGINS)
     .split(',')
     .map(o => o.trim())
     .filter(Boolean);
@@ -132,7 +151,7 @@ app.use(cors({
         if (!origin || CORS_ORIGINS.includes(origin)) {
             callback(null, true);
         } else {
-            callback(new Error('CORS not allowed'));
+            callback(null, false);
         }
     },
     credentials: true

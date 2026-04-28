@@ -723,12 +723,23 @@ body.welcome-page {
 
     .vrs-auth-logo {
         align-items: center;
+        gap: 18px;
         margin-bottom: 28px;
+
+        &::after {
+            color: #fff;
+            content: 'COMMUNICATIONS';
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 10px;
+            line-height: 1;
+        }
     }
 
     .vrs-auth-logo-img {
-        max-width: 270px;
-        width: min(100%, 270px);
+        max-width: 84px;
+        width: 84px;
     }
 
     .vrs-auth-logo-text {
