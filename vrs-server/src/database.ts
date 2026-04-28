@@ -1007,6 +1007,25 @@ async function endCall(callId: any, durationMinutes: any) {
     );
 }
 
+async function getServerState(key: string) {
+    const rows = await runQuery(
+        'SELECT value FROM server_state WHERE key = $1',
+        [key]
+    );
+    return rows[0]?.value || null;
+}
+
+async function setServerState(key: string, value: string) {
+    await runInsert(
+        `INSERT INTO server_state (key, value, updated_at)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT (key) DO UPDATE SET
+            value = EXCLUDED.value,
+            updated_at = NOW()`,
+        [key, value]
+    );
+}
+
 async function getActiveCalls() {
     return await runQuery(`
         SELECT c.*, cl.name as client_name, i.name as interpreter_name
@@ -2731,6 +2750,8 @@ export {
     updateClient,
     createCall,
     endCall,
+    getServerState,
+    setServerState,
     getCall,
     getActiveCalls,
     addToQueue,

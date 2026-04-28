@@ -41,6 +41,8 @@ exports.createClient = createClient;
 exports.updateClient = updateClient;
 exports.createCall = createCall;
 exports.endCall = endCall;
+exports.getServerState = getServerState;
+exports.setServerState = setServerState;
 exports.getCall = getCall;
 exports.getActiveCalls = getActiveCalls;
 exports.addToQueue = addToQueue;
@@ -1039,6 +1041,17 @@ async function createCall({ clientId, interpreterId, roomName, language }) {
 }
 async function endCall(callId, durationMinutes) {
     await runUpdate('UPDATE calls SET ended_at = NOW(), duration_minutes = $1, status = $2 WHERE id = $3', [durationMinutes, 'completed', callId]);
+}
+async function getServerState(key) {
+    const rows = await runQuery('SELECT value FROM server_state WHERE key = $1', [key]);
+    return rows[0]?.value || null;
+}
+async function setServerState(key, value) {
+    await runInsert(`INSERT INTO server_state (key, value, updated_at)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT (key) DO UPDATE SET
+            value = EXCLUDED.value,
+            updated_at = NOW()`, [key, value]);
 }
 async function getActiveCalls() {
     return await runQuery(`
