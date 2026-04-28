@@ -343,9 +343,12 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
         const tenantClass = `tenant-${tenantId}`;
         const logoUrl = tenantId === 'maple' ? 'images/maple-icon-white.png' : isInterpreter ? getLogoWhiteUrl() : getLogoUrl();
         const tabIndicatorClass = isClient ? 'left' : isInterpreter ? 'center' : 'right';
+        const clientLoginSubtitle = tenantId === 'maple'
+            ? 'Sign in to join video remote interpreting sessions'
+            : 'Sign in to make video relay calls';
         const subtitle = isLogin
             ? (isClient
-                ? 'Sign in to make video relay calls'
+                ? clientLoginSubtitle
                 : isInterpreter
                     ? 'Sign in to join the interpreter queue'
                     : 'Sign in to join live calls as a captioner')

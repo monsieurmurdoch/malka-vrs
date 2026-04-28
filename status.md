@@ -6,6 +6,43 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-28
 - Branch: `codex/main-prod-sync`
+- HEAD: `75b9927`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  css/_welcome_page.scss`
+  - `M  css/all.css`
+  - `M  libs/app.bundle.min.js`
+  - `M  react/features/welcome/components/WelcomePage.web.tsx`
+  - `M  status.md`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-28T05:40:57.195Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
+- HEAD: `75b9927`
+- Note: Updated Maple auth copy/branding: Maple login now displays MAPLE COMMUNICATIONS instead of only COMMUNICATIONS, and the Maple client subtitle now says video remote interpreting sessions instead of video relay calls. Deployed and smoke-tested Maple client browser-style login.
+- Snapshot:
+Local changes at sync time:
+  - `M css/_welcome_page.scss`
+  - `M css/all.css`
+  - `M libs/app.bundle.min.js`
+  - `M react/features/welcome/components/WelcomePage.web.tsx`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-28T05:40:38.252Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
 - HEAD: `67e9c00`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -20,7 +57,7 @@ Local changes at sync time:
   - `M  vrs-server/src/server.ts`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-28T05:33:56.610Z
 
 <!-- status:current:start -->
