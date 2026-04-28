@@ -186,6 +186,7 @@ services:
     environment:
       - PORT=3003
       - NODE_ENV=production
+      - ENABLE_BOOTSTRAP_SUPERADMIN=false
       - OPS_DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@pgbouncer:6432/${PGDATABASE:-malka_vrs}
       - OPS_MIGRATION_DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@postgres:5432/${PGDATABASE:-malka_vrs}
     depends_on:
