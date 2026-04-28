@@ -6,6 +6,22 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-28
 - Branch: `codex/main-prod-sync`
+- HEAD: `b443fab`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  react/features/vrs-layout/components/VRSLayout.tsx`
+  - `M  vrs-room-controls.js`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-28T23:41:15.831Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
 - HEAD: `0383e15`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -13,7 +29,7 @@ Local changes at sync time:
   - `M  vrs-server/src/billing/migration-runner.ts`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-28T23:17:09.675Z
 
 <!-- status:current:start -->

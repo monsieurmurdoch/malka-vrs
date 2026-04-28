@@ -117,7 +117,7 @@
 
     function roomUiReady() {
         return Boolean(
-            document.querySelector('#videospace')
+            document.querySelector('#vrs-layout-root')
             || document.querySelector('#largeVideo')
             || document.querySelector('#largeVideoContainer')
         );

@@ -403,7 +403,8 @@ const VRSLayout = ({ _extras, _panes, _roomName }: IProps) => {
                 visiblePanes.length === 1 && classes.singlePaneRoot,
                 visiblePanes.length === 2 && classes.twoPaneRoot,
                 visiblePanes.length >= 3 && classes.threePaneRoot
-            ) }>
+            ) }
+            id = 'vrs-layout-root'>
             {/* Call waiting overlay — renders only when an incoming call arrives */}
             <CallWaitingOverlay />
 
