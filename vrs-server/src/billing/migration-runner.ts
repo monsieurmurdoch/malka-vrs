@@ -11,10 +11,11 @@ import * as fs from 'fs';
 
 const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
 const MIGRATION_LOCK_ID = 77200042;
+const MIGRATIONS_TABLE = 'billing_schema_migrations';
 
 async function ensureMigrationsTable(pool: Pool): Promise<void> {
     await pool.query(`
-        CREATE TABLE IF NOT EXISTS schema_migrations (
+        CREATE TABLE IF NOT EXISTS ${MIGRATIONS_TABLE} (
             version   INTEGER PRIMARY KEY,
             name      TEXT NOT NULL,
             applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -23,7 +24,7 @@ async function ensureMigrationsTable(pool: Pool): Promise<void> {
 }
 
 async function getAppliedVersions(pool: Pool): Promise<Set<number>> {
-    const result = await pool.query('SELECT version FROM schema_migrations ORDER BY version');
+    const result = await pool.query(`SELECT version FROM ${MIGRATIONS_TABLE} ORDER BY version`);
     return new Set(result.rows.map((r: { version: number }) => r.version));
 }
 
@@ -75,7 +76,7 @@ export async function runMigrations(pool: Pool): Promise<void> {
                 await client.query('BEGIN');
                 await client.query(sql);
                 await client.query(
-                    'INSERT INTO schema_migrations (version, name) VALUES ($1, $2)',
+                    `INSERT INTO ${MIGRATIONS_TABLE} (version, name) VALUES ($1, $2)`,
                     [version, name]
                 );
                 await client.query('COMMIT');
