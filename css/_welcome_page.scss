@@ -723,23 +723,16 @@ body.welcome-page {
 
     .vrs-auth-logo {
         align-items: center;
-        gap: 18px;
         margin-bottom: 28px;
-
-        &::after {
-            color: #fff;
-            content: 'MAPLE COMMUNICATIONS';
-            font-family: Arial, Helvetica, sans-serif;
-            font-size: 18px;
-            font-weight: 700;
-            letter-spacing: 6px;
-            line-height: 1;
-        }
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 14px 32px rgba(69, 0, 0, 0.18);
+        padding: 14px 18px;
     }
 
     .vrs-auth-logo-img {
-        max-width: 84px;
-        width: 84px;
+        max-width: 420px;
+        width: min(100%, 420px);
     }
 
     .vrs-auth-logo-text {
@@ -840,6 +833,16 @@ body.welcome-page {
 
     .vrs-auth-logo-text {
         font-size: 28px;
+    }
+
+    .vrs-auth-fullscreen.tenant-maple {
+        .vrs-auth-logo {
+            padding: 10px 12px;
+        }
+
+        .vrs-auth-logo-img {
+            max-width: 320px;
+        }
     }
 }
 

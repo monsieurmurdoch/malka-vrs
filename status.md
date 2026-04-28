@@ -6,6 +6,47 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-28
 - Branch: `codex/main-prod-sync`
+- HEAD: `d2215db`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  css/_welcome_page.scss`
+  - `M  css/all.css`
+  - `A  images/maple-logo-original.png`
+  - `M  libs/app.bundle.min.js`
+  - `M  react/features/welcome/components/WelcomePage.web.tsx`
+  - `M  status.md`
+  - `A  whitelabel/maple/assets/maple-logo-original.png`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-28T07:00:17.877Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
+- HEAD: `d2215db`
+- Note: Maple login branding fixed to use the real Maple wordmark image instead of CSS-generated text. Added whitelabel/maple/assets/maple-logo-original.png and runtime images/maple-logo-original.png from the supplied original logo image, updated WelcomePage to use it for Maple, and styled the Maple auth card logo as a white image panel so the original red/black/gray logo remains visible and the original lettering is preserved. Deployed to Droplet and verified the Maple container bundle references maple-logo-original.png and the image exists in /app/images.
+- Snapshot:
+Local changes at sync time:
+  - `M css/_welcome_page.scss`
+  - `M css/all.css`
+  - `M libs/app.bundle.min.js`
+  - `M react/features/welcome/components/WelcomePage.web.tsx`
+  - `?? images/maple-logo-original.png`
+  - `?? whitelabel/maple/assets/maple-logo-original.png`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-28T06:58:57.589Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
 - HEAD: `e70b290`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -18,7 +59,7 @@ Local changes at sync time:
   - `M  twilio-voice-server/package.json`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-28T06:13:51.847Z
 
 <!-- status:current:start -->

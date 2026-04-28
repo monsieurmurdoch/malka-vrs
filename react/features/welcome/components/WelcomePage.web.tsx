@@ -341,7 +341,9 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
         const themeClass = isClient ? 'earth' : isInterpreter ? 'moon' : 'sun';
         const tenantId = getWhitelabelConfig()?.tenantId || 'malka';
         const tenantClass = `tenant-${tenantId}`;
-        const logoUrl = tenantId === 'maple' ? 'images/maple-icon-white.png' : isInterpreter ? getLogoWhiteUrl() : getLogoUrl();
+        const logoUrl = tenantId === 'maple'
+            ? 'images/maple-logo-original.png'
+            : isInterpreter ? getLogoWhiteUrl() : getLogoUrl();
         const tabIndicatorClass = isClient ? 'left' : isInterpreter ? 'center' : 'right';
         const clientLoginSubtitle = tenantId === 'maple'
             ? 'Sign in to join video remote interpreting sessions'
