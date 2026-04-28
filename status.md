@@ -6,6 +6,37 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-28
 - Branch: `codex/logging-observability`
+- HEAD: `0d1e7a4`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  ROADMAP.md`
+  - `M  status.md`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-28T06:37:59.096Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/logging-observability`
+- HEAD: `0d1e7a4`
+- Note: Roadmap reorganized into completed work, immediate open work, near-term feature work, scale prep, regulatory/business, mobile, and future tracks. Checked off completed PostgreSQL runtime alignment, TypeScript migration, Maple/Malka seeded auth, Twilio proxy readiness, profile/settings, contacts, instant-room media defaults, voicemail badge/auth gating, and logging foundation. Stale Twilio 502 and PostgreSQL alignment blockers were removed from open work; live media smoke, tenant-aware admin moderation, immutable VRI/VRS call tagging, Redis state externalization, and mobile parity remain open.
+- Snapshot:
+Local changes at sync time:
+  - `M ROADMAP.md`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-28T06:37:13.545Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/logging-observability`
 - HEAD: `d2215db`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -13,7 +44,7 @@ Local changes at sync time:
   - `M  status.md`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-28T06:24:16.387Z
 
 <!-- status:current:start -->
