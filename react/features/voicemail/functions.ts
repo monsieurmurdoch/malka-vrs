@@ -60,9 +60,14 @@ function getAuthHeaders(getState: Function): Record<string, string> {
 }
 
 function getBaseUrl(): string {
-    if (typeof config !== 'undefined' && config.vrs?.authEndpoint) {
-        return config.vrs.authEndpoint.replace('/auth', '/voicemail');
+    if (typeof window !== 'undefined') {
+        return `${window.location.origin}/api/voicemail`;
     }
+
+    if (typeof config !== 'undefined' && config.vrs?.authEndpoint) {
+        return config.vrs.authEndpoint.replace(/\/(?:ops\/)?api\/auth$/, '/api/voicemail');
+    }
+
     return 'http://localhost:3001/api/voicemail';
 }
 

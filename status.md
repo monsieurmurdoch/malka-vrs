@@ -6,6 +6,43 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-28
 - Branch: `codex/main-prod-sync`
+- HEAD: `85df10f`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  client-profile.html`
+  - `M  libs/app.bundle.min.js`
+  - `M  react/features/prejoin/components/web/Prejoin.tsx`
+  - `M  react/features/voicemail/functions.ts`
+  - `M  status.md`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-28T07:34:41.078Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
+- HEAD: `85df10f`
+- Note: Fixed Maple/Malka waiting-room polish: removed duplicate prejoin Request Interpreter button in favor of toolbar control, cleaned up Contacts & Invite UI/copy, JSON-encoded Jitsi defaultLanguage to stop 'en' parse warnings, and routed voicemail unread count to same-origin /api/voicemail. Built Maple bundle and deployed prod vrs/vrs-maple containers.
+- Snapshot:
+Local changes at sync time:
+  - `M client-profile.html`
+  - `M libs/app.bundle.min.js`
+  - `M react/features/prejoin/components/web/Prejoin.tsx`
+  - `M react/features/voicemail/functions.ts`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-28T07:33:32.498Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
 - HEAD: `4aeeba8`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -14,7 +51,7 @@ Local changes at sync time:
   - `M  status.md`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-28T07:09:19.132Z
 
 <!-- status:current:start -->

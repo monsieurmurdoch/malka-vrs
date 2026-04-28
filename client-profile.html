@@ -1730,7 +1730,7 @@
             const config = new URLSearchParams({
                 'config.startWithAudioMuted': String(prefs.micDefaultOff),
                 'config.startWithVideoMuted': String(prefs.cameraDefaultOff),
-                'config.defaultLanguage': getPreferredLanguage(),
+                'config.defaultLanguage': JSON.stringify(getPreferredLanguage()),
                 'config.prejoinConfig.enabled': String(!prefs.skipWaitingRoom)
             });
 

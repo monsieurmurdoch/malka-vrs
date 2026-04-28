@@ -7,7 +7,7 @@ import Button from '../../../base/ui/components/web/Button';
 import { BUTTON_TYPES } from '../../../base/ui/constants.any';
 import { isInterpreter, isClient } from '../../../base/user-role/functions';
 import Switch from '../../../base/ui/components/web/Switch';
-import { queueService, QueueStatus } from '../../../interpreter-queue/InterpreterQueueService';
+import { queueService } from '../../../interpreter-queue/InterpreterQueueService';
 import InterpreterRequestPopup, { InterpreterRequest } from '../../../interpreter-queue/components/web/InterpreterRequestPopup';
 import MinimizedRequestList from '../../../interpreter-queue/components/web/MinimizedRequestList';
 import { getPersistentJson } from '../../../vrs-auth/storage';
@@ -17,7 +17,7 @@ import type { ContactEntry } from '../../../contacts';
 import { IReduxState } from '../../../app/types';
 import Avatar from '../../../base/avatar/components/Avatar';
 import { isNameReadOnly } from '../../../base/config/functions.web';
-import { IconArrowDown, IconArrowUp, IconPhoneRinging, IconVolumeOff } from '../../../base/icons/svg';
+import { IconArrowDown, IconArrowUp, IconCopy, IconPhoneRinging, IconUsers, IconVolumeOff } from '../../../base/icons/svg';
 import { isVideoMutedByUser } from '../../../base/media/functions';
 import { getLocalParticipant } from '../../../base/participants/functions';
 import Popover from '../../../base/popover/components/Popover.web';
@@ -326,9 +326,10 @@ const useStyles = makeStyles()(theme => {
             marginTop: theme.spacing(2),
             padding: theme.spacing(2),
             borderRadius: theme.shape.borderRadius,
-            backgroundColor: theme.palette.ui02,
+            backgroundColor: 'rgba(255, 255, 255, 0.08)',
             border: `1px solid ${theme.palette.ui03}`,
-            textAlign: 'left'
+            textAlign: 'left',
+            boxShadow: '0 10px 28px rgba(0, 0, 0, 0.18)'
         },
 
         contactsPanelHeader: {
@@ -336,23 +337,26 @@ const useStyles = makeStyles()(theme => {
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: theme.spacing(2),
-            marginBottom: theme.spacing(1)
+            flexWrap: 'wrap'
         },
 
         contactsPanelTitle: {
-            ...withPixelLineHeight(theme.typography.bodyShortBold),
-            color: theme.palette.text01
+            ...withPixelLineHeight(theme.typography.bodyShortBoldLarge),
+            color: theme.palette.text01,
+            marginBottom: theme.spacing(0.5)
         },
 
         contactsPanelBody: {
             display: 'flex',
             flexDirection: 'column',
-            gap: theme.spacing(1)
+            gap: theme.spacing(1),
+            marginTop: theme.spacing(1.5)
         },
 
         contactsPanelHint: {
             ...withPixelLineHeight(theme.typography.labelRegular),
-            color: theme.palette.text03
+            color: theme.palette.text03,
+            maxWidth: '360px'
         },
 
         contactsList: {
@@ -393,7 +397,21 @@ const useStyles = makeStyles()(theme => {
 
         inviteButtonRow: {
             display: 'flex',
-            gap: theme.spacing(1)
+            gap: theme.spacing(1),
+            flexShrink: 0,
+
+            '@media (max-width: 420px)': {
+                width: '100%'
+            }
+        },
+
+        inviteActionButton: {
+            minHeight: 36,
+            whiteSpace: 'nowrap',
+
+            '@media (max-width: 420px)': {
+                flex: 1
+            }
         }
     };
 });
@@ -427,17 +445,10 @@ const Prejoin = ({
         [ showDisplayNameField, showErrorOnJoin ]);
     const [ showJoinByPhoneButtons, setShowJoinByPhoneButtons ] = useState(false);
     const [ isInterpreterActive, setIsInterpreterActive ] = useState(true);
-    const [ queueStatus, setQueueStatus ] = useState<QueueStatus | null>(null);
-    const [ requestStatus, setRequestStatus ] = useState<'idle' | 'requesting' | 'queued' | 'matched'>('idle');
-    const [ matchInfo, setMatchInfo ] = useState<any>(null);
-    const [ joinCountdown, setJoinCountdown ] = useState<number>(0);
-    
     // New state for interpreter request management
     const [ currentRequest, setCurrentRequest ] = useState<InterpreterRequest | null>(null);
     const [ minimizedRequests, setMinimizedRequests ] = useState<InterpreterRequest[]>([]);
-    const [ currentRequestId, setCurrentRequestId ] = useState<string | null>(null);
     const [ speedDialEntries, setSpeedDialEntries ] = useState<SpeedDialEntry[]>([]);
-    const [ contactsOpen, setContactsOpen ] = useState(true);
     const [ contactsLoading, setContactsLoading ] = useState(false);
     const [ contactsError, setContactsError ] = useState('');
     const [ copiedInviteLabel, setCopiedInviteLabel ] = useState<string | null>(null);
@@ -498,22 +509,14 @@ const Prejoin = ({
 
     // Set up queue service event listeners
     useEffect(() => {
-        const handleQueueStatus = (status: QueueStatus) => {
-            setQueueStatus(status);
-        };
-
         const handleMatchFound = (data: any) => {
-            setRequestStatus('matched');
-            setMatchInfo(data);
             console.log('🎉 Match found!', data);
             
             // Countdown timer for auto-join
             let countdown = 3;
-            setJoinCountdown(countdown);
             
             const countdownInterval = setInterval(() => {
                 countdown--;
-                setJoinCountdown(countdown);
                 
                 if (countdown <= 0) {
                     clearInterval(countdownInterval);
@@ -524,7 +527,6 @@ const Prejoin = ({
         };
 
         const handleRequestQueued = (data: any) => {
-            setRequestStatus('queued');
             console.log('⏳ Request queued at position:', data.position);
         };
 
@@ -561,11 +563,6 @@ const Prejoin = ({
 
         const handleRequestAccepted = (data: any) => {
             console.log('✅ Request accepted by interpreter:', data);
-            // Handle on client side - maybe show "Interpreter joining..." message
-            if (isClient()) {
-                setRequestStatus('matched');
-                setMatchInfo(data);
-            }
         };
 
         const handleRequestDeclined = (data: any) => {
@@ -588,7 +585,6 @@ const Prejoin = ({
         };
 
         // Set up listeners
-        queueService.on('queueStatus', handleQueueStatus);
         queueService.on('matchFound', handleMatchFound);
         queueService.on('requestQueued', handleRequestQueued);
         queueService.on('requestAssigned', handleRequestAssigned);
@@ -601,7 +597,6 @@ const Prejoin = ({
 
         // Cleanup on unmount
         return () => {
-            queueService.off('queueStatus', handleQueueStatus);
             queueService.off('matchFound', handleMatchFound);
             queueService.off('requestQueued', handleRequestQueued);
             queueService.off('requestAssigned', handleRequestAssigned);
@@ -716,20 +711,6 @@ const Prejoin = ({
         );
     };
 
-    const handleRequestInterpreter = () => {
-        if (requestStatus === 'idle') {
-            // Request interpreter
-            setRequestStatus('requesting');
-            setCurrentRequestId('client-' + Date.now()); // Generate unique request ID
-            queueService.requestInterpreter('any', name || 'Anonymous Client');
-        } else if (requestStatus === 'requesting' || requestStatus === 'queued') {
-            // Cancel request
-            setRequestStatus('idle');
-            setCurrentRequestId(null);
-            queueService.cancelRequest();
-        }
-    };
-
     // Handlers for interpreter popup actions
     const handleAcceptRequest = (requestId: string) => {
         console.log('Accepting request:', requestId);
@@ -769,7 +750,7 @@ const Prejoin = ({
             return;
         }
 
-        const inviteText = `Join me on Malka VRS: ${inviteLink}`;
+        const inviteText = `Join my secure video room: ${inviteLink}`;
 
         try {
             if (navigator.clipboard?.writeText) {
@@ -930,21 +911,6 @@ const Prejoin = ({
                     </Popover>
                 </div>
 
-                {/* VRS Features - Additional to Original Jitsi Prejoin */}
-                {isClient() && (
-                    <div style={{ marginTop: '16px' }}>
-                        <Button 
-                            fullWidth = { true } 
-                            label = { requestStatus === 'idle' ? "🌐 Request Interpreter" :
-                                     requestStatus === 'requesting' ? "❌ Cancel Request" :
-                                     requestStatus === 'queued' ? "❌ Cancel Request" :
-                                     joinCountdown > 0 ? `🎉 Joining in ${joinCountdown}s` : "🚀 Joining Now..." } 
-                            onClick = { handleRequestInterpreter } 
-                            type = { requestStatus === 'idle' ? BUTTON_TYPES.SECONDARY : BUTTON_TYPES.DESTRUCTIVE }
-                            disabled = { requestStatus === 'matched' }
-                        />
-                    </div>
-                )}
                 {isClient() && currentRoomName && (
                     <div
                         aria-label = 'Contacts & invite'
@@ -953,22 +919,28 @@ const Prejoin = ({
                             <div>
                                 <div className = { classes.contactsPanelTitle }>Contacts & Invite</div>
                                 <div className = { classes.contactsPanelHint }>
-                                    Secure room links require a Malka login before joining.
+                                    Share this secure room with authenticated contacts.
                                 </div>
                             </div>
                             <div className = { classes.inviteButtonRow }>
                                 <Button
-                                    label = { copiedInviteLabel === 'general' ? 'Copied' : 'Copy invite link' }
+                                    className = { classes.inviteActionButton }
+                                    icon = { IconCopy }
+                                    label = { copiedInviteLabel === 'general' ? 'Copied' : 'Copy Link' }
                                     onClick = { () => copyInviteLink('general') }
+                                    size = 'small'
                                     type = { BUTTON_TYPES.SECONDARY } />
                                 <Button
-                                    label = { showFullContacts ? 'Hide contacts' : 'Address Book' }
+                                    className = { classes.inviteActionButton }
+                                    icon = { IconUsers }
+                                    label = { showFullContacts ? 'Hide' : 'Contacts' }
                                     onClick = { () => setShowFullContacts(open => !open) }
+                                    size = 'small'
                                     type = { showFullContacts ? BUTTON_TYPES.PRIMARY : BUTTON_TYPES.SECONDARY } />
                             </div>
                         </div>
                         {/* Quick favorites (compact speed-dial view) */}
-                        {!showFullContacts && contactsOpen && (
+                        {!showFullContacts && (
                             <div className = { classes.contactsPanelBody }>
                                 {contactsLoading && (
                                     <div className = { classes.contactsPanelHint }>Loading favorite contacts...</div>
@@ -998,7 +970,7 @@ const Prejoin = ({
                                 )}
                                 {!contactsLoading && !contactsError && !speedDialEntries.length && (
                                     <div className = { classes.contactsPanelHint }>
-                                        Open the Address Book to manage contacts, import, and more.
+                                        Open Contacts to manage address book entries, imports, and speed dial.
                                     </div>
                                 )}
                             </div>
