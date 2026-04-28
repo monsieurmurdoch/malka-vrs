@@ -3,10 +3,11 @@
  * and opens the voicemail inbox overlay.
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 
-import { loadInbox } from '../../actions';
+import { loadInbox, loadUnreadCount } from '../../actions';
+import { getPersistentJson } from '../../../vrs-auth/storage';
 
 interface VoicemailFabState {
     'features/voicemail': {
@@ -67,7 +68,15 @@ const MAIL_ICON = (
     </svg>
 );
 
+function hasClientVoicemailAuth(): boolean {
+    const auth = getPersistentJson<{ token?: string }>('vrs_auth_token');
+    const user = getPersistentJson<{ role?: string }>('vrs_user_info');
+
+    return Boolean(auth?.token && user?.role === 'client');
+}
+
 const VoicemailFab: React.FC = () => {
+    const [ isAuthenticatedClient, setAuthenticatedClient ] = useState(hasClientVoicemailAuth);
     const unreadCount = useSelector(
         (state: VoicemailFabState) => state['features/voicemail']?.unreadCount || 0
     );
@@ -75,6 +84,24 @@ const VoicemailFab: React.FC = () => {
         (state: VoicemailFabState) => state['features/voicemail']?.inboxOpen || false
     );
     const dispatch = useDispatch();
+
+    useEffect(() => {
+        const refreshAuthState = () => setAuthenticatedClient(hasClientVoicemailAuth());
+
+        window.addEventListener('storage', refreshAuthState);
+        window.addEventListener('focus', refreshAuthState);
+
+        return () => {
+            window.removeEventListener('storage', refreshAuthState);
+            window.removeEventListener('focus', refreshAuthState);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (isAuthenticatedClient) {
+            dispatch(loadUnreadCount() as any);
+        }
+    }, [ dispatch, isAuthenticatedClient ]);
 
     const handleClick = useCallback(() => {
         if (!inboxOpen) {
@@ -85,6 +112,10 @@ const VoicemailFab: React.FC = () => {
             type: inboxOpen ? 'VOICEMAIL_CLOSE_INBOX' : 'VOICEMAIL_OPEN_INBOX'
         });
     }, [ dispatch, inboxOpen ]);
+
+    if (!isAuthenticatedClient) {
+        return null;
+    }
 
     return (
         <button

@@ -20,6 +20,7 @@ import {
     VOICEMAIL_ERROR
 } from './actionTypes';
 import {
+    loadUnreadCount,
     updateUnreadCount,
     recordingStarted,
     recordingComplete,
@@ -53,8 +54,11 @@ function initializeVoicemailListeners(store: { dispatch: Function; getState: Fun
 
     // New voicemail message notification
     queueService.on('voicemail_new_message', (data: any) => {
-        // Refresh the unread count
-        store.dispatch(updateUnreadCount(data.count));
+        if (typeof data.count === 'number') {
+            store.dispatch(updateUnreadCount(data.count));
+        } else {
+            store.dispatch(loadUnreadCount());
+        }
     });
 
     // Unread count push

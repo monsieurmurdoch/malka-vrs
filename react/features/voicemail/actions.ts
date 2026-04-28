@@ -20,7 +20,12 @@ import {
     VOICEMAIL_CLEAR_ERROR
 } from './actionTypes';
 import type { VoicemailMessage, VoicemailPromptData, VoicemailRecordingSession } from './types';
-import { fetchVoicemailInbox, fetchVoicemailMessage, deleteVoicemailMessage as apiDeleteMessage } from './functions';
+import {
+    fetchUnreadCount,
+    fetchVoicemailInbox,
+    fetchVoicemailMessage,
+    deleteVoicemailMessage as apiDeleteMessage
+} from './functions';
 
 /**
  * Load the voicemail inbox from the server.
@@ -35,6 +40,24 @@ export function loadInbox(limit = 20, offset = 0) {
                 messages: result.messages,
                 totalCount: result.total,
                 unreadCount: result.unreadCount
+            });
+        } catch (error: any) {
+            dispatch({ type: VOICEMAIL_ERROR, error: error.message });
+        }
+    };
+}
+
+/**
+ * Load just the unread count for the floating badge.
+ */
+export function loadUnreadCount() {
+    return async (dispatch: Function, getState: Function) => {
+        try {
+            const count = await fetchUnreadCount(getState);
+
+            dispatch({
+                type: VOICEMAIL_UNREAD_COUNT_UPDATED,
+                count
             });
         } catch (error: any) {
             dispatch({ type: VOICEMAIL_ERROR, error: error.message });

@@ -4,7 +4,35 @@
  * All calls go through the VRS auth endpoint configured in config.vrs.
  */
 
+import { getPersistentJson } from '../vrs-auth/storage';
+
 declare var config: any;
+
+type StoredAuthToken = {
+    token?: string;
+};
+
+function normalizeToken(candidate: unknown): string | undefined {
+    if (!candidate) {
+        return undefined;
+    }
+
+    if (typeof candidate === 'string') {
+        try {
+            const parsed = JSON.parse(candidate) as StoredAuthToken;
+
+            return parsed.token || candidate;
+        } catch {
+            return candidate;
+        }
+    }
+
+    if (typeof candidate === 'object' && 'token' in candidate) {
+        return (candidate as StoredAuthToken).token;
+    }
+
+    return undefined;
+}
 
 function getAuthHeaders(getState: Function): Record<string, string> {
     let token: string | undefined;
@@ -12,12 +40,12 @@ function getAuthHeaders(getState: Function): Record<string, string> {
     // Try to get token from Redux state
     try {
         const state = getState();
-        token = state['features/vrs-auth']?.token;
+        token = normalizeToken(state['features/vrs-auth']?.token);
     } catch { /* ignore */ }
 
-    // Fallback to localStorage
-    if (!token && typeof localStorage !== 'undefined') {
-        token = localStorage.getItem('vrs_auth_token') || undefined;
+    // Fallback to persistent VRS auth storage.
+    if (!token) {
+        token = getPersistentJson<StoredAuthToken>('vrs_auth_token')?.token;
     }
 
     const headers: Record<string, string> = {

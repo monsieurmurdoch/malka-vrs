@@ -6,6 +6,45 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-28
 - Branch: `codex/main-prod-sync`
+- HEAD: `18d231a`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  libs/app.bundle.min.js`
+  - `M  react/features/voicemail/actions.ts`
+  - `M  react/features/voicemail/components/web/VoicemailFab.tsx`
+  - `M  react/features/voicemail/functions.ts`
+  - `M  react/features/voicemail/middleware.ts`
+  - `M  status.md`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-28T05:53:38.297Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
+- HEAD: `18d231a`
+- Note: Gated the global visual voicemail floating button behind authenticated client sessions, fixed voicemail API auth header extraction so unread-count uses the stored JWT, and wired the badge to load/refresh unread counts for initial load and incoming voicemail events. Deployed to both Malka and Maple and smoke-tested Maple health/login/unread-count.
+- Snapshot:
+Local changes at sync time:
+  - `M libs/app.bundle.min.js`
+  - `M react/features/voicemail/actions.ts`
+  - `M react/features/voicemail/components/web/VoicemailFab.tsx`
+  - `M react/features/voicemail/functions.ts`
+  - `M react/features/voicemail/middleware.ts`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-28T05:53:11.807Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-28
+- Branch: `codex/main-prod-sync`
 - HEAD: `75b9927`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -17,7 +56,7 @@ Local changes at sync time:
   - `M  status.md`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-28T05:40:57.195Z
 
 <!-- status:current:start -->
