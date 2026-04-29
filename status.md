@@ -6,6 +6,23 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-29
 - Branch: `codex/prod-queue-hotfix`
+- HEAD: `2c544e1`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  vrs-server/__tests__/queue-service.test.js`
+  - `M  vrs-server/lib/queue-service.js`
+  - `M  vrs-server/src/lib/queue-service.ts`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-29T07:40:56.521Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-29
+- Branch: `codex/prod-queue-hotfix`
 - HEAD: `088d592`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -19,7 +36,7 @@ Local changes at sync time:
   - `M  vrs-server/ws/handler.js`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-29T07:27:58.458Z
 
 <!-- status:current:start -->

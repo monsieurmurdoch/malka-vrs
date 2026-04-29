@@ -11,6 +11,7 @@ jest.mock('../database', () => ({
     getQueueRequests: jest.fn().mockResolvedValue([]),
     addToQueue: jest.fn(),
     removeFromQueue: jest.fn().mockResolvedValue(undefined),
+    reorderQueue: jest.fn().mockResolvedValue(undefined),
     assignInterpreter: jest.fn().mockResolvedValue(undefined),
     createCall: jest.fn().mockResolvedValue('call-id-1'),
     getServerState: jest.fn().mockResolvedValue(null),
@@ -138,6 +139,18 @@ describe('lib/queue-service', () => {
             expect(queueService.getQueue().map(request => request.id)).toEqual(['req-c2-a']);
             expect(db.removeFromQueue).toHaveBeenCalledWith('req-c1-a');
             expect(db.removeFromQueue).toHaveBeenCalledWith('req-c1-b');
+        });
+    });
+
+    describe('removeFromQueue()', () => {
+        it('should remove a request from the database even when it is not in local memory', async () => {
+            const db = require('../database');
+
+            const result = await queueService.removeFromQueue('stale-req-1');
+
+            expect(result).toEqual({ success: true, removedFromMemory: false });
+            expect(db.removeFromQueue).toHaveBeenCalledWith('stale-req-1');
+            expect(db.reorderQueue).toHaveBeenCalled();
         });
     });
 

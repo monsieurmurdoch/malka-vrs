@@ -442,7 +442,21 @@ function getPendingRequests() {
 }
 
 async function removeFromQueue(requestId) {
-    return cancelRequest(requestId);
+    const request = queue.get(requestId);
+
+    if (request) {
+        return cancelRequest(requestId);
+    }
+
+    matchingLocks.delete(requestId);
+    await withRetry(() => db.removeFromQueue(requestId));
+    await withRetry(() => db.reorderQueue());
+    reorderQueue();
+
+    metrics.queueDepth.set(queue.size);
+    notifyAdmins('queue_request_removed', { requestId });
+
+    return { success: true, removedFromMemory: false };
 }
 
 // ============================================

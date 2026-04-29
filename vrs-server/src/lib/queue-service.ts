@@ -477,8 +477,21 @@ function getPendingRequests(): QueueRequest[] {
     return Array.from(queue.values());
 }
 
-async function removeFromQueue(requestId: string): Promise<{ success: boolean; message?: string }> {
-    return cancelRequest(requestId);
+async function removeFromQueue(requestId: string): Promise<{ success: boolean; message?: string; removedFromMemory?: boolean }> {
+    const request = queue.get(requestId);
+
+    if (request) {
+        return cancelRequest(requestId);
+    }
+
+    matchingLocks.delete(requestId);
+    await withRetry(() => db.removeFromQueue(requestId));
+    await withRetry(() => db.reorderQueue());
+    reorderQueue();
+
+    notifyAdmins('queue_request_removed', { requestId });
+
+    return { success: true, removedFromMemory: false };
 }
 
 // ============================================
