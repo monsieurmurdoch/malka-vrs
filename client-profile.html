@@ -70,6 +70,21 @@
             background: rgba(255,255,255,0.2);
         }
 
+        .profile-nav-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px;
+            color: #fff;
+            cursor: pointer;
+            padding: 8px 14px;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .profile-nav-btn:hover {
+            background: rgba(255,255,255,0.18);
+        }
+
         /* Main grid */
         .profile-main {
             max-width: 1180px;
@@ -81,9 +96,20 @@
 
         .profile-hero {
             display: grid;
-            grid-template-columns: minmax(420px, 1.1fr) minmax(0, 0.9fr);
             gap: 18px;
+            grid-template-columns: minmax(420px, 1.1fr) minmax(0, 0.9fr);
             align-items: stretch;
+        }
+
+        .profile-hero.vrs-home-hero {
+            grid-template-columns: 1fr;
+        }
+
+        .vrs-home-lower {
+            display: grid;
+            gap: 18px;
+            grid-template-columns: minmax(0, 1fr) minmax(340px, 420px);
+            align-items: start;
         }
 
         .profile-stack {
@@ -107,6 +133,27 @@
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 10px;
+        }
+
+        .vrs-action-strip {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: minmax(180px, 1.1fr) minmax(140px, 0.7fr) minmax(260px, 1fr);
+        }
+
+        .vrs-action-strip .dialer-row {
+            margin-bottom: 0;
+        }
+
+        .vrs-action-strip .start-call-btn,
+        .vrs-action-strip .quick-action-btn,
+        .vrs-action-strip .dialer-btn {
+            min-height: 42px;
+            padding: 9px 12px;
+        }
+
+        .settings-view {
+            max-width: 980px;
         }
 
         .quick-action-btn {
@@ -137,7 +184,7 @@
 
         .profile-sections {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(380px, 440px);
+            grid-template-columns: minmax(0, 1fr);
             gap: 18px;
             align-items: start;
         }
@@ -258,6 +305,8 @@
         .self-preview-card {
             display: grid;
             gap: 12px;
+            min-width: 0;
+            overflow: hidden;
         }
 
         .self-preview-frame {
@@ -278,6 +327,10 @@
             object-fit: cover;
             transform: scaleX(-1);
             width: 100%;
+        }
+
+        .vrs-self-hero-card .self-preview-frame {
+            min-height: clamp(420px, 66vh, 760px);
         }
 
         .self-preview-placeholder {
@@ -1117,6 +1170,7 @@
         }
 
         body.theme-light .sign-out-btn,
+        body.theme-light .profile-nav-btn,
         body.theme-light .quick-action-btn,
         body.theme-light .settings-input,
         body.theme-light .settings-select,
@@ -1128,7 +1182,8 @@
             color: #16212a;
         }
 
-        body.theme-light .sign-out-btn {
+        body.theme-light .sign-out-btn,
+        body.theme-light .profile-nav-btn {
             background: rgba(22,33,42,0.06);
         }
 
@@ -1229,6 +1284,7 @@
 
         body.theme-light:not(.theme-maple) .quick-action-btn,
         body.theme-light:not(.theme-maple) .settings-btn.secondary,
+        body.theme-light:not(.theme-maple) .profile-nav-btn,
         body.theme-light:not(.theme-maple) .sign-out-btn {
             background: #fff;
             border-color: #dbe1ea;
@@ -1237,6 +1293,7 @@
 
         body.theme-light:not(.theme-maple) .quick-action-btn:hover,
         body.theme-light:not(.theme-maple) .settings-btn.secondary:hover,
+        body.theme-light:not(.theme-maple) .profile-nav-btn:hover,
         body.theme-light:not(.theme-maple) .sign-out-btn:hover {
             border-color: #1d4f78;
         }
@@ -1356,7 +1413,8 @@
 
         body.theme-maple .profile-header-title,
         body.theme-maple .profile-user-name,
-        body.theme-maple .sign-out-btn {
+        body.theme-maple .sign-out-btn,
+        body.theme-maple .profile-nav-btn {
             color: #fff;
             opacity: 1;
         }
@@ -1404,6 +1462,7 @@
         }
 
         body.theme-maple .sign-out-btn,
+        body.theme-maple .profile-nav-btn,
         body.theme-maple .settings-btn.secondary {
             background: rgba(255,255,255,0.14);
             border-color: rgba(255,255,255,0.4);
@@ -1498,6 +1557,7 @@
             .profile-hero,
             .profile-sections,
             .profile-alert-grid,
+            .vrs-home-lower,
             .vri-console-shell,
             .vri-lower-grid,
             .settings-columns {
@@ -1514,6 +1574,7 @@
 
             .vri-secondary-actions,
             .vri-state-grid,
+            .vrs-action-strip,
             .usage-summary-grid {
                 grid-template-columns: 1fr;
             }
@@ -1722,6 +1783,7 @@
             activeRooms: [],
             settingsStatus: null,
             passwordStatus: null,
+            profileView: 'home',
             mediaPreview: {
                 enabled: getPersistentItem('vrs_self_preview_enabled') !== 'false',
                 status: 'idle',
@@ -1754,6 +1816,8 @@
         let ws = null;
         let wsReconnectTimer = null;
         let previewStream = null;
+        let wsAuthenticated = false;
+        const pendingWsMessages = [];
 
         function connectWebSocket() {
             const user = getUser();
@@ -1765,6 +1829,7 @@
             ws.onopen = function() {
                 console.log('[WS] Connected');
                 state.wsConnected = true;
+                wsAuthenticated = false;
                 // Authenticate
                 ws.send(JSON.stringify({
                     type: 'auth',
@@ -1787,6 +1852,7 @@
             ws.onclose = function() {
                 console.log('[WS] Disconnected, reconnecting in 3s...');
                 state.wsConnected = false;
+                wsAuthenticated = false;
                 updateWsStatus();
                 wsReconnectTimer = setTimeout(connectWebSocket, 3000);
             };
@@ -1832,9 +1898,16 @@
         }
 
         function wsSend(data) {
-            if (ws && ws.readyState === WebSocket.OPEN) {
+            if (ws && ws.readyState === WebSocket.OPEN && wsAuthenticated) {
                 ws.send(JSON.stringify(data));
+                return true;
             }
+
+            pendingWsMessages.push(data);
+            if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+                connectWebSocket();
+            }
+            return false;
         }
 
         function getRoomPreferences() {
@@ -1999,6 +2072,10 @@
                 case 'auth_success':
                     console.log('[WS] Auth success');
                     state.wsConnected = true;
+                    wsAuthenticated = true;
+                    while (pendingWsMessages.length > 0 && ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify(pendingWsMessages.shift()));
+                    }
                     updateWsStatus();
                     break;
 
@@ -2614,6 +2691,28 @@
             `;
         }
 
+        function renderCallHistorySection(calls, open) {
+            return `
+                <details class="card section-card" ${open ? 'open' : ''}>
+                    <summary>Call History</summary>
+                    <div class="section-body">
+                        ${calls.length > 0 ? calls.map(call => `
+                            <div class="call-item">
+                                <div>
+                                    <div class="call-date">${formatDate(call.started_at)}</div>
+                                    <div class="call-interpreter">
+                                        ${call.interpreter_name ? 'Interpreter: ' + call.interpreter_name : ''}
+                                        ${call.callee_name ? 'Called: ' + call.callee_name : ''}
+                                    </div>
+                                </div>
+                                <div class="call-duration">${call.duration_minutes ? call.duration_minutes + ' min' : 'In progress'}</div>
+                            </div>
+                        `).join('') : '<div class="empty-state">No calls yet. Start your first call!</div>'}
+                    </div>
+                </details>
+            `;
+        }
+
         function openProfileSection(id) {
             const el = document.getElementById(id);
             if (!el) return;
@@ -2733,6 +2832,10 @@
                 case 'start-self-preview': return startSelfPreview(false);
                 case 'stop-self-preview': return stopSelfPreview();
                 case 'open-profile-section': return openProfileSection(element.dataset.sectionId);
+                case 'set-profile-view':
+                    state.profileView = element.dataset.view || 'home';
+                    render();
+                    return;
                 case 'start-call': return window.__startCall();
                 case 'dial-via-interpreter': return window.__dialViaInterpreter();
                 case 'open-tts-panel':
@@ -3346,9 +3449,6 @@
             const canUseVrs = serviceModes.includes('vrs');
             const canUseVri = serviceModes.includes('vri');
             const isVriOnly = canUseVri && !canUseVrs;
-            const profileServiceLabel = canUseVrs && canUseVri
-                ? 'VRS/VRI'
-                : (canUseVri ? 'VRI' : (canUseVrs ? 'VRS' : SERVICE_LABEL));
             const preferences = state.preferences || {
                 dnd_enabled: false,
                 dnd_message: '',
@@ -3366,6 +3466,37 @@
                 return;
             }
 
+            const profileView = state.profileView === 'settings' ? 'settings' : 'home';
+            const headerAction = profileView === 'settings'
+                ? '<button class="profile-nav-btn" data-action="set-profile-view" data-view="home">Home</button>'
+                : '<button class="profile-nav-btn" data-action="set-profile-view" data-view="settings">Settings</button>';
+
+            if (profileView === 'settings') {
+                document.getElementById('app').innerHTML = `
+                    <div class="profile-header">
+                        <div class="profile-header-left">
+                            <img src="${brandLogo(true)}" alt="${brandName()}" class="profile-header-logo">
+                            <span class="profile-header-title">Client Settings</span>
+                        </div>
+                        <div class="profile-header-right">
+                            <span class="profile-user-name">${user.name || user.email || ''}</span>
+                            ${headerAction}
+                            <button class="sign-out-btn" data-action="sign-out">Sign Out</button>
+                        </div>
+                    </div>
+
+                    <div class="ws-status ${state.wsConnected ? 'ws-connected' : 'ws-disconnected'}" id="ws-status">
+                        ${state.wsConnected ? 'Connected' : 'Reconnecting...'}
+                    </div>
+
+                    <div class="profile-main settings-view">
+                        ${renderClientSettingsSection(profile, user, preferences, true)}
+                        ${renderPasswordSection()}
+                    </div>
+                `;
+                return;
+            }
+
             document.getElementById('app').innerHTML = `
                 <div class="profile-header">
                     <div class="profile-header-left">
@@ -3374,6 +3505,7 @@
                     </div>
                     <div class="profile-header-right">
                         <span class="profile-user-name">${user.name || user.email || ''}</span>
+                        ${headerAction}
                         <button class="sign-out-btn" data-action="sign-out">Sign Out</button>
                     </div>
                 </div>
@@ -3383,55 +3515,27 @@
                 </div>
 
                 <div class="profile-main">
-                    <div class="profile-hero">
-                        <div class="card self-preview-card">
-                            <div class="card-title">Self View</div>
-                            <div class="self-preview-frame">
-                                ${state.mediaPreview.status === 'active' ? '<video id="self-preview-video" autoplay muted playsinline></video>' : `
-                                    <div class="self-preview-placeholder">
-                                        ${state.mediaPreview.status === 'requesting' ? 'Waiting for camera permission...' : 'Allow camera access to see yourself before joining a room.'}
-                                    </div>
-                                `}
-                            </div>
-                            <div class="self-preview-status">${escapeHtml(state.mediaPreview.message || 'Preview uses camera only. Microphone is always muted by default.')}</div>
-                            <div class="self-preview-actions">
-                                ${state.mediaPreview.status === 'active' ? `
-                                    <button class="settings-btn secondary" data-action="stop-self-preview">Turn Preview Off</button>
+                    <div class="profile-hero vrs-home-hero">
+                        ${renderSelfPreviewCard('vrs-self-hero-card')}
+
+                        <div class="card vrs-action-strip" aria-label="Call actions">
+                            <button class="start-call-btn" data-action="${isVriOnly ? 'request-interpreter' : 'start-call'}">${isVriOnly ? 'Request Interpreter' : 'Start Instant Room'}</button>
+                            ${canUseVrs ? '<button class="quick-action-btn" data-action="open-tts-panel">Open TTS Panel</button>' : ''}
+                            <div class="dialer-row">
+                                ${canUseVrs ? `
+                                    <input type="tel" id="dial-phone" class="dialer-input" placeholder="+1-555-XXXX"
+                                        data-enter-action="dial-via-interpreter">
+                                    <button class="dialer-btn" data-action="dial-via-interpreter">Call via Interpreter</button>
                                 ` : `
-                                    <button class="settings-btn" data-action="start-self-preview">Turn Preview On</button>
+                                    <button class="dialer-btn" data-action="request-interpreter" style="width:100%">Request Interpreter</button>
                                 `}
                             </div>
                         </div>
 
-                        <div class="profile-stack">
-                            <div class="card profile-summary">
-                                <div class="profile-summary-top">
-                                    <div>
-                                        <div class="card-title">Your ${profileServiceLabel} Profile</div>
-                                        <div class="vrs-number">${canUseVrs ? (profile?.primaryPhone || 'VRS test account') : 'VRI Ready'}</div>
-                                        <div class="vrs-number-label">${canUseVrs ? 'VRS phone access enabled' : 'Video Remote Interpreting enabled'}</div>
-                                    </div>
-                                    <div class="vrs-number-label">Mic always starts muted</div>
-                                </div>
-                                <div class="quick-actions-grid">
-                                    <button class="start-call-btn" data-action="${isVriOnly ? 'request-interpreter' : 'start-call'}">${isVriOnly ? 'Request Interpreter' : 'Start Instant Room'}</button>
-                                    ${canUseVrs ? '<button class="quick-action-btn" data-action="open-tts-panel">Open TTS Panel</button>' : ''}
-                                </div>
-                                <div>
-                                    <div class="card-title">${canUseVrs ? 'Call via Interpreter' : 'VRI Session'}</div>
-                                    <div class="dialer-row">
-                                        ${canUseVrs ? `
-                                            <input type="tel" id="dial-phone" class="dialer-input" placeholder="+1-555-XXXX"
-                                                data-enter-action="dial-via-interpreter">
-                                            <button class="dialer-btn" data-action="dial-via-interpreter">Call</button>
-                                        ` : `
-                                            <button class="dialer-btn" data-action="request-interpreter" style="width:100%">Request Interpreter</button>
-                                        `}
-                                    </div>
-                                    ${isVriOnly ? '<div class="vrs-number-label">You will enter the video room after an interpreter confirms.</div>' : ''}
-                                </div>
-                            </div>
+                        <div class="vrs-home-lower">
+                            ${renderContactsPanel()}
 
+                            <div class="profile-stack">
                             ${(activeRooms.length > 0 || missed.length > 0) ? `
                                 <div class="profile-alert-grid">
                                     ${activeRooms.length > 0 ? `
@@ -3468,12 +3572,13 @@
                                     ` : ''}
                                 </div>
                             ` : ''}
+                            ${renderCallHistorySection(calls, true)}
+                            </div>
                         </div>
                     </div>
 
                     <div class="profile-sections">
                         <div class="profile-section-column">
-                            ${renderContactsPanel()}
                             <details class="card section-card">
                                 <summary>Speed Dial</summary>
                                 <div class="section-body">
@@ -3514,118 +3619,6 @@
                             </details>
                         </div>
 
-                        <div class="profile-section-column">
-                            <details class="card section-card" open>
-                                <summary>Settings</summary>
-                                <div class="section-body">
-                                    <div class="settings-columns">
-                                        <div class="settings-group">
-                                            <div class="settings-group-title">Profile</div>
-                                            <div class="settings-row">
-                                                <label class="settings-label" for="settings-name">Display Name</label>
-                                                <input id="settings-name" class="settings-input" type="text" value="${escapeHtml(profile?.name || user.name || '')}">
-                                            </div>
-                                            <div class="settings-row">
-                                                <label class="settings-label" for="settings-email">Email</label>
-                                                <input id="settings-email" class="settings-input" type="email" value="${escapeHtml(profile?.email || user.email || '')}">
-                                            </div>
-                                            <div class="settings-row">
-                                                <label class="settings-label" for="settings-organization">Organization</label>
-                                                <input id="settings-organization" class="settings-input" type="text" value="${escapeHtml(profile?.organization || '')}">
-                                            </div>
-                                            <div class="settings-actions">
-                                                <button class="settings-btn" data-action="save-client-profile">Save Profile</button>
-                                            </div>
-                                            ${state.settingsStatus ? `<div class="settings-status ${state.settingsStatus.type}">${escapeHtml(state.settingsStatus.message)}</div>` : ''}
-                                        </div>
-
-                                        <div class="settings-group">
-                                            <div class="settings-group-title">Call Defaults</div>
-                                            <div class="settings-row">
-                                                <label class="settings-label" for="settings-theme">Theme</label>
-                                                <select id="settings-theme" class="settings-select" data-change-action="preview-theme">
-                                                    <option value="system" ${preferences.dark_mode === 'system' ? 'selected' : ''}>System</option>
-                                                    <option value="dark" ${preferences.dark_mode === 'dark' ? 'selected' : ''}>Dark</option>
-                                                    <option value="light" ${preferences.dark_mode === 'light' ? 'selected' : ''}>Light</option>
-                                                </select>
-                                            </div>
-                                            <div class="settings-row">
-                                                <label class="settings-label" for="settings-language">Language</label>
-                                                <select id="settings-language" class="settings-select">
-                                                    <option value="en" ${getPreferredLanguage() === 'en' ? 'selected' : ''}>English</option>
-                                                    <option value="ar" ${getPreferredLanguage() === 'ar' ? 'selected' : ''}>Arabic</option>
-                                                </select>
-                                            </div>
-                                            <label class="settings-toggle">
-                                                <input id="settings-camera-off" type="checkbox" ${checked(preferences.camera_default_off)}>
-                                                Camera off by default
-                                            </label>
-                                            <label class="settings-toggle">
-                                                <input id="settings-mic-off" type="checkbox" checked disabled>
-                                                Microphone always muted by default
-                                            </label>
-                                            <label class="settings-toggle">
-                                                <input id="settings-skip-waiting" type="checkbox" ${checked(preferences.skip_waiting_room)}>
-                                                Skip waiting room when possible
-                                            </label>
-                                            <label class="settings-toggle">
-                                                <input id="settings-remember-media" type="checkbox" ${checked(preferences.remember_media_permissions)}>
-                                                Remember media permission
-                                            </label>
-                                            <label class="settings-toggle">
-                                                <input id="settings-dnd" type="checkbox" ${checked(preferences.dnd_enabled)}>
-                                                Do not disturb
-                                            </label>
-                                            <div class="settings-row">
-                                                <label class="settings-label" for="settings-dnd-message">DND Message</label>
-                                                <textarea id="settings-dnd-message" class="settings-textarea">${escapeHtml(preferences.dnd_message || '')}</textarea>
-                                            </div>
-                                            <div class="settings-actions">
-                                                <button class="settings-btn" data-action="save-client-preferences">Save Preferences</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </details>
-
-                            <details class="card section-card">
-                                <summary>Password</summary>
-                                <div class="section-body">
-                                    <div class="settings-grid">
-                                        <div class="settings-row">
-                                            <label class="settings-label" for="settings-current-password">Current Password</label>
-                                            <input id="settings-current-password" class="settings-input" type="password" autocomplete="current-password">
-                                        </div>
-                                        <div class="settings-row">
-                                            <label class="settings-label" for="settings-new-password">New Password</label>
-                                            <input id="settings-new-password" class="settings-input" type="password" autocomplete="new-password">
-                                        </div>
-                                        <div class="settings-actions">
-                                            <button class="settings-btn secondary" data-action="change-client-password">Update Password</button>
-                                        </div>
-                                    </div>
-                                    ${state.passwordStatus ? `<div class="settings-status ${state.passwordStatus.type}">${escapeHtml(state.passwordStatus.message)}</div>` : ''}
-                                </div>
-                            </details>
-
-                            <details class="card section-card">
-                                <summary>Call History</summary>
-                                <div class="section-body">
-                                    ${calls.length > 0 ? calls.map(call => `
-                                        <div class="call-item">
-                                            <div>
-                                                <div class="call-date">${formatDate(call.started_at)}</div>
-                                                <div class="call-interpreter">
-                                                    ${call.interpreter_name ? 'Interpreter: ' + call.interpreter_name : ''}
-                                                    ${call.callee_name ? 'Called: ' + call.callee_name : ''}
-                                                </div>
-                                            </div>
-                                            <div class="call-duration">${call.duration_minutes ? call.duration_minutes + ' min' : 'In progress'}</div>
-                                        </div>
-                                    `).join('') : '<div class="empty-state">No calls yet. Start your first call!</div>'}
-                                </div>
-                            </details>
-                        </div>
                     </div>
                 </div>
             `;
