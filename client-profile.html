@@ -303,6 +303,160 @@
             flex: 1;
         }
 
+        .vri-console {
+            display: grid;
+            gap: 18px;
+        }
+
+        .vri-console-shell {
+            display: grid;
+            gap: 18px;
+            grid-template-columns: minmax(360px, 1.15fr) minmax(320px, 0.85fr);
+            min-height: calc(100vh - 150px);
+        }
+
+        .vri-self-card {
+            min-height: 0;
+        }
+
+        .vri-self-card .self-preview-frame {
+            min-height: clamp(420px, 58vh, 720px);
+        }
+
+        .vri-session-card {
+            align-content: center;
+            display: grid;
+            gap: 20px;
+        }
+
+        .vri-session-topbar {
+            align-items: center;
+            display: flex;
+            gap: 10px;
+            justify-content: space-between;
+        }
+
+        .vri-session-eyebrow {
+            color: rgba(255,255,255,0.62);
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .vri-settings-gear {
+            align-items: center;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.18);
+            border-radius: 999px;
+            color: #fff;
+            cursor: pointer;
+            display: inline-flex;
+            font-size: 20px;
+            height: 44px;
+            justify-content: center;
+            line-height: 1;
+            width: 44px;
+        }
+
+        .vri-session-title {
+            color: rgba(255,255,255,0.95);
+            font-size: clamp(34px, 4vw, 58px);
+            font-weight: 800;
+            line-height: 1;
+            margin: 0;
+        }
+
+        .vri-session-copy {
+            color: rgba(255,255,255,0.7);
+            font-size: 16px;
+            line-height: 1.5;
+            margin: 0;
+        }
+
+        .vri-request-btn {
+            border-radius: 12px;
+            font-size: clamp(20px, 2.2vw, 30px);
+            min-height: 86px;
+        }
+
+        .vri-secondary-actions {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .vri-state-grid,
+        .usage-summary-grid {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .vri-state-item,
+        .usage-summary-card {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 14px;
+        }
+
+        .vri-state-label,
+        .usage-summary-label {
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            opacity: 0.58;
+            text-transform: uppercase;
+        }
+
+        .vri-state-value,
+        .usage-summary-value {
+            font-size: 20px;
+            font-weight: 800;
+            margin-top: 5px;
+        }
+
+        .vri-inline-section {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .vri-inline-section > summary {
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 800;
+            list-style: none;
+            padding: 14px;
+        }
+
+        .vri-inline-section > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .vri-lower-grid {
+            display: grid;
+            gap: 18px;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        }
+
+        body.theme-light .vri-session-eyebrow,
+        body.theme-light .vri-session-title,
+        body.theme-light .vri-session-copy {
+            color: #16212a;
+        }
+
+        body.theme-light .vri-settings-gear,
+        body.theme-light .vri-state-item,
+        body.theme-light .usage-summary-card,
+        body.theme-light .vri-inline-section {
+            background: rgba(22,33,42,0.04);
+            border-color: rgba(22,33,42,0.12);
+            color: #16212a;
+        }
+
         /* Phone dialer */
         .dialer-row {
             display: flex;
@@ -1292,6 +1446,21 @@
             border-color: #e00000;
         }
 
+        body.theme-maple .vri-session-eyebrow,
+        body.theme-maple .vri-session-title,
+        body.theme-maple .vri-session-copy {
+            color: #111;
+        }
+
+        body.theme-maple .vri-settings-gear,
+        body.theme-maple .vri-state-item,
+        body.theme-maple .usage-summary-card,
+        body.theme-maple .vri-inline-section {
+            background: #fff;
+            border-color: rgba(0,0,0,0.12);
+            color: #111;
+        }
+
         body.theme-maple .section-body {
             border-top-color: rgba(0,0,0,0.1);
         }
@@ -1329,7 +1498,23 @@
             .profile-hero,
             .profile-sections,
             .profile-alert-grid,
+            .vri-console-shell,
+            .vri-lower-grid,
             .settings-columns {
+                grid-template-columns: 1fr;
+            }
+
+            .vri-console-shell {
+                min-height: auto;
+            }
+
+            .vri-self-card .self-preview-frame {
+                min-height: clamp(300px, 58vh, 520px);
+            }
+
+            .vri-secondary-actions,
+            .vri-state-grid,
+            .usage-summary-grid {
                 grid-template-columns: 1fr;
             }
 
@@ -1693,7 +1878,7 @@
 
         async function startSelfPreview(silent) {
             if (previewStream) {
-                state.mediaPreview = { enabled: true, status: 'active', message: 'Camera preview is on. Calls still start muted.' };
+                state.mediaPreview = { enabled: true, status: 'active', message: `Camera preview is on. ${canUseVriMode() ? 'Sessions' : 'Calls'} still start muted.` };
                 setPersistentItem('vrs_self_preview_enabled', 'true');
                 attachSelfPreview();
                 if (!silent) render();
@@ -1713,7 +1898,7 @@
 
             try {
                 previewStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                state.mediaPreview = { enabled: true, status: 'active', message: 'Camera preview is on. Calls still start muted.' };
+                state.mediaPreview = { enabled: true, status: 'active', message: `Camera preview is on. ${canUseVriMode() ? 'Sessions' : 'Calls'} still start muted.` };
             } catch (error) {
                 state.mediaPreview = { enabled: false, status: 'error', message: 'Camera permission was not granted.' };
                 setPersistentItem('vrs_self_preview_enabled', 'false');
@@ -2231,6 +2416,290 @@
             return value ? 'checked' : '';
         }
 
+        function callDurationMinutes(call) {
+            const duration = Number(call?.duration_minutes || call?.durationMinutes || 0);
+            return Number.isFinite(duration) ? duration : 0;
+        }
+
+        function getUsageSummary(calls) {
+            const now = new Date();
+            const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+            const weekStart = now.getTime() - (7 * 24 * 60 * 60 * 1000);
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+            const summary = {
+                day: { calls: 0, minutes: 0 },
+                week: { calls: 0, minutes: 0 },
+                month: { calls: 0, minutes: 0 }
+            };
+
+            (calls || []).forEach(call => {
+                const started = new Date(call.started_at || call.startedAt || call.created_at || 0).getTime();
+                if (!started || Number.isNaN(started)) return;
+                const minutes = callDurationMinutes(call);
+
+                if (started >= dayStart) {
+                    summary.day.calls += 1;
+                    summary.day.minutes += minutes;
+                }
+                if (started >= weekStart) {
+                    summary.week.calls += 1;
+                    summary.week.minutes += minutes;
+                }
+                if (started >= monthStart) {
+                    summary.month.calls += 1;
+                    summary.month.minutes += minutes;
+                }
+            });
+
+            return summary;
+        }
+
+        function renderSelfPreviewCard(extraClass) {
+            return `
+                <div class="card self-preview-card ${extraClass || ''}">
+                    <div class="card-title">Self View</div>
+                    <div class="self-preview-frame">
+                        ${state.mediaPreview.status === 'active' ? '<video id="self-preview-video" autoplay muted playsinline></video>' : `
+                            <div class="self-preview-placeholder">
+                                ${state.mediaPreview.status === 'requesting' ? 'Waiting for camera permission...' : 'Allow camera access to see yourself before joining a session.'}
+                            </div>
+                        `}
+                    </div>
+                    <div class="self-preview-status">${escapeHtml(state.mediaPreview.message || 'Preview uses camera only. Microphone is always muted by default.')}</div>
+                    <div class="self-preview-actions">
+                        ${state.mediaPreview.status === 'active' ? `
+                            <button class="settings-btn secondary" data-action="stop-self-preview">Turn Preview Off</button>
+                        ` : `
+                            <button class="settings-btn" data-action="start-self-preview">Turn Preview On</button>
+                        `}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderClientSettingsSection(profile, user, preferences, open) {
+            return `
+                <details class="card section-card" id="profile-settings-section" ${open ? 'open' : ''}>
+                    <summary>Settings</summary>
+                    <div class="section-body">
+                        <div class="settings-columns">
+                            <div class="settings-group">
+                                <div class="settings-group-title">Profile</div>
+                                <div class="settings-row">
+                                    <label class="settings-label" for="settings-name">Display Name</label>
+                                    <input id="settings-name" class="settings-input" type="text" value="${escapeHtml(profile?.name || user.name || '')}">
+                                </div>
+                                <div class="settings-row">
+                                    <label class="settings-label" for="settings-email">Email</label>
+                                    <input id="settings-email" class="settings-input" type="email" value="${escapeHtml(profile?.email || user.email || '')}">
+                                </div>
+                                <div class="settings-row">
+                                    <label class="settings-label" for="settings-organization">Organization</label>
+                                    <input id="settings-organization" class="settings-input" type="text" value="${escapeHtml(profile?.organization || '')}">
+                                </div>
+                                <div class="settings-actions">
+                                    <button class="settings-btn" data-action="save-client-profile">Save Profile</button>
+                                </div>
+                                ${state.settingsStatus ? `<div class="settings-status ${state.settingsStatus.type}">${escapeHtml(state.settingsStatus.message)}</div>` : ''}
+                            </div>
+
+                            <div class="settings-group">
+                                <div class="settings-group-title">Session Defaults</div>
+                                <div class="settings-row">
+                                    <label class="settings-label" for="settings-theme">Theme</label>
+                                    <select id="settings-theme" class="settings-select" data-change-action="preview-theme">
+                                        <option value="system" ${preferences.dark_mode === 'system' ? 'selected' : ''}>System</option>
+                                        <option value="dark" ${preferences.dark_mode === 'dark' ? 'selected' : ''}>Dark</option>
+                                        <option value="light" ${preferences.dark_mode === 'light' ? 'selected' : ''}>Light</option>
+                                    </select>
+                                </div>
+                                <div class="settings-row">
+                                    <label class="settings-label" for="settings-language">Language</label>
+                                    <select id="settings-language" class="settings-select">
+                                        <option value="en" ${getPreferredLanguage() === 'en' ? 'selected' : ''}>English</option>
+                                        <option value="ar" ${getPreferredLanguage() === 'ar' ? 'selected' : ''}>Arabic</option>
+                                    </select>
+                                </div>
+                                <label class="settings-toggle">
+                                    <input id="settings-camera-off" type="checkbox" ${checked(preferences.camera_default_off)}>
+                                    Camera off when the room opens
+                                </label>
+                                <label class="settings-toggle">
+                                    <input id="settings-mic-off" type="checkbox" checked disabled>
+                                    Microphone always muted by default
+                                </label>
+                                <label class="settings-toggle">
+                                    <input id="settings-skip-waiting" type="checkbox" ${checked(preferences.skip_waiting_room)}>
+                                    Skip waiting room when possible
+                                </label>
+                                <label class="settings-toggle">
+                                    <input id="settings-remember-media" type="checkbox" ${checked(preferences.remember_media_permissions)}>
+                                    Remember media permission
+                                </label>
+                                <label class="settings-toggle">
+                                    <input id="settings-dnd" type="checkbox" ${checked(preferences.dnd_enabled)}>
+                                    Do not disturb
+                                </label>
+                                <div class="settings-row">
+                                    <label class="settings-label" for="settings-dnd-message">DND Message</label>
+                                    <textarea id="settings-dnd-message" class="settings-textarea">${escapeHtml(preferences.dnd_message || '')}</textarea>
+                                </div>
+                                <div class="settings-actions">
+                                    <button class="settings-btn" data-action="save-client-preferences">Save Preferences</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+            `;
+        }
+
+        function renderPasswordSection() {
+            return `
+                <details class="card section-card">
+                    <summary>Password</summary>
+                    <div class="section-body">
+                        <div class="settings-grid">
+                            <div class="settings-row">
+                                <label class="settings-label" for="settings-current-password">Current Password</label>
+                                <input id="settings-current-password" class="settings-input" type="password" autocomplete="current-password">
+                            </div>
+                            <div class="settings-row">
+                                <label class="settings-label" for="settings-new-password">New Password</label>
+                                <input id="settings-new-password" class="settings-input" type="password" autocomplete="new-password">
+                            </div>
+                            <div class="settings-actions">
+                                <button class="settings-btn secondary" data-action="change-client-password">Update Password</button>
+                            </div>
+                        </div>
+                        ${state.passwordStatus ? `<div class="settings-status ${state.passwordStatus.type}">${escapeHtml(state.passwordStatus.message)}</div>` : ''}
+                    </div>
+                </details>
+            `;
+        }
+
+        function renderUsageSection(calls, open) {
+            const usage = getUsageSummary(calls);
+
+            return `
+                <details class="card section-card" id="profile-usage-section" ${open ? 'open' : ''}>
+                    <summary>Billing & Usage</summary>
+                    <div class="section-body">
+                        <div class="usage-summary-grid">
+                            ${[
+                                ['Today', usage.day],
+                                ['7 Days', usage.week],
+                                ['This Month', usage.month]
+                            ].map(([label, item]) => `
+                                <div class="usage-summary-card">
+                                    <div class="usage-summary-label">${label}</div>
+                                    <div class="usage-summary-value">${item.calls} / ${Math.round(item.minutes)} min</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        ${calls.length > 0 ? calls.map(call => `
+                            <div class="call-item">
+                                <div>
+                                    <div class="call-date">${formatDate(call.started_at)}</div>
+                                    <div class="call-interpreter">
+                                        ${call.interpreter_name ? 'Interpreter: ' + call.interpreter_name : ''}
+                                        ${call.callee_name ? 'Called: ' + call.callee_name : ''}
+                                    </div>
+                                </div>
+                                <div class="call-duration">${call.duration_minutes ? call.duration_minutes + ' min' : 'In progress'}</div>
+                            </div>
+                        `).join('') : '<div class="empty-state">No sessions yet.</div>'}
+                    </div>
+                </details>
+            `;
+        }
+
+        function openProfileSection(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.open = true;
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function renderVriClientConsole(profile, user, preferences, calls, canUseVrs) {
+            const orgName = profile?.organization || user.organization || brandName();
+            const connectionLabel = state.wsConnected ? 'Ready' : 'Connecting';
+
+            return `
+                <div class="profile-header">
+                    <div class="profile-header-left">
+                        <img src="${brandLogo(true)}" alt="${brandName()}" class="profile-header-logo">
+                        <span class="profile-header-title">VRI Session Console</span>
+                    </div>
+                    <div class="profile-header-right">
+                        <span class="profile-user-name">${escapeHtml(orgName)}</span>
+                        <button class="sign-out-btn" data-action="sign-out">Sign Out</button>
+                    </div>
+                </div>
+
+                <div class="ws-status ${state.wsConnected ? 'ws-connected' : 'ws-disconnected'}" id="ws-status">
+                    ${state.wsConnected ? 'Connected' : 'Reconnecting...'}
+                </div>
+
+                <div class="profile-main vri-console">
+                    <div class="vri-console-shell">
+                        ${renderSelfPreviewCard('vri-self-card')}
+
+                        <div class="card vri-session-card">
+                            <div class="vri-session-topbar">
+                                <div class="vri-session-eyebrow">Corporate VRI</div>
+                                <button class="vri-settings-gear" data-action="open-profile-section" data-section-id="profile-settings-section" aria-label="Open settings">&#9881;</button>
+                            </div>
+                            <h1 class="vri-session-title">Start an interpreted session</h1>
+                            <p class="vri-session-copy">
+                                This room opens after an interpreter confirms. Camera preview is here so the Deaf and hearing participants can prepare together; microphone stays muted by default.
+                            </p>
+                            <button class="start-call-btn vri-request-btn" data-action="request-interpreter">Request Interpreter</button>
+                            <div class="vri-secondary-actions">
+                                <button class="quick-action-btn" data-action="open-profile-section" data-section-id="profile-usage-section">Billing & Usage</button>
+                                <button class="quick-action-btn" data-action="open-profile-section" data-section-id="profile-settings-section">Settings</button>
+                            </div>
+                            <div class="vri-state-grid">
+                                <div class="vri-state-item">
+                                    <div class="vri-state-label">Queue</div>
+                                    <div class="vri-state-value">${connectionLabel}</div>
+                                </div>
+                                <div class="vri-state-item">
+                                    <div class="vri-state-label">Camera</div>
+                                    <div class="vri-state-value">${state.mediaPreview.status === 'active' ? 'Preview On' : 'Preview Off'}</div>
+                                </div>
+                                <div class="vri-state-item">
+                                    <div class="vri-state-label">Mic</div>
+                                    <div class="vri-state-value">Muted</div>
+                                </div>
+                            </div>
+                            ${canUseVrs ? `
+                                <details class="vri-inline-section">
+                                    <summary>VRS Tools</summary>
+                                    <div class="section-body">
+                                        <div class="dialer-row">
+                                            <input type="tel" id="dial-phone" class="dialer-input" placeholder="+1-555-XXXX"
+                                                data-enter-action="dial-via-interpreter">
+                                            <button class="dialer-btn" data-action="dial-via-interpreter">Call</button>
+                                        </div>
+                                        <button class="quick-action-btn" data-action="open-tts-panel">Open TTS Panel</button>
+                                    </div>
+                                </details>
+                            ` : ''}
+                        </div>
+                    </div>
+
+                    <div class="vri-lower-grid">
+                        ${renderUsageSection(calls, false)}
+                        <div class="profile-section-column">
+                            ${renderClientSettingsSection(profile, user, preferences, false)}
+                            ${renderPasswordSection()}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
         function dispatchUiAction(action, element, event) {
             if (!action) return;
 
@@ -2263,6 +2732,7 @@
                 case 'sign-out': return window.__signOut();
                 case 'start-self-preview': return startSelfPreview(false);
                 case 'stop-self-preview': return stopSelfPreview();
+                case 'open-profile-section': return openProfileSection(element.dataset.sectionId);
                 case 'start-call': return window.__startCall();
                 case 'dial-via-interpreter': return window.__dialViaInterpreter();
                 case 'open-tts-panel':
@@ -2889,6 +3359,12 @@
                 skip_waiting_room: false,
                 remember_media_permissions: true
             };
+
+            if (canUseVri) {
+                document.getElementById('app').innerHTML = renderVriClientConsole(profile, user, preferences, calls, canUseVrs);
+                syncSelfPreview();
+                return;
+            }
 
             document.getElementById('app').innerHTML = `
                 <div class="profile-header">
