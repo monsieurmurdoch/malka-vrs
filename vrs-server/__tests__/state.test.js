@@ -74,24 +74,32 @@ describe('lib/state', () => {
     });
 
     describe('broadcastQueueStatus()', () => {
-        it('should broadcast queue status to clients and interpreters', () => {
+        it('should broadcast queue status to clients, interpreters, and admins', () => {
             const clientWs = mockWs();
             const interpWs = mockWs();
+            const adminWs = mockWs();
             state.clients.clients.set('c1', { ws: clientWs });
             state.clients.interpreters.set('i1', { ws: interpWs });
+            state.clients.admins.set('a1', { ws: adminWs });
 
             const queueService = {
-                getStatus: () => ({ queueSize: 3, paused: false })
+                getStatus: () => ({ queueSize: 3, paused: false }),
+                getQueue: () => [{ id: 'request-1' }]
             };
 
             state.broadcastQueueStatus(queueService);
 
-            const expected = JSON.stringify({
+            const expectedStatus = JSON.stringify({
                 type: 'queue_status',
                 data: { queueSize: 3, paused: false }
             });
-            expect(clientWs.send).toHaveBeenCalledWith(expected);
-            expect(interpWs.send).toHaveBeenCalledWith(expected);
+            const expectedAdminQueue = JSON.stringify({
+                type: 'queue_update',
+                data: [{ id: 'request-1' }]
+            });
+            expect(clientWs.send).toHaveBeenCalledWith(expectedStatus);
+            expect(interpWs.send).toHaveBeenCalledWith(expectedStatus);
+            expect(adminWs.send).toHaveBeenCalledWith(expectedAdminQueue);
         });
     });
 

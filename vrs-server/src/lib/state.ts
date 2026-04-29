@@ -70,6 +70,7 @@ function broadcastToClients(message: object): void {
 
 interface QueueServiceLike {
     getStatus(): object;
+    getQueue?: () => object;
 }
 
 function broadcastQueueStatus(queueService: QueueServiceLike): void {
@@ -77,10 +78,20 @@ function broadcastQueueStatus(queueService: QueueServiceLike): void {
         type: 'queue_status',
         data: queueService.getStatus()
     });
+    const adminMsg = JSON.stringify({
+        type: 'queue_update',
+        data: typeof queueService.getQueue === 'function' ? queueService.getQueue() : []
+    });
 
     [...clients.clients.values(), ...clients.interpreters.values()].forEach(client => {
         if (client.ws.readyState === WebSocket.OPEN) {
             client.ws.send(msg);
+        }
+    });
+
+    [...clients.admins.values()].forEach(client => {
+        if (client.ws.readyState === WebSocket.OPEN) {
+            client.ws.send(adminMsg);
         }
     });
 }

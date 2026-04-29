@@ -62,10 +62,20 @@ function broadcastQueueStatus(queueService) {
         type: 'queue_status',
         data: queueService.getStatus()
     });
+    const adminMsg = JSON.stringify({
+        type: 'queue_update',
+        data: typeof queueService.getQueue === 'function' ? queueService.getQueue() : []
+    });
 
     [...clients.clients.values(), ...clients.interpreters.values()].forEach(client => {
         if (client.ws.readyState === WebSocket.OPEN) {
             client.ws.send(msg);
+        }
+    });
+
+    [...clients.admins.values()].forEach(client => {
+        if (client.ws.readyState === WebSocket.OPEN) {
+            client.ws.send(adminMsg);
         }
     });
 }

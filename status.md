@@ -6,6 +6,41 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-29
 - Branch: `codex/main-prod-sync`
+- HEAD: `192bf99`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  status.md`
+  - `M  vrs-server/__tests__/state.test.js`
+  - `M  vrs-server/lib/state.js`
+  - `M  vrs-server/src/lib/state.ts`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-29T06:28:16.060Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-29
+- Branch: `codex/main-prod-sync`
+- HEAD: `192bf99`
+- Note: Fixed admin live queue websocket broadcasts discovered during prod smoke; targeted state test and vrs-server typecheck passed.
+- Snapshot:
+Local changes at sync time:
+  - `M vrs-server/__tests__/state.test.js`
+  - `M vrs-server/lib/state.js`
+  - `M vrs-server/src/lib/state.ts`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-29T06:27:42.118Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-29
+- Branch: `codex/main-prod-sync`
 - HEAD: `1c9549b`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -15,7 +50,7 @@ Local changes at sync time:
   - `M  status.md`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-29T05:49:32.362Z
 
 <!-- status:current:start -->
