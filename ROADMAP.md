@@ -543,6 +543,15 @@
 
 ## Future Product Tracks
 
+### Product Surface & Domain Split
+- [ ] Split Malka role/product surfaces into distinct domains when traffic and operations justify it
+- [ ] `vrs.malkacomm.com`: MalkaVRS client-facing VRS experience
+- [ ] `vri.malkacomm.com`: MalkaVRI client-facing VRI/corporate experience
+- [ ] `terp.malkacomm.com`: interpreter and captioner portal
+- [ ] `admin.malkacomm.com`: admin/superadmin portal
+- [ ] Define redirect and session rules between domains so auth remains smooth without mixing product identities
+- [ ] Keep Maple whitelabel routing aesthetically and operationally isolated from Malka product domains
+
 ### Interpreter Tools
 - [ ] Real-time interpreter analytics
 - [ ] Interpreter scheduling and shift management
