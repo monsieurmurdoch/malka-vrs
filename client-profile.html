@@ -388,6 +388,12 @@
             width: 100%;
         }
 
+        .self-device-select option,
+        .settings-select option {
+            background: #fff;
+            color: #111827;
+        }
+
         .vrs-self-hero-card .self-preview-frame {
             min-height: clamp(420px, 66vh, 760px);
         }
@@ -3869,7 +3875,7 @@
 
                         <div class="card vrs-action-strip" aria-label="Call actions">
                             <button class="start-call-btn" data-action="${isVriOnly ? 'request-interpreter' : 'start-call'}">${isVriOnly ? 'Request Interpreter' : 'Start Instant Room'}</button>
-                            ${canUseVrs ? '<button class="quick-action-btn" data-action="open-tts-panel">Open TTS Panel</button>' : ''}
+                            ${canUseVrs ? '<button class="quick-action-btn" data-action="open-tts-panel">Text-to-Speech Panel</button>' : ''}
                             <div class="dialer-row">
                                 ${canUseVrs ? `
                                     <input type="tel" id="dial-phone" class="dialer-input" placeholder="+1-555-XXXX"
@@ -3979,6 +3985,12 @@
         // ============================================
 
         window.__signOut = function() {
+            if (state.queueRequest && state.queueRequest.requestId) {
+                wsSend({
+                    type: 'cancel_request',
+                    data: { requestId: state.queueRequest.requestId }
+                });
+            }
             clearPersistentAuth();
             if (ws) ws.close();
             window.location.href = '/';

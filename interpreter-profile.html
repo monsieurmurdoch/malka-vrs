@@ -220,6 +220,12 @@
             width: 100%;
         }
 
+        .self-device-select option,
+        .settings-select option {
+            background: #fff;
+            color: #111827;
+        }
+
         .self-preview-placeholder {
             color: rgba(255,255,255,0.72);
             font-size: 14px;
@@ -1162,7 +1168,8 @@
             // Queue state
             available: false,
             wsConnected: false,
-            pendingRequest: null   // { requestId, clientName, language, roomName, targetPhone }
+            pendingRequest: null,   // { requestId, clientName, language, roomName, targetPhone }
+            queueNotice: null
         };
 
         let previewStream = null;
@@ -1478,6 +1485,7 @@
                     // Incoming client request — show the accept overlay.
                     if (!state.pendingRequest) {
                         state.pendingRequest = msg.data;
+                        state.queueNotice = null;
                         renderAcceptOverlay();
                     }
                     break;
@@ -1500,7 +1508,12 @@
                 case 'error':
                 case 'auth_error':
                     if (msg.data && msg.data.message) {
-                        alert(msg.data.message);
+                        state.queueNotice = msg.data.message;
+                        if (/not available|not found|already assigned/i.test(msg.data.message)) {
+                            state.pendingRequest = null;
+                            removeAcceptOverlay();
+                        }
+                        render();
                     }
                     break;
             }
@@ -1780,6 +1793,7 @@
                                 <button class="settings-btn secondary" data-action="decline-request">Decline</button>
                             </div>
                         ` : ''}
+                        ${state.queueNotice ? `<div class="settings-status error">${escapeHtml(state.queueNotice)}</div>` : ''}
                     </div>
                     <div class="readiness-item">
                         <div class="readiness-label">Readiness</div>
@@ -1955,7 +1969,7 @@
                                     </div>
                                     <div class="readiness-item">
                                         <div class="readiness-value">${stats.totalCalls}</div>
-                                        <div class="readiness-label">Calls</div>
+                                        <div class="readiness-label">Completed</div>
                                     </div>
                                     <div class="readiness-item">
                                         <div class="readiness-value">${formatCurrency(stats.totalEarnings)}</div>
@@ -2064,6 +2078,7 @@
          */
         window.__joinQueue = function() {
             state.available = true;
+            state.queueNotice = null;
             wsSend({ type: 'interpreter_status', data: { status: 'available' } });
             render();
         };
@@ -2073,6 +2088,7 @@
          */
         window.__leaveQueue = function() {
             state.available = false;
+            state.queueNotice = null;
             wsSend({ type: 'interpreter_status', data: { status: 'inactive' } });
             render();
         };
@@ -2086,6 +2102,7 @@
                 type: 'accept_request',
                 data: { requestId }
             });
+            state.queueNotice = null;
             // Navigation happens in handleWsMessage on meeting_initiated.
         };
 

@@ -73,6 +73,15 @@ function inferInterpreterRequestCallType(payload, targetPhone, serviceModes, hos
     return modes.includes('vri') ? 'vri' : 'vrs';
 }
 
+function getRequestCallType(request = {}) {
+    return request.callType || request.call_type || (request.targetPhone || request.target_phone ? 'vrs' : 'vri');
+}
+
+function interpreterCanHandleRequest(interpreter = {}, request = {}) {
+    const serviceModes = normalizeServiceModes(interpreter.serviceModes);
+    return serviceModes.includes(getRequestCallType(request));
+}
+
 function sendWsMessage(ws, type, data = {}) {
     if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type, data }));
@@ -527,10 +536,10 @@ async function handleInterpreterStatus(ws, data) {
     for (const [, entry] of state.clients.interpreters) {
         if (entry.ws === ws) {
             entry.status = status;
-            entry.languages = languages || entry.languages;
+            entry.languages = languages || entry.languages || ['ASL'];
             if (!entry.serviceModes) {
                 const interpreter = await db.getInterpreter(entry.userId).catch(() => null);
-                entry.serviceModes = interpreter?.service_modes || ['vrs'];
+                entry.serviceModes = normalizeServiceModes(interpreter?.service_modes || ['vrs']);
             }
 
             state.broadcastToAdmins({
@@ -660,6 +669,19 @@ async function handleAcceptRequest(ws, data) {
         return;
     }
 
+    if (!interpreter.serviceModes) {
+        const interpreterRecord = await db.getInterpreter(interpreter.userId).catch(() => null);
+        interpreter.serviceModes = normalizeServiceModes(interpreterRecord?.service_modes || ['vrs']);
+    }
+    interpreter.languages = interpreter.languages || ['ASL'];
+
+    if (!interpreterCanHandleRequest(interpreter, request)) {
+        ws.send(JSON.stringify({ type: 'error', data: { message: `This interpreter account is not enabled for ${getRequestCallType(request).toUpperCase()} requests.` } }));
+        return;
+    }
+
+    queueService.interpreterAvailable(interpreter.userId, interpreter.name, interpreter.languages, interpreter.serviceModes);
+
     const result = await queueService.assignInterpreter(requestId, interpreter.userId);
     if (!result.success) {
         ws.send(JSON.stringify({ type: 'error', data: { message: result.message || 'Unable to accept queue request.' } }));
@@ -726,6 +748,16 @@ function handleDisconnect(clientInfo) {
 
     } else if (role === 'client') {
         state.clients.clients.delete(clientId);
+        if (clientInfo.authenticated) {
+            queueService.cancelRequestsForClient(userId)
+                .then(result => {
+                    if (result.cancelled > 0) {
+                        log.info({ clientId: userId, cancelled: result.cancelled }, 'Cancelled waiting queue requests for disconnected client');
+                        state.broadcastQueueStatus(queueService);
+                    }
+                })
+                .catch(err => log.warn({ err, clientId: userId }, 'Failed to cancel waiting queue requests for disconnected client'));
+        }
         if (clientInfo.authenticated) {
             state.broadcastToAdmins({
                 type: 'client_disconnected',
@@ -1157,15 +1189,19 @@ function notifyAvailableInterpreters(request) {
     const msg = JSON.stringify({ type: 'interpreter_request', data: request });
     for (const client of state.clients.interpreters.values()) {
         if (client.ws.readyState === WebSocket.OPEN
-            && (client.status === 'available' || client.status === 'online' || client.status === 'active')) {
+            && (client.status === 'available' || client.status === 'online' || client.status === 'active')
+            && interpreterCanHandleRequest(client, request)) {
             client.ws.send(msg);
         }
     }
 }
 
 function notifyInterpreterOfPendingRequests(ws) {
+    const interpreter = ws.clientInfo || {};
     queueService.getQueue().forEach(request => {
-        ws.send(JSON.stringify({ type: 'interpreter_request', data: request }));
+        if (interpreterCanHandleRequest(interpreter, request)) {
+            ws.send(JSON.stringify({ type: 'interpreter_request', data: request }));
+        }
     });
 }
 

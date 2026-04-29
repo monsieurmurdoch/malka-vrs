@@ -162,6 +162,22 @@ async function cancelRequest(requestId) {
     return { success: false, message: 'Request not found' };
 }
 
+async function cancelRequestsForClient(clientId) {
+    if (!clientId) {
+        return { success: true, cancelled: 0 };
+    }
+
+    const requestIds = Array.from(queue.values())
+        .filter(request => String(request.clientId || '') === String(clientId))
+        .map(request => request.id);
+
+    for (const requestId of requestIds) {
+        await cancelRequest(requestId);
+    }
+
+    return { success: true, cancelled: requestIds.length };
+}
+
 // ============================================
 // INTERPRETER AVAILABILITY
 // ============================================
@@ -476,6 +492,7 @@ module.exports = {
     initialize,
     requestInterpreter,
     cancelRequest,
+    cancelRequestsForClient,
     removeFromQueue,
     interpreterAvailable,
     interpreterUnavailable,

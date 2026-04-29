@@ -105,6 +105,40 @@ describe('lib/queue-service', () => {
             const result = await queueService.cancelRequest('nonexistent');
             expect(result.success).toBe(false);
         });
+
+        it('should cancel all waiting requests for a disconnected client', async () => {
+            const db = require('../database');
+            db.addToQueue
+                .mockResolvedValueOnce({ id: 'req-c1-a', position: 1 })
+                .mockResolvedValueOnce({ id: 'req-c1-b', position: 2 })
+                .mockResolvedValueOnce({ id: 'req-c2-a', position: 3 });
+
+            await queueService.requestInterpreter({
+                clientId: 'c1',
+                clientName: 'Client 1',
+                language: 'ASL',
+                roomName: 'room-1'
+            });
+            await queueService.requestInterpreter({
+                clientId: 'c1',
+                clientName: 'Client 1',
+                language: 'ASL',
+                roomName: 'room-2'
+            });
+            await queueService.requestInterpreter({
+                clientId: 'c2',
+                clientName: 'Client 2',
+                language: 'ASL',
+                roomName: 'room-3'
+            });
+
+            const result = await queueService.cancelRequestsForClient('c1');
+
+            expect(result).toEqual({ success: true, cancelled: 2 });
+            expect(queueService.getQueue().map(request => request.id)).toEqual(['req-c2-a']);
+            expect(db.removeFromQueue).toHaveBeenCalledWith('req-c1-a');
+            expect(db.removeFromQueue).toHaveBeenCalledWith('req-c1-b');
+        });
     });
 
     describe('interpreter availability', () => {

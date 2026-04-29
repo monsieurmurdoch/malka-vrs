@@ -202,7 +202,12 @@ const useStyles = makeStyles()(theme => ({
         fontSize: 13,
         minWidth: 0,
         padding: theme.spacing(0.8, 0.9),
-        width: '100%'
+        width: '100%',
+
+        '& option': {
+            background: '#FFFFFF',
+            color: '#101827'
+        }
     },
 
     emptyState: {
