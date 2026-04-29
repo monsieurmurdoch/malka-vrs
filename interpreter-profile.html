@@ -131,8 +131,8 @@
 
         .profile-hero {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
-            gap: 20px;
+            grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+            gap: 18px;
             align-items: start;
         }
 
@@ -151,15 +151,16 @@
 
         .self-preview-frame {
             align-items: center;
-            aspect-ratio: 4 / 3;
             background: rgba(0,0,0,0.28);
             border: 1px solid rgba(255,255,255,0.1);
             border-radius: 10px;
             display: flex;
+            height: clamp(320px, 52vh, 560px);
             justify-content: center;
-            min-height: clamp(440px, 66vh, 760px);
+            min-height: 0;
             overflow: hidden;
             position: relative;
+            width: 100%;
         }
 
         .self-preview-frame video {
@@ -876,7 +877,7 @@
             }
 
             .self-preview-frame {
-                min-height: clamp(320px, 58vh, 560px);
+                height: clamp(300px, 54vh, 500px);
             }
 
             .profile-header {

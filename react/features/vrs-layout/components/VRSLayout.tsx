@@ -2,11 +2,19 @@ import React from 'react';
 import { connect } from 'react-redux';
 import { makeStyles } from 'tss-react/mui';
 
-import { IReduxState } from '../../app/types';
+import { IReduxState, IStore } from '../../app/types';
 import VideoTrack from '../../base/media/components/web/VideoTrack';
 import { getRoomName } from '../../base/conference/functions';
+import {
+    setAudioInputDeviceAndUpdateSettings,
+    setVideoInputDeviceAndUpdateSettings
+} from '../../base/devices/actions.web';
 import { getLocalParticipant } from '../../base/participants/functions';
 import type { IParticipant } from '../../base/participants/types';
+import {
+    getCurrentCameraDeviceId,
+    getCurrentMicDeviceId
+} from '../../base/settings/functions.web';
 import { getVideoTrackByParticipant } from '../../base/tracks/functions.web';
 import CallWaitingOverlay from '../../call-management/components/CallWaitingOverlay';
 import InCallChatPanel from '../../call-management/components/InCallChatPanel';
@@ -23,9 +31,14 @@ interface IVRSPane {
 }
 
 interface IProps {
+    _audioInputDevices: MediaDeviceInfo[];
+    _currentCameraDeviceId: string;
+    _currentMicDeviceId: string;
     _extras: IParticipant[];
     _panes: IVRSPane[];
     _roomName?: string;
+    _videoInputDevices: MediaDeviceInfo[];
+    dispatch: IStore['dispatch'];
 }
 
 const VIDEO_STYLE = {
@@ -133,12 +146,62 @@ const useStyles = makeStyles()(theme => ({
         margin: theme.spacing(0, 1.25, 1.25),
         minHeight: 0,
         overflow: 'hidden',
-        position: 'relative'
+        position: 'relative',
+
+        '&:hover $devicePanel, &:focus-within $devicePanel': {
+            opacity: 1,
+            pointerEvents: 'auto',
+            transform: 'translateY(0)'
+        }
     },
 
     video: {
         height: '100%',
         objectFit: 'cover',
+        width: '100%'
+    },
+
+    devicePanel: {
+        background: 'rgba(8, 13, 22, 0.86)',
+        border: '1px solid rgba(255, 255, 255, 0.16)',
+        borderRadius: 12,
+        bottom: theme.spacing(1.5),
+        boxShadow: '0 14px 36px rgba(0, 0, 0, 0.32)',
+        display: 'grid',
+        gap: theme.spacing(0.8),
+        opacity: 0,
+        padding: theme.spacing(1),
+        pointerEvents: 'none',
+        position: 'absolute',
+        right: theme.spacing(1.5),
+        transform: 'translateY(6px)',
+        transition: 'opacity 0.18s ease, transform 0.18s ease',
+        width: 'min(292px, calc(100% - 24px))',
+        zIndex: 4
+    },
+
+    deviceRow: {
+        display: 'grid',
+        gap: theme.spacing(0.35)
+    },
+
+    deviceLabel: {
+        color: 'rgba(236, 244, 252, 0.76)',
+        fontSize: 11,
+        fontWeight: 800,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase'
+    },
+
+    deviceSelect: {
+        background: 'rgba(255, 255, 255, 0.94)',
+        border: 0,
+        borderRadius: 8,
+        color: '#101827',
+        font: 'inherit',
+        fontSize: 13,
+        minWidth: 0,
+        padding: theme.spacing(0.8, 0.9),
         width: '100%'
     },
 
@@ -240,6 +303,18 @@ const useStyles = makeStyles()(theme => ({
         padding: theme.spacing(0.65, 1.2)
     }
 }));
+
+function getDeviceLabel(device: MediaDeviceInfo, fallback: string, index: number) {
+    return device.label || `${fallback} ${index + 1}`;
+}
+
+function persistDevicePreference(kind: 'camera' | 'microphone', deviceId: string) {
+    if (typeof localStorage === 'undefined') {
+        return;
+    }
+
+    localStorage.setItem(kind === 'camera' ? 'vrs_camera_device_id' : 'vrs_microphone_device_id', deviceId);
+}
 
 function getStoredVrsRole() {
     const role = (typeof localStorage !== 'undefined' && localStorage.getItem('vrs_user_role'))
@@ -388,9 +463,36 @@ function getPaneEmptyMessage(role: VRSConferenceRole, hasParticipant: boolean) {
     return 'The hearing party will appear here when they join by video or phone.';
 }
 
-const VRSLayout = ({ _extras, _panes, _roomName }: IProps) => {
+const VRSLayout = ({
+    _audioInputDevices,
+    _currentCameraDeviceId,
+    _currentMicDeviceId,
+    _extras,
+    _panes,
+    _roomName,
+    _videoInputDevices,
+    dispatch
+}: IProps) => {
     const { classes, cx } = useStyles();
     const visiblePanes = _panes.filter(pane => Boolean(pane.participant));
+    const cameraSelectValue = _videoInputDevices.some(device => device.deviceId === _currentCameraDeviceId)
+        ? _currentCameraDeviceId
+        : '';
+    const micSelectValue = _audioInputDevices.some(device => device.deviceId === _currentMicDeviceId)
+        ? _currentMicDeviceId
+        : '';
+    const onCameraChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+        const deviceId = event.target.value;
+
+        persistDevicePreference('camera', deviceId);
+        dispatch(setVideoInputDeviceAndUpdateSettings(deviceId));
+    };
+    const onMicChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+        const deviceId = event.target.value;
+
+        persistDevicePreference('microphone', deviceId);
+        dispatch(setAudioInputDeviceAndUpdateSettings(deviceId));
+    };
 
     if (!visiblePanes.length) {
         return null;
@@ -411,6 +513,8 @@ const VRSLayout = ({ _extras, _panes, _roomName }: IProps) => {
             {visiblePanes.map(pane => {
                 const participantName = getParticipantName(pane.participant, pane.title);
                 const emptyMessage = getPaneEmptyMessage(pane.role, Boolean(pane.participant));
+                const shouldShowDevicePanel = pane.participant?.local
+                    && (pane.role === 'client' || pane.role === 'interpreter');
 
                 return (
                     <section
@@ -440,6 +544,44 @@ const VRSLayout = ({ _extras, _panes, _roomName }: IProps) => {
                                             <div className = { classes.participantName }>{participantName}</div>
                                             <div className = { classes.participantMeta }>{pane.description}</div>
                                         </div>
+                                        {shouldShowDevicePanel && (
+                                            <div
+                                                aria-label = 'Camera and microphone choices'
+                                                className = { classes.devicePanel }>
+                                                <label className = { classes.deviceRow }>
+                                                    <span className = { classes.deviceLabel }>Camera</span>
+                                                    <select
+                                                        className = { classes.deviceSelect }
+                                                        onChange = { onCameraChange }
+                                                        value = { cameraSelectValue }>
+                                                        <option value = ''>Default camera</option>
+                                                        {_videoInputDevices.map((device, index) => (
+                                                            <option
+                                                                key = { device.deviceId }
+                                                                value = { device.deviceId }>
+                                                                {getDeviceLabel(device, 'Camera', index)}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </label>
+                                                <label className = { classes.deviceRow }>
+                                                    <span className = { classes.deviceLabel }>Mic</span>
+                                                    <select
+                                                        className = { classes.deviceSelect }
+                                                        onChange = { onMicChange }
+                                                        value = { micSelectValue }>
+                                                        <option value = ''>Default mic</option>
+                                                        {_audioInputDevices.map((device, index) => (
+                                                            <option
+                                                                key = { device.deviceId }
+                                                                value = { device.deviceId }>
+                                                                {getDeviceLabel(device, 'Mic', index)}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </label>
+                                            </div>
+                                        )}
                                     </>
                                 )
                                 : (
@@ -473,7 +615,7 @@ const VRSLayout = ({ _extras, _panes, _roomName }: IProps) => {
     );
 };
 
-function _mapStateToProps(state: IReduxState): IProps {
+function _mapStateToProps(state: IReduxState): Omit<IProps, 'dispatch'> {
     const localParticipant = getLocalParticipant(state);
     const remoteParticipants = Array.from(state['features/base/participants'].remote.values())
         .filter((participant: IParticipant) => !participant.fakeParticipant);
@@ -506,8 +648,12 @@ function _mapStateToProps(state: IReduxState): IProps {
     }
 
     return {
+        _audioInputDevices: state['features/base/devices'].availableDevices.audioInput || [],
+        _currentCameraDeviceId: getCurrentCameraDeviceId(state),
+        _currentMicDeviceId: getCurrentMicDeviceId(state),
         _extras: remainingParticipants,
         _roomName: getRoomName(state),
+        _videoInputDevices: state['features/base/devices'].availableDevices.videoInput || [],
         _panes: [
             {
                 description: 'Deaf or hard-of-hearing participant',
