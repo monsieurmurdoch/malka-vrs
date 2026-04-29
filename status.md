@@ -6,6 +6,39 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-29
 - Branch: `codex/main-prod-sync`
+- HEAD: `1c9549b`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  client-profile.html`
+  - `M  interpreter-profile.html`
+  - `M  status.md`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-29T05:49:32.362Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-29
+- Branch: `codex/main-prod-sync`
+- HEAD: `1c9549b`
+- Note: Added Maple red-primary dark theme overrides for client and interpreter profile surfaces.
+- Snapshot:
+Local changes at sync time:
+  - `M client-profile.html`
+  - `M interpreter-profile.html`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-29T05:49:06.064Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-29
+- Branch: `codex/main-prod-sync`
 - HEAD: `7ec4af7`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -21,7 +54,7 @@ Local changes at sync time:
   - `M  vrs-server/ws/schemas.js`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-29T05:29:03.936Z
 
 <!-- status:current:start -->
