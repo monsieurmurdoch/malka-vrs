@@ -66,6 +66,7 @@ exports.up = pgm => {
             client_name TEXT NOT NULL,
             language TEXT NOT NULL,
             target_phone TEXT,
+            call_type TEXT,
             room_name TEXT NOT NULL,
             status TEXT DEFAULT 'waiting',
             position INTEGER,

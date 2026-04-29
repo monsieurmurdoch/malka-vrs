@@ -274,6 +274,7 @@ async function createTables() {
             client_name TEXT NOT NULL,
             language TEXT NOT NULL,
             target_phone TEXT,
+            call_type TEXT,
             room_name TEXT NOT NULL,
             status TEXT DEFAULT 'waiting',
             position INTEGER,
@@ -436,6 +437,7 @@ async function createTables() {
         ALTER TABLE calls ADD COLUMN IF NOT EXISTS callee_id TEXT;
         ALTER TABLE calls ADD COLUMN IF NOT EXISTS call_type TEXT;
         ALTER TABLE queue_requests ADD COLUMN IF NOT EXISTS target_phone TEXT;
+        ALTER TABLE queue_requests ADD COLUMN IF NOT EXISTS call_type TEXT;
         ALTER TABLE clients ADD COLUMN IF NOT EXISTS service_modes JSONB DEFAULT '["vrs"]';
         ALTER TABLE clients ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'malka';
         ALTER TABLE interpreters ADD COLUMN IF NOT EXISTS service_modes JSONB DEFAULT '["vrs"]';
@@ -1069,11 +1071,11 @@ async function getActiveCalls() {
 // ============================================
 // QUEUE OPERATIONS
 // ============================================
-async function addToQueue({ clientId, clientName, language, roomName, targetPhone = null }) {
+async function addToQueue({ clientId, clientName, language, roomName, targetPhone = null, callType = null }) {
     const id = (0, uuid_1.v4)();
     // Get current position
     const count = await runQuery("SELECT COUNT(*) as count FROM queue_requests WHERE status = 'waiting'");
-    await runInsert('INSERT INTO queue_requests (id, client_id, client_name, language, target_phone, room_name, position) VALUES ($1, $2, $3, $4, $5, $6, $7)', [id, clientId || null, clientName, language, targetPhone, roomName, Number(count[0].count) + 1]);
+    await runInsert('INSERT INTO queue_requests (id, client_id, client_name, language, target_phone, call_type, room_name, position) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [id, clientId || null, clientName, language, targetPhone, callType, roomName, Number(count[0].count) + 1]);
     return { id, position: Number(count[0].count) + 1 };
 }
 async function getQueueRequests(status = 'waiting') {

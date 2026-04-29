@@ -90,7 +90,8 @@ async function initialize(): Promise<InitializeResult> {
             roomName: request.room_name,
             position: request.position,
             status: request.status || 'waiting',
-            createdAt: request.created_at ? new Date(request.created_at) : new Date()
+            createdAt: request.created_at ? new Date(request.created_at) : new Date(),
+            callType: request.call_type || (request.target_phone ? 'vrs' : undefined)
         });
     });
 
@@ -139,7 +140,8 @@ async function requestInterpreter({ clientId, clientName, language, roomName, ta
         clientName,
         language,
         roomName,
-        targetPhone
+        targetPhone,
+        callType
     }));
 
     const request: QueueRequest = {
@@ -327,8 +329,10 @@ async function tryMatch(): Promise<void> {
     }
 }
 
-function findBestMatch(request: { language: string; callType?: 'vri' | 'vrs'; targetPhone?: string | null; target_phone?: string | null }, interpreters: AvailableInterpreter[]): AvailableInterpreter | null {
-    const requestMode = request.callType || (request.targetPhone || request.target_phone ? 'vrs' : 'vri');
+function findBestMatch(request: { id: string; language: string; callType?: 'vri' | 'vrs' | null; call_type?: 'vri' | 'vrs' | null; targetPhone?: string | null; target_phone?: string | null }, interpreters: AvailableInterpreter[]): AvailableInterpreter | null {
+    const localRequest = queue.get(request.id);
+    const requestMode = request.callType || request.call_type || localRequest?.callType
+        || (request.targetPhone || request.target_phone ? 'vrs' : 'vri');
     // Find interpreters who match the language
     const matching = interpreters.filter(interp =>
         interp.languages && interp.languages.includes(request.language)
@@ -362,6 +366,7 @@ async function completeMatch(request: db.QueueRequest | QueueRequest, interprete
     const targetPhone = (request as QueueRequest).targetPhone ?? (request as db.QueueRequest).target_phone ?? null;
     const roomName = (request as QueueRequest).roomName ?? (request as db.QueueRequest).room_name;
     const language = (request as QueueRequest).language ?? (request as db.QueueRequest).language;
+    const localRequest = queue.get(request.id);
 
     // Update database (with retry)
     await withRetry(() => db.assignInterpreterToRequest(request.id, interpreter.id));
@@ -370,7 +375,10 @@ async function completeMatch(request: db.QueueRequest | QueueRequest, interprete
     queue.delete(request.id);
 
     // Create call record (with retry)
-    const callType = (request as QueueRequest).callType || (targetPhone ? 'vrs' : 'vri');
+    const callType = (request as QueueRequest).callType
+        || (request as db.QueueRequest).call_type
+        || localRequest?.callType
+        || (targetPhone ? 'vrs' : 'vri');
     const callId = await withRetry(() => db.createCall({
         clientId,
         interpreterId: interpreter.id,

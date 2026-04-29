@@ -74,7 +74,8 @@ async function initialize() {
             roomName: request.room_name,
             position: request.position,
             status: request.status || 'waiting',
-            createdAt: request.created_at ? new Date(request.created_at) : new Date()
+            createdAt: request.created_at ? new Date(request.created_at) : new Date(),
+            callType: request.call_type || (request.target_phone ? 'vrs' : undefined)
         });
     });
 
@@ -106,7 +107,8 @@ async function requestInterpreter({ clientId, clientName, language, roomName, ta
         clientName,
         language,
         roomName,
-        targetPhone
+        targetPhone,
+        callType
     }));
 
     const request = {
@@ -291,7 +293,9 @@ async function tryMatch() {
 }
 
 function findBestMatch(request, interpreters) {
-    const requestMode = request.callType || (request.targetPhone || request.target_phone ? 'vrs' : 'vri');
+    const localRequest = queue.get(request.id);
+    const requestMode = request.callType || request.call_type || localRequest?.callType
+        || (request.targetPhone || request.target_phone ? 'vrs' : 'vri');
     // Find interpreters who match the language
     const matching = interpreters.filter(interp =>
         interp.languages && interp.languages.includes(request.language)
@@ -313,6 +317,7 @@ async function completeMatch(request, interpreter) {
     const clientName = request.clientName ?? request.client_name ?? 'Guest';
     const targetPhone = request.targetPhone ?? request.target_phone ?? null;
     const roomName = request.roomName ?? request.room_name;
+    const localRequest = queue.get(request.id);
 
     // Update database (with retry)
     await withRetry(() => db.assignInterpreter(request.id, interpreter.id));
@@ -321,7 +326,7 @@ async function completeMatch(request, interpreter) {
     queue.delete(request.id);
 
     // Create call record (with retry)
-    const callType = request.callType || (targetPhone ? 'vrs' : 'vri');
+    const callType = request.callType || request.call_type || localRequest?.callType || (targetPhone ? 'vrs' : 'vri');
     const callId = await withRetry(() => db.createCall({
         clientId,
         interpreterId: interpreter.id,

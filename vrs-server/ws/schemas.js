@@ -26,7 +26,8 @@ const requestInterpreterSchema = z.object({
     clientName: z.string().max(100).optional(),
     language: languageSchema.optional().default('ASL'),
     targetPhone: phoneNumberSchema.optional(),
-    roomName: z.string().max(100).optional()
+    roomName: z.string().max(100).optional(),
+    callType: z.enum(['vrs', 'vri']).optional()
 });
 
 const cancelRequestSchema = z.object({

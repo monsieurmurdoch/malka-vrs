@@ -40,6 +40,39 @@ function sanitizePhoneNumber(raw) {
     return cleaned;
 }
 
+function normalizeServiceModes(modes) {
+    if (!Array.isArray(modes)) return ['vrs'];
+    const normalized = modes
+        .map(mode => String(mode || '').trim().toLowerCase())
+        .filter(mode => mode === 'vrs' || mode === 'vri');
+    return normalized.length ? normalized : ['vrs'];
+}
+
+function inferInterpreterRequestCallType(payload, targetPhone, serviceModes, host = '') {
+    if (payload.callType === 'vrs' || payload.callType === 'vri') {
+        return payload.callType;
+    }
+
+    if (targetPhone) {
+        return 'vrs';
+    }
+
+    const modes = normalizeServiceModes(serviceModes);
+    const normalizedHost = String(host || '').toLowerCase();
+    if ((normalizedHost.startsWith('vrs.') || normalizedHost.includes('malkavrs')) && modes.includes('vrs')) {
+        return 'vrs';
+    }
+    if ((normalizedHost.startsWith('vri.') || normalizedHost.includes('maple')) && modes.includes('vri')) {
+        return 'vri';
+    }
+
+    if (modes.length === 1) {
+        return modes[0];
+    }
+
+    return modes.includes('vri') ? 'vri' : 'vrs';
+}
+
 function sendWsMessage(ws, type, data = {}) {
     if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type, data }));
@@ -156,7 +189,7 @@ function handleConnection(ws, req) {
 
             switch (data.type) {
                 case 'auth':
-                    handleAuth(ws, data, clientId);
+                    handleAuth(ws, data, clientId, req);
                     break;
 
                 case 'interpreter_status':
@@ -348,7 +381,7 @@ function handleConnection(ws, req) {
 // AUTH
 // ============================================
 
-function handleAuth(ws, data, clientId) {
+function handleAuth(ws, data, clientId, req) {
     const { role, userId, name, token } = data;
     let clientInfo;
     const requiresSecureAuth = role === 'interpreter' || role === 'admin';
@@ -378,6 +411,7 @@ function handleAuth(ws, data, clientId) {
                 userId: claims.id || userId,
                 name: claims.name || name,
                 email: claims.email,
+                host: req?.headers?.host,
                 ws, authenticated: true
             };
         } catch (error) {
@@ -385,7 +419,7 @@ function handleAuth(ws, data, clientId) {
             return null;
         }
     } else {
-        clientInfo = { clientId, role, userId, name, ws, authenticated: false };
+        clientInfo = { clientId, role, userId, name, host: req?.headers?.host, ws, authenticated: false };
     }
 
     if (role === 'interpreter') {
@@ -542,9 +576,9 @@ async function handleInterpreterRequest(ws, data) {
         }));
         return;
     }
-    const callType = targetPhone ? 'vrs' : 'vri';
     const clientRecord = await db.getClient(client.userId).catch(() => null);
-    const clientModes = clientRecord?.service_modes || client.serviceModes || ['vrs'];
+    const clientModes = normalizeServiceModes(clientRecord?.service_modes || client.serviceModes);
+    const callType = inferInterpreterRequestCallType(payload, targetPhone, clientModes, client.host);
     if (!clientModes.includes(callType)) {
         ws.send(JSON.stringify({
             type: 'error',

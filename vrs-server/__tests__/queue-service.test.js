@@ -168,6 +168,7 @@ describe('lib/queue-service', () => {
                 language: 'ASL',
                 room_name: 'room-match',
                 target_phone: null,
+                call_type: null,
                 status: 'waiting'
             }]);
 
@@ -176,7 +177,8 @@ describe('lib/queue-service', () => {
                 clientId: 'c1',
                 clientName: 'Client',
                 language: 'ASL',
-                roomName: 'room-match'
+                roomName: 'room-match',
+                callType: 'vrs'
             });
 
             // Add interpreter

@@ -24,6 +24,7 @@ export interface QueueRequest extends Row {
     client_name: string;
     language: string;
     target_phone?: string | null;
+    call_type?: 'vrs' | 'vri' | null;
     room_name: string;
     position: number;
     status?: string;
@@ -148,6 +149,7 @@ async function createTables() {
             client_name TEXT NOT NULL,
             language TEXT NOT NULL,
             target_phone TEXT,
+            call_type TEXT,
             room_name TEXT NOT NULL,
             status TEXT DEFAULT 'waiting',
             position INTEGER,
@@ -310,6 +312,7 @@ async function createTables() {
         ALTER TABLE calls ADD COLUMN IF NOT EXISTS callee_id TEXT;
         ALTER TABLE calls ADD COLUMN IF NOT EXISTS call_type TEXT;
         ALTER TABLE queue_requests ADD COLUMN IF NOT EXISTS target_phone TEXT;
+        ALTER TABLE queue_requests ADD COLUMN IF NOT EXISTS call_type TEXT;
         ALTER TABLE clients ADD COLUMN IF NOT EXISTS service_modes JSONB DEFAULT '["vrs"]';
         ALTER TABLE clients ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'malka';
         ALTER TABLE interpreters ADD COLUMN IF NOT EXISTS service_modes JSONB DEFAULT '["vrs"]';
@@ -1044,7 +1047,7 @@ async function getActiveCalls() {
 // QUEUE OPERATIONS
 // ============================================
 
-async function addToQueue({ clientId, clientName, language, roomName, targetPhone = null }: any) {
+async function addToQueue({ clientId, clientName, language, roomName, targetPhone = null, callType = null }: any) {
     const id = uuidv4();
 
     // Get current position
@@ -1053,8 +1056,8 @@ async function addToQueue({ clientId, clientName, language, roomName, targetPhon
     );
 
     await runInsert(
-        'INSERT INTO queue_requests (id, client_id, client_name, language, target_phone, room_name, position) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-        [id, clientId || null, clientName, language, targetPhone, roomName, Number(count[0].count) + 1]
+        'INSERT INTO queue_requests (id, client_id, client_name, language, target_phone, call_type, room_name, position) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+        [id, clientId || null, clientName, language, targetPhone, callType, roomName, Number(count[0].count) + 1]
     );
 
     return { id, position: Number(count[0].count) + 1 };
