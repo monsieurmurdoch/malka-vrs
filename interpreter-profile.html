@@ -952,6 +952,147 @@
             color: #ef5350;
         }
 
+        .call-request-overlay {
+            align-items: center;
+            background: rgba(6, 10, 18, 0.78);
+            backdrop-filter: blur(8px);
+            color: #fff;
+            display: flex;
+            inset: 0;
+            justify-content: center;
+            padding: 24px;
+            position: fixed;
+            z-index: 9999;
+        }
+
+        .call-request-dialog {
+            background: linear-gradient(180deg, rgba(18, 28, 43, 0.98), rgba(8, 13, 22, 0.98));
+            border: 1px solid rgba(255,255,255,0.18);
+            border-radius: 18px;
+            box-shadow: 0 34px 100px rgba(0,0,0,0.45);
+            display: grid;
+            gap: 18px;
+            max-width: 640px;
+            padding: 30px;
+            width: min(100%, 640px);
+        }
+
+        .call-request-eyebrow {
+            color: #7eb8da;
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .call-request-title {
+            font-size: clamp(30px, 4vw, 44px);
+            font-weight: 800;
+            letter-spacing: 0;
+            line-height: 1.05;
+        }
+
+        .call-request-summary {
+            color: rgba(255,255,255,0.76);
+            font-size: 17px;
+            line-height: 1.45;
+        }
+
+        .call-request-grid {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .call-request-detail {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 14px;
+        }
+
+        .call-request-label {
+            color: rgba(255,255,255,0.52);
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+
+        .call-request-value {
+            font-size: 18px;
+            font-weight: 750;
+            line-height: 1.25;
+            overflow-wrap: anywhere;
+        }
+
+        .call-request-actions {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.85fr);
+            margin-top: 4px;
+        }
+
+        .call-request-btn {
+            border: 0;
+            border-radius: 14px;
+            cursor: pointer;
+            font-size: 20px;
+            font-weight: 800;
+            min-height: 64px;
+            padding: 16px 18px;
+            transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+        }
+
+        .call-request-btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .call-request-btn:focus-visible {
+            outline: 3px solid rgba(255,255,255,0.92);
+            outline-offset: 3px;
+        }
+
+        .call-request-btn.accept {
+            background: #35d07f;
+            box-shadow: 0 14px 32px rgba(53,208,127,0.3);
+            color: #04130a;
+        }
+
+        .call-request-btn.decline {
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.22);
+            color: #fff;
+        }
+
+        .call-request-btn.accept[disabled],
+        .call-request-btn.decline[disabled] {
+            cursor: wait;
+            opacity: 0.72;
+            transform: none;
+        }
+
+        .call-request-shortcuts {
+            color: rgba(255,255,255,0.5);
+            font-size: 13px;
+            text-align: center;
+        }
+
+        body.theme-maple .call-request-eyebrow {
+            color: #ffb3b3;
+        }
+
+        body.theme-maple .call-request-dialog {
+            background: linear-gradient(180deg, rgba(86,0,0,0.98), rgba(32,0,0,0.98));
+        }
+
+        body.theme-maple .call-request-btn.accept {
+            background: #fff;
+            box-shadow: 0 14px 32px rgba(255,255,255,0.2);
+            color: #b40000;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .stats-bar {
@@ -998,6 +1139,16 @@
         @media (max-width: 480px) {
             .stats-bar {
                 grid-template-columns: 1fr 1fr;
+            }
+
+            .call-request-dialog {
+                border-radius: 14px;
+                padding: 22px;
+            }
+
+            .call-request-grid,
+            .call-request-actions {
+                grid-template-columns: 1fr;
             }
 
             .profile-summary-top,
@@ -1169,6 +1320,7 @@
             available: false,
             wsConnected: false,
             pendingRequest: null,   // { requestId, clientName, language, roomName, targetPhone }
+            requestActionPending: null,
             queueNotice: null
         };
 
@@ -1485,6 +1637,7 @@
                     // Incoming client request — show the accept overlay.
                     if (!state.pendingRequest) {
                         state.pendingRequest = msg.data;
+                        state.requestActionPending = null;
                         state.queueNotice = null;
                         renderAcceptOverlay();
                     }
@@ -1509,6 +1662,7 @@
                 case 'auth_error':
                     if (msg.data && msg.data.message) {
                         state.queueNotice = msg.data.message;
+                        state.requestActionPending = null;
                         if (/not available|not found|already assigned/i.test(msg.data.message)) {
                             state.pendingRequest = null;
                             removeAcceptOverlay();
@@ -1519,39 +1673,77 @@
             }
         }
 
+        function describeRequestType(req) {
+            const type = String(req.callType || req.call_type || '').toLowerCase();
+            if (type === 'vri') {
+                return { short: 'VRI', label: 'Video Remote Interpreting' };
+            }
+            return { short: 'VRS', label: 'Video Relay Service' };
+        }
+
+        function requestDetail(label, value) {
+            if (!value) return '';
+            return `
+                <div class="call-request-detail">
+                    <div class="call-request-label">${escapeHtml(label)}</div>
+                    <div class="call-request-value">${escapeHtml(value)}</div>
+                </div>
+            `;
+        }
+
         // Overlay shown when an incoming client request arrives.
         function renderAcceptOverlay() {
             let overlay = document.getElementById('vrs-accept-overlay');
             if (!overlay) {
                 overlay = document.createElement('div');
                 overlay.id = 'vrs-accept-overlay';
-                overlay.style.cssText = [
-                    'position:fixed;inset:0;z-index:9999',
-                    'background:rgba(0,0,0,0.85)',
-                    'display:flex;flex-direction:column',
-                    'align-items:center;justify-content:center',
-                    'color:#fff;font-family:inherit;gap:16px'
-                ].join(';');
+                overlay.className = 'call-request-overlay';
+                overlay.setAttribute('role', 'alertdialog');
+                overlay.setAttribute('aria-modal', 'true');
+                overlay.setAttribute('aria-labelledby', 'call-request-title');
+                overlay.setAttribute('aria-describedby', 'call-request-summary');
                 document.body.appendChild(overlay);
             }
 
             const req = state.pendingRequest || {};
+            const requestType = describeRequestType(req);
+            const accepting = state.requestActionPending === 'accept';
+            const declining = state.requestActionPending === 'decline';
+            const roomName = req.roomName || req.room_name || '';
+            const phone = req.targetPhone || req.target_phone || '';
+            const primaryText = accepting ? 'Accepting...' : 'Accept Request';
+            const secondaryText = declining ? 'Declining...' : 'Decline';
+
             overlay.innerHTML = `
-                <div style="font-size:48px">📞</div>
-                <div style="font-size:22px;font-weight:600">Incoming Request</div>
-                <div style="opacity:0.75">Client: ${req.clientName || 'Unknown'} · Language: ${req.language || 'ASL'}</div>
-                ${req.targetPhone ? `<div style="opacity:0.75">Hearing Party: ${req.targetPhone}</div>` : ''}
-                <div style="display:flex;gap:16px;margin-top:8px">
-                    <button data-action="accept-request"
-                        style="padding:14px 32px;border-radius:50px;border:none;background:#4caf50;color:#fff;font-size:16px;cursor:pointer">
-                        Accept
-                    </button>
-                    <button data-action="decline-request"
-                        style="padding:14px 32px;border-radius:50px;border:none;background:#f44336;color:#fff;font-size:16px;cursor:pointer">
-                        Decline
-                    </button>
+                <div class="call-request-dialog">
+                    <div class="call-request-eyebrow">${escapeHtml(requestType.short)} incoming request</div>
+                    <div id="call-request-title" class="call-request-title">Client is waiting for an interpreter</div>
+                    <div id="call-request-summary" class="call-request-summary">
+                        Review the request details, then accept to join the session or decline to release it back to the queue.
+                    </div>
+                    <div class="call-request-grid">
+                        ${requestDetail('Service', requestType.label)}
+                        ${requestDetail('Client', req.clientName || 'Unknown client')}
+                        ${requestDetail('Language', req.language || 'ASL')}
+                        ${requestDetail('Hearing party', phone)}
+                        ${requestDetail('Room', roomName)}
+                    </div>
+                    <div class="call-request-actions">
+                        <button class="call-request-btn accept" data-action="accept-request" ${accepting || declining ? 'disabled' : ''}>
+                            ${escapeHtml(primaryText)}
+                        </button>
+                        <button class="call-request-btn decline" data-action="decline-request" ${accepting || declining ? 'disabled' : ''}>
+                            ${escapeHtml(secondaryText)}
+                        </button>
+                    </div>
+                    <div class="call-request-shortcuts">Enter accepts. Escape declines.</div>
                 </div>
             `;
+
+            const acceptButton = overlay.querySelector('[data-action="accept-request"]');
+            if (acceptButton && !accepting && !declining) {
+                acceptButton.focus({ preventScroll: true });
+            }
         }
 
         function removeAcceptOverlay() {
@@ -1587,6 +1779,18 @@
             if (!actionElement || !document.body.contains(actionElement)) return;
             if (actionElement.disabled) return;
             dispatchUiAction(actionElement.dataset.action, actionElement, event);
+        });
+
+        document.addEventListener('keydown', function(event) {
+            if (!state.pendingRequest || !document.getElementById('vrs-accept-overlay')) return;
+            if (state.requestActionPending) return;
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                window.__acceptRequest();
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                window.__declineRequest();
+            }
         });
 
         document.addEventListener('change', function(event) {
@@ -2095,9 +2299,11 @@
 
         /** Accept the pending client request and navigate to the assigned room. */
         window.__acceptRequest = function() {
-            if (!state.pendingRequest) return;
+            if (!state.pendingRequest || state.requestActionPending) return;
             const requestId = state.pendingRequest.requestId || state.pendingRequest.id;
             if (!requestId) return;
+            state.requestActionPending = 'accept';
+            renderAcceptOverlay();
             wsSend({
                 type: 'accept_request',
                 data: { requestId }
@@ -2108,14 +2314,17 @@
 
         /** Decline the pending client request and return to available state. */
         window.__declineRequest = function() {
-            if (!state.pendingRequest) return;
+            if (!state.pendingRequest || state.requestActionPending) return;
             const requestId = state.pendingRequest.requestId || state.pendingRequest.id;
             if (!requestId) return;
+            state.requestActionPending = 'decline';
+            renderAcceptOverlay();
             wsSend({
                 type: 'decline_request',
                 data: { requestId }
             });
             state.pendingRequest = null;
+            state.requestActionPending = null;
             removeAcceptOverlay();
         };
 
