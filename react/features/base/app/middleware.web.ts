@@ -6,6 +6,19 @@ import { inIframe } from '../util/iframeUtils';
 import { APP_WILL_MOUNT, APP_WILL_UNMOUNT } from './actionTypes';
 import logger from './logger';
 
+function computePressureAllowed() {
+    const doc = document as Document & {
+        featurePolicy?: { allowsFeature?: (feature: string) => boolean; };
+        permissionsPolicy?: { allowsFeature?: (feature: string) => boolean; };
+    };
+    const policy = doc.permissionsPolicy || doc.featurePolicy;
+
+    if (!policy || typeof policy.allowsFeature !== 'function') {
+        return true;
+    }
+
+    return policy.allowsFeature('compute-pressure');
+}
 
 /**
  * Experimental feature to monitor CPU pressure.
@@ -24,7 +37,7 @@ MiddlewareRegistry.register(() => (next: Function) => async (action: AnyAction) 
     case APP_WILL_MOUNT: {
         // Disable it inside an iframe until Google fixes the origin trial for 3rd party sources:
         // https://bugs.chromium.org/p/chromium/issues/detail?id=1504167
-        if (!inIframe() && 'PressureObserver' in globalThis) {
+        if (!inIframe() && computePressureAllowed() && 'PressureObserver' in globalThis) {
             pressureObserver = new window.PressureObserver(
                     (records: typeof window.PressureRecord) => {
                         logger.info('Compute pressure state changed:', JSON.stringify(records));

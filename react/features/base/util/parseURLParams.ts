@@ -65,6 +65,16 @@ export function parseURLParams(
                 value = decoded === 'undefined' ? undefined : safeJsonParse(decoded);
             }
         } catch (e: any) {
+            const decoded = decodeURIComponent(value).replace(/\\&/, '&');
+            const acceptsRawLanguageValue = key === 'lang'
+                || key === 'config.defaultLanguage'
+                || key.endsWith('.defaultLanguage');
+
+            if (acceptsRawLanguageValue && /^[a-z]{2,3}(-[A-Za-z0-9]+)?$/.test(decoded)) {
+                params[key] = decoded;
+                return;
+            }
+
             reportError(
                 e, `Failed to parse URL parameter value: ${String(value)}`);
 
