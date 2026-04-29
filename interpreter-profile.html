@@ -472,6 +472,17 @@
             box-shadow: 0 4px 20px rgba(126,184,218,0.35);
         }
 
+        .join-queue-btn.unavailable {
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.18);
+            color: #fff;
+        }
+
+        .join-queue-btn.unavailable:hover {
+            background: rgba(255,255,255,0.2);
+            box-shadow: 0 4px 20px rgba(255,255,255,0.12);
+        }
+
         .empty-state {
             text-align: center;
             padding: 32px 16px;
@@ -704,9 +715,19 @@
             color: #fff;
         }
 
+        body.theme-maple .join-queue-btn.unavailable {
+            background: #fff;
+            border: 1px solid rgba(224,0,0,0.28);
+            color: #b40000;
+        }
+
         body.theme-maple .join-queue-btn:hover,
         body.theme-maple .settings-btn:hover {
             background: #b40000;
+        }
+
+        body.theme-maple .join-queue-btn.unavailable:hover {
+            background: #fff1f1;
         }
 
         body.theme-maple .sign-out-btn,
@@ -1177,6 +1198,13 @@
                     }
                     break;
 
+                case 'status_updated': {
+                    const status = (msg.status || msg.data?.status || '').toLowerCase();
+                    state.available = ['online', 'available', 'active'].includes(status);
+                    render();
+                    break;
+                }
+
                 case 'interpreter_request':
                     // Incoming client request — show the accept overlay.
                     if (!state.pendingRequest) {
@@ -1258,6 +1286,7 @@
                 case 'change-password': return window.__changeInterpreterPassword();
                 case 'decline-request': return window.__declineRequest();
                 case 'join-queue': return window.__joinQueue();
+                case 'leave-queue': return window.__leaveQueue();
                 case 'save-profile': return window.__saveInterpreterProfile();
                 case 'set-interpreter-tab': return window.__setInterpreterTab(element.dataset.tab);
                 case 'sign-out': return window.__signOut();
@@ -1445,7 +1474,7 @@
                                 </div>
                             </div>
                             ${state.available
-                                ? `<button class="join-queue-btn" style="background:#388e3c;cursor:default;max-width:260px" disabled>Available</button>`
+                                ? `<button class="join-queue-btn unavailable" style="max-width:260px" data-action="leave-queue">Go Unavailable</button>`
                                 : `<button class="join-queue-btn" style="max-width:260px" data-action="join-queue">Join Queue</button>`}
                         </div>
                         ${pending ? `
@@ -1636,7 +1665,7 @@
                                     </div>
                                 </div>
                                 ${state.available
-                                    ? `<button class="join-queue-btn" style="background:#388e3c;cursor:default" disabled>Available - Waiting for Requests</button>`
+                                    ? `<button class="join-queue-btn unavailable" data-action="leave-queue">Go Unavailable</button>`
                                     : `<button class="join-queue-btn" data-action="join-queue">Join Queue - Go Available</button>`}
                                 <div class="readiness-note">
                                     Camera default is ${preferences.cameraDefaultOff ? 'off' : 'on'}.
@@ -1738,6 +1767,15 @@
         window.__joinQueue = function() {
             state.available = true;
             wsSend({ type: 'interpreter_status', data: { status: 'available' } });
+            render();
+        };
+
+        /**
+         * Mark this interpreter as unavailable and remove them from matching.
+         */
+        window.__leaveQueue = function() {
+            state.available = false;
+            wsSend({ type: 'interpreter_status', data: { status: 'inactive' } });
             render();
         };
 
