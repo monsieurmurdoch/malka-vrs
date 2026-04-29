@@ -411,32 +411,133 @@
 
 ## Mobile Apps
 
-**Parity target**: iOS and Android should reach feature and backend parity with the main web app before broad launch. Staged pilots are fine, but every staged release must name which web features it intentionally excludes.
+**Target**: mobile parity by **May 31, 2026**, with an internal/TestFlight/Play pilot sooner if the core call flow is stable. The web app is the source of truth until mobile parity is explicitly checked off.
 
-### App Targets
-- [ ] Malka VRS: Deaf/HoH users, video calling, 10-digit number, contacts, call history
-- [ ] Malka Interpreter: queue management, call acceptance, schedule, teaming
-- [ ] Malka VRI: corporate/hearing users, on-demand interpreter, billing dashboard, scheduling
+**Current mobile state**: native iOS and Android project shells exist, plus a TWA path, but mobile parity is not yet proven. Treat mobile as materially behind web until every gap below has an owner, implementation status, and device-level verification.
+
+**Policy**: every web feature merged after April 29, 2026 must update this mobile section with one of: implemented on mobile, intentionally web-only, mobile follow-up ticket, or blocked by native platform capability.
+
+### Mobile Release Gates
+- [ ] Define mobile MVP scope for end-of-May release: Malka VRS client, Maple VRI client, interpreter app, or staged subset
+- [ ] Decide platform strategy for first release: native React Native, TWA wrapper, or hybrid staged rollout
+- [ ] Confirm backend API contract parity for auth, profile, calls, queue, contacts, voicemail, tenant, and billing metadata
+- [ ] Run iOS simulator smoke for login, profile load, permissions, call join, and logout
+- [ ] Run Android emulator smoke for login, profile load, permissions, call join, and logout
+- [ ] Run one physical iPhone smoke: camera/mic permissions, speaker/Bluetooth, background/lock behavior, reconnect
+- [ ] Run one physical Android smoke: camera/mic permissions, speaker/Bluetooth, background/lock behavior, reconnect
+- [ ] Establish TestFlight release lane
+- [ ] Establish Play Internal Testing release lane
+- [ ] Add mobile build/test workflow to CI or a documented local release checklist
+- [ ] Create mobile release checklist covering app version, tenant branding, backend base URL, privacy copy, permissions, crash reporting, and rollback plan
+
+### Mobile App Targets
+- [ ] Malka VRS Client: Deaf/HoH users, VRS phone-number flow, interpreter-assisted calls, contacts, call history
+- [ ] Maple VRI Client: corporate shared-device/session console, self-view, Request Interpreter, usage summary, settings
+- [ ] Malka VRI Client: corporate VRI mode for Malka tenant/accounts with VRI permissions
+- [ ] Interpreter App: queue availability, incoming request acceptance, VRS/VRI service-mode separation, profile, billing/earnings tab
+- [ ] Captioner App: caption assignment, caption publishing, session privacy routing
+- [ ] Admin Mobile/Tablet: decide whether admin is responsive web only or gets native moderation surfaces
 - [ ] Non-US Malka Client: unified relay/VRI client where local market does not distinguish VRS/VRI
-- [ ] Non-US Malka Interpreter: interpreter app with market-specific billing backend
+- [ ] Non-US Interpreter: interpreter app with market-specific billing backend
+
+### Current Parity Gap Summary
+- [ ] Authentication parity: email/password, role routing, JWT refresh/expiry behavior, tenant routing, password reset
+- [ ] Tenant parity: Maple/Malka branding, app icon/splash, tenant config, host/base URL, feature flags
+- [ ] Profile parity: VRS client profile, focused VRI console, interpreter profile, captioner profile, settings, password change
+- [ ] Media parity: Jitsi join, prejoin/waiting room, self-view, camera/mic defaults, permission memory, Bluetooth/audio route behavior
+- [ ] Queue parity: request interpreter, queue status, cancel request, interpreter availability, interpreter accept/decline, match transition
+- [ ] In-room parity: toolbar actions, request interpreter, invite, captions/language, TTS/VCO where applicable, hangup/end-for-all
+- [ ] Contacts parity: list, search, import, sync, full history, notes, favorites, block/merge/dedup
+- [ ] Call history parity: active calls, completed calls, CDR/usage metadata, missed calls, callback where applicable
+- [ ] Visual voicemail parity: authenticated launcher, unread badge, inbox, playback, recording/upload path, notifications
+- [ ] Billing parity: VRI usage summary, corporate invoice visibility, interpreter earnings/invoice/payout tab
+- [ ] Admin parity: tenant/service-mode filters, live queue, active calls, account moderation, audit feed
+- [ ] Offline/reconnect parity: WebSocket reconnect, active call rejoin, network loss states, background/foreground transitions
+- [ ] Accessibility parity: VoiceOver/TalkBack labels, Dynamic Type/text scaling, reduced motion, color contrast, keyboard/switch access where feasible
+- [ ] Security parity: secure storage for tokens, biometric unlock decision, logout/session clearing, no secrets in mobile bundles
+- [ ] Observability parity: crash reporting, structured mobile logs, request/session IDs, call lifecycle breadcrumbs
+
+### Client Mobile Parity
+- [ ] Malka VRS client login routes to VRS phone-number-oriented home
+- [ ] Malka VRI/Maple VRI client login routes to focused VRI session console
+- [ ] VRI console shows large self-view and primary Request Interpreter action
+- [ ] VRI console prevents empty room start before interpreter match
+- [ ] VRI console supports settings gear and media defaults
+- [ ] VRI console exposes billing/usage summary without exposing admin-only billing controls
+- [ ] VRS client supports phone-number profile, dial-via-interpreter, contacts, call history, missed calls
+- [ ] Client can request interpreter, see pending status, cancel request, and auto-enter after match
+- [ ] Client can join active matched room with camera off/mic muted defaults
+- [ ] Client can leave call without being signed out
+- [ ] Client call end reliably writes call completion/CDR metadata
+- [ ] Client supports captions/language controls in a mobile-appropriate location
+- [ ] Client supports invite flow once VRI session invite model is built
+- [ ] Client supports visual voicemail inbox and unread badge
+- [ ] Client supports contact history and notes
+
+### Interpreter Mobile Parity
+- [ ] Interpreter login routes to interpreter profile, not client surface
+- [ ] Interpreter profile mirrors web structure with self-view, availability, queue state, tabs
+- [ ] Interpreter can set service modes: VRS, VRI, captioning eligibility
+- [ ] Interpreter can set language pairs and skills
+- [ ] Interpreter can go available/unavailable
+- [ ] Interpreter receives incoming request notification while app is foregrounded
+- [ ] Interpreter receives push/call-style notification while app is backgrounded or locked
+- [ ] Interpreter can accept/decline request and auto-join correct room
+- [ ] Interpreter sees client/session context before accepting where permitted
+- [ ] Interpreter can end call and trigger call lifecycle completion
+- [ ] Interpreter billing/earnings tab shows payable minutes, invoice status, payout method placeholders
+- [ ] Interpreter schedule/break/teaming decisions documented for MVP vs post-May
+
+### Captioner Mobile Parity
+- [ ] Decide whether captioner mobile is required for May or web-only for initial production
+- [ ] Captioner login routes to captioner profile
+- [ ] Captioner assignment/hidden participant flow works on mobile if included
+- [ ] Caption publishing UI is usable on tablet/phone if included
+- [ ] Privacy routing for captioners documented and tested
+
+### Admin Mobile / Tablet Parity
+- [ ] Decide whether admin moderation is responsive web/tablet only for May
+- [ ] Admin can view tenant-scoped live queue on tablet/mobile
+- [ ] Admin can view active calls and call details
+- [ ] Admin can moderate client/interpreter/captioner permissions
+- [ ] Admin can view billing dashboard summaries when billing launches
+- [ ] Admin can view audit feed and account changes
+- [ ] Superadmin tenant management remains desktop-only or gets explicit mobile scope
 
 ### Mobile Parity Track
-- [ ] React Native shared codebase where practical
-- [ ] Jitsi Meet React Native SDK
-- [ ] Shared backend contracts for auth, profile, preferences, contacts, call history, voicemail, queue, tenant, service-mode, billing metadata
-- [ ] Client profile parity: VRI/VRS first-screen modes, self-view, permission memory, media defaults, language preference, DND, settings
-- [ ] Call flow parity: instant room, VRI room, VRS phone call, in-room request interpreter, captions/language controls, contacts drawer, TTS/VCO
-- [ ] Contacts parity: sync, import, history, notes, favorites, block/merge/dedup
-- [ ] Visual voicemail parity
-- [ ] Interpreter mobile parity decision: native, responsive web, or hybrid
-- [ ] Admin mobile parity decision
+- [ ] Audit current React Native/iOS/Android/TWA project health against current web/backend contracts
+- [ ] Choose shared TypeScript API client strategy to prevent web/mobile contract drift
+- [ ] Extract shared auth/session/profile/queue/contact types where practical
+- [ ] Create mobile parity checklist template required for future web feature PRs
+- [ ] Jitsi Meet React Native SDK integration verified against current Droplet/Jitsi config
+- [ ] Mobile-safe WebSocket queue client with reconnect/backoff/session restore
+- [ ] Secure token storage: Keychain on iOS, Keystore/EncryptedSharedPreferences on Android
+- [ ] Deep links into active rooms and invite links
 - [ ] Push/background calling: APNs, FCM, CallKit, Android ConnectionService
-- [ ] Deep links into active rooms
-- [ ] Reconnect/handoff behavior
-- [ ] Poor-network states
-- [ ] Tenant branding parity for Maple/Malka
+- [ ] Reconnect/handoff behavior after app background, network switch, lock screen, and call interruption
+- [ ] Poor-network states and media fallback copy
+- [ ] Tenant branding parity for Maple/Malka: logos, colors, app name, favicon/app icon/splash, copy
 - [ ] Mobile QA matrix: iOS/Android, phone/tablet, permissions, orientation, Bluetooth, screen lock
 - [ ] Store readiness: privacy manifests, permission copy, screenshots, TestFlight/Play internal testing, crash reporting
+
+### Mobile May 2026 Delivery Plan
+- [ ] Week 1: audit existing mobile shells, pick release strategy, define MVP by app/role, document known gaps
+- [ ] Week 1: wire mobile auth/profile/session config to production/staging endpoints
+- [ ] Week 2: implement client VRI console parity and VRS client profile parity
+- [ ] Week 2: implement queue request/accept/join path on mobile
+- [ ] Week 3: implement interpreter availability/acceptance path and background notification decision
+- [ ] Week 3: implement contacts/call history essentials or explicitly defer with user-facing fallback
+- [ ] Week 4: implement voicemail/billing summary essentials or explicitly defer with user-facing fallback
+- [ ] Week 4: run device QA matrix, fix blockers, prepare TestFlight/Play internal release
+- [ ] End of May: mobile release candidate with documented unsupported features and production rollback plan
+
+### Mobile Drift Controls
+- [ ] Add `ROADMAP.md` mobile parity update requirement to `AGENTS.md`
+- [ ] Add PR checklist item: "Does this web/backend change affect mobile?"
+- [ ] Maintain `docs/mobile-parity.md` with route-by-route API/UI parity table
+- [ ] Add automated contract tests shared by web and mobile clients
+- [ ] Add smoke fixtures for demo accounts on iOS/Android
+- [ ] Tag mobile blockers separately in Linear/GitHub so they do not disappear under web work
 
 ---
 
