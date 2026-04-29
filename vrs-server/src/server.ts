@@ -47,7 +47,6 @@ const { requestId, requestLogger } = require('../lib/middleware');
 // Services
 import * as db from './database';
 import * as activityLogger from './lib/activity-logger';
-import queueService from './lib/queue-service';
 import * as state from './lib/state';
 import * as billingDb from './lib/billing-db';
 import * as handoffService from './lib/handoff-service';
@@ -60,6 +59,7 @@ const clientRouter = require('../routes/client');
 const contactsRouter = require('../routes/contacts');
 const interpreterRouter = require('../routes/interpreter');
 const { router: adminRouter, setVoicemailServiceForAdmin } = require('../routes/admin');
+const queueService = require('../lib/queue-service');
 const handoffRouter = require('../routes/handoff');
 const { router: voicemailRouter, setVoicemailService } = require('../routes/voicemail');
 const ttsRouter = require('../routes/tts');
