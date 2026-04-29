@@ -361,11 +361,31 @@
 
 ### VRI Billing
 - [ ] Corporate account management
+- [ ] Default VRI ASL-to-English rate: **$1.00 USD / $1.25 CAD per interpreter minute** until contract-specific pricing supersedes it
+- [ ] Per-client VRI rate overrides by corporate account, tenant, currency, language pair, and effective date
+- [ ] Rate templates for future spoken/signed language pairs and captioning services without hard-coding prices yet
+- [ ] Interpreter profile billing options: supported service modes, language pairs, captioning eligibility, pay rate, currency, contractor/vendor details, and payout preferences
 - [ ] VRI CDRs tagged at call origination
 - [ ] Invoice generation
+- [ ] Auto-generate corporate invoices from immutable VRI CDRs by billing period
+- [ ] Auto-email issued invoices to billing contacts, likely through Resend
 - [ ] Stripe/payment integration
+- [ ] Payment method support: card, ACH/manual invoice path, and admin-recorded offline payments
+- [ ] Stripe webhook handling for paid, failed, disputed, overdue, and cancelled invoices
 - [ ] Corporate billing dashboard
+- [ ] Corporate usage dashboard: day/week/month totals, invoice history, downloadable CSV/PDF
+- [ ] Admin billing dashboard: corporate accounts, rates, invoice drafts, issued invoices, payment status, disputes, write-offs
+- [ ] Evaluate build-vs-integrate path for billing/CRM: custom in-app billing cockpit vs integrating an open-source CRM/accounting system
 - [ ] Strict VRS/VRI separation in call creation, routing, billing, and audit trails
+
+### Interpreter Payouts & Invoicing
+- [ ] Interpreter payout model: employee vs contractor, hourly vs per-minute vs minimum blocks, currency, tax/vendor metadata
+- [ ] Interpreter payable records generated from completed CDRs and queue/call lifecycle events
+- [ ] Interpreter invoice generation for contractor interpreters by billing period
+- [ ] Interpreter payout review workflow: draft, approved, paid, disputed, adjusted
+- [ ] Export payout reports for accounting/payroll
+- [ ] Optional payment rails investigation: Stripe Connect, Wise, ACH provider, or manual accounting export
+- [ ] Interpreter profile billing tab for earnings, invoices, payout method, tax/vendor documents, and payout history
 
 ### Billing Safeguards
 - [ ] Immutable `call_type` at call creation
