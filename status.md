@@ -6,17 +6,11 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-29
 - Branch: `codex/current-work`
-- HEAD: `4495857`
-- Note: Pre-push project status sync.
+- HEAD: `62d3d18`
+- Note: Added tenant-scoped demo seed accounts for Ruthie and Nataly across Malka/Maple clients, plus Ruthie interpreter seeds; local auth smoke passed for both tenant hosts.
 - Snapshot:
 Local changes at sync time:
-  - `M  scripts/seed-maple-vri-demo.mjs`
   - `M  scripts/seed-tenant-demo-accounts.mjs`
-  - `M  status.md`
-  - `M  vrs-server/dist/database.js`
-  - `A  vrs-server/migrations/000004_tenant_scoped_auth_identities.js`
-  - `M  vrs-server/routes/auth.js`
-  - `M  vrs-server/src/database.ts`
 
 <!-- status:current:end -->
 ## Archive

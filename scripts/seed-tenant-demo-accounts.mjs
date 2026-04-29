@@ -178,6 +178,23 @@ async function ensureCaptioner(pool, account) {
   `, [uuidv4(), account.name, account.email, passwordHash, json(account.languages)]);
 }
 
+async function ensureTenantScopedIdentitySchema(pool) {
+  await pool.query(`
+    ALTER TABLE clients ADD COLUMN IF NOT EXISTS service_modes JSONB DEFAULT '["vrs"]';
+    ALTER TABLE clients ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'malka';
+    ALTER TABLE interpreters ADD COLUMN IF NOT EXISTS service_modes JSONB DEFAULT '["vrs"]';
+    ALTER TABLE interpreters ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'malka';
+
+    UPDATE clients SET tenant_id = 'malka' WHERE tenant_id IS NULL;
+    UPDATE interpreters SET tenant_id = 'malka' WHERE tenant_id IS NULL;
+
+    ALTER TABLE clients DROP CONSTRAINT IF EXISTS clients_email_key;
+    ALTER TABLE interpreters DROP CONSTRAINT IF EXISTS interpreters_email_key;
+    CREATE UNIQUE INDEX IF NOT EXISTS clients_tenant_email_idx ON clients (tenant_id, email);
+    CREATE UNIQUE INDEX IF NOT EXISTS interpreters_tenant_email_idx ON interpreters (tenant_id, email);
+  `);
+}
+
 async function ensureOpsSchema(pool) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS ops_accounts (
@@ -240,6 +257,7 @@ async function main() {
   const opsPool = new Pool({ connectionString: opsDatabaseUrl });
 
   try {
+    await ensureTenantScopedIdentitySchema(pool);
     await ensureOpsSchema(opsPool);
 
     for (const tenant of tenants) {
