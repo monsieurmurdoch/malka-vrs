@@ -6,6 +6,39 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-29
 - Branch: `codex/main-prod-sync`
+- HEAD: `7a080d5`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  ROADMAP.md`
+  - `M  package.json`
+  - `M  status.md`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-29T06:52:46.455Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-29
+- Branch: `codex/main-prod-sync`
+- HEAD: `7a080d5`
+- Note: Completed prod smoke pass: backend health, live WebSocket queue/match/CDR, UDP 10000, PgBouncer/pgAudit/WAL, SSL dry-run, and disposable base-backup restore drill. Roadmap updated.
+- Snapshot:
+Local changes at sync time:
+  - `M ROADMAP.md`
+  - `M package.json`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-29T06:52:27.219Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-29
+- Branch: `codex/main-prod-sync`
 - HEAD: `192bf99`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -16,7 +49,7 @@ Local changes at sync time:
   - `M  vrs-server/src/lib/state.ts`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-29T06:28:16.060Z
 
 <!-- status:current:start -->

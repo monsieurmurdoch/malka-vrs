@@ -1,7 +1,7 @@
 # Malka VRS - Product & Engineering Roadmap
 
 > **Last updated**: April 29, 2026
-> **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. The main open risks are remaining in-room UI verification, tenant-aware admin moderation depth, TURN/coturn fallback, Redis/state externalization, regulatory/compliance work, billing/payment implementation, and mobile parity.
+> **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. Malka VRS backend/WebSocket smoke now covers in-room-style interpreter request, admin live queue visibility, interpreter match, call end, and CDR creation. The main open risks are remaining real-browser in-room UI verification, tenant-aware admin moderation depth, TURN/coturn fallback, Redis/state externalization, regulatory/compliance work, billing/payment implementation, and mobile parity.
 
 ---
 
@@ -10,13 +10,13 @@
 **Pilot-ready surface**
 - Maple and Malka tenant routes are live on the Droplet.
 - Maple VRI demo accounts authenticate on `vri.maplecomm.ca`.
-- Malka demo accounts authenticate on `app.malkacomm.com`.
+- Malka demo accounts authenticate on `vrs.malkacomm.com`.
 - VRS, ops, PostgreSQL, PgBouncer, nginx, Jitsi, and Twilio proxy health checks pass through production routes.
 - Maple VRI real media smoke passed with client/interpreter join and JVB UDP 10000 media observed from outside the Droplet network.
 - Client/interpreter profiles, focused VRI session console, media defaults, contact history, instant-room shortcuts, visual voicemail shell, and caption foundations are in place.
 
 **Not yet production-complete**
-- Full real-browser UI verification is still required for active-room request-interpreter behavior, VRI invite/guest flow, and admin moderation actions.
+- Full real-browser UI verification is still required for the active-room request-interpreter button, VRI invite/guest flow, and admin moderation screens.
 - TURN/coturn fallback is still needed for corporate networks where direct UDP 10000 is blocked.
 - Admin needs stronger tenant/service-mode filters for live queue and activity review.
 - Redis/state externalization is still required before multi-server horizontal scaling.
@@ -188,12 +188,13 @@
 ### Production Verification
 - [x] Real media smoke on Droplet: client joins, interpreter joins, video/audio works, room survives normal browser flow
 - [x] Verify JVB media over UDP 10000 from outside the Droplet network
-- [ ] Verify in-room request-interpreter flow during a real active room
-- [ ] Verify admin moderation actions during a live queue match
+- [x] Verify in-room-style request-interpreter backend flow during an active room context (`roomName` preserved through queue/match)
+- [x] Verify admin live queue visibility and pause/resume moderation during a live queue match
 - [x] Verify call end writes the correct CDR/call record
-- [ ] Validate PgBouncer/pg_audit/WAL settings in a fresh deploy smoke
-- [ ] Perform offsite base-backup/WAL restore drill
-- [ ] Test SSL auto-renewal path
+- [x] Validate PgBouncer/pg_audit/WAL settings in a fresh deploy smoke
+- [x] Perform disposable base-backup restore drill on the Droplet in an isolated temp Postgres container
+- [ ] Perform true offsite base-backup/WAL restore drill into separate infrastructure/storage
+- [x] Test SSL auto-renewal path
 - [x] Rotate/disable bootstrap superadmin credentials after first permanent admin login
 
 ### Maple VRI Pilot Readiness
@@ -308,6 +309,7 @@
 - [ ] Query-plan review for queue matching, call history, dashboard stats
 - [ ] Prepared statements for hot paths
 - [ ] Autovacuum tuning for high-churn tables
+- [x] Disposable base-backup restore drill on Droplet
 - [ ] Managed/offsite backup and restore drill
 
 ### Jitsi & Media Scaling
