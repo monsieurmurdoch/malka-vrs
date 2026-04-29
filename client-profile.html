@@ -338,6 +338,56 @@
             width: 100%;
         }
 
+        .self-device-panel {
+            background: rgba(10,14,24,0.82);
+            border: 1px solid rgba(255,255,255,0.18);
+            border-radius: 10px;
+            bottom: 12px;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.28);
+            display: grid;
+            gap: 8px;
+            opacity: 0;
+            padding: 10px;
+            pointer-events: none;
+            position: absolute;
+            right: 12px;
+            transform: translateY(6px);
+            transition: opacity 0.18s ease, transform 0.18s ease;
+            width: min(280px, calc(100% - 24px));
+            z-index: 3;
+        }
+
+        .self-preview-frame:hover .self-device-panel,
+        .self-preview-frame:focus-within .self-device-panel {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(0);
+        }
+
+        .self-device-row {
+            display: grid;
+            gap: 4px;
+        }
+
+        .self-device-label {
+            color: rgba(255,255,255,0.74);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .self-device-select {
+            background: rgba(255,255,255,0.92);
+            border: 0;
+            border-radius: 8px;
+            color: #111827;
+            font: inherit;
+            font-size: 13px;
+            min-width: 0;
+            padding: 8px 9px;
+            width: 100%;
+        }
+
         .vrs-self-hero-card .self-preview-frame {
             min-height: clamp(420px, 66vh, 760px);
         }
@@ -1776,6 +1826,12 @@
                 status: 'idle',
                 message: ''
             },
+            mediaDevices: {
+                cameras: [],
+                microphones: [],
+                selectedCameraId: getPersistentItem('vrs_camera_device_id') || '',
+                selectedMicId: getPersistentItem('vrs_microphone_device_id') || ''
+            },
             showAddForm: false,
             editEntry: null,
             newName: '',
@@ -1913,9 +1969,88 @@
                 setPersistentItem('vrs_media_preferences', JSON.stringify({
                     cameraDefaultOff: prefs.cameraDefaultOff,
                     micDefaultOff: prefs.micDefaultOff,
+                    cameraDeviceId: getPersistentItem('vrs_camera_device_id') || '',
+                    microphoneDeviceId: getPersistentItem('vrs_microphone_device_id') || '',
                     updatedAt: new Date().toISOString()
                 }));
             }
+        }
+
+        async function refreshMediaDevices() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+                return;
+            }
+
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const cameras = devices.filter(device => device.kind === 'videoinput');
+                const microphones = devices.filter(device => device.kind === 'audioinput');
+                let selectedCameraId = getPersistentItem('vrs_camera_device_id') || '';
+                let selectedMicId = getPersistentItem('vrs_microphone_device_id') || '';
+
+                if (selectedCameraId && !cameras.some(device => device.deviceId === selectedCameraId)) {
+                    selectedCameraId = '';
+                    setPersistentItem('vrs_camera_device_id', '');
+                }
+
+                if (selectedMicId && !microphones.some(device => device.deviceId === selectedMicId)) {
+                    selectedMicId = '';
+                    setPersistentItem('vrs_microphone_device_id', '');
+                }
+
+                state.mediaDevices = { cameras, microphones, selectedCameraId, selectedMicId };
+                if (selectedCameraId) {
+                    persistJitsiDevicePreference('camera', selectedCameraId);
+                }
+                if (selectedMicId) {
+                    persistJitsiDevicePreference('microphone', selectedMicId);
+                }
+            } catch (error) {
+                console.warn('[Media] Could not enumerate devices:', error);
+            }
+        }
+
+        function selectedVideoConstraint() {
+            const selectedCameraId = state.mediaDevices.selectedCameraId || getPersistentItem('vrs_camera_device_id') || '';
+            return selectedCameraId ? { deviceId: { exact: selectedCameraId } } : true;
+        }
+
+        function persistJitsiDevicePreference(kind, deviceId) {
+            const devices = kind === 'camera' ? state.mediaDevices.cameras : state.mediaDevices.microphones;
+            const selected = (devices || []).find(device => device.deviceId === deviceId);
+            let settings = {};
+
+            try {
+                settings = JSON.parse(localStorage.getItem('features/base/settings') || '{}') || {};
+            } catch (error) {
+                settings = {};
+            }
+
+            if (kind === 'camera') {
+                settings.userSelectedCameraDeviceId = deviceId || undefined;
+                settings.userSelectedCameraDeviceLabel = selected?.label || undefined;
+            } else {
+                settings.userSelectedMicDeviceId = deviceId || undefined;
+                settings.userSelectedMicDeviceLabel = selected?.label || undefined;
+            }
+
+            try {
+                localStorage.setItem('features/base/settings', JSON.stringify(settings));
+            } catch (error) {
+                console.warn('[Media] Could not persist room device preference:', error);
+            }
+        }
+
+        function updateMediaDevicePreference(kind, deviceId) {
+            const key = kind === 'camera' ? 'vrs_camera_device_id' : 'vrs_microphone_device_id';
+            setPersistentItem(key, deviceId || '');
+            state.mediaDevices = {
+                ...state.mediaDevices,
+                selectedCameraId: kind === 'camera' ? (deviceId || '') : state.mediaDevices.selectedCameraId,
+                selectedMicId: kind === 'microphone' ? (deviceId || '') : state.mediaDevices.selectedMicId
+            };
+            persistJitsiDevicePreference(kind, deviceId || '');
+            persistRoomPreferences();
         }
 
         function canUseRealtimeMedia() {
@@ -1957,9 +2092,14 @@
             if (!silent) render();
 
             try {
-                previewStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                await refreshMediaDevices();
+                previewStream = await navigator.mediaDevices.getUserMedia({ video: selectedVideoConstraint(), audio: false });
+                await refreshMediaDevices();
                 state.mediaPreview = { enabled: true, status: 'active', message: `Camera preview is on. ${canUseVriMode() ? 'Sessions' : 'Calls'} still start muted.` };
             } catch (error) {
+                if (state.mediaDevices.selectedCameraId) {
+                    updateMediaDevicePreference('camera', '');
+                }
                 state.mediaPreview = { enabled: false, status: 'error', message: 'Camera permission was not granted.' };
                 setPersistentItem('vrs_self_preview_enabled', 'false');
             }
@@ -1973,6 +2113,22 @@
             }
             state.mediaPreview = { enabled: false, status: 'idle', message: '' };
             setPersistentItem('vrs_self_preview_enabled', 'false');
+            render();
+        }
+
+        async function selectCameraDevice(deviceId) {
+            updateMediaDevicePreference('camera', deviceId);
+            if (previewStream) {
+                previewStream.getTracks().forEach(track => track.stop());
+                previewStream = null;
+                await startSelfPreview(false);
+                return;
+            }
+            render();
+        }
+
+        function selectMicDevice(deviceId) {
+            updateMediaDevicePreference('microphone', deviceId);
             render();
         }
 
@@ -2518,6 +2674,33 @@
             return summary;
         }
 
+        function renderSelfDevicePanel() {
+            const devices = state.mediaDevices || { cameras: [], microphones: [] };
+            const cameraOptions = ['<option value="">Default camera</option>']
+                .concat((devices.cameras || []).map((device, index) => `
+                    <option value="${escapeHtml(device.deviceId)}" ${device.deviceId === devices.selectedCameraId ? 'selected' : ''}>${escapeHtml(device.label || `Camera ${index + 1}`)}</option>
+                `))
+                .join('');
+            const micOptions = ['<option value="">Default mic</option>']
+                .concat((devices.microphones || []).map((device, index) => `
+                    <option value="${escapeHtml(device.deviceId)}" ${device.deviceId === devices.selectedMicId ? 'selected' : ''}>${escapeHtml(device.label || `Microphone ${index + 1}`)}</option>
+                `))
+                .join('');
+
+            return `
+                <div class="self-device-panel" aria-label="Camera and microphone choices">
+                    <label class="self-device-row">
+                        <span class="self-device-label">Camera</span>
+                        <select class="self-device-select" data-change-action="select-camera-device">${cameraOptions}</select>
+                    </label>
+                    <label class="self-device-row">
+                        <span class="self-device-label">Mic</span>
+                        <select class="self-device-select" data-change-action="select-mic-device">${micOptions}</select>
+                    </label>
+                </div>
+            `;
+        }
+
         function renderSelfPreviewCard(extraClass) {
             return `
                 <div class="card self-preview-card ${extraClass || ''}">
@@ -2528,6 +2711,7 @@
                                 ${state.mediaPreview.status === 'requesting' ? 'Waiting for camera permission...' : 'Allow camera access to see yourself before joining a session.'}
                             </div>
                         `}
+                        ${renderSelfDevicePanel()}
                     </div>
                     <div class="self-preview-status">${escapeHtml(state.mediaPreview.message || 'Preview uses camera only. Microphone is always muted by default.')}</div>
                     <div class="self-preview-actions">
@@ -2825,6 +3009,8 @@
                 case 'sign-out': return window.__signOut();
                 case 'start-self-preview': return startSelfPreview(false);
                 case 'stop-self-preview': return stopSelfPreview();
+                case 'select-camera-device': return selectCameraDevice(element.value);
+                case 'select-mic-device': return selectMicDevice(element.value);
                 case 'open-profile-section': return openProfileSection(element.dataset.sectionId);
                 case 'set-profile-view':
                     state.profileView = element.dataset.view || 'home';
@@ -4070,9 +4256,16 @@
                 return;
             }
 
+            await refreshMediaDevices();
             render();
             await Promise.all([loadProfile(), loadPreferences(), loadCallHistory(), loadSpeedDial(), loadContacts(), loadMissedCalls(), loadActiveRooms()]);
             render();
+            if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+                navigator.mediaDevices.addEventListener('devicechange', async () => {
+                    await refreshMediaDevices();
+                    render();
+                });
+            }
 
             // Connect WebSocket for real-time P2P calling
             connectWebSocket();

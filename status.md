@@ -6,6 +6,22 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-29
 - Branch: `codex/main-prod-sync`
+- HEAD: `d6ab526`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  client-profile.html`
+  - `M  interpreter-profile.html`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-29T04:33:41.729Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-29
+- Branch: `codex/main-prod-sync`
 - HEAD: `92d8517`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -13,7 +29,7 @@ Local changes at sync time:
   - `M  ROADMAP.md`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-29T04:23:51.311Z
 
 <!-- status:current:start -->
