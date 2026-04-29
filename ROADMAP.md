@@ -174,6 +174,7 @@
 - [x] Jest/ts-jest test framework for VRS server
 - [x] Initial coverage for auth, queue, handoff, voicemail, billing modules
 - [x] Backend CI foundation: VRS tests, ops build, Compose config validation
+- [x] GitHub Actions pins bumped to Node 24-compatible action versions (`checkout@v6`, `setup-node@v6`, `stale@v10`)
 
 ### Status & Project Tracking
 - [x] `status.md` running update file

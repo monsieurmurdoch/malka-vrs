@@ -6,6 +6,25 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-29
 - Branch: `codex/fix-tts-panel`
+- HEAD: `80e820a`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  .github/workflows/ci-lua.yml`
+  - `M  .github/workflows/ci.yml`
+  - `M  .github/workflows/deploy-droplet.yml`
+  - `M  .github/workflows/stale.yml`
+  - `M  ROADMAP.md`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-29T09:14:07.176Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-29
+- Branch: `codex/fix-tts-panel`
 - HEAD: `911c8d5`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -13,7 +32,7 @@ Local changes at sync time:
   - `M  tts-panel.html`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-29T08:58:31.198Z
 
 <!-- status:current:start -->
