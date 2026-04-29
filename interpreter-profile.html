@@ -131,19 +131,22 @@
 
         .profile-hero {
             display: grid;
-            grid-template-columns: minmax(300px, 0.92fr) minmax(0, 1.45fr);
+            grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
             gap: 20px;
-            align-items: stretch;
+            align-items: start;
         }
 
         .profile-stack {
             display: grid;
             gap: 20px;
+            position: sticky;
+            top: 20px;
         }
 
         .self-preview-card {
             display: grid;
             gap: 12px;
+            min-width: 0;
         }
 
         .self-preview-frame {
@@ -154,6 +157,7 @@
             border-radius: 10px;
             display: flex;
             justify-content: center;
+            min-height: clamp(440px, 66vh, 760px);
             overflow: hidden;
             position: relative;
         }
@@ -189,9 +193,8 @@
         }
 
         .profile-summary-top {
-            display: flex;
+            display: grid;
             gap: 16px;
-            justify-content: space-between;
             margin-bottom: 18px;
         }
 
@@ -212,7 +215,7 @@
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
-            justify-content: flex-end;
+            justify-content: flex-start;
         }
 
         .service-chip {
@@ -231,7 +234,7 @@
 
         .readiness-grid {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 10px;
             margin-bottom: 18px;
         }
@@ -643,9 +646,14 @@
         }
 
         body.theme-maple .profile-header-logo {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 8px 22px rgba(69, 0, 0, 0.2);
             height: 54px;
             max-width: 230px;
             object-fit: contain;
+            padding: 8px 12px;
+            width: auto;
         }
 
         body.theme-maple .profile-header-title,
@@ -813,6 +821,14 @@
                 padding: 16px 16px 28px;
             }
 
+            .profile-stack {
+                position: static;
+            }
+
+            .self-preview-frame {
+                min-height: clamp(320px, 58vh, 560px);
+            }
+
             .profile-header {
                 padding: 12px 16px;
                 flex-wrap: wrap;
@@ -867,9 +883,7 @@
 
         function brandLogo(preferWhite) {
             if (IS_MAPLE) {
-                return preferWhite
-                    ? (BRAND.assets?.logoWhite || 'images/logo-white.svg')
-                    : (BRAND.assets?.logo || 'images/logo.svg');
+                return 'images/maple-logo-original.png';
             }
 
             return preferWhite ? 'images/malka-logo-white.png' : 'images/malka-logo.png';
