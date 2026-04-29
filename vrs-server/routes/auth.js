@@ -119,7 +119,7 @@ router.post('/client/register', authLimiter, validate(clientRegisterSchema), asy
             await db.assignClientPhoneNumber({ clientId: client.id, phoneNumber: phoneNum, isPrimary: true });
         }
 
-        const token = signToken({ id: client.id, email, name, role: 'client' });
+        const token = signToken({ id: client.id, email, name, role: 'client', tenantId });
 
         activityLogger.log('client_registered', { clientId: client.id, name, email, tenantId, serviceModes });
 
@@ -153,7 +153,13 @@ router.post('/client/login', authLimiter, validate(loginSchema), async (req, res
         const phones = await db.getClientPhoneNumbers(client.id);
         const primary = phones.find(p => p.is_primary);
 
-        const token = signToken({ id: client.id, email: client.email, name: client.name, role: 'client' });
+        const token = signToken({
+            id: client.id,
+            email: client.email,
+            name: client.name,
+            role: 'client',
+            tenantId: client.tenant_id || tenantId
+        });
 
         activityLogger.log('client_login', { clientId: client.id });
 
@@ -198,7 +204,11 @@ router.post('/interpreter/login', authLimiter, validate(loginSchema), async (req
         }
 
         const token = signToken({
-            id: interpreter.id, email: interpreter.email, name: interpreter.name, role: 'interpreter'
+            id: interpreter.id,
+            email: interpreter.email,
+            name: interpreter.name,
+            role: 'interpreter',
+            tenantId: interpreter.tenant_id || tenantId
         });
 
         activityLogger.log('interpreter_login', { interpreterId: interpreter.id });
@@ -243,7 +253,11 @@ router.post('/captioner/login', authLimiter, validate(captionerLoginSchema), asy
         }
 
         const token = signToken({
-            id: captioner.id, email: captioner.email, name: captioner.name, role: 'captioner'
+            id: captioner.id,
+            email: captioner.email,
+            name: captioner.name,
+            role: 'captioner',
+            tenantId: inferTenantId(req)
         });
 
         activityLogger.log('captioner_login', { captionerId: captioner.id });
@@ -288,7 +302,7 @@ router.post('/admin/login', authLimiter, validate(adminLoginSchema), async (req,
         }
 
         const token = signToken(
-            { id: admin.id, username: admin.username, role: 'admin' },
+            { id: admin.id, username: admin.username, role: 'admin', tenantId: 'malka' },
             '12h'
         );
 
@@ -322,7 +336,13 @@ router.post('/client/phone-login', authLimiter, validate(phoneLoginSchema), asyn
         const phones = await db.getClientPhoneNumbers(client.id);
         const primary = phones.find(p => p.is_primary);
 
-        const token = signToken({ id: client.id, email: client.email, name: client.name, role: 'client' });
+        const token = signToken({
+            id: client.id,
+            email: client.email,
+            name: client.name,
+            role: 'client',
+            tenantId: client.tenant_id || 'malka'
+        });
 
         activityLogger.log('client_phone_login', { clientId: client.id, phoneNumber });
 
@@ -401,7 +421,13 @@ router.post('/otp/verify', authLimiter, validate(otpVerifySchema), async (req, r
         const phones = await db.getClientPhoneNumbers(client.id);
         const primary = phones.find(p => p.is_primary);
 
-        const token = signToken({ id: client.id, email: client.email, name: client.name, role: 'client' });
+        const token = signToken({
+            id: client.id,
+            email: client.email,
+            name: client.name,
+            role: 'client',
+            tenantId: client.tenant_id || 'malka'
+        });
 
         activityLogger.log('otp_login', { clientId: client.id, phoneNumber });
 

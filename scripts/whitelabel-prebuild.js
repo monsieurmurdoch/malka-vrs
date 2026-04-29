@@ -8,7 +8,7 @@
  *   - whitelabel-runtime.js       — JS runtime config (appName, features, assets)
  *   - title.html                  — Branded <title> and meta tags
  *
- * Also copies tenant assets from whitelabel/{tenant}/assets/ into images/.
+ * Also copies referenced tenant assets from whitelabel/{tenant}/assets/ into images/.
  */
 
 'use strict';
@@ -79,10 +79,7 @@ function generateRuntimeJS(cfg) {
         }
     }
 
-    const assets = {};
-    for (const [key, val] of Object.entries(cfg.assets)) {
-        assets[key] = val ? `images/${val}` : '';
-    }
+    const assets = qualifyAssets(cfg.assets || {});
 
     const runtimeConfig = {
         tenantId: cfg.tenantId,
@@ -91,9 +88,11 @@ function generateRuntimeJS(cfg) {
         tagline: cfg.brand.tagline,
         description: cfg.brand.description,
         supportUrl: cfg.brand.supportUrl,
+        domains: cfg.domains || {},
         theme: cfg.theme,
         features,
-        assets
+        assets,
+        operations: cfg.operations || {}
     };
 
     return [
@@ -146,19 +145,76 @@ fs.writeFileSync(titlePath, titleContent, 'utf8');
 console.log(`[whitelabel] Generated: title.html`);
 
 // ---------------------------------------------------------------------------
-// 4. Copy tenant assets into images/
+// 4. Generate manifest.json
+// ---------------------------------------------------------------------------
+function assetMimeType(assetPath) {
+    return assetPath.endsWith('.svg') ? 'image/svg+xml' : 'image/png';
+}
+
+function manifestPath(assetPath) {
+    return qualifyAssetPath(assetPath || '');
+}
+
+function generateManifest(cfg) {
+    const mobile = cfg.assets.mobile || {};
+    const appIcon = mobile.appIcon || cfg.assets.appleTouchIcon || cfg.assets.favicon32 || cfg.assets.faviconSvg || cfg.assets.favicon;
+    const maskableIcon = mobile.maskableIcon || appIcon;
+
+    return {
+        android_package_name: cfg.mobile?.androidPackageName || 'org.malka.meet',
+        prefer_related_applications: true,
+        related_applications: [
+            {
+                id: cfg.mobile?.androidPackageName || 'org.malka.meet',
+                platform: 'chromeos_play'
+            }
+        ],
+        short_name: cfg.brand.appName,
+        name: cfg.brand.appName,
+        icons: [
+            {
+                src: manifestPath(appIcon),
+                type: assetMimeType(appIcon),
+                sizes: '192x192'
+            },
+            {
+                src: manifestPath(appIcon),
+                type: assetMimeType(appIcon),
+                sizes: '512x512'
+            },
+            {
+                src: manifestPath(maskableIcon),
+                sizes: '512x512',
+                type: assetMimeType(maskableIcon),
+                purpose: 'maskable'
+            }
+        ],
+        start_url: '/',
+        background_color: cfg.theme.primary,
+        display: 'standalone',
+        scope: '/',
+        theme_color: cfg.theme.primary
+    };
+}
+
+const manifestPathOut = path.join(PROJECT_ROOT, 'manifest.json');
+fs.writeFileSync(manifestPathOut, JSON.stringify(generateManifest(config), null, 2) + '\n', 'utf8');
+console.log(`[whitelabel] Generated: manifest.json`);
+
+// ---------------------------------------------------------------------------
+// 5. Copy tenant assets into images/
 // ---------------------------------------------------------------------------
 const tenantAssetsDir = path.join(WHITELABEL_DIR, tenantId, 'assets');
 const imagesDir = path.join(PROJECT_ROOT, 'images');
 
 if (fs.existsSync(tenantAssetsDir)) {
-    const files = fs.readdirSync(tenantAssetsDir);
+    const files = collectReferencedAssetFiles(config.assets || {});
     for (const file of files) {
         if (file.startsWith('.') || file.startsWith('._')) {
             continue;
         }
         const src = path.join(tenantAssetsDir, file);
-        if (!fs.statSync(src).isFile()) {
+        if (!fs.existsSync(src) || !fs.statSync(src).isFile()) {
             continue;
         }
         const dest = path.join(imagesDir, file);
@@ -182,4 +238,48 @@ function listTenants() {
     return fs.readdirSync(WHITELABEL_DIR)
         .filter(f => f.endsWith('.json'))
         .map(f => f.replace('.json', ''));
+}
+
+function qualifyAssetPath(assetPath) {
+    if (!assetPath || typeof assetPath !== 'string') {
+        return '';
+    }
+    if (/^(https?:)?\/\//.test(assetPath) || assetPath.startsWith('/') || assetPath.startsWith('data:')) {
+        return assetPath;
+    }
+    if (assetPath.startsWith('static/')) {
+        return assetPath;
+    }
+    return `images/${assetPath}`;
+}
+
+function qualifyAssets(value) {
+    if (Array.isArray(value)) {
+        return value.map(qualifyAssets);
+    }
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(
+            Object.entries(value).map(([key, val]) => [key, qualifyAssets(val)])
+        );
+    }
+    return qualifyAssetPath(value);
+}
+
+function collectReferencedAssetFiles(value, files = new Set()) {
+    if (Array.isArray(value)) {
+        value.forEach(item => collectReferencedAssetFiles(item, files));
+        return files;
+    }
+    if (value && typeof value === 'object') {
+        Object.values(value).forEach(item => collectReferencedAssetFiles(item, files));
+        return files;
+    }
+    if (typeof value !== 'string' || !value) {
+        return files;
+    }
+    if (/^(https?:)?\/\//.test(value) || value.startsWith('/') || value.startsWith('data:') || value.startsWith('static/')) {
+        return files;
+    }
+    files.add(value);
+    return files;
 }

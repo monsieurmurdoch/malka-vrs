@@ -221,10 +221,11 @@
 - [ ] Prevent aesthetic cross-wiring between Malka and Maple at build/runtime boundaries
 
 ### White-Label Hardening
-- [ ] Full tenant isolation hardening: row-level security or schema-per-tenant decision
-- [ ] Separate JWT signing keys per tenant
-- [ ] Tenant-specific splash screens, app icons, and mobile assets
-- [ ] Tenant-specific billing/interpreter-pool configuration beyond current service-mode metadata
+- [x] Tenant isolation decision documented: shared PostgreSQL tables with RLS path, not schema-per-tenant yet
+- [ ] Implement PostgreSQL RLS policies for all tenant-owned tables
+- [x] Separate JWT signing key support per tenant (`VRS_JWT_SECRET_MALKA`, `VRS_JWT_SECRET_MAPLE`) with shared-secret fallback for local/legacy compatibility
+- [x] Tenant-specific splash screens, app icons, PWA manifest, and mobile asset slots declared in tenant configs
+- [x] Tenant-specific billing/interpreter-pool configuration declared beyond service-mode metadata
 
 ### UX Polish
 - [ ] Responsive layout audit for desktop, tablet, and small mobile screens
@@ -546,6 +547,7 @@
 - [ ] Split Malka role/product surfaces into distinct domains when traffic and operations justify it
 - [ ] `vrs.malkacomm.com`: MalkaVRS client-facing VRS experience
 - [ ] `vri.malkacomm.com`: MalkaVRI client-facing VRI/corporate experience
+- [ ] `asltoenglish.malkacomm.com` or similar: distinct Malka ASL-to-English AI lab portal, not integrated into production VRS/VRI until validated
 - [ ] `terp.malkacomm.com`: interpreter and captioner portal
 - [ ] `admin.malkacomm.com`: admin/superadmin portal
 - [ ] Define redirect and session rules between domains so auth remains smooth without mixing product identities
@@ -561,7 +563,14 @@
 - [ ] Interpreter performance dashboard
 
 ### AI & Accessibility
-- [ ] ASL recognition research/prototype
+- [ ] Create a distinct Malka-side **ASL to English** portal for experimental automated ASL-to-English and English-to-ASL interpretation testing
+- [ ] Keep ASL-to-English AI portal visually and operationally distinct from MalkaVRS/MalkaVRI until it is accurate, safe, consented, and legally cleared for integration
+- [ ] ASL recognition research/prototype with video dataset strategy, consent model, evaluation set, and human review loop
+- [ ] English-to-ASL generation/reconstruction prototype with clear labeling that output is experimental and not certified interpretation
+- [ ] AI interpretation evaluation framework: accuracy, latency, hallucination/error taxonomy, signer diversity, lighting/camera robustness, domain vocabulary, and fallback-to-human thresholds
+- [ ] Privacy/security plan for AI video experiments: explicit consent, non-production data boundary, retention rules, redaction/de-identification, and opt-out/delete workflows
+- [ ] Human-in-the-loop review interface for comparing model output against certified interpreter/reference translations
+- [ ] Integration gate: no production VRS/VRI routing, billing, or compliance dependency until AI meets documented quality, safety, and legal thresholds
 - [ ] AI-powered quality monitoring
 - [ ] Smart queue routing
 - [ ] Automated call categorization

@@ -6,6 +6,114 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-29
 - Branch: `codex/current-work`
+- HEAD: `e33b214`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  .env.example`
+  - `M  ROADMAP.md`
+  - `A  docs/tenant-isolation.md`
+  - `M  manifest.json`
+  - `M  scripts/whitelabel-prebuild.js`
+  - `M  status.md`
+  - `M  vrs-ops-server/.env.example`
+  - `M  vrs-ops-server/dist/index.d.ts.map`
+  - `M  vrs-ops-server/dist/index.js`
+  - `M  vrs-ops-server/dist/index.js.map`
+  - `M  vrs-ops-server/src/index.ts`
+  - `M  vrs-server/lib/auth.js`
+  - `M  vrs-server/routes/auth.js`
+  - `M  vrs-server/src/lib/auth.ts`
+  - `M  vrs-server/src/server.ts`
+  - `M  whitelabel/malka.json`
+  - `M  whitelabel/maple.json`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-29T23:49:32.558Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-29
+- Branch: `codex/current-work`
+- HEAD: `e33b214`
+- Note: Tenant JWT hardening deployed: generated real Malka/Maple tenant JWT secrets, stored them in local/prod env outside git, rebuilt VRS/Maple/Ops on the Droplet, and verified health with tenantJwtSecretsConfigured=true.
+- Snapshot:
+Local changes at sync time:
+  - `M .env.example`
+  - `M ROADMAP.md`
+  - `M manifest.json`
+  - `M scripts/whitelabel-prebuild.js`
+  - `M status.md`
+  - `M vrs-ops-server/.env.example`
+  - `M vrs-ops-server/dist/index.d.ts.map`
+  - `M vrs-ops-server/dist/index.js`
+  - `M vrs-ops-server/dist/index.js.map`
+  - `M vrs-ops-server/src/index.ts`
+  - `M vrs-server/lib/auth.js`
+  - `M vrs-server/routes/auth.js`
+  - `M vrs-server/src/lib/auth.ts`
+  - `M vrs-server/src/server.ts`
+  - `M whitelabel/malka.json`
+  - `M whitelabel/maple.json`
+  - `?? docs/`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-29T23:48:49.127Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-29
+- Branch: `codex/current-work`
+- HEAD: `e33b214`
+- Note: White-label hardening pass: documented tenant isolation/RLS direction, added tenant JWT signing-key support, tenant PWA/mobile asset slots, and tenant billing/interpreter-pool configuration.
+- Snapshot:
+Local changes at sync time:
+  - `M .env.example`
+  - `M ROADMAP.md`
+  - `M manifest.json`
+  - `M scripts/whitelabel-prebuild.js`
+  - `M status.md`
+  - `M vrs-ops-server/.env.example`
+  - `M vrs-ops-server/dist/index.d.ts.map`
+  - `M vrs-ops-server/dist/index.js`
+  - `M vrs-ops-server/dist/index.js.map`
+  - `M vrs-ops-server/src/index.ts`
+  - `M vrs-server/lib/auth.js`
+  - `M vrs-server/routes/auth.js`
+  - `M vrs-server/src/lib/auth.ts`
+  - `M vrs-server/src/server.ts`
+  - `M whitelabel/malka.json`
+  - `M whitelabel/maple.json`
+  - `?? docs/`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-29T23:28:49.462Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-29
+- Branch: `codex/current-work`
+- HEAD: `e33b214`
+- Note: Roadmap updated with a distinct future Malka ASL to English AI lab portal track, kept separate from production VRS/VRI until validated.
+- Snapshot:
+Local changes at sync time:
+  - `M ROADMAP.md`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-29T23:10:53.511Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-29
+- Branch: `codex/current-work`
 - HEAD: `62d3d18`
 - Note: Added tenant-scoped demo seed accounts for Ruthie and Nataly across Malka/Maple clients, plus Ruthie interpreter seeds; local auth smoke passed for both tenant hosts.
 - Snapshot:
@@ -13,7 +121,7 @@ Local changes at sync time:
   - `M  scripts/seed-tenant-demo-accounts.mjs`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-29T22:55:26.436Z
 
 <!-- status:current:start -->

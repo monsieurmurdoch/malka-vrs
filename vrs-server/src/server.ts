@@ -83,6 +83,10 @@ const server = http.createServer(app);
 const PORT = process.env.PORT || 3001;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const JWT_SECRET = process.env.VRS_SHARED_JWT_SECRET || process.env.JWT_SECRET;
+const TENANT_JWT_SECRETS = {
+    malka: process.env.VRS_JWT_SECRET_MALKA,
+    maple: process.env.VRS_JWT_SECRET_MAPLE
+};
 const API_RATE_LIMIT_WINDOW_MS = Number(process.env.API_RATE_LIMIT_WINDOW_MS || 60 * 1000);
 const API_RATE_LIMIT_MAX = Number(process.env.API_RATE_LIMIT_MAX || 300);
 
@@ -96,7 +100,10 @@ const LEGACY_ADMIN_LOGIN_ENABLED = process.env.ENABLE_LEGACY_ADMIN_LOGIN === 'tr
 let isDatabaseReady = false;
 
 // Initialize shared auth module
-auth.init(JWT_SECRET);
+auth.init({
+    defaultSecret: JWT_SECRET,
+    tenantSecrets: TENANT_JWT_SECRETS
+});
 
 // The production stack sits behind nginx, so trust the first proxy hop for
 // client IPs and secure-header handling.
@@ -299,6 +306,12 @@ function getHealthWarnings(): string[] {
     if (!CORS_ORIGINS.length) {
         warnings.push('cors_origins_empty');
     }
+    const tenantSecretStatus = auth.getTenantSecretStatus ? auth.getTenantSecretStatus() : {};
+    for (const tenantId of ['malka', 'maple']) {
+        if (!tenantSecretStatus[tenantId]) {
+            warnings.push(`tenant_jwt_secret_missing:${tenantId}`);
+        }
+    }
     return warnings;
 }
 
@@ -308,6 +321,7 @@ interface HealthSnapshot {
         databaseReady: boolean;
         billingReady: boolean;
         legacyAdminLoginDisabled: boolean;
+        tenantJwtSecretsConfigured: boolean;
         websocketReady: boolean;
     };
     queue: {
@@ -340,6 +354,7 @@ function getServiceHealthSnapshot(): HealthSnapshot {
             databaseReady: isDatabaseReady,
             billingReady: billingDb.isBillingDbReady(),
             legacyAdminLoginDisabled: !LEGACY_ADMIN_LOGIN_ENABLED,
+            tenantJwtSecretsConfigured: Object.values(auth.getTenantSecretStatus ? auth.getTenantSecretStatus() : {}).every(Boolean),
             websocketReady: Boolean(wss)
         },
         queue: {

@@ -8,6 +8,13 @@
     "supportUrl": "https://community.jitsi.org/",
     "inviteDomain": ""
   },
+  "domains": {
+    "clientVrs": "vrs.malkacomm.com",
+    "clientVri": "vri.malkacomm.com",
+    "interpreter": "terp.malkacomm.com",
+    "admin": "admin.malkacomm.com",
+    "aiLab": "asltoenglish.malkacomm.com"
+  },
   "theme": {
     "primary": "#0D1A38",
     "primaryLight": "#16164C",
@@ -33,7 +40,36 @@
     "favicon16": "favicon-16x16.png",
     "favicon32": "favicon-32x32.png",
     "appleTouchIcon": "apple-touch-icon.png",
-    "welcomeBackground": "welcome-background.png"
+    "welcomeBackground": "welcome-background.png",
+    "mobile": {
+      "appIcon": "apple-touch-icon.png",
+      "maskableIcon": "static/pwa/icons/iconMask.png",
+      "splash": "logo-deep-linking-mobile.png",
+      "notificationIcon": "favicon-32x32.png"
+    }
+  },
+  "operations": {
+    "defaultServiceModes": ["vrs"],
+    "billing": {
+      "currency": "USD",
+      "vriAslEnglishPerMinute": 1,
+      "invoicePrefix": "MALKA",
+      "billingAccountMode": "tenant-default"
+    },
+    "interpreterPools": {
+      "vrs": {
+        "id": "malka-vrs-default",
+        "languages": ["ASL", "English"]
+      },
+      "vri": {
+        "id": "malka-vri-corporate",
+        "languages": ["ASL", "English"]
+      },
+      "captioning": {
+        "id": "malka-captioning-default",
+        "languages": ["English"]
+      }
+    }
   },
   "features": {
     "vrs": { "enabled": true },

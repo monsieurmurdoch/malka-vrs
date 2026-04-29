@@ -8,6 +8,11 @@
     "supportUrl": "https://maplecommunications.ca/support",
     "inviteDomain": "vri.maplecomm.ca"
   },
+  "domains": {
+    "clientVri": "vri.maplecomm.ca",
+    "interpreter": "vri.maplecomm.ca",
+    "admin": "vri.maplecomm.ca"
+  },
   "theme": {
     "primary": "#E00000",
     "primaryLight": "#FF3B30",
@@ -34,7 +39,37 @@
     "favicon32": "",
     "appleTouchIcon": "",
     "socialImage": "maple-social-card.png",
-    "welcomeBackground": ""
+    "welcomeBackground": "",
+    "mobile": {
+      "appIcon": "maple-icon-white.png",
+      "maskableIcon": "maple-favicon.svg",
+      "splash": "maple-social-card.png",
+      "notificationIcon": "maple-favicon.svg"
+    }
+  },
+  "operations": {
+    "defaultServiceModes": ["vri"],
+    "billing": {
+      "currency": "CAD",
+      "vriAslEnglishPerMinute": 1.25,
+      "invoicePrefix": "MAPLE",
+      "billingAccountMode": "corporate"
+    },
+    "interpreterPools": {
+      "vri": {
+        "id": "maple-vri-default",
+        "languages": ["ASL", "LSQ", "English", "French"]
+      },
+      "vrs": {
+        "id": "maple-vrs-test",
+        "languages": ["ASL", "English"],
+        "testOnly": true
+      },
+      "captioning": {
+        "id": "maple-captioning-default",
+        "languages": ["English", "French"]
+      }
+    }
   },
   "features": {
     "vrs": { "enabled": true },

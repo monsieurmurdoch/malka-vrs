@@ -42,6 +42,10 @@ if (!JWT_SECRET) {
     console.error('Set it in your .env file before starting the server.');
     process.exit(1);
 }
+const TENANT_JWT_SECRETS = {
+    malka: process.env.VRS_JWT_SECRET_MALKA,
+    maple: process.env.VRS_JWT_SECRET_MAPLE
+};
 const AUTH_WINDOW_MS = Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
 const AUTH_MAX_ATTEMPTS = Number(process.env.AUTH_RATE_LIMIT_MAX_ATTEMPTS || 5);
 const DATA_DIR = path_1.default.resolve(__dirname, '..', 'data');
@@ -64,6 +68,57 @@ if (!BOOTSTRAP_SUPERADMIN_PASSWORD) {
 const BOOTSTRAP_SUPERADMIN_NAME = process.env.VRS_BOOTSTRAP_SUPERADMIN_NAME || 'Malka Superadmin';
 const MAX_AUDIT_EVENTS = 500;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:8080';
+function getJwtSecretForTenant(tenantId) {
+    return (tenantId && TENANT_JWT_SECRETS[tenantId]) || JWT_SECRET;
+}
+function verifyOpsToken(token) {
+    const decoded = jsonwebtoken_1.default.decode(token);
+    const tenantId = typeof decoded?.tenantId === 'string' ? decoded.tenantId : undefined;
+    const secrets = [
+        getJwtSecretForTenant(tenantId),
+        ...Object.values(TENANT_JWT_SECRETS),
+        JWT_SECRET
+    ].filter((secret, index, list) => Boolean(secret) && list.indexOf(secret) === index);
+    let lastError;
+    for (const secret of secrets) {
+        try {
+            return jsonwebtoken_1.default.verify(token, secret);
+        }
+        catch (error) {
+            lastError = error;
+        }
+    }
+    throw lastError;
+}
+function signOpsToken(payload) {
+    return jsonwebtoken_1.default.sign(payload, getJwtSecretForTenant(payload.tenantId));
+}
+function loadTenantConfigs() {
+    const configDir = path_1.default.resolve(__dirname, '..', '..', 'whitelabel');
+    if (!fs_1.default.existsSync(configDir))
+        return {};
+    return fs_1.default.readdirSync(configDir)
+        .filter(file => file.endsWith('.json'))
+        .reduce((configs, file) => {
+        try {
+            const config = JSON.parse(fs_1.default.readFileSync(path_1.default.join(configDir, file), 'utf8'));
+            configs[config.tenantId || file.replace(/\.json$/, '')] = {
+                appName: config.brand?.appName,
+                billing: config.operations?.billing || {},
+                defaultServiceModes: config.operations?.defaultServiceModes || [],
+                domains: config.domains || {},
+                interpreterPools: config.operations?.interpreterPools || {},
+                mobileAssets: config.assets?.mobile || {},
+                providerName: config.brand?.providerName
+            };
+        }
+        catch (error) {
+            console.warn(`[Ops] Failed to read tenant config ${file}:`, error instanceof Error ? error.message : error);
+        }
+        return configs;
+    }, {});
+}
+const TENANT_CONFIGS = loadTenantConfigs();
 // Middleware
 app.use((0, helmet_1.default)());
 app.use((0, cors_1.default)({
@@ -1082,7 +1137,7 @@ function authenticateToken(req, res, next) {
         return;
     }
     try {
-        const decoded = jsonwebtoken_1.default.verify(token, JWT_SECRET);
+        const decoded = verifyOpsToken(token);
         req.user = decoded;
         next();
     }
@@ -1246,7 +1301,7 @@ app.post('/api/auth/login', validateRequest(loginSchema), async (req, res) => {
         };
         await persistOpsState();
     }
-    const token = jsonwebtoken_1.default.sign({
+    const token = signOpsToken({
         userId,
         role: authRecord.role,
         email: authRecord.email,
@@ -1258,7 +1313,7 @@ app.post('/api/auth/login', validateRequest(loginSchema), async (req, res) => {
         iat: Math.floor(Date.now() / 1000),
         exp: Math.floor(Date.now() / 1000)
             + ((authRecord.role === 'interpreter' || authRecord.role === 'captioner') ? 8 * 60 * 60 : 12 * 60 * 60)
-    }, JWT_SECRET);
+    });
     auditAuth('login_success', {
         identifier: loginIdentifier,
         ip: req.ip,
@@ -1645,6 +1700,8 @@ app.get('/api/admin/tenants', authenticateToken, requireRole('superadmin'), (_re
     });
     res.json(Array.from(summaries.values()).map(summary => ({
         ...summary,
+        config: TENANT_CONFIGS[summary.tenantId] || {},
+        jwtSigningKeyConfigured: Boolean(TENANT_JWT_SECRETS[summary.tenantId]),
         serviceModes: Array.from(summary.serviceModes).sort()
     })).sort((a, b) => a.tenantId.localeCompare(b.tenantId)));
 });
