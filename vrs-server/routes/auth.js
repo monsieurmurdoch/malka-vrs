@@ -92,12 +92,12 @@ router.post('/client/register', authLimiter, validate(clientRegisterSchema), asy
     const { name, email, password, organization } = req.body;
 
     try {
-        const existing = await db.getClientByEmail(email);
+        const tenantId = inferTenantId(req);
+        const existing = await db.getClientByEmail(email, tenantId);
         if (existing) {
             return res.status(409).json({ error: 'Email already registered', code: 'CONFLICT' });
         }
 
-        const tenantId = inferTenantId(req);
         const serviceModes = defaultClientServiceModes(tenantId);
         const client = await db.createClient({ name, email, password, organization, serviceModes, tenantId });
 
@@ -139,7 +139,8 @@ router.post('/client/login', authLimiter, validate(loginSchema), async (req, res
     const { email, password } = req.body;
 
     try {
-        const client = await db.getClientByEmail(email);
+        const tenantId = inferTenantId(req);
+        const client = await db.getClientByEmail(email, tenantId);
         if (!client || !client.password_hash) {
             return res.status(401).json({ error: 'Invalid email or password', code: 'AUTH_FAILED' });
         }
@@ -180,7 +181,8 @@ router.post('/interpreter/login', authLimiter, validate(loginSchema), async (req
     const { email, password } = req.body;
 
     try {
-        const interpreter = await db.getInterpreterByEmail(email);
+        const tenantId = inferTenantId(req);
+        const interpreter = await db.getInterpreterByEmail(email, tenantId);
 
         if (!interpreter || !interpreter.password_hash) {
             return res.status(401).json({ error: 'Invalid email or password', code: 'AUTH_FAILED' });

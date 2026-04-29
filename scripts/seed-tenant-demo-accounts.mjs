@@ -87,6 +87,30 @@ const tenants = [
   }
 ];
 
+const sharedClientAccounts = [
+  {
+    email: 'ruthie@malkacomm.com',
+    name: 'Ruthie Demo Client',
+    organization: 'Malka Communications',
+    password: 'demo123'
+  },
+  {
+    email: 'nataly.malka@gmail.com',
+    name: 'Nataly Malka',
+    organization: 'Malka Communications',
+    password: 'demo123'
+  }
+];
+
+const sharedInterpreterAccounts = [
+  {
+    email: 'ruthie@malkacomm.com',
+    languages: ['ASL', 'English'],
+    name: 'Ruthie Demo Interpreter',
+    password: 'demo123'
+  }
+];
+
 function json(value) {
   return JSON.stringify(value);
 }
@@ -100,7 +124,7 @@ async function ensureClient(pool, tenantId, account) {
     const result = await pool.query(`
       INSERT INTO clients (id, name, email, password_hash, organization, service_modes, tenant_id)
       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
-      ON CONFLICT (email) DO UPDATE SET
+      ON CONFLICT (tenant_id, email) DO UPDATE SET
         name = EXCLUDED.name,
         password_hash = EXCLUDED.password_hash,
         organization = EXCLUDED.organization,
@@ -130,7 +154,7 @@ async function ensureInterpreter(pool, tenantId, account) {
     await pool.query(`
       INSERT INTO interpreters (id, name, email, password_hash, languages, active, service_modes, tenant_id)
       VALUES ($1, $2, $3, $4, $5::jsonb, true, $6::jsonb, $7)
-      ON CONFLICT (email) DO UPDATE SET
+      ON CONFLICT (tenant_id, email) DO UPDATE SET
         name = EXCLUDED.name,
         password_hash = EXCLUDED.password_hash,
         languages = EXCLUDED.languages,
@@ -220,7 +244,20 @@ async function main() {
 
     for (const tenant of tenants) {
       await ensureClient(pool, tenant.tenantId, tenant.client);
+      for (const client of sharedClientAccounts) {
+        await ensureClient(pool, tenant.tenantId, {
+          ...client,
+          organization: tenant.tenantId === 'maple' ? 'Maple Corporate Pilot' : client.organization,
+          serviceModes: tenant.tenantId === 'maple' ? ['vri'] : ['vrs']
+        });
+      }
       await ensureInterpreter(pool, tenant.tenantId, tenant.interpreter);
+      for (const interpreter of sharedInterpreterAccounts) {
+        await ensureInterpreter(pool, tenant.tenantId, {
+          ...interpreter,
+          serviceModes: tenant.tenantId === 'maple' ? ['vri'] : ['vrs']
+        });
+      }
       await ensureCaptioner(pool, tenant.captioner);
       await ensureOpsAccount(opsPool, tenant.tenantId, 'admin', tenant.admin, tenant.tenantId === 'maple' ? ['vri'] : ['vrs']);
       await ensureOpsAccount(opsPool, tenant.tenantId, 'interpreter', tenant.interpreter, tenant.interpreter.serviceModes);
@@ -236,6 +273,8 @@ async function main() {
         captioner: { email: tenant.captioner.email, password: tenant.captioner.password },
         client: { email: tenant.client.email, password: tenant.client.password },
         interpreter: { email: tenant.interpreter.email, password: tenant.interpreter.password, username: tenant.interpreter.username },
+        sharedClients: sharedClientAccounts.map(account => ({ email: account.email, password: account.password })),
+        sharedInterpreters: sharedInterpreterAccounts.map(account => ({ email: account.email, password: account.password })),
         tenantId: tenant.tenantId
       })),
       success: true

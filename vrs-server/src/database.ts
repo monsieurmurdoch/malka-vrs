@@ -91,7 +91,7 @@ async function createTables() {
         CREATE TABLE IF NOT EXISTS interpreters (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
-            email TEXT UNIQUE NOT NULL,
+            email TEXT NOT NULL,
             password_hash TEXT,
             languages JSONB DEFAULT '["ASL"]',
             service_modes JSONB DEFAULT '["vrs"]',
@@ -119,7 +119,7 @@ async function createTables() {
         CREATE TABLE IF NOT EXISTS clients (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
-            email TEXT UNIQUE NOT NULL,
+            email TEXT NOT NULL,
             password_hash TEXT,
             organization TEXT DEFAULT 'Personal',
             service_modes JSONB DEFAULT '["vrs"]',
@@ -317,6 +317,11 @@ async function createTables() {
         ALTER TABLE clients ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'malka';
         ALTER TABLE interpreters ADD COLUMN IF NOT EXISTS service_modes JSONB DEFAULT '["vrs"]';
         ALTER TABLE interpreters ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'malka';
+
+        ALTER TABLE clients DROP CONSTRAINT IF EXISTS clients_email_key;
+        ALTER TABLE interpreters DROP CONSTRAINT IF EXISTS interpreters_email_key;
+        CREATE UNIQUE INDEX IF NOT EXISTS clients_tenant_email_idx ON clients (tenant_id, email);
+        CREATE UNIQUE INDEX IF NOT EXISTS interpreters_tenant_email_idx ON interpreters (tenant_id, email);
         ALTER TABLE missed_calls ADD COLUMN IF NOT EXISTS callee_client_id TEXT;
         ALTER TABLE missed_calls ADD COLUMN IF NOT EXISTS room_name TEXT;
         ALTER TABLE missed_calls ADD COLUMN IF NOT EXISTS seen BOOLEAN DEFAULT false;
@@ -703,8 +708,10 @@ async function getInterpreter(id: any) {
     };
 }
 
-async function getInterpreterByEmail(email: any) {
-    const rows = await runQuery('SELECT * FROM interpreters WHERE email = $1', [email]);
+async function getInterpreterByEmail(email: any, tenantId?: any) {
+    const rows = tenantId
+        ? await runQuery('SELECT * FROM interpreters WHERE email = $1 AND tenant_id = $2', [email, tenantId])
+        : await runQuery('SELECT * FROM interpreters WHERE email = $1 ORDER BY tenant_id = $2 DESC LIMIT 1', [email, 'malka']);
     if (rows.length === 0) return null;
 
     const i = rows[0];
@@ -969,8 +976,10 @@ async function updateClient(id: any, { name, email, organization, serviceModes, 
     );
 }
 
-async function getClientByEmail(email: any) {
-    const rows = await runQuery('SELECT * FROM clients WHERE email = $1', [email]);
+async function getClientByEmail(email: any, tenantId?: any) {
+    const rows = tenantId
+        ? await runQuery('SELECT * FROM clients WHERE email = $1 AND tenant_id = $2', [email, tenantId])
+        : await runQuery('SELECT * FROM clients WHERE email = $1 ORDER BY tenant_id = $2 DESC LIMIT 1', [email, 'malka']);
     return rows[0] ? { ...rows[0], service_modes: normalizeServiceModes(rows[0].service_modes) } : rows[0];
 }
 

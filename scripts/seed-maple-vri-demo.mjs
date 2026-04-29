@@ -47,6 +47,31 @@ const mapleVrsInterpreter = {
   username: process.env.MAPLE_VRS_TEST_INTERPRETER_USERNAME || 'maple.vrs.test'
 };
 
+const mapleSharedClients = [
+  {
+    email: 'ruthie@malkacomm.com',
+    name: 'Ruthie Demo Client',
+    organization: process.env.MAPLE_VRI_ORGANIZATION || 'Maple Corporate Pilot',
+    password: 'demo123'
+  },
+  {
+    email: 'nataly.malka@gmail.com',
+    name: 'Nataly Malka',
+    organization: process.env.MAPLE_VRI_ORGANIZATION || 'Maple Corporate Pilot',
+    password: 'demo123'
+  }
+];
+
+const mapleSharedInterpreters = [
+  {
+    email: 'ruthie@malkacomm.com',
+    languages: ['ASL', 'English'],
+    name: 'Ruthie Demo Interpreter',
+    password: 'demo123',
+    serviceModes: ['vri']
+  }
+];
+
 const mapleAdmin = {
   email: process.env.MAPLE_VRI_ADMIN_EMAIL || 'admin@maple.example',
   languages: ['English', 'French', 'ASL', 'LSQ'],
@@ -64,7 +89,7 @@ async function q(sql, params = []) {
 }
 
 async function ensureClient() {
-  let client = await queueDb.getClientByEmail(mapleClient.email);
+  let client = await queueDb.getClientByEmail(mapleClient.email, 'maple');
   if (!client) {
     client = await queueDb.createClient({ ...mapleClient, serviceModes: ['vri'], tenantId: 'maple' });
   } else {
@@ -79,11 +104,11 @@ async function ensureClient() {
 
   await q('DELETE FROM client_phone_numbers WHERE client_id = $1', [client.id]);
   await queueDb.getClientPreferences(client.id);
-  return queueDb.getClientByEmail(mapleClient.email);
+  return queueDb.getClientByEmail(mapleClient.email, 'maple');
 }
 
 async function ensureVrsTestClient() {
-  let client = await queueDb.getClientByEmail(mapleVrsClient.email);
+  let client = await queueDb.getClientByEmail(mapleVrsClient.email, 'maple');
   if (!client) {
     client = await queueDb.createClient({ ...mapleVrsClient, serviceModes: ['vrs'], tenantId: 'maple' });
   } else {
@@ -103,11 +128,11 @@ async function ensureVrsTestClient() {
     [uuidv4(), client.id, mapleVrsClient.phoneNumber]
   );
   await queueDb.getClientPreferences(client.id);
-  return queueDb.getClientByEmail(mapleVrsClient.email);
+  return queueDb.getClientByEmail(mapleVrsClient.email, 'maple');
 }
 
 async function ensureInterpreter() {
-  let interpreter = await queueDb.getInterpreterByEmail(mapleInterpreter.email);
+  let interpreter = await queueDb.getInterpreterByEmail(mapleInterpreter.email, 'maple');
   if (!interpreter) {
     interpreter = await queueDb.createInterpreter({ ...mapleInterpreter, serviceModes: ['vri'], tenantId: 'maple' });
   }
@@ -121,11 +146,11 @@ async function ensureInterpreter() {
     tenantId: 'maple'
   });
   await q('UPDATE interpreters SET status = $1, last_active = NOW() WHERE id = $2', ['online', interpreter.id]);
-  return queueDb.getInterpreterByEmail(mapleInterpreter.email);
+  return queueDb.getInterpreterByEmail(mapleInterpreter.email, 'maple');
 }
 
 async function ensureVrsTestInterpreter() {
-  let interpreter = await queueDb.getInterpreterByEmail(mapleVrsInterpreter.email);
+  let interpreter = await queueDb.getInterpreterByEmail(mapleVrsInterpreter.email, 'maple');
   if (!interpreter) {
     interpreter = await queueDb.createInterpreter({ ...mapleVrsInterpreter, serviceModes: ['vrs'], tenantId: 'maple' });
   }
@@ -138,7 +163,43 @@ async function ensureVrsTestInterpreter() {
     serviceModes: ['vrs'],
     tenantId: 'maple'
   });
-  return queueDb.getInterpreterByEmail(mapleVrsInterpreter.email);
+  return queueDb.getInterpreterByEmail(mapleVrsInterpreter.email, 'maple');
+}
+
+async function ensureMapleSharedClient(account) {
+  let client = await queueDb.getClientByEmail(account.email, 'maple');
+  if (!client) {
+    client = await queueDb.createClient({ ...account, serviceModes: ['vri'], tenantId: 'maple' });
+  } else {
+    await queueDb.updateClient(client.id, {
+      name: account.name,
+      email: account.email,
+      organization: account.organization,
+      serviceModes: ['vri'],
+      tenantId: 'maple'
+    });
+  }
+
+  await q('DELETE FROM client_phone_numbers WHERE client_id = $1', [client.id]);
+  await queueDb.getClientPreferences(client.id);
+  return queueDb.getClientByEmail(account.email, 'maple');
+}
+
+async function ensureMapleSharedInterpreter(account) {
+  let interpreter = await queueDb.getInterpreterByEmail(account.email, 'maple');
+  if (!interpreter) {
+    interpreter = await queueDb.createInterpreter({ ...account, tenantId: 'maple' });
+  }
+
+  await queueDb.updateInterpreter(interpreter.id, {
+    active: true,
+    email: account.email,
+    languages: account.languages,
+    name: account.name,
+    serviceModes: account.serviceModes,
+    tenantId: 'maple'
+  });
+  return queueDb.getInterpreterByEmail(account.email, 'maple');
 }
 
 async function ensureOpsSchema(pool) {
@@ -253,6 +314,14 @@ async function main() {
   const vrsClient = await ensureVrsTestClient();
   const interpreter = await ensureInterpreter();
   const vrsInterpreter = await ensureVrsTestInterpreter();
+  const sharedClients = [];
+  for (const account of mapleSharedClients) {
+    sharedClients.push(await ensureMapleSharedClient(account));
+  }
+  const sharedInterpreters = [];
+  for (const account of mapleSharedInterpreters) {
+    sharedInterpreters.push(await ensureMapleSharedInterpreter(account));
+  }
   const ops = await ensureOpsAccounts();
 
   await queueDb.logActivity('maple_vri_demo_seeded', 'Maple VRI demo accounts ensured', {
@@ -267,12 +336,16 @@ async function main() {
       vrsTestClient: { email: mapleVrsClient.email, password: mapleVrsClient.password, phoneNumber: mapleVrsClient.phoneNumber },
       interpreter: { password: mapleInterpreter.password, username: mapleInterpreter.username },
       vrsTestInterpreter: { password: mapleVrsInterpreter.password, username: mapleVrsInterpreter.username },
+      sharedClients: mapleSharedClients.map(account => ({ email: account.email, password: account.password })),
+      sharedInterpreters: mapleSharedInterpreters.map(account => ({ email: account.email, password: account.password })),
       mapleAdmin: { password: mapleAdmin.password, username: mapleAdmin.username }
     },
     client: { email: client.email, id: client.id, name: client.name },
     vrsTestClient: { email: vrsClient.email, id: vrsClient.id, name: vrsClient.name },
     interpreter: { email: interpreter.email, id: interpreter.id, name: interpreter.name },
     vrsTestInterpreter: { email: vrsInterpreter.email, id: vrsInterpreter.id, name: vrsInterpreter.name },
+    sharedClients: sharedClients.map(account => ({ email: account.email, id: account.id, name: account.name })),
+    sharedInterpreters: sharedInterpreters.map(account => ({ email: account.email, id: account.id, name: account.name })),
     ops,
     success: true
   }, null, 2));
