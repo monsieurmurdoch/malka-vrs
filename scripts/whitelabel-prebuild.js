@@ -115,16 +115,27 @@ console.log(`[whitelabel] Generated: whitelabel-runtime.js`);
 // ---------------------------------------------------------------------------
 function generateTitleHTML(cfg) {
     const logoAsset = cfg.assets.logo || 'malka-logo.png';
+    const socialAsset = cfg.assets.socialImage || logoAsset;
+    const socialImagePath = `images/${socialAsset}?v=2`;
+    const socialImage = cfg.brand.inviteDomain
+        ? `https://${cfg.brand.inviteDomain}/${socialImagePath}`
+        : socialImagePath;
 
     return [
         `<title>${cfg.brand.appName}</title>`,
         `<meta property="og:title" content="${cfg.brand.appName}"/>`,
-        `<meta property="og:image" content="images/${logoAsset}?v=1"/>`,
+        `<meta property="og:type" content="website"/>`,
+        `<meta property="og:image" content="${socialImage}"/>`,
         `<meta property="og:description" content="${cfg.brand.description}"/>`,
+        `<meta name="twitter:card" content="summary_large_image"/>`,
+        `<meta name="twitter:title" content="${cfg.brand.appName}"/>`,
+        `<meta name="twitter:description" content="${cfg.brand.description}"/>`,
+        `<meta name="twitter:image" content="${socialImage}"/>`,
         `<meta description="${cfg.brand.description}"/>`,
+        `<meta name="description" content="${cfg.brand.description}"/>`,
         `<meta itemprop="name" content="${cfg.brand.appName}"/>`,
         `<meta itemprop="description" content="${cfg.brand.description}"/>`,
-        `<meta itemprop="image" content="images/${logoAsset}?v=1"/>`,
+        `<meta itemprop="image" content="${socialImage}"/>`,
         `<link rel="icon" href="images/${cfg.assets.favicon}?v=1">`
     ].join('\n');
 }

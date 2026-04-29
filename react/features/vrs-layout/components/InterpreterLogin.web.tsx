@@ -158,6 +158,29 @@ const useStyles = makeStyles()(theme => ({
         boxSizing: 'border-box' as const,
     },
 
+    passwordControl: {
+        position: 'relative',
+    },
+
+    passwordInput: {
+        paddingRight: '92px',
+    },
+
+    passwordToggle: {
+        position: 'absolute',
+        right: '7px',
+        top: '7px',
+        height: '30px',
+        padding: '0 10px',
+        borderRadius: '7px',
+        border: '1px solid rgba(255, 255, 255, 0.16)',
+        background: 'rgba(255, 255, 255, 0.1)',
+        color: 'rgba(255, 255, 255, 0.78)',
+        cursor: 'pointer',
+        fontSize: '12px',
+        fontWeight: 700,
+    },
+
     helperText: {
         fontSize: '0.85rem',
         opacity: 0.75,
@@ -397,6 +420,7 @@ const InterpreterLogin = ({ t, roomName }: IProps) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [authError, setAuthError] = useState('');
     const [connectionMessage, setConnectionMessage] = useState('');
     const [interpreterName, setInterpreterName] = useState('Interpreter');
@@ -707,15 +731,24 @@ const InterpreterLogin = ({ t, roomName }: IProps) => {
                                     <label className={classes.fieldLabel} htmlFor='vrs-interpreter-password'>
                                         Password
                                     </label>
-                                    <input
-                                        id='vrs-interpreter-password'
-                                        className={classes.input}
-                                        type='password'
-                                        autoComplete='current-password'
-                                        value={password}
-                                        onChange={event => setPassword(event.target.value)}
-                                        placeholder='Enter your password'
-                                        required />
+                                    <div className={classes.passwordControl}>
+                                        <input
+                                            id='vrs-interpreter-password'
+                                            className={cx(classes.input, classes.passwordInput)}
+                                            type={showPassword ? 'text' : 'password'}
+                                            autoComplete='current-password'
+                                            value={password}
+                                            onChange={event => setPassword(event.target.value)}
+                                            placeholder='Enter your password'
+                                            required />
+                                        <button
+                                            type='button'
+                                            className={classes.passwordToggle}
+                                            onClick={() => setShowPassword(value => !value)}
+                                            aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                                            {showPassword ? 'Hide' : 'Show'}
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className={classes.helperText}>
                                     Interpreter queue access now requires a real server-backed login before calls can be accepted.

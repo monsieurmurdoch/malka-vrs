@@ -1132,6 +1132,37 @@
         .auth-field::placeholder { color: rgba(255,255,255,0.3); }
         .auth-field:focus { outline: none; border-color: #4caf50; }
 
+        .auth-password-wrap {
+            position: relative;
+        }
+
+        .auth-password-wrap .auth-field {
+            padding-right: 92px;
+        }
+
+        .auth-password-toggle {
+            align-items: center;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.16);
+            border-radius: 7px;
+            color: rgba(255,255,255,0.78);
+            cursor: pointer;
+            display: inline-flex;
+            font-size: 12px;
+            font-weight: 700;
+            height: 30px;
+            justify-content: center;
+            padding: 0 10px;
+            position: absolute;
+            right: 7px;
+            top: 7px;
+        }
+
+        .auth-password-toggle:hover {
+            background: rgba(255,255,255,0.16);
+            color: #fff;
+        }
+
         .auth-submit {
             width: 100%;
             padding: 13px;
@@ -2132,6 +2163,18 @@
             render();
         }
 
+        function togglePasswordVisibility(targetId, button) {
+            const input = document.getElementById(targetId);
+            if (!input) return;
+            const shouldShow = input.type === 'password';
+            input.type = shouldShow ? 'text' : 'password';
+            if (button) {
+                button.textContent = shouldShow ? 'Hide' : 'Show';
+                button.setAttribute('aria-label', shouldShow ? 'Hide password' : 'Show password');
+            }
+            input.focus();
+        }
+
         function syncSelfPreview() {
             attachSelfPreview();
             if (state.mediaPreview.enabled && !previewStream && state.mediaPreview.status !== 'requesting') {
@@ -3011,6 +3054,7 @@
                 case 'stop-self-preview': return stopSelfPreview();
                 case 'select-camera-device': return selectCameraDevice(element.value);
                 case 'select-mic-device': return selectMicDevice(element.value);
+                case 'toggle-password-visibility': return togglePasswordVisibility(element.dataset.target, element);
                 case 'open-profile-section': return openProfileSection(element.dataset.sectionId);
                 case 'set-profile-view':
                     state.profileView = element.dataset.view || 'home';
@@ -3197,6 +3241,15 @@
             renderLogin(app);
         }
 
+        function renderAuthPasswordField(id, placeholder, autocomplete, enterAction) {
+            return `
+                <div class="auth-password-wrap">
+                    <input type="password" id="${escapeHtml(id)}" class="auth-field" placeholder="${escapeHtml(placeholder)}" autocomplete="${escapeHtml(autocomplete || 'current-password')}" ${enterAction ? `data-enter-action="${escapeHtml(enterAction)}"` : ''}>
+                    <button type="button" class="auth-password-toggle" data-action="toggle-password-visibility" data-target="${escapeHtml(id)}" aria-label="Show password">Show</button>
+                </div>
+            `;
+        }
+
         function renderLogin(app) {
             const tab = state.authTab;
             app.innerHTML = `
@@ -3217,8 +3270,7 @@
 
                         ${tab === 'email' ? `
                             <input type="email" id="login-email" class="auth-field" placeholder="Email address" autocomplete="email">
-                            <input type="password" id="login-password" class="auth-field" placeholder="Password" autocomplete="current-password"
-                                data-enter-action="login-email">
+                            ${renderAuthPasswordField('login-password', 'Password', 'current-password', 'login-email')}
                             <button class="auth-submit" data-action="login-email" ${state.authLoading ? 'disabled' : ''}>
                                 ${state.authLoading ? 'Signing in...' : 'Sign In'}
                             </button>
@@ -3226,8 +3278,7 @@
 
                         ${tab === 'phone' ? `
                             <input type="tel" id="login-phone" class="auth-field" placeholder="+1-555-XXXX" autocomplete="tel">
-                            <input type="password" id="login-password" class="auth-field" placeholder="Password" autocomplete="current-password"
-                                data-enter-action="login-phone">
+                            ${renderAuthPasswordField('login-password', 'Password', 'current-password', 'login-phone')}
                             <button class="auth-submit" data-action="login-phone" ${state.authLoading ? 'disabled' : ''}>
                                 ${state.authLoading ? 'Signing in...' : 'Sign In'}
                             </button>
@@ -3266,7 +3317,7 @@
 
                         <input type="text" id="reg-name" class="auth-field" placeholder="Full name">
                         <input type="email" id="reg-email" class="auth-field" placeholder="Email address" autocomplete="email">
-                        <input type="password" id="reg-password" class="auth-field" placeholder="Password (min 8 characters)" autocomplete="new-password">
+                        ${renderAuthPasswordField('reg-password', 'Password (min 8 characters)', 'new-password')}
                         <input type="text" id="reg-org" class="auth-field" placeholder="Organization (optional)">
                         <button class="auth-submit" data-action="register" ${state.authLoading ? 'disabled' : ''}>
                             ${state.authLoading ? 'Creating account...' : 'Create Account'}
@@ -3316,9 +3367,8 @@
                         ${state.authError ? '<div class="auth-error">' + state.authError + '</div>' : ''}
                         ${state.authSuccess ? '<div class="auth-success">' + state.authSuccess + '</div>' : ''}
 
-                        <input type="password" id="reset-new-password" class="auth-field" placeholder="New password (min 8 characters)" autocomplete="new-password">
-                        <input type="password" id="reset-confirm-password" class="auth-field" placeholder="Confirm new password"
-                            data-enter-action="reset-password">
+                        ${renderAuthPasswordField('reset-new-password', 'New password (min 8 characters)', 'new-password')}
+                        ${renderAuthPasswordField('reset-confirm-password', 'Confirm new password', 'new-password', 'reset-password')}
                         <button class="auth-submit" data-action="reset-password" ${state.authLoading ? 'disabled' : ''}>
                             ${state.authLoading ? 'Resetting...' : 'Reset Password'}
                         </button>

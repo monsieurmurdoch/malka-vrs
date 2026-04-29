@@ -6,6 +6,32 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-29
 - Branch: `codex/main-prod-sync`
+- HEAD: `b97b2f4`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  client-profile.html`
+  - `M  css/_welcome_page.scss`
+  - `M  css/all.css`
+  - `A  images/maple-social-card.png`
+  - `M  libs/app.bundle.min.js`
+  - `M  react/features/vrs-layout/components/InterpreterLogin.web.tsx`
+  - `M  react/features/welcome/components/WelcomePage.web.tsx`
+  - `M  scripts/whitelabel-prebuild.js`
+  - `M  title.html`
+  - `M  whitelabel/maple.json`
+  - `A  whitelabel/maple/assets/maple-social-card.png`
+  - `A  whitelabel/maple/assets/maple-social-card.svg`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-29T04:54:55.530Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-29
+- Branch: `codex/main-prod-sync`
 - HEAD: `d6ab526`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -14,7 +40,7 @@ Local changes at sync time:
   - `M  interpreter-profile.html`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-29T04:33:41.729Z
 
 <!-- status:current:start -->

@@ -80,6 +80,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
             selectedTab: getInitialSelectedTab(),
             email: '',
             password: '',
+            showPassword: false,
             name: '',
             isLogin: true,
             isSubmitting: false,
@@ -115,6 +116,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
         this._handleEmailChange = this._handleEmailChange.bind(this);
         this._handlePasswordChange = this._handlePasswordChange.bind(this);
         this._handleNameChange = this._handleNameChange.bind(this);
+        this._togglePasswordVisibility = this._togglePasswordVisibility.bind(this);
         this._toggleAuthMode = this._toggleAuthMode.bind(this);
     }
 
@@ -207,7 +209,14 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
     _toggleAuthMode() {
         this.setState((prev: any) => ({
             isLogin: !prev.isLogin,
+            showPassword: false,
             error: ''
+        }) as any);
+    }
+
+    _togglePasswordVisibility() {
+        this.setState((prev: any) => ({
+            showPassword: !prev.showPassword
         }) as any);
     }
 
@@ -326,6 +335,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
             selectedTab,
             email,
             password,
+            showPassword,
             name,
             isLogin,
             isSubmitting,
@@ -478,15 +488,26 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
 
                             <div className = 'vrs-auth-field'>
                                 <label htmlFor = 'vrs-password'>Password</label>
-                                <input
-                                    autoComplete = 'current-password'
-                                    disabled = { isSubmitting }
-                                    id = 'vrs-password'
-                                    onChange = { this._handlePasswordChange }
-                                    placeholder = '••••••••'
-                                    required = { true }
-                                    type = 'password'
-                                    value = { password } />
+                                <div className = 'vrs-password-control'>
+                                    <input
+                                        autoComplete = { isLogin ? 'current-password' : 'new-password' }
+                                        disabled = { isSubmitting }
+                                        id = 'vrs-password'
+                                        onChange = { this._handlePasswordChange }
+                                        placeholder = '••••••••'
+                                        required = { true }
+                                        type = { showPassword ? 'text' : 'password' }
+                                        value = { password } />
+                                    <button
+                                        aria-label = { showPassword ? 'Hide password' : 'Show password' }
+                                        aria-pressed = { showPassword }
+                                        className = 'vrs-password-toggle'
+                                        disabled = { isSubmitting }
+                                        onClick = { this._togglePasswordVisibility }
+                                        type = 'button'>
+                                        {showPassword ? 'Hide' : 'Show'}
+                                    </button>
+                                </div>
                             </div>
 
                             <button

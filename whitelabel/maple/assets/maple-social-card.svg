@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">MapleVRI</title>
+  <desc id="desc">MapleVRI video remote interpreting preview card.</desc>
+  <rect width="1200" height="630" fill="#fff7f7"/>
+  <rect x="64" y="64" width="1072" height="502" rx="72" fill="#e00000"/>
+  <rect x="136" y="152" width="236" height="236" rx="48" fill="#ffffff"/>
+  <image href="maple-icon-white.png" x="164" y="180" width="180" height="180" preserveAspectRatio="xMidYMid meet" filter="url(#redLeaf)"/>
+  <text x="430" y="285" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="96" font-weight="800">MapleVRI</text>
+  <text x="438" y="356" fill="#ffffff" fill-opacity="0.92" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="600">Video Remote Interpreting</text>
+  <text x="438" y="420" fill="#ffffff" fill-opacity="0.72" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="500">vri.maplecomm.ca</text>
+  <defs>
+    <filter id="redLeaf" color-interpolation-filters="sRGB">
+      <feColorMatrix type="matrix" values="0 0 0 0 0.878 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0"/>
+    </filter>
+  </defs>
+</svg>
