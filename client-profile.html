@@ -18,6 +18,7 @@
 
         /* Header */
         .profile-header {
+            gap: 16px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -29,8 +30,9 @@
 
         .profile-header-left {
             display: flex;
-            align-items: baseline;
+            align-items: center;
             gap: 12px;
+            min-width: 0;
         }
 
         .profile-header-logo {
@@ -47,7 +49,9 @@
         .profile-header-right {
             display: flex;
             align-items: center;
+            flex-wrap: wrap;
             gap: 16px;
+            justify-content: flex-end;
         }
 
         .profile-user-name {
@@ -83,6 +87,11 @@
 
         .profile-nav-btn:hover {
             background: rgba(255,255,255,0.18);
+        }
+
+        .profile-nav-btn.active {
+            background: rgba(255,255,255,0.24);
+            border-color: rgba(255,255,255,0.42);
         }
 
         /* Main grid */
@@ -364,8 +373,7 @@
         .vri-console-shell {
             display: grid;
             gap: 18px;
-            grid-template-columns: minmax(360px, 1.15fr) minmax(320px, 0.85fr);
-            min-height: calc(100vh - 150px);
+            grid-template-columns: minmax(0, 1fr);
         }
 
         .vri-self-card {
@@ -373,20 +381,19 @@
         }
 
         .vri-self-card .self-preview-frame {
-            min-height: clamp(420px, 58vh, 720px);
+            min-height: clamp(420px, 66vh, 760px);
         }
 
         .vri-session-card {
-            align-content: center;
             display: grid;
-            gap: 20px;
+            gap: 16px;
         }
 
-        .vri-session-topbar {
+        .vri-action-row {
             align-items: center;
-            display: flex;
-            gap: 10px;
-            justify-content: space-between;
+            display: grid;
+            gap: 18px;
+            grid-template-columns: minmax(240px, 0.42fr) minmax(0, 0.58fr);
         }
 
         .vri-session-eyebrow {
@@ -397,26 +404,11 @@
             text-transform: uppercase;
         }
 
-        .vri-settings-gear {
-            align-items: center;
-            background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.18);
-            border-radius: 999px;
-            color: #fff;
-            cursor: pointer;
-            display: inline-flex;
-            font-size: 20px;
-            height: 44px;
-            justify-content: center;
-            line-height: 1;
-            width: 44px;
-        }
-
         .vri-session-title {
             color: rgba(255,255,255,0.95);
-            font-size: clamp(34px, 4vw, 58px);
+            font-size: clamp(24px, 3vw, 40px);
             font-weight: 800;
-            line-height: 1;
+            line-height: 1.08;
             margin: 0;
         }
 
@@ -429,14 +421,8 @@
 
         .vri-request-btn {
             border-radius: 12px;
-            font-size: clamp(20px, 2.2vw, 30px);
-            min-height: 86px;
-        }
-
-        .vri-secondary-actions {
-            display: grid;
-            gap: 10px;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            font-size: clamp(20px, 2vw, 28px);
+            min-height: 78px;
         }
 
         .vri-state-grid,
@@ -501,7 +487,6 @@
             color: #16212a;
         }
 
-        body.theme-light .vri-settings-gear,
         body.theme-light .vri-state-item,
         body.theme-light .usage-summary-card,
         body.theme-light .vri-inline-section {
@@ -1406,9 +1391,14 @@
         }
 
         body.theme-maple .profile-header-logo {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 8px 22px rgba(69, 0, 0, 0.2);
             height: 54px;
             max-width: 230px;
             object-fit: contain;
+            padding: 8px 12px;
+            width: auto;
         }
 
         body.theme-maple .profile-header-title,
@@ -1511,7 +1501,6 @@
             color: #111;
         }
 
-        body.theme-maple .vri-settings-gear,
         body.theme-maple .vri-state-item,
         body.theme-maple .usage-summary-card,
         body.theme-maple .vri-inline-section {
@@ -1572,7 +1561,7 @@
                 min-height: clamp(300px, 58vh, 520px);
             }
 
-            .vri-secondary-actions,
+            .vri-action-row,
             .vri-state-grid,
             .vrs-action-strip,
             .usage-summary-grid {
@@ -1625,9 +1614,7 @@
 
         function brandLogo(preferWhite) {
             if (IS_MAPLE) {
-                return preferWhite
-                    ? (BRAND.assets?.logoWhite || 'images/logo-white.svg')
-                    : (BRAND.assets?.logo || 'images/logo.svg');
+                return 'images/maple-logo-original.png';
             }
 
             return preferWhite ? 'images/malka-logo-white.png' : 'images/malka-logo.png';
@@ -2720,18 +2707,24 @@
             el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
-        function renderVriClientConsole(profile, user, preferences, calls, canUseVrs) {
+        function renderVriClientConsole(profile, user, preferences, calls) {
             const orgName = profile?.organization || user.organization || brandName();
             const connectionLabel = state.wsConnected ? 'Ready' : 'Connecting';
-
-            return `
+            const profileView = ['settings', 'usage'].includes(state.profileView) ? state.profileView : 'home';
+            const navButton = (view, label) => `
+                <button class="profile-nav-btn ${profileView === view ? 'active' : ''}" data-action="set-profile-view" data-view="${view}">${label}</button>
+            `;
+            const header = title => `
                 <div class="profile-header">
                     <div class="profile-header-left">
                         <img src="${brandLogo(true)}" alt="${brandName()}" class="profile-header-logo">
-                        <span class="profile-header-title">VRI Session Console</span>
+                        <span class="profile-header-title">${title}</span>
                     </div>
                     <div class="profile-header-right">
                         <span class="profile-user-name">${escapeHtml(orgName)}</span>
+                        ${navButton('home', 'Home')}
+                        ${navButton('usage', 'Billing & Usage')}
+                        ${navButton('settings', 'Settings')}
                         <button class="sign-out-btn" data-action="sign-out">Sign Out</button>
                     </div>
                 </div>
@@ -2739,24 +2732,46 @@
                 <div class="ws-status ${state.wsConnected ? 'ws-connected' : 'ws-disconnected'}" id="ws-status">
                     ${state.wsConnected ? 'Connected' : 'Reconnecting...'}
                 </div>
+            `;
+
+            if (profileView === 'settings') {
+                return `
+                    ${header('Client Settings')}
+
+                    <div class="profile-main settings-view">
+                        ${renderClientSettingsSection(profile, user, preferences, true)}
+                        ${renderPasswordSection()}
+                    </div>
+                `;
+            }
+
+            if (profileView === 'usage') {
+                return `
+                    ${header('Billing & Usage')}
+
+                    <div class="profile-main settings-view">
+                        ${renderUsageSection(calls, true)}
+                    </div>
+                `;
+            }
+
+            return `
+                ${header('VRI Session Console')}
 
                 <div class="profile-main vri-console">
                     <div class="vri-console-shell">
                         ${renderSelfPreviewCard('vri-self-card')}
 
                         <div class="card vri-session-card">
-                            <div class="vri-session-topbar">
-                                <div class="vri-session-eyebrow">Corporate VRI</div>
-                                <button class="vri-settings-gear" data-action="open-profile-section" data-section-id="profile-settings-section" aria-label="Open settings">&#9881;</button>
-                            </div>
-                            <h1 class="vri-session-title">Start an interpreted session</h1>
-                            <p class="vri-session-copy">
-                                This room opens after an interpreter confirms. Camera preview is here so the Deaf and hearing participants can prepare together; microphone stays muted by default.
-                            </p>
-                            <button class="start-call-btn vri-request-btn" data-action="request-interpreter">Request Interpreter</button>
-                            <div class="vri-secondary-actions">
-                                <button class="quick-action-btn" data-action="open-profile-section" data-section-id="profile-usage-section">Billing & Usage</button>
-                                <button class="quick-action-btn" data-action="open-profile-section" data-section-id="profile-settings-section">Settings</button>
+                            <div class="vri-action-row">
+                                <button class="start-call-btn vri-request-btn" data-action="request-interpreter">Request Interpreter</button>
+                                <div>
+                                    <div class="vri-session-eyebrow">Corporate VRI</div>
+                                    <h1 class="vri-session-title">Start an interpreted session</h1>
+                                    <p class="vri-session-copy">
+                                        This room opens after an interpreter confirms. Camera preview is here so the Deaf and hearing participants can prepare together; microphone stays muted by default.
+                                    </p>
+                                </div>
                             </div>
                             <div class="vri-state-grid">
                                 <div class="vri-state-item">
@@ -2772,27 +2787,6 @@
                                     <div class="vri-state-value">Muted</div>
                                 </div>
                             </div>
-                            ${canUseVrs ? `
-                                <details class="vri-inline-section">
-                                    <summary>VRS Tools</summary>
-                                    <div class="section-body">
-                                        <div class="dialer-row">
-                                            <input type="tel" id="dial-phone" class="dialer-input" placeholder="+1-555-XXXX"
-                                                data-enter-action="dial-via-interpreter">
-                                            <button class="dialer-btn" data-action="dial-via-interpreter">Call</button>
-                                        </div>
-                                        <button class="quick-action-btn" data-action="open-tts-panel">Open TTS Panel</button>
-                                    </div>
-                                </details>
-                            ` : ''}
-                        </div>
-                    </div>
-
-                    <div class="vri-lower-grid">
-                        ${renderUsageSection(calls, false)}
-                        <div class="profile-section-column">
-                            ${renderClientSettingsSection(profile, user, preferences, false)}
-                            ${renderPasswordSection()}
                         </div>
                     </div>
                 </div>
@@ -3461,7 +3455,7 @@
             };
 
             if (canUseVri) {
-                document.getElementById('app').innerHTML = renderVriClientConsole(profile, user, preferences, calls, canUseVrs);
+                document.getElementById('app').innerHTML = renderVriClientConsole(profile, user, preferences, calls);
                 syncSelfPreview();
                 return;
             }
