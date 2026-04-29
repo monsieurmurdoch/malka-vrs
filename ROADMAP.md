@@ -1,7 +1,7 @@
 # Malka VRS - Product & Engineering Roadmap
 
-> **Last updated**: April 2026
-> **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI is ready for live pilot validation after a real media smoke. The main open risks are live call/media verification, tenant-aware admin moderation, Redis/state externalization, regulatory/compliance work, and mobile parity.
+> **Last updated**: April 29, 2026
+> **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. The main open risks are remaining in-room UI verification, tenant-aware admin moderation depth, TURN/coturn fallback, Redis/state externalization, regulatory/compliance work, billing/payment implementation, and mobile parity.
 
 ---
 
@@ -12,13 +12,16 @@
 - Maple VRI demo accounts authenticate on `vri.maplecomm.ca`.
 - Malka demo accounts authenticate on `app.malkacomm.com`.
 - VRS, ops, PostgreSQL, PgBouncer, nginx, Jitsi, and Twilio proxy health checks pass through production routes.
-- Client/interpreter profiles, media defaults, contact history, instant-room shortcuts, visual voicemail shell, and caption foundations are in place.
+- Maple VRI real media smoke passed with client/interpreter join and JVB UDP 10000 media observed from outside the Droplet network.
+- Client/interpreter profiles, focused VRI session console, media defaults, contact history, instant-room shortcuts, visual voicemail shell, and caption foundations are in place.
 
 **Not yet production-complete**
-- A real two-party/three-party media smoke is still required: queue match, JVB media over UDP 10000, in-room interpreter request, admin moderation, and call end.
+- Full real-browser UI verification is still required for active-room request-interpreter behavior, VRI invite/guest flow, and admin moderation actions.
+- TURN/coturn fallback is still needed for corporate networks where direct UDP 10000 is blocked.
 - Admin needs stronger tenant/service-mode filters for live queue and activity review.
 - Redis/state externalization is still required before multi-server horizontal scaling.
 - FCC/VRS compliance, 911/E911, iTRS, NANP provisioning, billing immutability, and certification remain major parallel tracks.
+- VRI corporate billing/payment and interpreter payout automation are designed in the roadmap but not implemented.
 - Mobile apps need feature and backend parity with the main web app before broad launch.
 
 ---
@@ -36,6 +39,7 @@
 - [x] WebSocket connections work through nginx
 - [x] Maple and Malka backend smokes pass for queue, ops, and Twilio readiness
 - [x] Twilio reverse proxy smoke fixed: `/twilio/health` and `/twilio/api/readiness` return 200 through production routes
+- [x] Production ops health/readiness return `ok` after disabling bootstrap superadmin in the prod compose path
 
 ### PostgreSQL Runtime Alignment
 - [x] VRS server runtime uses PostgreSQL as canonical app database
@@ -81,6 +85,7 @@
 - [x] Maple and Malka aesthetics separated at runtime
 - [x] Tenant metadata carried on client/interpreter/admin records (`tenantId`, `serviceModes`, permissions/organization where applicable)
 - [x] Admin can adjust client/interpreter tenant and service-mode permissions
+- [x] Maple tenant admin can access same-tenant managed-account endpoints without requiring superadmin
 - [x] VRI-only interpreters do not receive VRS queue work
 - [x] Malka can support VRS-default and VRI-only client profiles
 - [x] Maple can support VRI-default and VRS test profiles
@@ -88,9 +93,11 @@
 ### Client & Interpreter UX
 - [x] Client profile page with display name, email, organization, VRS phone number where applicable
 - [x] VRI client profile path without phone-number dependency
+- [x] VRI-capable clients land on a focused VRI session console centered on self-view, Request Interpreter, settings, and billing/usage
 - [x] Profile settings wired to backend preferences for DND, dark mode, media defaults, and permission memory
 - [x] Password change flow in settings
 - [x] Larger self-view and camera permission feedback in client profile
+- [x] VRI console includes lightweight day/week/month usage summary from call history
 - [x] Interpreter profile page with name, email, languages, queue status, stats, and backend profile connection
 - [x] Interpreter availability toggle
 - [x] Interpreter profile structure aligned more closely with client profile, with room for role-specific tabs
@@ -103,6 +110,10 @@
 - [x] Client request enters queue and interpreter match creates room
 - [x] In-room request-interpreter button added as a central action
 - [x] Request-interpreter status color states: pending/confirmed foundation
+- [x] Duplicate request-interpreter control suppressed on Jitsi prejoin/waiting-room screens
+- [x] Maple VRI queue-created calls persist `call_type = vri`
+- [x] Call-end WebSocket path marks calls completed and writes immutable billing CDRs
+- [x] Real Maple VRI media smoke passed: client and interpreter joined, audio/video worked, and UDP 10000 media was observed
 - [x] Instant-room fast join
 - [x] Instant-room default camera and mic off
 - [x] Remember media permission preference
@@ -175,20 +186,22 @@
 ## Immediate Open Work
 
 ### Production Verification
-- [ ] Real media smoke on Droplet: client joins, interpreter joins, video/audio works, room survives normal browser flow
-- [ ] Verify JVB media over UDP 10000 from outside the Droplet network
+- [x] Real media smoke on Droplet: client joins, interpreter joins, video/audio works, room survives normal browser flow
+- [x] Verify JVB media over UDP 10000 from outside the Droplet network
 - [ ] Verify in-room request-interpreter flow during a real active room
-- [ ] Verify admin moderation during a live queue match
-- [ ] Verify call end writes the correct CDR/call record
+- [ ] Verify admin moderation actions during a live queue match
+- [x] Verify call end writes the correct CDR/call record
 - [ ] Validate PgBouncer/pg_audit/WAL settings in a fresh deploy smoke
 - [ ] Perform offsite base-backup/WAL restore drill
 - [ ] Test SSL auto-renewal path
-- [ ] Rotate/disable bootstrap superadmin credentials after first permanent admin login
+- [x] Rotate/disable bootstrap superadmin credentials after first permanent admin login
 
 ### Maple VRI Pilot Readiness
 - [ ] Admin moderation filters by tenant and service mode (`malka`/`maple`, `vrs`/`vri`)
-- [ ] VRI call creation must immutably tag `call_type = vri`
-- [ ] Maple live pilot script: client login, interpreter login, request interpreter, admin view, end call
+- [x] VRI call creation tags queue-created calls as `call_type = vri`
+- [ ] Add DB-level immutability guard for `calls.call_type`
+- [x] Maple scripted pilot smoke: client login, interpreter login, request interpreter, admin view, end call/CDR
+- [ ] Maple human pilot script: client login, interpreter login, request interpreter, admin view, end call
 - [ ] Confirm Maple copy never says "video relay" on VRI-only paths
 - [ ] VRI session invite model: client can prepare/add participants before interpreter match, but nobody enters a live room until an interpreter confirms
 - [ ] VRI invite links scoped to the queue/session object, expiring after session end or short unmatched timeout
@@ -196,7 +209,7 @@
 - [ ] In-room VRI invite button: obvious secondary toolbar action with copy link and future SMS/email send, not hidden in settings/extras
 
 ### Malka/Multi-Mode Product Logic
-- [ ] Confirm Malka VRI-only clients always land on the VRI profile/room flow
+- [x] VRI-capable client accounts land on the focused VRI profile/console flow
 - [ ] Confirm Malka VRS clients retain VRS phone-number-oriented flow
 - [ ] Confirm Maple VRS test accounts are clearly separated from Maple VRI default experience
 - [ ] Prevent aesthetic cross-wiring between Malka and Maple at build/runtime boundaries
@@ -353,7 +366,7 @@
 
 ### VRS Billing
 - [ ] CDR schema finalized for TRS Fund submission
-- [ ] CDR immutability: append-only after call end
+- [x] CDR immutability: append-only after call end
 - [ ] Monthly CDR aggregation pipeline
 - [ ] TRS Fund submission formatting
 - [ ] Reconciliation against payments/disputes
@@ -365,7 +378,7 @@
 - [ ] Per-client VRI rate overrides by corporate account, tenant, currency, language pair, and effective date
 - [ ] Rate templates for future spoken/signed language pairs and captioning services without hard-coding prices yet
 - [ ] Interpreter profile billing options: supported service modes, language pairs, captioning eligibility, pay rate, currency, contractor/vendor details, and payout preferences
-- [ ] VRI CDRs tagged at call origination
+- [x] VRI CDRs tagged at call origination/CDR creation
 - [ ] Invoice generation
 - [ ] Auto-generate corporate invoices from immutable VRI CDRs by billing period
 - [ ] Auto-email issued invoices to billing contacts, likely through Resend
