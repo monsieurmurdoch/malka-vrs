@@ -41,6 +41,18 @@
 - [x] Twilio reverse proxy smoke fixed: `/twilio/health` and `/twilio/api/readiness` return 200 through production routes
 - [x] Production ops health/readiness return `ok` after disabling bootstrap superadmin in the prod compose path
 
+### Production Verification & Smoke Tests
+- [x] Real media smoke on Droplet: client joins, interpreter joins, video/audio works, room survives normal browser flow
+- [x] JVB media over UDP 10000 verified from outside the Droplet network
+- [x] In-room-style request-interpreter backend flow verified during an active room context (`roomName` preserved through queue/match)
+- [x] Admin live queue visibility and pause/resume moderation verified during a live queue match
+- [x] Call end writes the correct CDR/call record
+- [x] PgBouncer/pg_audit/WAL settings validated in a fresh deploy smoke
+- [x] Disposable base-backup restore drill completed on the Droplet in an isolated temp Postgres container
+- [x] SSL auto-renewal path tested
+- [x] Bootstrap superadmin credentials rotated/disabled after first permanent admin login
+- [x] Maple scripted pilot smoke: client login, interpreter login, request interpreter, admin view, end call/CDR
+
 ### PostgreSQL Runtime Alignment
 - [x] VRS server runtime uses PostgreSQL as canonical app database
 - [x] Local and production Compose include PostgreSQL 16 for app data
@@ -186,23 +198,9 @@
 
 ## Immediate Open Work
 
-### Production Verification
-- [x] Real media smoke on Droplet: client joins, interpreter joins, video/audio works, room survives normal browser flow
-- [x] Verify JVB media over UDP 10000 from outside the Droplet network
-- [x] Verify in-room-style request-interpreter backend flow during an active room context (`roomName` preserved through queue/match)
-- [x] Verify admin live queue visibility and pause/resume moderation during a live queue match
-- [x] Verify call end writes the correct CDR/call record
-- [x] Validate PgBouncer/pg_audit/WAL settings in a fresh deploy smoke
-- [x] Perform disposable base-backup restore drill on the Droplet in an isolated temp Postgres container
-- [ ] Perform true offsite base-backup/WAL restore drill into separate infrastructure/storage
-- [x] Test SSL auto-renewal path
-- [x] Rotate/disable bootstrap superadmin credentials after first permanent admin login
-
 ### Maple VRI Pilot Readiness
 - [ ] Admin moderation filters by tenant and service mode (`malka`/`maple`, `vrs`/`vri`)
-- [x] VRI call creation tags queue-created calls as `call_type = vri`
 - [ ] Add DB-level immutability guard for `calls.call_type`
-- [x] Maple scripted pilot smoke: client login, interpreter login, request interpreter, admin view, end call/CDR
 - [ ] Maple human pilot script: client login, interpreter login, request interpreter, admin view, end call
 - [ ] Confirm Maple copy never says "video relay" on VRI-only paths
 - [ ] VRI session invite model: client can prepare/add participants before interpreter match, but nobody enters a live room until an interpreter confirms
@@ -211,7 +209,6 @@
 - [ ] In-room VRI invite button: obvious secondary toolbar action with copy link and future SMS/email send, not hidden in settings/extras
 
 ### Malka/Multi-Mode Product Logic
-- [x] VRI-capable client accounts land on the focused VRI profile/console flow
 - [ ] Confirm Malka VRS clients retain VRS phone-number-oriented flow
 - [ ] Confirm Maple VRS test accounts are clearly separated from Maple VRI default experience
 - [ ] Prevent aesthetic cross-wiring between Malka and Maple at build/runtime boundaries
@@ -310,8 +307,6 @@
 - [ ] Query-plan review for queue matching, call history, dashboard stats
 - [ ] Prepared statements for hot paths
 - [ ] Autovacuum tuning for high-churn tables
-- [x] Disposable base-backup restore drill on Droplet
-- [ ] Managed/offsite backup and restore drill
 
 ### Jitsi & Media Scaling
 - [ ] Multiple JVB instances registered to the same brewery MUC
@@ -334,6 +329,7 @@
 - [ ] Geographic DNS routing
 - [ ] Automated failover testing
 - [ ] Cross-region object storage replication for voicemail media
+- [ ] Provision offsite backup storage and perform true base-backup/WAL restore drill into separate infrastructure
 - [ ] Recovery targets: RPO < 1 minute, RTO < 5 minutes for 911-capable system
 
 ---
