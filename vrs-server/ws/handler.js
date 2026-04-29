@@ -403,6 +403,13 @@ function handleAuth(ws, data, clientId) {
     } else if (role === 'client') {
         state.clients.clients.set(clientId, clientInfo);
 
+        if (clientInfo.authenticated) {
+            state.broadcastToAdmins({
+                type: 'client_connected',
+                data: { id: clientInfo.userId, name: clientInfo.name, timestamp: Date.now() }
+            });
+        }
+
         activityLogger.log('client_connected', { clientId: clientInfo.userId, clientName: clientInfo.name });
 
         if (clientInfo.authenticated) {
@@ -685,6 +692,12 @@ function handleDisconnect(clientInfo) {
 
     } else if (role === 'client') {
         state.clients.clients.delete(clientId);
+        if (clientInfo.authenticated) {
+            state.broadcastToAdmins({
+                type: 'client_disconnected',
+                data: { id: userId, name, timestamp: Date.now() }
+            });
+        }
         activityLogger.log('client_disconnected', { clientId: userId, clientName: name });
 
     } else if (role === 'admin') {

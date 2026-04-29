@@ -439,6 +439,13 @@ function handleWebSocketMessage(data) {
                 scheduleRefresh('interpreters', loadInterpreters, 150);
             }
             break;
+        case 'client_connected':
+        case 'client_disconnected':
+            scheduleRefresh('dashboard', loadDashboardStats, 150);
+            if (window.location.hash.includes('clients')) {
+                scheduleRefresh('clients', loadClients, 150);
+            }
+            break;
         case 'queue_update':
             renderLiveQueue(data.data);
             renderQueuePreview(data.data);
@@ -593,13 +600,13 @@ function updateDashboardStats(stats, activeCalls = [], dailyUsage = []) {
 
     const clientsTrend = document.getElementById('clientsTrend');
     if (clientsTrend) {
-        clientsTrend.textContent = `${stats.clients?.total || 0} total`;
+        clientsTrend.textContent = `${stats.clients?.online || 0} online`;
         clientsTrend.className = 'stat-trend up';
     }
 
     const clientsSubtext = document.getElementById('clientsSubtext');
     if (clientsSubtext) {
-        clientsSubtext.textContent = `${stats.calls?.today || 0} calls placed today`;
+        clientsSubtext.textContent = `${stats.clients?.total || 0} total · ${stats.calls?.today || 0} calls today`;
     }
 
     const interpretersTrend = document.getElementById('interpretersTrend');
@@ -610,7 +617,7 @@ function updateDashboardStats(stats, activeCalls = [], dailyUsage = []) {
 
     const interpretersOnline = document.getElementById('interpretersOnline');
     if (interpretersOnline) {
-        interpretersOnline.textContent = `${stats.interpreters?.online || 0} online now`;
+        interpretersOnline.textContent = `${stats.interpreters?.connected ?? stats.interpreters?.online ?? 0} connected now`;
     }
 
     const avgWaitTime = document.getElementById('avgWaitTime');
@@ -1345,7 +1352,7 @@ function renderClientsTable(clients) {
     if (clients.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 24px;">
                     No clients found
                 </td>
             </tr>
@@ -1360,6 +1367,12 @@ function renderClientsTable(clients) {
             <td>${client.organization || 'Personal'}</td>
             <td>${formatServiceModes(client.service_modes)}</td>
             <td>${client.tenant_id || 'malka'}</td>
+            <td>
+                <span class="status-badge ${client.connected ? 'status-online' : 'status-offline'}">
+                    <span class="status-dot"></span>
+                    ${client.connected ? 'Online' : 'Offline'}
+                </span>
+            </td>
             <td>${client.total_calls || 0}</td>
             <td>${client.last_call || 'Never'}</td>
             <td>${formatDate(client.created_at)}</td>

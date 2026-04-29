@@ -16,6 +16,63 @@ const {
 
 const router = express.Router();
 
+function normalizeDashboardStatus(status) {
+    const value = String(status || '').trim().toLowerCase();
+    if (value === 'available' || value === 'active' || value === 'online') return 'online';
+    if (value === 'in_call' || value === 'incall' || value === 'on-call' || value === 'on_call') return 'in-call';
+    if (value === 'busy') return 'busy';
+    return 'offline';
+}
+
+function getInterpreterPresence() {
+    const presence = new Map();
+    for (const interpreter of state.clients.interpreters.values()) {
+        if (!interpreter.userId || !interpreter.authenticated) continue;
+        const id = interpreter.userId.toString();
+        const status = normalizeDashboardStatus(interpreter.status);
+        const existing = presence.get(id);
+        if (!existing || existing.status === 'offline' || status === 'busy' || status === 'in-call') {
+            presence.set(id, { ...interpreter, status });
+        }
+    }
+    return presence;
+}
+
+function getClientPresence() {
+    const presence = new Map();
+    for (const client of state.clients.clients.values()) {
+        if (!client.userId || !client.authenticated) continue;
+        const id = client.userId.toString();
+        const existing = presence.get(id);
+        presence.set(id, {
+            ...client,
+            connections: (existing?.connections || 0) + 1
+        });
+    }
+    return presence;
+}
+
+function withLivePresenceStats(stats) {
+    const interpreterPresence = getInterpreterPresence();
+    const clientPresence = getClientPresence();
+    const onlineInterpreters = Array.from(interpreterPresence.values())
+        .filter(interpreter => interpreter.status !== 'offline').length;
+
+    return {
+        ...stats,
+        clients: {
+            ...stats.clients,
+            online: clientPresence.size,
+            connected: clientPresence.size
+        },
+        interpreters: {
+            ...stats.interpreters,
+            online: onlineInterpreters,
+            connected: interpreterPresence.size
+        }
+    };
+}
+
 // ============================================
 // ADMIN AUTH MIDDLEWARE
 // ============================================
@@ -127,7 +184,7 @@ router.get('/verify', authenticateAdmin, (req, res) => {
 router.get('/stats', authenticateAdmin, async (req, res) => {
     try {
         const stats = await db.getDashboardStats();
-        res.json(stats);
+        res.json(withLivePresenceStats(stats));
     } catch (error) {
         req.log.error({ err: error }, 'Stats error');
         res.status(500).json({ error: 'Failed to fetch stats', code: 'INTERNAL_ERROR' });
@@ -141,16 +198,12 @@ router.get('/stats', authenticateAdmin, async (req, res) => {
 router.get('/interpreters', authenticateAdmin, async (req, res) => {
     try {
         const interpreters = await db.getAllInterpreters();
-
-        const connectedIds = new Set(
-            Array.from(state.clients.interpreters.values()).map(i => i.userId)
-        );
+        const presence = getInterpreterPresence();
 
         const interpretersWithStatus = interpreters.map(interp => ({
             ...interp,
-            connected: connectedIds.has(interp.id.toString()),
-            currentStatus: Array.from(state.clients.interpreters.values())
-                .find(i => i.userId === interp.id.toString())?.status || 'offline'
+            connected: presence.has(interp.id.toString()),
+            currentStatus: presence.get(interp.id.toString())?.status || 'offline'
         }));
 
         res.json(interpretersWithStatus);
@@ -289,7 +342,17 @@ router.delete('/captioners/:id', authenticateAdmin, async (req, res) => {
 router.get('/clients', authenticateAdmin, async (req, res) => {
     try {
         const clients = await db.getAllClients();
-        res.json(clients);
+        const presence = getClientPresence();
+        const clientsWithStatus = clients.map(client => {
+            const live = presence.get(client.id.toString());
+            return {
+                ...client,
+                connected: Boolean(live),
+                currentStatus: live ? 'online' : 'offline',
+                activeConnections: live?.connections || 0
+            };
+        });
+        res.json(clientsWithStatus);
     } catch (error) {
         req.log.error({ err: error }, 'Clients error');
         res.status(500).json({ error: 'Failed to fetch clients', code: 'INTERNAL_ERROR' });
