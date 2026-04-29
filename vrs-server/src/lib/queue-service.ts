@@ -22,6 +22,9 @@ interface QueueRequest {
     status: string;
     createdAt: Date;
     callType?: 'vrs' | 'vri';
+    serviceMode?: 'vrs' | 'vri';
+    serviceModes?: Array<'vri' | 'vrs'>;
+    tenantId?: string;
 }
 
 interface AvailableInterpreter {
@@ -91,7 +94,10 @@ async function initialize(): Promise<InitializeResult> {
             position: request.position,
             status: request.status || 'waiting',
             createdAt: request.created_at ? new Date(request.created_at) : new Date(),
-            callType: request.call_type || (request.target_phone ? 'vrs' : undefined)
+            callType: request.service_mode || request.call_type || (request.target_phone ? 'vrs' : undefined),
+            serviceMode: request.service_mode || request.call_type || (request.target_phone ? 'vrs' : 'vri'),
+            serviceModes: request.service_modes || [],
+            tenantId: request.tenant_id || 'malka'
         });
     });
 
@@ -156,6 +162,7 @@ async function requestInterpreter({ clientId, clientName, language, roomName, ta
         status: 'waiting',
         createdAt: new Date(),
         callType: callType || (targetPhone ? 'vrs' : 'vri'),
+        serviceMode: callType || (targetPhone ? 'vrs' : 'vri'),
     };
 
     queue.set(id, request);

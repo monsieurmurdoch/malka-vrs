@@ -127,6 +127,16 @@ const createAccountSchema = zod_1.z.object({
     serviceModes: zod_1.z.array(zod_1.z.enum(['vrs', 'vri'])).min(1).optional().default(['vrs']),
     tenantId: zod_1.z.string().max(80).optional().default('malka')
 });
+const updateAccountSchema = zod_1.z.object({
+    active: zod_1.z.boolean().optional(),
+    languages: zod_1.z.array(zod_1.z.string().max(20)).min(1).optional(),
+    organization: zod_1.z.string().max(120).optional(),
+    permissions: zod_1.z.array(zod_1.z.string().max(80)).optional(),
+    serviceModes: zod_1.z.array(zod_1.z.enum(['vrs', 'vri'])).min(1).optional(),
+    tenantId: zod_1.z.string().max(80).optional()
+}).refine(data => Object.keys(data).length > 0, {
+    message: 'At least one field must be provided'
+});
 // Live ops state is PostgreSQL-backed when OPS_DATABASE_URL/OPS_PG* is set.
 // The maps are a local cache and development fallback, not the production source of truth.
 const interpreters = new Map();
@@ -1119,6 +1129,84 @@ function visibleAccountsForActor(actor) {
     const tenantId = getActorTenantId(actor);
     return authDirectory.filter(account => account.tenantId === tenantId && account.role !== 'superadmin');
 }
+function toQueryString(value) {
+    return String(value || '').trim();
+}
+function filterAccountsForQuery(accounts, query) {
+    const role = toQueryString(query.role).toLowerCase();
+    const tenantId = toQueryString(query.tenantId).toLowerCase();
+    const serviceMode = toQueryString(query.serviceMode).toLowerCase();
+    const language = toQueryString(query.language).toLowerCase();
+    return accounts
+        .filter(account => !role || account.role === role)
+        .filter(account => !tenantId || String(account.tenantId || 'malka').toLowerCase() === tenantId)
+        .filter(account => !serviceMode || (account.serviceModes || []).map(mode => String(mode).toLowerCase()).includes(serviceMode))
+        .filter(account => !language || (account.languages || []).map(item => String(item).toLowerCase()).includes(language));
+}
+function auditEventMatchesQuery(event, query) {
+    const eventFilter = toQueryString(query.event).toLowerCase();
+    const tenantId = toQueryString(query.tenantId).toLowerCase();
+    const serviceMode = toQueryString(query.serviceMode).toLowerCase();
+    const role = toQueryString(query.role).toLowerCase();
+    const details = event.details || {};
+    const haystack = JSON.stringify(details).toLowerCase();
+    if (eventFilter && event.event !== eventFilter) {
+        return false;
+    }
+    if (tenantId) {
+        const detailsTenant = String(details.tenantId || details.tenant_id || '').toLowerCase();
+        if (detailsTenant !== tenantId && !haystack.includes(`"tenantid":"${tenantId}"`) && !haystack.includes(`"tenant_id":"${tenantId}"`)) {
+            return false;
+        }
+    }
+    if (serviceMode) {
+        const modes = [
+            ...(Array.isArray(details.serviceModes) ? details.serviceModes : []),
+            ...(Array.isArray(details.service_modes) ? details.service_modes : []),
+            details.serviceMode,
+            details.service_mode
+        ].filter(Boolean).map(value => String(value).toLowerCase());
+        if (!modes.includes(serviceMode) && !haystack.includes(`"${serviceMode}"`)) {
+            return false;
+        }
+    }
+    if (role) {
+        const roles = [
+            details.role,
+            details.createdRole,
+            details.updatedRole,
+            details.actorRole
+        ].filter(Boolean).map(value => String(value).toLowerCase());
+        if (!roles.includes(role) && !event.event.toLowerCase().includes(role)) {
+            return false;
+        }
+    }
+    return true;
+}
+function escapeCsv(value) {
+    const normalized = value === undefined || value === null
+        ? ''
+        : typeof value === 'string'
+            ? value
+            : JSON.stringify(value);
+    return `"${normalized.replace(/"/g, '""')}"`;
+}
+function buildAuditCsv(events) {
+    const header = ['timestamp', 'event', 'tenantId', 'role', 'accountId', 'actorId', 'details'];
+    const rows = events.map(event => {
+        const details = event.details || {};
+        return [
+            event.timestamp,
+            event.event,
+            details.tenantId || details.tenant_id || '',
+            details.role || details.createdRole || details.updatedRole || '',
+            details.accountId || '',
+            details.actorId || '',
+            details
+        ].map(escapeCsv).join(',');
+    });
+    return [header.join(','), ...rows].join('\n');
+}
 // ==================== Auth Endpoints ====================
 /**
  * Login endpoint for interpreters and admins
@@ -1519,11 +1607,46 @@ app.get('/api/admin/accounts', authenticateToken, requireRole('admin', 'superadm
         res.status(403).json({ error: 'Insufficient permissions', code: 'FORBIDDEN' });
         return;
     }
-    const accounts = visibleAccountsForActor(actor)
+    const accounts = filterAccountsForQuery(visibleAccountsForActor(actor), req.query)
         .slice()
         .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
         .map(sanitizeAccount);
     res.json(accounts);
+});
+app.get('/api/admin/tenants', authenticateToken, requireRole('superadmin'), (_req, res) => {
+    const summaries = new Map();
+    authDirectory.forEach(account => {
+        const tenantId = account.tenantId || 'malka';
+        const summary = summaries.get(tenantId) || {
+            activeAccounts: 0,
+            accounts: 0,
+            admins: 0,
+            captioners: 0,
+            clients: 0,
+            interpreters: 0,
+            serviceModes: new Set(),
+            tenantId
+        };
+        summary.accounts += 1;
+        if (account.active !== false) {
+            summary.activeAccounts += 1;
+        }
+        if (account.role === 'admin' || account.role === 'superadmin') {
+            summary.admins += 1;
+        }
+        if (account.role === 'captioner') {
+            summary.captioners += 1;
+        }
+        if (account.role === 'interpreter') {
+            summary.interpreters += 1;
+        }
+        (account.serviceModes || ['vrs']).forEach(mode => summary.serviceModes.add(mode));
+        summaries.set(tenantId, summary);
+    });
+    res.json(Array.from(summaries.values()).map(summary => ({
+        ...summary,
+        serviceModes: Array.from(summary.serviceModes).sort()
+    })).sort((a, b) => a.tenantId.localeCompare(b.tenantId)));
 });
 app.post('/api/admin/accounts', authenticateToken, requireRole('admin', 'superadmin'), validateRequest(createAccountSchema), async (req, res) => {
     const actor = req.user;
@@ -1601,9 +1724,72 @@ app.post('/api/admin/accounts', authenticateToken, requireRole('admin', 'superad
         success: true
     });
 });
+app.put('/api/admin/accounts/:id', authenticateToken, requireRole('admin', 'superadmin'), validateRequest(updateAccountSchema), async (req, res) => {
+    const actor = req.user;
+    const { id } = req.params;
+    const existing = authDirectory.find(account => account.id === id);
+    if (!canManageTenantAccounts(actor)) {
+        res.status(403).json({ error: 'Insufficient permissions', code: 'FORBIDDEN' });
+        return;
+    }
+    if (!existing) {
+        res.status(404).json({ error: 'Account not found', code: 'NOT_FOUND' });
+        return;
+    }
+    if (actor.role !== 'superadmin') {
+        const tenantId = getActorTenantId(actor);
+        if (existing.tenantId !== tenantId || existing.role === 'superadmin' || req.body.tenantId) {
+            res.status(403).json({ error: 'Tenant admins cannot move tenants or manage superadmins', code: 'FORBIDDEN' });
+            return;
+        }
+    }
+    const updated = normalizeAccountRecord({
+        ...existing,
+        active: req.body.active ?? existing.active,
+        languages: req.body.languages || existing.languages,
+        organization: req.body.organization ?? existing.organization,
+        permissions: req.body.permissions || existing.permissions,
+        serviceModes: req.body.serviceModes || existing.serviceModes,
+        tenantId: actor.role === 'superadmin'
+            ? (req.body.tenantId || existing.tenantId || 'malka')
+            : existing.tenantId
+    });
+    authDirectory = authDirectory.map(account => account.id === id ? updated : account);
+    await persistOpsState();
+    recordOpsAudit('account_updated', {
+        accountId: id,
+        actorId: actor.userId,
+        actorRole: actor.role,
+        active: updated.active !== false,
+        permissions: updated.permissions || [],
+        serviceModes: updated.serviceModes || ['vrs'],
+        tenantId: updated.tenantId || 'malka',
+        updatedRole: updated.role
+    });
+    res.json({ account: sanitizeAccount(updated), success: true });
+});
 app.get('/api/admin/audit', authenticateToken, requireRole('admin', 'superadmin'), (req, res) => {
+    const actor = req.user;
     const limit = Number(req.query.limit || 100);
-    res.json(auditEvents.slice(0, limit));
+    const scopedQuery = actor.role === 'superadmin'
+        ? req.query
+        : { ...req.query, tenantId: getActorTenantId(actor) };
+    res.json(auditEvents
+        .filter(event => auditEventMatchesQuery(event, scopedQuery))
+        .slice(0, limit));
+});
+app.get('/api/admin/audit/export.csv', authenticateToken, requireRole('admin', 'superadmin'), (req, res) => {
+    const actor = req.user;
+    const limit = Math.min(Number(req.query.limit || 1000), 5000);
+    const scopedQuery = actor.role === 'superadmin'
+        ? req.query
+        : { ...req.query, tenantId: getActorTenantId(actor) };
+    const events = auditEvents
+        .filter(event => auditEventMatchesQuery(event, scopedQuery))
+        .slice(0, limit);
+    res.header('Content-Type', 'text/csv; charset=utf-8');
+    res.header('Content-Disposition', `attachment; filename="admin-audit-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.send(buildAuditCsv(events));
 });
 app.get('/api/admin/monitoring/summary', authenticateToken, requireRole('admin', 'superadmin'), async (_req, res, next) => {
     const now = Date.now();

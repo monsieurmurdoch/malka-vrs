@@ -141,6 +141,20 @@ function setupEventListeners() {
     // Filter changes
     document.getElementById('interpreterStatusFilter')?.addEventListener('change', filterInterpreters);
     document.getElementById('interpreterSearch')?.addEventListener('input', debounce(filterInterpreters, 300));
+    document.getElementById('accountTenantFilter')?.addEventListener('change', loadAccounts);
+    document.getElementById('accountRoleFilter')?.addEventListener('change', loadAccounts);
+    document.getElementById('accountServiceFilter')?.addEventListener('change', loadAccounts);
+    document.getElementById('clientTenantFilter')?.addEventListener('change', filterClients);
+    document.getElementById('clientServiceFilter')?.addEventListener('change', filterClients);
+    document.getElementById('clientSearch')?.addEventListener('input', debounce(filterClients, 300));
+    document.getElementById('queueTenantFilter')?.addEventListener('change', loadLiveQueue);
+    document.getElementById('queueServiceFilter')?.addEventListener('change', loadLiveQueue);
+    document.getElementById('queueLanguageFilter')?.addEventListener('change', loadLiveQueue);
+    document.getElementById('activityTypeFilter')?.addEventListener('change', loadActivityFeed);
+    document.getElementById('activityTenantFilter')?.addEventListener('change', loadActivityFeed);
+    document.getElementById('activityServiceFilter')?.addEventListener('change', loadActivityFeed);
+    document.getElementById('activityRoleFilter')?.addEventListener('change', loadActivityFeed);
+    document.getElementById('exportAuditBtn')?.addEventListener('click', exportAuditCsv);
 
     // Queue pause button
     document.getElementById('pauseQueueBtn')?.addEventListener('click', toggleQueue);
@@ -170,6 +184,9 @@ function setupEventListeners() {
                 break;
             case 'edit-client-permissions':
                 editClientPermissions(id);
+                break;
+            case 'edit-account-permissions':
+                editAccountPermissions(id);
                 break;
             case 'remove-from-queue':
                 removeFromQueue(id);
@@ -239,6 +256,9 @@ function loadTabData(tab) {
             break;
         case 'activity':
             loadActivityFeed();
+            break;
+        case 'tenants':
+            loadTenants();
             break;
     }
 }
@@ -358,6 +378,7 @@ function updateCurrentUserDisplay() {
     const roleEl = document.querySelector('.user-role');
     const avatarEl = document.querySelector('.user-avatar');
     const accountsTab = document.querySelector('[data-tab="accounts"]');
+    const tenantsTab = document.querySelector('[data-tab="tenants"]');
     const addAccountBtn = document.getElementById('addAccountBtn');
 
     if (nameEl) {
@@ -374,6 +395,10 @@ function updateCurrentUserDisplay() {
 
     if (accountsTab) {
         accountsTab.style.display = role === 'superadmin' ? 'inline-flex' : 'none';
+    }
+
+    if (tenantsTab) {
+        tenantsTab.style.display = role === 'superadmin' ? 'inline-flex' : 'none';
     }
 
     if (addAccountBtn) {
@@ -447,7 +472,9 @@ function handleWebSocketMessage(data) {
             }
             break;
         case 'queue_update':
-            renderLiveQueue(data.data);
+            if (window.location.hash.includes('queue')) {
+                scheduleRefresh('queue', loadLiveQueue, 150);
+            }
             renderQueuePreview(data.data);
             scheduleRefresh('dashboard', loadDashboardStats, 150);
             scheduleRefresh('monitoring', loadMonitoringSummary, 250);
@@ -800,19 +827,26 @@ async function renderQueuePreview(queueData = null) {
             return;
         }
 
-        container.innerHTML = queue.slice(0, 5).map(item => `
-            <div class="queue-item">
-                <div class="queue-position">${item.position}</div>
-                <div class="queue-info">
-                    <div class="queue-client">${item.client_name}</div>
-                    <div class="queue-details">
-                        <span>🌐 ${item.language}</span>
-                        <span>📍 ${item.room_name}</span>
+        container.innerHTML = queue.slice(0, 5).map(item => {
+            const clientName = item.clientName || item.client_name || 'Unknown client';
+            const roomName = item.roomName || item.room_name || '—';
+            const serviceMode = item.serviceMode || item.service_mode || item.callType || item.call_type || 'vri';
+
+            return `
+                <div class="queue-item">
+                    <div class="queue-position">${item.position}</div>
+                    <div class="queue-info">
+                        <div class="queue-client">${clientName}</div>
+                        <div class="queue-details">
+                            <span>🌐 ${item.language}</span>
+                            <span>${String(serviceMode).toUpperCase()}</span>
+                            <span>📍 ${roomName}</span>
+                        </div>
+                        <div class="queue-wait-time">⏱️ ${item.wait_time || item.waitTime || '—'}</div>
                     </div>
-                    <div class="queue-wait-time">⏱️ ${item.wait_time}</div>
                 </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     } catch (error) {
         console.error('[Queue Preview] Error:', error);
     }
@@ -1029,6 +1063,23 @@ function parseServiceModes(value, fallback = defaultServiceModesForTenant()) {
     return modes.length ? Array.from(new Set(modes)) : fallback;
 }
 
+function appendQueryParam(params, key, value) {
+    if (value) {
+        params.set(key, value);
+    }
+}
+
+function getSelectValue(id) {
+    return document.getElementById(id)?.value || '';
+}
+
+function buildQueryString(filters) {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([ key, value ]) => appendQueryParam(params, key, value));
+    const query = params.toString();
+    return query ? `?${query}` : '';
+}
+
 async function createInterpreter(name, email, languages, username, serviceModes = defaultServiceModesForTenant(), tenantId = defaultTenantId()) {
     try {
         await opsApiCall('/admin/accounts', {
@@ -1145,11 +1196,15 @@ function showAddCaptionerModal() {
 
     const username = prompt('Username (optional if email is supplied):', email ? email.split('@')[0] : '');
     const languages = prompt('Languages (comma-separated, e.g., English, Spanish):', 'English');
+    const tenantId = prompt('Tenant ID:', defaultTenantId());
+    if (!tenantId) return;
+    const modes = prompt('Service modes (comma-separated: vri, vrs):', defaultServiceModesForTenant(tenantId).join(','));
+    if (!modes) return;
 
-    createCaptioner(name, email, languages.split(',').map(language => language.trim()).filter(Boolean), username);
+    createCaptioner(name, email, languages.split(',').map(language => language.trim()).filter(Boolean), username, parseServiceModes(modes, defaultServiceModesForTenant(tenantId)), tenantId);
 }
 
-async function createCaptioner(name, email, languages, username) {
+async function createCaptioner(name, email, languages, username, serviceModes = defaultServiceModesForTenant(), tenantId = defaultTenantId()) {
     try {
         await opsApiCall('/admin/accounts', {
             method: 'POST',
@@ -1159,6 +1214,8 @@ async function createCaptioner(name, email, languages, username) {
                 name,
                 password: 'captioner123!',
                 role: 'captioner',
+                serviceModes,
+                tenantId,
                 username
             })
         });
@@ -1216,6 +1273,8 @@ async function editCaptioner(captionerId) {
 // ACCOUNTS
 // ============================================
 
+let allAccounts = [];
+
 async function loadAccounts() {
     if (currentAdminRole !== 'superadmin') {
         renderAccountsTable([]);
@@ -1223,8 +1282,12 @@ async function loadAccounts() {
     }
 
     try {
-        const accounts = await opsApiCall('/admin/accounts');
-        renderAccountsTable(accounts);
+        allAccounts = await opsApiCall(`/admin/accounts${buildQueryString({
+            role: getSelectValue('accountRoleFilter'),
+            serviceMode: getSelectValue('accountServiceFilter'),
+            tenantId: getSelectValue('accountTenantFilter')
+        })}`);
+        renderAccountsTable(allAccounts);
     } catch (error) {
         console.error('[Accounts] Error:', error);
     }
@@ -1239,7 +1302,7 @@ function renderAccountsTable(accounts) {
     if (!accounts.length) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 24px;">
                     ${currentAdminRole === 'superadmin' ? 'No managed accounts found yet' : 'Superadmin access required'}
                 </td>
             </tr>
@@ -1253,6 +1316,8 @@ function renderAccountsTable(accounts) {
             <td>${account.role}</td>
             <td>${account.username || '—'}</td>
             <td style="color: var(--text-secondary);">${account.email || '—'}</td>
+            <td>${account.tenantId || 'malka'}</td>
+            <td>${formatServiceModes(account.serviceModes)}</td>
             <td>${Array.isArray(account.languages) && account.languages.length ? account.languages.join(', ') : '—'}</td>
             <td>${account.lastLoginAt ? formatDateTime(account.lastLoginAt) : 'Never'}</td>
             <td>
@@ -1260,6 +1325,9 @@ function renderAccountsTable(accounts) {
                     <span class="status-dot"></span>
                     ${account.active ? 'Active' : 'Disabled'}
                 </span>
+            </td>
+            <td>
+                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" data-action="edit-account-permissions" data-id="${account.id}">Edit</button>
             </td>
         </tr>
     `).join('');
@@ -1295,12 +1363,18 @@ function showAddAccountModal() {
     const languages = role === 'interpreter' || role === 'captioner'
         ? prompt('Languages (comma-separated):', 'ASL, English')
         : '';
+    const tenantId = prompt('Tenant ID:', defaultTenantId());
+    if (!tenantId) return;
+    const serviceModes = prompt('Service modes (comma-separated: vri, vrs):', defaultServiceModesForTenant(tenantId).join(','));
+    if (!serviceModes) return;
 
     createAccount({
         email,
         languages: languages ? languages.split(',').map(language => language.trim()).filter(Boolean) : [],
         name,
         password,
+        serviceModes: parseServiceModes(serviceModes, defaultServiceModesForTenant(tenantId)),
+        tenantId,
         role: role.trim().toLowerCase(),
         username
     });
@@ -1330,6 +1404,40 @@ async function createAccount(payload) {
     }
 }
 
+async function editAccountPermissions(id) {
+    const account = allAccounts.find(item => String(item.id) === String(id));
+    if (!account) return;
+
+    const tenantId = prompt('Tenant ID:', account.tenantId || defaultTenantId());
+    if (!tenantId) return;
+    const modes = prompt('Service modes (comma-separated: vri, vrs):', formatServiceModes(account.serviceModes).toLowerCase());
+    if (!modes) return;
+    const languages = prompt('Languages (comma-separated):', Array.isArray(account.languages) ? account.languages.join(', ') : 'ASL');
+    if (languages === null) return;
+    const permissions = prompt('Permissions (comma-separated):', Array.isArray(account.permissions) ? account.permissions.join(', ') : '');
+    if (permissions === null) return;
+    const active = confirm('Should this account remain active?');
+
+    try {
+        await opsApiCall(`/admin/accounts/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+                active,
+                languages: languages.split(',').map(item => item.trim()).filter(Boolean),
+                permissions: permissions.split(',').map(item => item.trim()).filter(Boolean),
+                serviceModes: parseServiceModes(modes),
+                tenantId
+            })
+        });
+
+        await loadAccounts();
+        await loadMonitoringSummary();
+        alert('Account permissions updated.');
+    } catch (error) {
+        alert(`Failed to update account: ${error.message}`);
+    }
+}
+
 // ============================================
 // CLIENTS
 // ============================================
@@ -1339,10 +1447,26 @@ let allClients = [];
 async function loadClients() {
     try {
         allClients = await apiCall('/admin/clients');
-        renderClientsTable(allClients);
+        filterClients();
     } catch (error) {
         console.error('[Clients] Error:', error);
     }
+}
+
+function filterClients() {
+    const tenant = getSelectValue('clientTenantFilter');
+    const service = getSelectValue('clientServiceFilter');
+    const search = String(document.getElementById('clientSearch')?.value || '').toLowerCase();
+
+    const filtered = allClients
+        .filter(client => !tenant || client.tenant_id === tenant)
+        .filter(client => !service || (client.service_modes || []).includes(service))
+        .filter(client => !search
+            || String(client.name || '').toLowerCase().includes(search)
+            || String(client.email || '').toLowerCase().includes(search)
+            || String(client.organization || '').toLowerCase().includes(search));
+
+    renderClientsTable(filtered);
 }
 
 function renderClientsTable(clients) {
@@ -1445,7 +1569,11 @@ function formatDate(dateStr) {
 async function loadLiveQueue() {
     try {
         const [ queue, queueService ] = await Promise.all([
-            apiCall('/admin/queue'),
+            apiCall(`/admin/queue${buildQueryString({
+                language: getSelectValue('queueLanguageFilter'),
+                serviceMode: getSelectValue('queueServiceFilter'),
+                tenantId: getSelectValue('queueTenantFilter')
+            })}`),
             fetchServiceSnapshot(QUEUE_ORIGIN, '/api/readiness', '/api/health').catch(() => null)
         ]);
 
@@ -1473,22 +1601,32 @@ function renderLiveQueue(queue) {
         return;
     }
 
-    container.innerHTML = queue.map(item => `
+    container.innerHTML = queue.map(item => {
+        const clientName = item.clientName || item.client_name || 'Unknown client';
+        const roomName = item.roomName || item.room_name || '—';
+        const waitTime = item.wait_time || item.waitTime || '—';
+        const tenantId = item.tenantId || item.tenant_id || 'malka';
+        const serviceMode = item.serviceMode || item.service_mode || item.callType || item.call_type || 'vri';
+
+        return `
         <div class="queue-item">
             <div class="queue-position">${item.position}</div>
             <div class="queue-info">
-                <div class="queue-client">${item.client_name}</div>
+                <div class="queue-client">${clientName}</div>
                 <div class="queue-details">
                     <span>🌐 ${item.language}</span>
-                    <span>📍 ${item.room_name}</span>
-                    <span>🕐 ${item.wait_time}</span>
+                    <span>${String(serviceMode).toUpperCase()}</span>
+                    <span>${tenantId}</span>
+                    <span>📍 ${roomName}</span>
+                    <span>🕐 ${waitTime}</span>
                 </div>
             </div>
             <div class="queue-actions">
                 <button class="btn btn-secondary" data-action="remove-from-queue" data-id="${item.id}">Remove</button>
             </div>
         </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 async function toggleQueue() {
@@ -1527,9 +1665,23 @@ async function removeFromQueue(requestId) {
 
 async function loadActivityFeed() {
     try {
+        const activityQuery = buildQueryString({
+            limit: '50',
+            role: getSelectValue('activityRoleFilter'),
+            serviceMode: getSelectValue('activityServiceFilter'),
+            tenantId: getSelectValue('activityTenantFilter'),
+            type: getSelectValue('activityTypeFilter')
+        });
+        const auditQuery = buildQueryString({
+            limit: '50',
+            role: getSelectValue('activityRoleFilter'),
+            serviceMode: getSelectValue('activityServiceFilter'),
+            tenantId: getSelectValue('activityTenantFilter'),
+            event: getSelectValue('activityTypeFilter')
+        });
         const [ queueActivity, opsAudit ] = await Promise.all([
-            apiCall('/admin/activity?limit=50').catch(() => []),
-            opsApiCall('/admin/audit?limit=50').catch(() => [])
+            apiCall(`/admin/activity${activityQuery}`).catch(() => []),
+            opsApiCall(`/admin/audit${auditQuery}`).catch(() => [])
         ]);
 
         const mergedActivity = [
@@ -1545,6 +1697,33 @@ async function loadActivityFeed() {
         renderActivityFeed(mergedActivity.slice(0, 100));
     } catch (error) {
         console.error('[Activity] Error:', error);
+    }
+}
+
+async function exportAuditCsv() {
+    const query = buildQueryString({
+        role: getSelectValue('activityRoleFilter'),
+        serviceMode: getSelectValue('activityServiceFilter'),
+        tenantId: getSelectValue('activityTenantFilter'),
+        event: getSelectValue('activityTypeFilter'),
+        limit: '5000'
+    });
+    try {
+        const response = await fetch(`${OPS_API_BASE}/admin/audit/export.csv${query}`, {
+            headers: { Authorization: `Bearer ${authToken}` }
+        });
+        if (!response.ok) {
+            throw new Error('Export failed');
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `admin-audit-${new Date().toISOString().slice(0, 10)}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+    } catch (error) {
+        alert(`Failed to export audit CSV: ${error.message}`);
     }
 }
 
@@ -1591,6 +1770,7 @@ function renderActivityFeed(activity) {
         'call_started': '📞',
         'call_ended': '📵',
         'account_created': '🛡️',
+        'account_updated': '✏️',
         'login_failed': '⚠️',
         'login_success': '✅',
         'login_rate_limited': '⛔',
@@ -1635,6 +1815,9 @@ function formatActivityDescription(item) {
             if (item.type === 'account_created') {
                 return `${data.createdRole} account created by ${data.actorRole}`;
             }
+            if (item.type === 'account_updated') {
+                return `${data.updatedRole || 'account'} permissions updated for ${data.tenantId || 'tenant'}`;
+            }
             if (item.type === 'login_failed') {
                 return `${data.identifier || 'unknown'} failed to authenticate`;
             }
@@ -1672,6 +1855,60 @@ function formatDateTime(dateStr) {
 }
 
 // ============================================
+// TENANTS
+// ============================================
+
+async function loadTenants() {
+    const tbody = document.getElementById('tenantsTableBody');
+    if (!tbody) return;
+
+    if (currentAdminRole !== 'superadmin') {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    Superadmin access required
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    try {
+        const tenants = await opsApiCall('/admin/tenants');
+        if (!tenants.length) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                        No tenants found yet
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = tenants.map(tenant => `
+            <tr>
+                <td><div style="font-weight: 600;">${tenant.tenantId}</div></td>
+                <td>${tenant.activeAccounts || 0} / ${tenant.accounts || 0}</td>
+                <td>${tenant.admins || 0}</td>
+                <td>${tenant.interpreters || 0}</td>
+                <td>${tenant.captioners || 0}</td>
+                <td>${formatServiceModes(tenant.serviceModes)}</td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        console.error('[Tenants] Error:', error);
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" style="text-align: center; color: var(--accent-red); padding: 24px;">
+                    Failed to load tenant overview
+                </td>
+            </tr>
+        `;
+    }
+}
+
+// ============================================
 // UTILITIES
 // ============================================
 
@@ -1704,3 +1941,4 @@ window.loadClients = loadClients;
 window.loadLiveQueue = loadLiveQueue;
 window.loadActivityFeed = loadActivityFeed;
 window.loadAccounts = loadAccounts;
+window.loadTenants = loadTenants;

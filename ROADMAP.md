@@ -1,7 +1,7 @@
 # Malka VRS - Product & Engineering Roadmap
 
 > **Last updated**: April 29, 2026
-> **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. Malka VRS backend/WebSocket smoke now covers in-room-style interpreter request, admin live queue visibility, interpreter match, call end, and CDR creation. The main open risks are remaining real-browser in-room UI verification, tenant-aware admin moderation depth, TURN/coturn fallback, Redis/state externalization, regulatory/compliance work, billing/payment implementation, and mobile parity.
+> **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. Malka VRS backend/WebSocket smoke now covers in-room-style interpreter request, admin live queue visibility, interpreter match, call end, and CDR creation. The main open risks are remaining real-browser in-room/admin UI verification, TURN/coturn fallback, Redis/state externalization, regulatory/compliance work, billing/payment implementation, and mobile parity.
 
 ---
 
@@ -18,7 +18,7 @@
 **Not yet production-complete**
 - Full real-browser UI verification is still required for the active-room request-interpreter button, VRI invite/guest flow, and admin moderation screens.
 - TURN/coturn fallback is still needed for corporate networks where direct UDP 10000 is blocked.
-- Admin needs stronger tenant/service-mode filters for live queue and activity review.
+- Admin portal filtering/moderation has been implemented and needs real-browser workflow smoke across Malka and Maple.
 - Redis/state externalization is still required before multi-server horizontal scaling.
 - FCC/VRS compliance, 911/E911, iTRS, NANP provisioning, billing immutability, and certification remain major parallel tracks.
 - VRI corporate billing/payment and interpreter payout automation are designed in the roadmap but not implemented.
@@ -52,6 +52,13 @@
 - [x] SSL auto-renewal path tested
 - [x] Bootstrap superadmin credentials rotated/disabled after first permanent admin login
 - [x] Maple scripted pilot smoke: client login, interpreter login, request interpreter, admin view, end call/CDR
+
+### Admin Portal
+- [x] Queue dashboard for ops team
+- [x] Admin live queue/activity filters by tenant, service mode, language, and role
+- [x] Admin account moderation for client/interpreter/captioner permissions
+- [x] Admin audit export for account/permission changes
+- [x] Superadmin dashboard for managing tenants
 
 ### PostgreSQL Runtime Alignment
 - [x] VRS server runtime uses PostgreSQL as canonical app database
@@ -199,7 +206,7 @@
 ## Immediate Open Work
 
 ### Maple VRI Pilot Readiness
-- [ ] Admin moderation filters by tenant and service mode (`malka`/`maple`, `vrs`/`vri`)
+- [x] Admin moderation filters by tenant and service mode (`malka`/`maple`, `vrs`/`vri`)
 - [ ] Add DB-level immutability guard for `calls.call_type`
 - [ ] Maple human pilot script: client login, interpreter login, request interpreter, admin view, end call
 - [ ] Confirm Maple copy never says "video relay" on VRI-only paths
@@ -212,13 +219,6 @@
 - [ ] Confirm Malka VRS clients retain VRS phone-number-oriented flow
 - [ ] Confirm Maple VRS test accounts are clearly separated from Maple VRI default experience
 - [ ] Prevent aesthetic cross-wiring between Malka and Maple at build/runtime boundaries
-
-### Admin Portal
-- [ ] Queue dashboard for ops team
-- [ ] Admin live queue/activity filters by tenant, service mode, language, and role
-- [ ] Admin account moderation for client/interpreter/captioner permissions
-- [ ] Admin audit export for account/permission changes
-- [ ] Superadmin dashboard for managing tenants
 
 ### White-Label Hardening
 - [ ] Full tenant isolation hardening: row-level security or schema-per-tenant decision

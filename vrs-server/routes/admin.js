@@ -154,7 +154,17 @@ const assignQueueSchema = z.object({
 
 const activityQuerySchema = z.object({
     limit: nonNegativeIntSchema.optional().default(50),
-    type: z.string().max(50).optional()
+    type: z.string().max(50).optional(),
+    tenantId: z.string().max(80).optional(),
+    serviceMode: z.enum(['vrs', 'vri']).optional(),
+    role: z.enum(['client', 'interpreter', 'captioner', 'admin', 'superadmin']).optional()
+});
+
+const queueQuerySchema = z.object({
+    tenantId: z.string().max(80).optional(),
+    serviceMode: z.enum(['vrs', 'vri']).optional(),
+    language: z.string().max(40).optional(),
+    role: z.enum(['client', 'interpreter', 'captioner']).optional()
 });
 
 const usageQuerySchema = z.object({
@@ -398,9 +408,92 @@ router.put('/clients/:id', validate(updateClientSchema), authenticateAdmin, asyn
 // QUEUE
 // ============================================
 
-router.get('/queue', authenticateAdmin, (req, res) => {
-    const queue = queueService.getQueue();
-    res.json(queue);
+function normalizeQueueItem(item) {
+    return {
+        ...item,
+        callType: item.callType || item.call_type || item.serviceMode || item.service_mode || (item.targetPhone || item.target_phone ? 'vrs' : 'vri'),
+        clientId: item.clientId || item.client_id || null,
+        clientName: item.clientName || item.client_name,
+        roomName: item.roomName || item.room_name,
+        serviceMode: item.serviceMode || item.service_mode || item.callType || item.call_type || (item.targetPhone || item.target_phone ? 'vrs' : 'vri'),
+        serviceModes: item.serviceModes || item.service_modes || [],
+        targetPhone: item.targetPhone || item.target_phone || null,
+        tenantId: item.tenantId || item.tenant_id || 'malka',
+        wait_time: item.wait_time || item.waitTime || '—'
+    };
+}
+
+function filterActivityItem(item, { tenantId, serviceMode, role }) {
+    const data = item.data && typeof item.data === 'object' ? item.data : {};
+    const updates = data.updates && typeof data.updates === 'object' ? data.updates : {};
+    const haystack = JSON.stringify(data).toLowerCase();
+
+    if (tenantId) {
+        const tenant = String(tenantId).toLowerCase();
+        if (
+            String(data.tenantId || data.tenant_id || updates.tenantId || updates.tenant_id || '').toLowerCase() !== tenant
+            && !haystack.includes(`"tenantid":"${tenant}"`)
+            && !haystack.includes(`"tenant_id":"${tenant}"`)
+        ) {
+            return false;
+        }
+    }
+
+    if (serviceMode) {
+        const mode = String(serviceMode).toLowerCase();
+        const modes = [
+            ...(Array.isArray(data.serviceModes) ? data.serviceModes : []),
+            ...(Array.isArray(data.service_modes) ? data.service_modes : []),
+            ...(Array.isArray(updates.serviceModes) ? updates.serviceModes : []),
+            ...(Array.isArray(updates.service_modes) ? updates.service_modes : []),
+            data.serviceMode,
+            data.service_mode,
+            updates.serviceMode,
+            updates.service_mode
+        ].filter(Boolean).map(value => String(value).toLowerCase());
+        if (!modes.includes(mode) && !haystack.includes(`"${mode}"`)) {
+            return false;
+        }
+    }
+
+    if (role) {
+        const expectedRole = String(role).toLowerCase();
+        const type = String(item.type || '').toLowerCase();
+        const roles = [
+            data.role,
+            data.createdRole,
+            data.actorRole,
+            data.accountRole,
+            updates.role
+        ].filter(Boolean).map(value => String(value).toLowerCase());
+
+        if (!roles.includes(expectedRole) && !type.includes(expectedRole)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+router.get('/queue', validate(queueQuerySchema, 'query'), authenticateAdmin, async (req, res) => {
+    const { language, role, serviceMode, tenantId } = req.query;
+
+    if (role && role !== 'client') {
+        return res.json([]);
+    }
+
+    try {
+        const queue = (await db.getQueueRequests('waiting'))
+            .map(normalizeQueueItem)
+            .filter(item => !tenantId || item.tenantId === tenantId)
+            .filter(item => !serviceMode || item.serviceMode === serviceMode)
+            .filter(item => !language || String(item.language || '').toLowerCase() === String(language).toLowerCase());
+
+        res.json(queue);
+    } catch (error) {
+        req.log.error({ err: error }, 'Queue fetch error');
+        res.status(500).json({ error: 'Failed to fetch queue', code: 'INTERNAL_ERROR' });
+    }
 });
 
 router.post('/queue/pause', authenticateAdmin, (req, res) => {
@@ -469,10 +562,12 @@ router.get('/calls/active', authenticateAdmin, async (req, res) => {
 // ============================================
 
 router.get('/activity', validate(activityQuerySchema, 'query'), authenticateAdmin, async (req, res) => {
-    const { limit, type } = req.query;
+    const { limit, role, serviceMode, tenantId, type } = req.query;
     try {
-        const activity = await db.getActivityLog({ limit, type });
-        res.json(activity);
+        const fetchLimit = role || serviceMode || tenantId ? Math.max(Number(limit) * 5, 250) : limit;
+        const activity = await db.getActivityLog({ limit: fetchLimit, type });
+        const filtered = activity.filter(item => filterActivityItem(item, { role, serviceMode, tenantId }));
+        res.json(filtered.slice(0, Number(limit)));
     } catch (error) {
         req.log.error({ err: error }, 'Activity error');
         res.status(500).json({ error: 'Failed to fetch activity log', code: 'INTERNAL_ERROR' });

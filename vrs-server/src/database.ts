@@ -1065,7 +1065,25 @@ async function addToQueue({ clientId, clientName, language, roomName, targetPhon
 
 async function getQueueRequests(status: any = 'waiting'): Promise<QueueRequest[]> {
     const requests = await runQuery<QueueRequest>(
-        'SELECT * FROM queue_requests WHERE status = $1 ORDER BY position',
+        `
+        SELECT
+            q.*,
+            COALESCE(c.tenant_id, 'malka') AS tenant_id,
+            COALESCE(c.service_modes, '["vrs"]'::jsonb) AS service_modes,
+            COALESCE(
+                q.call_type,
+                CASE
+                    WHEN c.service_modes ? 'vri' AND NOT c.service_modes ? 'vrs' THEN 'vri'
+                    WHEN c.service_modes ? 'vrs' THEN 'vrs'
+                    WHEN q.target_phone IS NOT NULL THEN 'vrs'
+                    ELSE 'vri'
+                END
+            ) AS service_mode
+        FROM queue_requests q
+        LEFT JOIN clients c ON c.id = q.client_id
+        WHERE q.status = $1
+        ORDER BY q.position
+        `,
         [status]
     );
 

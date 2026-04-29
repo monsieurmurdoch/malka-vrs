@@ -5,6 +5,32 @@ This file is the project-level running status log. The current update stays at t
 ## Current Update
 
 - Updated: 2026-04-29
+- Branch: `codex/current-work`
+- HEAD: `1d7bebc`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  ROADMAP.md`
+  - `M  vrs-admin-dashboard.html`
+  - `M  vrs-admin-dashboard.js`
+  - `M  vrs-ops-server/dist/index.d.ts.map`
+  - `M  vrs-ops-server/dist/index.js`
+  - `M  vrs-ops-server/dist/index.js.map`
+  - `M  vrs-ops-server/src/index.ts`
+  - `M  vrs-server/dist/database.js`
+  - `M  vrs-server/lib/queue-service.js`
+  - `M  vrs-server/routes/admin.js`
+  - `M  vrs-server/src/database.ts`
+  - `M  vrs-server/src/lib/queue-service.ts`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-29T21:48:53.019Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-29
 - Branch: `codex/fix-tts-panel`
 - HEAD: `aa92716`
 - Note: Pre-push project status sync.
@@ -13,7 +39,7 @@ Local changes at sync time:
   - `M  ROADMAP.md`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-29T09:24:31.137Z
 
 <!-- status:current:start -->

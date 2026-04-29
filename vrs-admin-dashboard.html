@@ -528,10 +528,21 @@
         /* Filter Bar */
         .filter-bar {
             display: flex;
+            flex-wrap: wrap;
             gap: 12px;
             padding: 16px 24px;
             background: var(--bg-tertiary);
             border-bottom: 1px solid var(--border-color);
+        }
+
+        .filter-label {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            color: var(--text-muted);
+            font-size: 11px;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
         }
 
         .filter-select {
@@ -630,6 +641,7 @@
                 <button class="nav-tab" data-tab="clients">Clients</button>
                 <button class="nav-tab" data-tab="queue">Live Queue</button>
                 <button class="nav-tab" data-tab="activity">Activity</button>
+                <button class="nav-tab" data-tab="tenants">Tenants</button>
             </nav>
         </div>
         <div class="header-right">
@@ -920,6 +932,33 @@
                         <button class="btn btn-primary" id="addAccountBtn">+ Add Account</button>
                     </div>
                 </div>
+                <div class="filter-bar">
+                    <label class="filter-label">
+                        Tenant
+                        <select class="filter-select" id="accountTenantFilter">
+                            <option value="">All Tenants</option>
+                            <option value="malka">Malka</option>
+                            <option value="maple">Maple</option>
+                        </select>
+                    </label>
+                    <label class="filter-label">
+                        Role
+                        <select class="filter-select" id="accountRoleFilter">
+                            <option value="">All Roles</option>
+                            <option value="admin">Admin</option>
+                            <option value="interpreter">Interpreter</option>
+                            <option value="captioner">Captioner</option>
+                        </select>
+                    </label>
+                    <label class="filter-label">
+                        Service
+                        <select class="filter-select" id="accountServiceFilter">
+                            <option value="">All Services</option>
+                            <option value="vrs">VRS</option>
+                            <option value="vri">VRI</option>
+                        </select>
+                    </label>
+                </div>
                 <div class="table-container">
                     <table>
                         <thead>
@@ -928,14 +967,17 @@
                                 <th>Role</th>
                                 <th>Username</th>
                                 <th>Email</th>
+                                <th>Tenant</th>
+                                <th>Service</th>
                                 <th>Languages</th>
                                 <th>Last Login</th>
                                 <th>Status</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="accountsTableBody">
                             <tr>
-                                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                                <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 24px;">
                                     Accounts will appear here.
                                 </td>
                             </tr>
@@ -956,12 +998,23 @@
                     </div>
                 </div>
                 <div class="filter-bar">
-                    <select class="filter-select">
-                        <option>All Clients</option>
-                        <option>Active This Week</option>
-                        <option>Never Used</option>
-                    </select>
-                    <input type="text" class="search-input" placeholder="Search clients...">
+                    <label class="filter-label">
+                        Tenant
+                        <select class="filter-select" id="clientTenantFilter">
+                            <option value="">All Tenants</option>
+                            <option value="malka">Malka</option>
+                            <option value="maple">Maple</option>
+                        </select>
+                    </label>
+                    <label class="filter-label">
+                        Service
+                        <select class="filter-select" id="clientServiceFilter">
+                            <option value="">All Services</option>
+                            <option value="vrs">VRS</option>
+                            <option value="vri">VRI</option>
+                        </select>
+                    </label>
+                    <input type="text" class="search-input" placeholder="Search clients..." id="clientSearch">
                 </div>
                 <div class="table-container">
                     <table>
@@ -1003,6 +1056,32 @@
                         <button class="btn btn-secondary">📢 Send Announcement</button>
                     </div>
                 </div>
+                <div class="filter-bar">
+                    <label class="filter-label">
+                        Tenant
+                        <select class="filter-select" id="queueTenantFilter">
+                            <option value="">All Tenants</option>
+                            <option value="malka">Malka</option>
+                            <option value="maple">Maple</option>
+                        </select>
+                    </label>
+                    <label class="filter-label">
+                        Service
+                        <select class="filter-select" id="queueServiceFilter">
+                            <option value="">All Services</option>
+                            <option value="vrs">VRS</option>
+                            <option value="vri">VRI</option>
+                        </select>
+                    </label>
+                    <label class="filter-label">
+                        Language
+                        <select class="filter-select" id="queueLanguageFilter">
+                            <option value="">All Languages</option>
+                            <option value="ASL">ASL</option>
+                            <option value="English">English</option>
+                        </select>
+                    </label>
+                </div>
                 <div id="liveQueueList">
                     <!-- Filled by JS -->
                 </div>
@@ -1015,16 +1094,79 @@
                 <div class="section-header">
                     <h2 class="section-title">📋 Activity Log</h2>
                     <div class="section-actions">
-                        <select class="filter-select">
-                            <option>All Activity</option>
-                            <option>Calls Only</option>
-                            <option>Queue Actions</option>
-                            <option>Account Changes</option>
-                        </select>
+                        <button class="btn btn-secondary" id="exportAuditBtn">Export Audit CSV</button>
                     </div>
+                </div>
+                <div class="filter-bar">
+                    <label class="filter-label">
+                        Activity
+                        <select class="filter-select" id="activityTypeFilter">
+                            <option value="">All Activity</option>
+                            <option value="call_started">Calls Started</option>
+                            <option value="call_ended">Calls Ended</option>
+                            <option value="queue_request_added">Queue Requests</option>
+                            <option value="account_updated">Account Changes</option>
+                        </select>
+                    </label>
+                    <label class="filter-label">
+                        Tenant
+                        <select class="filter-select" id="activityTenantFilter">
+                            <option value="">All Tenants</option>
+                            <option value="malka">Malka</option>
+                            <option value="maple">Maple</option>
+                        </select>
+                    </label>
+                    <label class="filter-label">
+                        Service
+                        <select class="filter-select" id="activityServiceFilter">
+                            <option value="">All Services</option>
+                            <option value="vrs">VRS</option>
+                            <option value="vri">VRI</option>
+                        </select>
+                    </label>
+                    <label class="filter-label">
+                        Role
+                        <select class="filter-select" id="activityRoleFilter">
+                            <option value="">All Roles</option>
+                            <option value="client">Client</option>
+                            <option value="interpreter">Interpreter</option>
+                            <option value="captioner">Captioner</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </label>
                 </div>
                 <div class="activity-feed" id="activityFeed">
                     <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Tenants Tab -->
+        <div class="tab-content" id="tenants-tab">
+            <div class="section">
+                <div class="section-header">
+                    <h2 class="section-title">🏢 Tenant Overview</h2>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Tenant</th>
+                                <th>Active Accounts</th>
+                                <th>Admins</th>
+                                <th>Interpreters</th>
+                                <th>Captioners</th>
+                                <th>Service Modes</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tenantsTableBody">
+                            <tr>
+                                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                                    Tenant overview requires superadmin access.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
