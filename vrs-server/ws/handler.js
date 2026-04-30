@@ -73,6 +73,12 @@ function inferInterpreterRequestCallType(payload, targetPhone, serviceModes, hos
     return modes.includes('vri') ? 'vri' : 'vrs';
 }
 
+function getInviteBaseUrl(clientInfo = {}) {
+    const host = clientInfo.host || process.env.PUBLIC_APP_HOST || 'vri.malkacomm.com';
+    const proto = String(host).includes('localhost') ? 'http' : 'https';
+    return `${proto}://${host}`;
+}
+
 function getRequestCallType(request = {}) {
     return request.callType || request.call_type || (request.targetPhone || request.target_phone ? 'vrs' : 'vri');
 }
@@ -207,6 +213,10 @@ function handleConnection(ws, req) {
 
                 case 'request_interpreter':
                     await handleInterpreterRequest(ws, data);
+                    break;
+
+                case 'prepare_vri_invite':
+                    await handlePrepareVriInvite(ws, data);
                     break;
 
                 case 'cancel_request':
@@ -569,6 +579,57 @@ async function handleInterpreterStatus(ws, data) {
 // QUEUE REQUESTS
 // ============================================
 
+async function handlePrepareVriInvite(ws, data) {
+    const client = requireAuthenticatedRole(ws, 'client', 'Client authentication required before preparing VRI invites.');
+    if (!client) return;
+
+    const clientRecord = await db.getClient(client.userId).catch(() => null);
+    const clientModes = normalizeServiceModes(clientRecord?.service_modes || client.serviceModes);
+    if (!clientModes.includes('vri')) {
+        ws.send(JSON.stringify({
+            type: 'error',
+            data: { message: 'This account is not enabled for VRI session invites.' }
+        }));
+        return;
+    }
+
+    const payload = data.data || {};
+    let status = 'prepared';
+    let roomName = null;
+    if (payload.roomName) {
+        const activeCalls = await db.getActiveCallForClient(client.userId).catch(() => []);
+        const activeCall = Array.isArray(activeCalls) ? activeCalls[0] : activeCalls;
+        if (activeCall && activeCall.room_name === payload.roomName && (activeCall.call_type || 'vrs') === 'vri') {
+            status = 'live';
+            roomName = payload.roomName;
+        }
+    }
+
+    const invite = await db.createVriSessionInvite({
+        clientId: client.userId,
+        guestName: payload.guestName || null,
+        guestEmail: payload.guestEmail || null,
+        guestPhone: payload.guestPhone || null,
+        roomName,
+        status,
+        expiresInMinutes: status === 'live' ? 240 : 30
+    });
+    const inviteUrl = `${getInviteBaseUrl(client)}/vri-invite.html?token=${encodeURIComponent(invite.token)}`;
+
+    ws.send(JSON.stringify({
+        type: 'vri_invite_prepared',
+        data: {
+            token: invite.token,
+            inviteUrl,
+            guestName: invite.guest_name,
+            guestEmail: invite.guest_email,
+            guestPhone: invite.guest_phone,
+            status: invite.status,
+            expiresAt: invite.expires_at
+        }
+    }));
+}
+
 async function handleInterpreterRequest(ws, data) {
     const client = ws.clientInfo;
     if (!client || client.role !== 'client' || !client.authenticated) {
@@ -602,7 +663,8 @@ async function handleInterpreterRequest(ws, data) {
         language: payload.language || 'ASL',
         targetPhone,
         callType,
-        roomName: payload.roomName || generateFriendlyRoomName()
+        roomName: payload.roomName || generateFriendlyRoomName(),
+        inviteTokens: Array.isArray(payload.inviteTokens) ? payload.inviteTokens : []
     });
 
     if (!result.success) {
@@ -1165,6 +1227,9 @@ async function handleCallEnd(ws, data) {
 
         const durationMinutes = getCallDurationMinutes(call, payload.durationMinutes);
         await db.endCall(callId, durationMinutes);
+        if (call.room_name) {
+            await db.endVriInvitesForRoom(call.room_name);
+        }
 
         try {
             await createBillingCdrForCall(callId, call.call_type || 'vrs');

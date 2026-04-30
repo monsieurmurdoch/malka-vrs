@@ -96,7 +96,7 @@ async function initialize() {
 // CLIENT REQUESTS
 // ============================================
 
-async function requestInterpreter({ clientId, clientName, language, roomName, targetPhone = null, callType }) {
+async function requestInterpreter({ clientId, clientName, language, roomName, targetPhone = null, callType, inviteTokens = [] }) {
     if (paused) {
         return {
             success: false,
@@ -131,6 +131,15 @@ async function requestInterpreter({ clientId, clientName, language, roomName, ta
 
     queue.set(id, request);
 
+    if (request.callType === 'vri' && clientId && inviteTokens.length) {
+        await withRetry(() => db.attachVriInvitesToQueue({
+            clientId,
+            inviteTokens,
+            requestId: id,
+            roomName
+        }));
+    }
+
     // Track queue depth
     metrics.queueDepth.set(queue.size);
 
@@ -152,6 +161,7 @@ async function cancelRequest(requestId) {
     if (request) {
         queue.delete(requestId);
         matchingLocks.delete(requestId);
+        await withRetry(() => db.expireVriInvitesForQueue(requestId));
         await withRetry(() => db.removeFromQueue(requestId));
         reorderQueue();
 
@@ -355,6 +365,13 @@ async function completeMatch(request, interpreter) {
         callType
     }));
 
+    if (callType === 'vri') {
+        await withRetry(() => db.activateVriInvitesForQueue({
+            requestId: request.id,
+            roomName
+        }));
+    }
+
     totalMatches += 1;
     db.setServerState(SERVER_STATE_KEY_MATCHES, String(totalMatches)).catch(() => {});
 
@@ -453,6 +470,7 @@ async function removeFromQueue(requestId) {
     }
 
     matchingLocks.delete(requestId);
+    await withRetry(() => db.expireVriInvitesForQueue(requestId));
     await withRetry(() => db.removeFromQueue(requestId));
     await withRetry(() => db.reorderQueue());
     reorderQueue();

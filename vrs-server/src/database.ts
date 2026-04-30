@@ -159,6 +159,23 @@ async function createTables() {
             completed_at TIMESTAMPTZ
         );
 
+        -- VRI session invites are prepared before interpreter match, but only
+        -- become joinable after the queue request is assigned.
+        CREATE TABLE IF NOT EXISTS vri_session_invites (
+            token TEXT PRIMARY KEY,
+            queue_request_id TEXT,
+            client_id TEXT,
+            guest_name TEXT,
+            guest_email TEXT,
+            guest_phone TEXT,
+            room_name TEXT,
+            status TEXT DEFAULT 'prepared',
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            expires_at TIMESTAMPTZ NOT NULL,
+            activated_at TIMESTAMPTZ,
+            ended_at TIMESTAMPTZ
+        );
+
         -- Activity log table
         CREATE TABLE IF NOT EXISTS activity_log (
             id TEXT PRIMARY KEY,
@@ -332,6 +349,9 @@ async function createTables() {
         CREATE INDEX IF NOT EXISTS idx_calls_date ON calls(started_at);
         CREATE INDEX IF NOT EXISTS idx_queue_status ON queue_requests(status);
         CREATE INDEX IF NOT EXISTS idx_queue_created ON queue_requests(created_at);
+        CREATE INDEX IF NOT EXISTS idx_vri_invites_queue ON vri_session_invites(queue_request_id);
+        CREATE INDEX IF NOT EXISTS idx_vri_invites_client ON vri_session_invites(client_id);
+        CREATE INDEX IF NOT EXISTS idx_vri_invites_expires ON vri_session_invites(expires_at);
         CREATE INDEX IF NOT EXISTS idx_activity_type ON activity_log(type);
         CREATE INDEX IF NOT EXISTS idx_activity_date ON activity_log(created_at);
         CREATE INDEX IF NOT EXISTS idx_speed_dial_client ON speed_dial(client_id);
@@ -354,6 +374,22 @@ async function createTables() {
         CREATE INDEX IF NOT EXISTS idx_active_sessions_device ON active_sessions(device_id);
         CREATE INDEX IF NOT EXISTS idx_handoff_tokens_user ON handoff_tokens(user_id);
         CREATE INDEX IF NOT EXISTS idx_handoff_tokens_expires ON handoff_tokens(expires_at);
+
+        CREATE OR REPLACE FUNCTION prevent_calls_call_type_change()
+        RETURNS trigger AS $$
+        BEGIN
+            IF OLD.call_type IS NOT NULL AND NEW.call_type IS DISTINCT FROM OLD.call_type THEN
+                RAISE EXCEPTION 'calls.call_type is immutable once set';
+            END IF;
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+
+        DROP TRIGGER IF EXISTS trg_calls_call_type_immutable ON calls;
+        CREATE TRIGGER trg_calls_call_type_immutable
+            BEFORE UPDATE OF call_type ON calls
+            FOR EACH ROW
+            EXECUTE FUNCTION prevent_calls_call_type_change();
 
         -- Contacts & Address Book
         CREATE TABLE IF NOT EXISTS contacts (
@@ -1143,6 +1179,126 @@ async function reorderQueue() {
             [i + 1, requests[i].id]
         );
     }
+}
+
+// ============================================
+// VRI SESSION INVITES
+// ============================================
+
+async function createVriSessionInvite({
+    clientId,
+    guestName = null,
+    guestEmail = null,
+    guestPhone = null,
+    roomName = null,
+    status = 'prepared',
+    expiresInMinutes = 30
+}: any) {
+    const token = uuidv4();
+    const rows = await runQuery(
+        `INSERT INTO vri_session_invites (
+            token, client_id, guest_name, guest_email, guest_phone, room_name, status, expires_at, activated_at
+        )
+        VALUES (
+            $1, $2, $3, $4, $5, $6, $7,
+            NOW() + ($8::int * INTERVAL '1 minute'),
+            CASE WHEN $7 = 'live' THEN NOW() ELSE NULL END
+        )
+        RETURNING *`,
+        [token, clientId, guestName || null, guestEmail || null, guestPhone || null, roomName || null, status, expiresInMinutes]
+    );
+
+    return rows[0];
+}
+
+async function attachVriInvitesToQueue({ clientId, inviteTokens = [], requestId, roomName }: any) {
+    const tokens = Array.isArray(inviteTokens)
+        ? inviteTokens.filter(token => typeof token === 'string' && token.trim()).slice(0, 20)
+        : [];
+    if (!clientId || !requestId || !tokens.length) {
+        return [];
+    }
+
+    return await runQuery(
+        `UPDATE vri_session_invites
+         SET queue_request_id = $1,
+             room_name = $2,
+             status = 'waiting'
+         WHERE client_id = $3
+           AND token = ANY($4::text[])
+           AND status IN ('prepared', 'waiting')
+           AND expires_at > NOW()
+         RETURNING *`,
+        [requestId, roomName, clientId, tokens]
+    );
+}
+
+async function activateVriInvitesForQueue({ requestId, roomName, liveMinutes = 240 }: any) {
+    if (!requestId || !roomName) {
+        return [];
+    }
+
+    return await runQuery(
+        `UPDATE vri_session_invites
+         SET status = 'live',
+             room_name = COALESCE(room_name, $2),
+             activated_at = COALESCE(activated_at, NOW()),
+             expires_at = GREATEST(expires_at, NOW() + ($3::int * INTERVAL '1 minute'))
+         WHERE queue_request_id = $1
+           AND status IN ('prepared', 'waiting')
+           AND expires_at > NOW()
+         RETURNING *`,
+        [requestId, roomName, liveMinutes]
+    );
+}
+
+async function expireVriInvitesForQueue(requestId: string) {
+    if (!requestId) {
+        return [];
+    }
+
+    return await runQuery(
+        `UPDATE vri_session_invites
+         SET status = 'expired',
+             ended_at = COALESCE(ended_at, NOW()),
+             expires_at = LEAST(expires_at, NOW())
+         WHERE queue_request_id = $1
+           AND status IN ('prepared', 'waiting', 'live')
+         RETURNING *`,
+        [requestId]
+    );
+}
+
+async function endVriInvitesForRoom(roomName: string) {
+    if (!roomName) {
+        return [];
+    }
+
+    return await runQuery(
+        `UPDATE vri_session_invites
+         SET status = 'expired',
+             ended_at = COALESCE(ended_at, NOW()),
+             expires_at = LEAST(expires_at, NOW())
+         WHERE room_name = $1
+           AND status IN ('prepared', 'waiting', 'live')
+         RETURNING *`,
+        [roomName]
+    );
+}
+
+async function getVriSessionInvite(token: string) {
+    const rows = await runQuery(
+        `SELECT *,
+            CASE
+                WHEN expires_at <= NOW() THEN 'expired'
+                ELSE status
+            END AS public_status
+         FROM vri_session_invites
+         WHERE token = $1`,
+        [token]
+    );
+
+    return rows[0] || null;
 }
 
 function formatWaitTime(seconds: any) {
@@ -2794,6 +2950,12 @@ export {
     completeRequest,
     removeFromQueue,
     reorderQueue,
+    createVriSessionInvite,
+    attachVriInvitesToQueue,
+    activateVriInvitesForQueue,
+    expireVriInvitesForQueue,
+    endVriInvitesForRoom,
+    getVriSessionInvite,
     logActivity,
     getActivityLog,
     getDashboardStats,

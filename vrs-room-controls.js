@@ -6,8 +6,11 @@
     var ws = null;
     var requestId = null;
     var pendingSend = false;
+    var pendingInviteSend = false;
     var state = 'idle';
     var button = null;
+    var inviteButton = null;
+    var lastInviteUrl = '';
 
     function getStored(key) {
         try {
@@ -34,13 +37,13 @@
     function isClientRoomUser() {
         var role = getStored('vrs_user_role');
 
-        if (role === 'interpreter' || role === 'captioner') {
+        if (role === 'interpreter' || role === 'captioner' || role === 'guest') {
             return false;
         }
 
         var urlRole = new URLSearchParams(window.location.search).get('role');
 
-        return urlRole !== 'interpreter' && urlRole !== 'captioner';
+        return urlRole !== 'interpreter' && urlRole !== 'captioner' && urlRole !== 'guest';
     }
 
     function currentRole() {
@@ -172,6 +175,14 @@
         button.querySelector('[data-vrs-interpreter-label]').textContent = labels[nextState] || labels.idle;
     }
 
+    function setInviteState(label, disabled) {
+        if (!inviteButton) {
+            return;
+        }
+        inviteButton.disabled = Boolean(disabled);
+        inviteButton.querySelector('[data-vri-invite-label]').textContent = label;
+    }
+
     function connectQueue() {
         if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
             return;
@@ -183,7 +194,10 @@
 
         ws.onopen = function() {
             send(authPayload());
-            if (pendingSend) {
+            if (pendingInviteSend) {
+                pendingInviteSend = false;
+                handleInviteClick();
+            } else if (pendingSend) {
                 pendingSend = false;
                 requestInterpreter();
             } else if (state === 'connecting') {
@@ -213,8 +227,20 @@
                     || message.type === 'request_declined') {
                 requestId = null;
                 setState('idle');
+            } else if (message.type === 'vri_invite_prepared') {
+                lastInviteUrl = data.inviteUrl || '';
+                if (lastInviteUrl && navigator.clipboard) {
+                    navigator.clipboard.writeText(lastInviteUrl).then(function() {
+                        setInviteState('Invite Copied', false);
+                    }).catch(function() {
+                        setInviteState('Invite Ready', false);
+                    });
+                } else {
+                    setInviteState('Invite Ready', false);
+                }
             } else if (message.type === 'error' || message.type === 'auth_error') {
                 setState('error');
+                setInviteState('Invite Failed', false);
             } else if (message.type === 'ping') {
                 send({ type: 'heartbeat' });
             }
@@ -269,6 +295,32 @@
         requestInterpreter();
     }
 
+    function handleInviteClick() {
+        var call = activeCall();
+
+        if (lastInviteUrl && navigator.clipboard) {
+            navigator.clipboard.writeText(lastInviteUrl);
+            setInviteState('Invite Copied', false);
+            return;
+        }
+
+        if (!call || call.callType !== 'vri') {
+            return;
+        }
+
+        if (!send({
+            type: 'prepare_vri_invite',
+            data: {
+                roomName: call.roomName || currentRoomName()
+            }
+        })) {
+            pendingInviteSend = true;
+            connectQueue();
+        }
+
+        setInviteState('Creating...', true);
+    }
+
     function createButton() {
         var el = document.createElement('button');
 
@@ -297,6 +349,35 @@
         return el;
     }
 
+    function createInviteButton() {
+        var el = document.createElement('button');
+
+        el.type = 'button';
+        el.dataset.vriInviteButton = 'room-control';
+        el.setAttribute('aria-label', 'Invite participant');
+        el.style.alignItems = 'center';
+        el.style.background = '#334155';
+        el.style.border = '1px solid rgba(255, 255, 255, 0.22)';
+        el.style.borderRadius = '8px';
+        el.style.boxShadow = '0 8px 22px rgba(0, 0, 0, 0.28)';
+        el.style.color = '#fff';
+        el.style.cursor = 'pointer';
+        el.style.display = 'inline-flex';
+        el.style.fontSize = '13px';
+        el.style.fontWeight = '800';
+        el.style.gap = '8px';
+        el.style.height = '40px';
+        el.style.justifyContent = 'center';
+        el.style.letterSpacing = '0';
+        el.style.margin = '0 8px';
+        el.style.minWidth = '112px';
+        el.style.padding = '0 14px';
+        el.innerHTML = '<span aria-hidden="true">+</span><span data-vri-invite-label>Invite</span>';
+        el.addEventListener('click', handleInviteClick);
+
+        return el;
+    }
+
     function mountButton() {
         if (activeCall()) {
             connectQueue();
@@ -315,6 +396,11 @@
         button = createButton();
         setState(state);
         toolbar.insertBefore(button, toolbar.children[2] || toolbar.firstChild);
+        var call = activeCall();
+        if (call && call.callType === 'vri' && !document.querySelector('[data-vri-invite-button]')) {
+            inviteButton = createInviteButton();
+            toolbar.insertBefore(inviteButton, button.nextSibling);
+        }
         connectQueue();
     }
 

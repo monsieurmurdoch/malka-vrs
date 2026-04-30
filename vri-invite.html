@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VRI Session Invite</title>
+    <script src="whitelabel-runtime.js"></script>
+    <style>
+        :root {
+            color-scheme: light;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        body {
+            align-items: center;
+            background: #f7f7f8;
+            color: #111827;
+            display: flex;
+            min-height: 100vh;
+            margin: 0;
+            padding: 24px;
+        }
+
+        .invite-shell {
+            background: #fff;
+            border: 1px solid rgba(17, 24, 39, 0.1);
+            border-radius: 14px;
+            box-shadow: 0 24px 70px rgba(17, 24, 39, 0.12);
+            margin: 0 auto;
+            max-width: 560px;
+            padding: 32px;
+            width: 100%;
+        }
+
+        .brand-row {
+            align-items: center;
+            display: flex;
+            gap: 14px;
+            margin-bottom: 28px;
+        }
+
+        .brand-logo {
+            max-height: 56px;
+            max-width: 180px;
+            object-fit: contain;
+        }
+
+        .brand-name {
+            font-size: 18px;
+            font-weight: 800;
+        }
+
+        h1 {
+            font-size: clamp(28px, 5vw, 40px);
+            line-height: 1.05;
+            margin: 0 0 12px;
+        }
+
+        p {
+            color: #4b5563;
+            font-size: 16px;
+            line-height: 1.55;
+            margin: 0 0 20px;
+        }
+
+        .status {
+            background: #f3f4f6;
+            border-radius: 10px;
+            font-weight: 700;
+            margin: 22px 0;
+            padding: 14px;
+        }
+
+        .join-btn {
+            background: var(--invite-primary, #0d1a38);
+            border: 0;
+            border-radius: 10px;
+            color: #fff;
+            cursor: pointer;
+            display: inline-flex;
+            font-size: 18px;
+            font-weight: 800;
+            justify-content: center;
+            min-height: 52px;
+            padding: 14px 22px;
+            text-decoration: none;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <main class="invite-shell">
+        <div class="brand-row">
+            <img id="brand-logo" class="brand-logo" alt="">
+            <div id="brand-name" class="brand-name">VRI Session</div>
+        </div>
+        <h1 id="invite-title">Session invite</h1>
+        <p id="invite-copy">This VRI session will open when the interpreter joins.</p>
+        <div id="invite-status" class="status">Checking invite...</div>
+        <div id="invite-action"></div>
+    </main>
+
+    <script>
+        const brand = window.__WHITELABEL__ || {};
+        const theme = brand.theme || {};
+        const logo = brand.assets?.logo || brand.assets?.logoWhite || 'images/malka-logo.png';
+        document.documentElement.style.setProperty('--invite-primary', theme.primary || theme.error || '#0d1a38');
+        document.getElementById('brand-logo').src = logo;
+        document.getElementById('brand-logo').alt = brand.providerName || brand.appName || 'VRI';
+        document.getElementById('brand-name').textContent = brand.appName || 'VRI Session';
+
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('token') || '';
+        const statusEl = document.getElementById('invite-status');
+        const titleEl = document.getElementById('invite-title');
+        const copyEl = document.getElementById('invite-copy');
+        const actionEl = document.getElementById('invite-action');
+
+        function setPending() {
+            titleEl.textContent = 'Waiting for interpreter';
+            copyEl.textContent = 'The session link is ready, but the live room stays closed until the interpreter confirms.';
+            statusEl.textContent = 'Waiting';
+            actionEl.innerHTML = '';
+        }
+
+        async function refreshInvite() {
+            if (!token) {
+                titleEl.textContent = 'Invite unavailable';
+                statusEl.textContent = 'Missing invite token';
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/vri/invites/${encodeURIComponent(token)}`);
+                if (!res.ok) throw new Error('Invite lookup failed');
+                const invite = await res.json();
+                if (invite.status === 'live' && invite.roomName) {
+                    titleEl.textContent = 'Interpreter connected';
+                    copyEl.textContent = 'The VRI room is now open. You will land in prejoin before entering.';
+                    statusEl.textContent = 'Ready to join';
+                    actionEl.innerHTML = `<a class="join-btn" href="/${encodeURIComponent(invite.roomName)}?role=guest#config.startWithAudioMuted=true&config.startWithVideoMuted=true">Join Session</a>`;
+                    return;
+                }
+                if (invite.status === 'expired') {
+                    titleEl.textContent = 'Invite expired';
+                    copyEl.textContent = 'This VRI session link is no longer active.';
+                    statusEl.textContent = 'Expired';
+                    actionEl.innerHTML = '';
+                    return;
+                }
+                setPending();
+            } catch (error) {
+                statusEl.textContent = 'Unable to load invite. Retrying...';
+            }
+        }
+
+        refreshInvite();
+        setInterval(refreshInvite, 5000);
+    </script>
+</body>
+</html>

@@ -207,13 +207,14 @@
 
 ### Maple VRI Pilot Readiness
 - [x] Admin moderation filters by tenant and service mode (`malka`/`maple`, `vrs`/`vri`)
-- [ ] Add DB-level immutability guard for `calls.call_type`
-- [ ] Maple human pilot script: client login, interpreter login, request interpreter, admin view, end call
-- [ ] Confirm Maple copy never says "video relay" on VRI-only paths
-- [ ] VRI session invite model: client can prepare/add participants before interpreter match, but nobody enters a live room until an interpreter confirms
-- [ ] VRI invite links scoped to the queue/session object, expiring after session end or short unmatched timeout
-- [ ] VRI guest flow: invited Deaf/hearing participants land in waiting/prejoin and can join once the interpreter-connected room is live
-- [ ] In-room VRI invite button: obvious secondary toolbar action with copy link and future SMS/email send, not hidden in settings/extras
+- [x] Add DB-level immutability guard for `calls.call_type`
+- [x] Maple human pilot script: client login, interpreter login, request interpreter, admin view, end call
+- [x] Confirm Maple copy never says "video relay" on VRI-only paths
+- [x] VRI session invite model: client can prepare/add participants before interpreter match, but nobody enters a live room until an interpreter confirms
+- [x] VRI invite links scoped to the queue/session object, expiring after session end or short unmatched timeout
+- [x] VRI guest flow: invited Deaf/hearing participants land in waiting/prejoin and can join once the interpreter-connected room is live
+- [x] In-room VRI invite button: obvious secondary toolbar action with copy link, not hidden in settings/extras
+- [ ] Add optional SMS/email send to VRI session invites after Resend/Twilio policy is finalized
 
 ### Malka/Multi-Mode Product Logic
 - [ ] Confirm Malka VRS clients retain VRS phone-number-oriented flow
@@ -470,7 +471,7 @@
 - [ ] Client can leave call without being signed out
 - [ ] Client call end reliably writes call completion/CDR metadata
 - [ ] Client supports captions/language controls in a mobile-appropriate location
-- [ ] Client supports invite flow once VRI session invite model is built
+- [x] Client supports invite flow once VRI session invite model is built
 - [ ] Client supports visual voicemail inbox and unread badge
 - [ ] Client supports contact history and notes
 

@@ -4,6 +4,63 @@ This file is the project-level running status log. The current update stays at t
 <!-- status:current:start -->
 ## Current Update
 
+- Updated: 2026-04-30
+- Branch: `codex/current-work`
+- HEAD: `66c0b6a`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  ROADMAP.md`
+  - `M  client-profile.html`
+  - `A  docs/maple-vri-human-pilot.md`
+  - `M  status.md`
+  - `A  vri-invite.html`
+  - `M  vrs-room-controls.js`
+  - `M  vrs-server/__tests__/queue-service.test.js`
+  - `M  vrs-server/dist/database.js`
+  - `M  vrs-server/lib/queue-service.js`
+  - `A  vrs-server/migrations/000005_vri_invites_and_call_type_guard.js`
+  - `M  vrs-server/src/database.ts`
+  - `M  vrs-server/src/lib/queue-service.ts`
+  - `M  vrs-server/src/server.ts`
+  - `M  vrs-server/ws/handler.js`
+  - `M  vrs-server/ws/schemas.js`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-30T01:26:37.448Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
+- Branch: `codex/current-work`
+- HEAD: `66c0b6a`
+- Note: VRI pilot slice: added call_type immutability guard, session-scoped VRI invite preparation/live guest flow, in-room VRI invite control, and Maple human pilot script.
+- Snapshot:
+Local changes at sync time:
+  - `M ROADMAP.md`
+  - `M client-profile.html`
+  - `M vrs-room-controls.js`
+  - `M vrs-server/__tests__/queue-service.test.js`
+  - `M vrs-server/dist/database.js`
+  - `M vrs-server/lib/queue-service.js`
+  - `M vrs-server/src/database.ts`
+  - `M vrs-server/src/lib/queue-service.ts`
+  - `M vrs-server/src/server.ts`
+  - `M vrs-server/ws/handler.js`
+  - `M vrs-server/ws/schemas.js`
+  - `?? docs/maple-vri-human-pilot.md`
+  - `?? vri-invite.html`
+  - `?? vrs-server/migrations/000005_vri_invites_and_call_type_guard.js`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-30T00:18:04.839Z
+
+<!-- status:current:start -->
+## Current Update
+
 - Updated: 2026-04-29
 - Branch: `codex/current-work`
 - HEAD: `e33b214`
@@ -29,7 +86,7 @@ Local changes at sync time:
   - `M  whitelabel/maple.json`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-29T23:49:32.558Z
 
 <!-- status:current:start -->

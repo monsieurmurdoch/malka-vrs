@@ -27,7 +27,15 @@ const requestInterpreterSchema = z.object({
     language: languageSchema.optional().default('ASL'),
     targetPhone: phoneNumberSchema.optional(),
     roomName: z.string().max(100).optional(),
-    callType: z.enum(['vrs', 'vri']).optional()
+    callType: z.enum(['vrs', 'vri']).optional(),
+    inviteTokens: z.array(z.string().min(1).max(100)).max(20).optional()
+});
+
+const prepareVriInviteSchema = z.object({
+    guestName: z.string().max(100).optional(),
+    guestEmail: z.string().email().max(200).optional(),
+    guestPhone: phoneNumberSchema.optional(),
+    roomName: z.string().max(100).optional()
 });
 
 const cancelRequestSchema = z.object({
@@ -216,6 +224,7 @@ const messageSchemas = {
     auth: authMessageSchema,
     interpreter_status: interpreterStatusSchema,
     request_interpreter: requestInterpreterSchema,
+    prepare_vri_invite: prepareVriInviteSchema,
     cancel_request: cancelRequestSchema,
     accept_request: acceptRequestSchema,
     decline_request: declineRequestSchema,

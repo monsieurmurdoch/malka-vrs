@@ -122,6 +122,7 @@ interface RequestInterpreterInput {
     roomName: string;
     targetPhone?: string | null;
     callType?: 'vrs' | 'vri';
+    inviteTokens?: string[];
 }
 
 interface RequestResult {
@@ -132,7 +133,7 @@ interface RequestResult {
     request?: QueueRequest;
 }
 
-async function requestInterpreter({ clientId, clientName, language, roomName, targetPhone = null, callType }: RequestInterpreterInput): Promise<RequestResult> {
+async function requestInterpreter({ clientId, clientName, language, roomName, targetPhone = null, callType, inviteTokens = [] }: RequestInterpreterInput): Promise<RequestResult> {
     if (paused) {
         return {
             success: false,
@@ -167,6 +168,15 @@ async function requestInterpreter({ clientId, clientName, language, roomName, ta
 
     queue.set(id, request);
 
+    if (request.callType === 'vri' && clientId && inviteTokens.length) {
+        await withRetry(() => db.attachVriInvitesToQueue({
+            clientId,
+            inviteTokens,
+            requestId: id,
+            roomName
+        }));
+    }
+
     // Notify admins
     notifyAdmins('queue_request_added', request);
 
@@ -185,6 +195,7 @@ async function cancelRequest(requestId: string): Promise<{ success: boolean; mes
     if (request) {
         queue.delete(requestId);
         matchingLocks.delete(requestId);
+        await withRetry(() => db.expireVriInvitesForQueue(requestId));
         await withRetry(() => db.removeFromQueue(requestId));
         reorderQueue();
 
@@ -410,6 +421,13 @@ async function completeMatch(request: db.QueueRequest | QueueRequest, interprete
         callType,
     }));
 
+    if (callType === 'vri') {
+        await withRetry(() => db.activateVriInvitesForQueue({
+            requestId: request.id,
+            roomName
+        }));
+    }
+
     totalMatches += 1;
 
     console.log(`[Queue] Matched: ${clientName} -> ${interpreter.name}`);
@@ -492,6 +510,7 @@ async function removeFromQueue(requestId: string): Promise<{ success: boolean; m
     }
 
     matchingLocks.delete(requestId);
+    await withRetry(() => db.expireVriInvitesForQueue(requestId));
     await withRetry(() => db.removeFromQueue(requestId));
     await withRetry(() => db.reorderQueue());
     reorderQueue();

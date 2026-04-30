@@ -418,6 +418,32 @@ app.get('/metrics', async (_req: Request, res: Response) => {
     }
 });
 
+app.get('/api/vri/invites/:token', async (req: Request, res: Response) => {
+    const token = String(req.params.token || '').trim();
+    if (!token) {
+        return res.status(400).json({ error: 'Missing invite token', code: 'VALIDATION_ERROR' });
+    }
+
+    try {
+        const invite = await db.getVriSessionInvite(token);
+        if (!invite) {
+            return res.status(404).json({ error: 'Invite not found', code: 'NOT_FOUND' });
+        }
+
+        const status = invite.public_status || invite.status;
+        res.json({
+            token: invite.token,
+            status,
+            expiresAt: invite.expires_at,
+            roomName: status === 'live' ? invite.room_name : null,
+            guestName: invite.guest_name || null
+        });
+    } catch (error) {
+        (req as RequestWithLog).log?.error({ err: error }, 'VRI invite lookup failed');
+        res.status(500).json({ error: 'Failed to load invite', code: 'INTERNAL_ERROR' });
+    }
+});
+
 // ============================================
 // PUBLIC VRS REGISTRATION (no auth)
 // ============================================

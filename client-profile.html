@@ -512,6 +512,58 @@
             margin-top: 5px;
         }
 
+        .vri-invite-panel {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 12px;
+            display: grid;
+            gap: 12px;
+            padding: 14px;
+        }
+
+        .vri-invite-form {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+        }
+
+        .vri-invite-input {
+            background: rgba(0,0,0,0.18);
+            border: 1px solid rgba(255,255,255,0.16);
+            border-radius: 8px;
+            color: inherit;
+            font-size: 14px;
+            min-width: 0;
+            padding: 12px;
+        }
+
+        .vri-invite-list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .vri-invite-item {
+            align-items: center;
+            display: grid;
+            gap: 10px;
+            grid-template-columns: minmax(0, 1fr) auto;
+        }
+
+        .vri-invite-url {
+            background: rgba(0,0,0,0.16);
+            border-radius: 8px;
+            font-size: 13px;
+            overflow: hidden;
+            padding: 10px 12px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .vri-invite-status {
+            font-size: 13px;
+            opacity: 0.72;
+        }
+
         .vri-inline-section {
             background: rgba(255,255,255,0.05);
             border: 1px solid rgba(255,255,255,0.1);
@@ -1998,6 +2050,9 @@
             ringingCall: null,    // { callId, roomName, calleeName, calleePhone }
             // VRS queue state
             queueRequest: null,   // { requestId, position, roomName, language, targetPhone }
+            vriInvites: [],
+            vriInviteForm: { guestName: '', guestEmail: '', guestPhone: '' },
+            vriInviteStatus: '',
             wsConnected: false,
             // Auth state
             authScreen: 'login',  // 'login' | 'register' | 'forgot' | 'reset' | 'otp' | 'otp-verify'
@@ -2452,6 +2507,12 @@
                     refreshContactsFromSync();
                     break;
 
+                case 'vri_invite_prepared':
+                    state.vriInvites = [...state.vriInvites.filter(invite => invite.token !== msg.data.token), msg.data];
+                    state.vriInviteStatus = 'Invite link prepared. It opens after the interpreter confirms.';
+                    render();
+                    break;
+
                 // ── VRS queue responses ──────────────────────────────────────
                 case 'request_queued':
                     // Server confirmed we're in queue. Show waiting UI.
@@ -2656,13 +2717,45 @@
                 type: 'request_interpreter',
                 data: {
                     language: language || 'ASL',
-                    clientName: user ? user.name : undefined
+                    clientName: user ? user.name : undefined,
+                    inviteTokens: (state.vriInvites || []).map(invite => invite.token).filter(Boolean)
                 }
             });
             // Optimistic UI: show the queue overlay immediately; the server
             // will correct position/roomName when it replies with request_queued.
             state.queueRequest = { position: 1, language: language || 'ASL', callType: 'vri' };
             renderOverlays();
+        };
+
+        window.__vriInviteField = function(field, value) {
+            if (!['guestName', 'guestEmail', 'guestPhone'].includes(field)) return;
+            state.vriInviteForm = { ...(state.vriInviteForm || {}), [field]: value };
+        };
+
+        window.__prepareVriInvite = function() {
+            const form = state.vriInviteForm || {};
+            wsSend({
+                type: 'prepare_vri_invite',
+                data: {
+                    guestName: form.guestName || undefined,
+                    guestEmail: form.guestEmail || undefined,
+                    guestPhone: form.guestPhone || undefined
+                }
+            });
+            state.vriInviteStatus = 'Preparing invite link...';
+            render();
+        };
+
+        window.__copyVriInvite = async function(index) {
+            const invite = (state.vriInvites || [])[index];
+            if (!invite || !invite.inviteUrl) return;
+            try {
+                await navigator.clipboard.writeText(invite.inviteUrl);
+                state.vriInviteStatus = 'Invite link copied.';
+            } catch (e) {
+                state.vriInviteStatus = invite.inviteUrl;
+            }
+            render();
         };
 
         /** Cancel the current queue request. */
@@ -3052,6 +3145,36 @@
             `;
         }
 
+        function renderVriInvitePanel() {
+            const form = state.vriInviteForm || {};
+            const invites = state.vriInvites || [];
+            return `
+                <div class="vri-invite-panel">
+                    <div>
+                        <div class="vri-session-eyebrow">Session Invites</div>
+                        <p class="vri-session-copy">Prepare guest links now. Guests wait until the interpreter-connected room is live.</p>
+                    </div>
+                    <div class="vri-invite-form">
+                        <input class="vri-invite-input" data-change-action="vri-invite-field" data-field="guestName" value="${escapeHtml(form.guestName || '')}" placeholder="Guest name">
+                        <input class="vri-invite-input" data-change-action="vri-invite-field" data-field="guestEmail" value="${escapeHtml(form.guestEmail || '')}" placeholder="Email">
+                        <input class="vri-invite-input" data-change-action="vri-invite-field" data-field="guestPhone" value="${escapeHtml(form.guestPhone || '')}" placeholder="Phone">
+                        <button class="settings-btn" data-action="prepare-vri-invite">Add Link</button>
+                    </div>
+                    ${state.vriInviteStatus ? `<div class="vri-invite-status">${escapeHtml(state.vriInviteStatus)}</div>` : ''}
+                    ${invites.length ? `
+                        <div class="vri-invite-list">
+                            ${invites.map((invite, index) => `
+                                <div class="vri-invite-item">
+                                    <div class="vri-invite-url">${escapeHtml(invite.inviteUrl || '')}</div>
+                                    <button class="settings-btn" data-action="copy-vri-invite" data-index="${index}">Copy</button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
         function openProfileSection(id) {
             const el = document.getElementById(id);
             if (!el) return;
@@ -3139,6 +3262,7 @@
                                     <div class="vri-state-value">Muted</div>
                                 </div>
                             </div>
+                            ${renderVriInvitePanel()}
                         </div>
                     </div>
                 </div>
@@ -3154,6 +3278,9 @@
                 case 'p2p-cancel': return window.__p2pCancel();
                 case 'cancel-queue-request': return window.__cancelQueueRequest();
                 case 'request-interpreter': return window.__requestInterpreter('ASL');
+                case 'vri-invite-field': return window.__vriInviteField(element.dataset.field, element.value);
+                case 'prepare-vri-invite': return window.__prepareVriInvite();
+                case 'copy-vri-invite': return window.__copyVriInvite(Number(element.dataset.index || 0));
                 case 'search-contacts': return window.__searchContacts(document.getElementById('contact-search')?.value || '');
                 case 'sync-contacts': return window.__syncContacts();
                 case 'import-device-contacts': return window.__importDeviceContacts();
