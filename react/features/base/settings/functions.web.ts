@@ -4,6 +4,13 @@ import { toState } from '../redux/functions';
 
 export * from './functions.any';
 
+type VrsRoomDeviceKind = 'camera' | 'microphone';
+
+interface IVrsRoomDevicePreference {
+    deviceId?: string;
+    label?: string;
+}
+
 /**
  * Returns the deviceId for the currently used camera.
  *
@@ -75,6 +82,7 @@ export function getUserSelectedCameraDeviceId(stateful: IStateful) {
         userSelectedCameraDeviceLabel
     } = state['features/base/settings'];
     const { videoInput } = state['features/base/devices'].availableDevices;
+    const roomPreference = getVrsRoomDevicePreference('camera');
 
     return _getUserSelectedDeviceId({
         availableDevices: videoInput,
@@ -82,8 +90,8 @@ export function getUserSelectedCameraDeviceId(stateful: IStateful) {
         // Operating systems may append " #{number}" somewhere in the label so
         // find and strip that bit.
         matchRegex: /\s#\d*(?!.*\s#\d*)/,
-        userSelectedDeviceId: userSelectedCameraDeviceId,
-        userSelectedDeviceLabel: userSelectedCameraDeviceLabel,
+        userSelectedDeviceId: roomPreference.deviceId || userSelectedCameraDeviceId,
+        userSelectedDeviceLabel: roomPreference.label || userSelectedCameraDeviceLabel,
         replacement: ''
     });
 }
@@ -103,6 +111,7 @@ export function getUserSelectedMicDeviceId(stateful: IStateful) {
         userSelectedMicDeviceLabel
     } = state['features/base/settings'];
     const { audioInput } = state['features/base/devices'].availableDevices;
+    const roomPreference = getVrsRoomDevicePreference('microphone');
 
     return _getUserSelectedDeviceId({
         availableDevices: audioInput,
@@ -110,8 +119,8 @@ export function getUserSelectedMicDeviceId(stateful: IStateful) {
         // Operating systems may append " ({number}-" somewhere in the label so
         // find and strip that bit.
         matchRegex: /\s\(\d*-\s(?!.*\s\(\d*-\s)/,
-        userSelectedDeviceId: userSelectedMicDeviceId,
-        userSelectedDeviceLabel: userSelectedMicDeviceLabel,
+        userSelectedDeviceId: roomPreference.deviceId || userSelectedMicDeviceId,
+        userSelectedDeviceLabel: roomPreference.label || userSelectedMicDeviceLabel,
         replacement: ' ('
     });
 }
@@ -139,6 +148,62 @@ export function getUserSelectedOutputDeviceId(stateful: IStateful) {
         userSelectedDeviceLabel: userSelectedAudioOutputDeviceLabel,
         replacement: undefined
     });
+}
+
+/**
+ * Parses device handoff values from the room URL hash.
+ *
+ * @param {string|null} value - The encoded URL parameter value.
+ * @returns {string|undefined}
+ */
+function parseRoomDeviceParam(value: string | null): string | undefined {
+    if (!value) {
+        return undefined;
+    }
+
+    try {
+        const parsed = JSON.parse(value);
+
+        return typeof parsed === 'string' ? parsed : undefined;
+    } catch {
+        return value;
+    }
+}
+
+/**
+ * Returns the device selected on the profile page before entering the room.
+ *
+ * @param {string} kind - The device kind to read.
+ * @returns {Object}
+ */
+function getVrsRoomDevicePreference(kind: VrsRoomDeviceKind): IVrsRoomDevicePreference {
+    if (typeof window === 'undefined') {
+        return {};
+    }
+
+    const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const deviceIdParam = kind === 'camera' ? 'vrsCameraDeviceId' : 'vrsMicrophoneDeviceId';
+    const labelParam = kind === 'camera' ? 'vrsCameraDeviceLabel' : 'vrsMicrophoneDeviceLabel';
+    const storedDeviceIdKey = kind === 'camera' ? 'cameraDeviceId' : 'microphoneDeviceId';
+    const storedLabelKey = kind === 'camera' ? 'cameraLabel' : 'microphoneLabel';
+    const fallbackStorageKey = kind === 'camera' ? 'vrs_camera_device_id' : 'vrs_microphone_device_id';
+    let storedPreference: Record<string, string> = {};
+
+    try {
+        storedPreference = JSON.parse(window.localStorage.getItem('vrs_room_media_devices') || '{}') || {};
+    } catch {
+        storedPreference = {};
+    }
+
+    return {
+        deviceId: parseRoomDeviceParam(params.get(deviceIdParam))
+            || storedPreference[storedDeviceIdKey]
+            || window.localStorage.getItem(fallbackStorageKey)
+            || undefined,
+        label: parseRoomDeviceParam(params.get(labelParam))
+            || storedPreference[storedLabelKey]
+            || undefined
+    };
 }
 
 /**

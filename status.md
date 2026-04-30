@@ -5,6 +5,24 @@ This file is the project-level running status log. The current update stays at t
 ## Current Update
 
 - Updated: 2026-04-30
+- Branch: `codex/webcam-device-handoff`
+- HEAD: `c9e31da`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  client-profile.html`
+  - `M  interpreter-profile.html`
+  - `M  react/features/base/settings/functions.web.ts`
+  - `M  react/features/vrs-layout/components/VRSLayout.tsx`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-30T19:57:35.275Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
 - Branch: `codex/admin-dashboard-main`
 - HEAD: `ec362f2`
 - Note: Pre-push project status sync.
@@ -20,7 +38,7 @@ Local changes at sync time:
   - `M  vrs-ops-server/src/index.ts`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-30T12:40:59.005Z
 
 <!-- status:current:start -->

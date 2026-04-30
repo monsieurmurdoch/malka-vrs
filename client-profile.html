@@ -2311,6 +2311,11 @@
             }
         }
 
+        function getSelectedMediaDevice(kind, deviceId) {
+            const devices = kind === 'camera' ? state.mediaDevices.cameras : state.mediaDevices.microphones;
+            return (devices || []).find(device => device.deviceId === deviceId);
+        }
+
         function updateMediaDevicePreference(kind, deviceId) {
             const key = kind === 'camera' ? 'vrs_camera_device_id' : 'vrs_microphone_device_id';
             setPersistentItem(key, deviceId || '');
@@ -2326,12 +2331,44 @@
         function persistSelectedJitsiDevicesForRoom() {
             const selectedCameraId = state.mediaDevices.selectedCameraId || getPersistentItem('vrs_camera_device_id') || '';
             const selectedMicId = state.mediaDevices.selectedMicId || getPersistentItem('vrs_microphone_device_id') || '';
+            const selectedCamera = getSelectedMediaDevice('camera', selectedCameraId);
+            const selectedMic = getSelectedMediaDevice('microphone', selectedMicId);
 
             if (selectedCameraId) {
                 persistJitsiDevicePreference('camera', selectedCameraId);
             }
             if (selectedMicId) {
                 persistJitsiDevicePreference('microphone', selectedMicId);
+            }
+
+            setPersistentItem('vrs_room_media_devices', JSON.stringify({
+                cameraDeviceId: selectedCameraId,
+                cameraLabel: selectedCamera?.label || '',
+                microphoneDeviceId: selectedMicId,
+                microphoneLabel: selectedMic?.label || '',
+                updatedAt: new Date().toISOString()
+            }));
+        }
+
+        function appendSelectedDevicesToRoomConfig(config) {
+            const selectedCameraId = state.mediaDevices.selectedCameraId || getPersistentItem('vrs_camera_device_id') || '';
+            const selectedMicId = state.mediaDevices.selectedMicId || getPersistentItem('vrs_microphone_device_id') || '';
+            const selectedCamera = getSelectedMediaDevice('camera', selectedCameraId);
+            const selectedMic = getSelectedMediaDevice('microphone', selectedMicId);
+
+            if (selectedCameraId) {
+                config.set('vrsCameraDeviceId', JSON.stringify(selectedCameraId));
+            }
+            if (selectedCamera?.label) {
+                config.set('vrsCameraDeviceLabel', JSON.stringify(selectedCamera.label));
+                config.set('devices.videoInput', JSON.stringify(selectedCamera.label));
+            }
+            if (selectedMicId) {
+                config.set('vrsMicrophoneDeviceId', JSON.stringify(selectedMicId));
+            }
+            if (selectedMic?.label) {
+                config.set('vrsMicrophoneDeviceLabel', JSON.stringify(selectedMic.label));
+                config.set('devices.audioInput', JSON.stringify(selectedMic.label));
             }
         }
 
@@ -2471,6 +2508,7 @@
                 'config.startWithVideoMuted': String(startWithVideoMuted),
                 'config.prejoinConfig.enabled': String(!skipPrejoin)
             });
+            appendSelectedDevicesToRoomConfig(config);
 
             const queryString = query.toString();
             return `/${encodeURIComponent(roomName)}${queryString ? `?${queryString}` : ''}#${config.toString()}`;
