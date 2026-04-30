@@ -273,6 +273,7 @@ const useStyles = makeStyles()(theme => ({
         borderTop: '1px solid rgba(255, 255, 255, 0.08)',
         display: 'flex',
         gap: theme.spacing(1),
+        gridColumn: '1 / -1',
         justifyContent: 'space-between',
         marginTop: theme.spacing(1),
         padding: theme.spacing(0.25, 1.5, 0, 1.5),
@@ -355,6 +356,34 @@ function getParticipantName(participant?: IParticipant, fallback = 'Waiting to J
     return participant?.name || participant?.displayName || fallback;
 }
 
+function isVisibleRoomParticipant(participant: IParticipant) {
+    return !participant.fakeParticipant
+        && !participant.isJigasi
+        && !participant.botType;
+}
+
+function isRenderableVideoTrack(videoTrack?: any) {
+    if (!videoTrack) {
+        return false;
+    }
+
+    const jitsiTrackMuted = typeof videoTrack.jitsiTrack?.isMuted === 'function'
+        ? videoTrack.jitsiTrack.isMuted()
+        : false;
+
+    return !videoTrack.muted
+        && !jitsiTrackMuted
+        && videoTrack.isReceivingData !== false;
+}
+
+function getPaneStatusText(participant: IParticipant | undefined, videoTrack: any, awaitingText: string) {
+    if (!participant) {
+        return awaitingText;
+    }
+
+    return isRenderableVideoTrack(videoTrack) ? 'Live' : 'Camera off';
+}
+
 function findParticipantByHint(participants: IParticipant[], hint?: string) {
     if (!hint) {
         return undefined;
@@ -398,7 +427,7 @@ export function isVrsSession(roomName?: string) {
 function resolvePanes(state: IReduxState): IVRSPane[] {
     const localParticipant = getLocalParticipant(state);
     const remoteParticipants = Array.from(state['features/base/participants'].remote.values())
-        .filter((participant: IParticipant) => !participant.fakeParticipant);
+        .filter(isVisibleRoomParticipant);
     const localRole = getStoredVrsRole();
     const targetClient = getStoredTargetClient();
 
@@ -424,30 +453,34 @@ function resolvePanes(state: IReduxState): IVRSPane[] {
         clientParticipant = findParticipantByHint(remainingParticipants, targetClient) || remainingParticipants[0];
     }
 
+    const clientVideoTrack = getVideoTrackByParticipant(state, clientParticipant);
+    const interpreterVideoTrack = getVideoTrackByParticipant(state, interpreterParticipant);
+    const hearingVideoTrack = getVideoTrackByParticipant(state, hearingParticipant);
+
     return [
         {
             description: 'Deaf or hard-of-hearing participant',
             participant: clientParticipant,
             role: 'client',
-            statusText: clientParticipant ? 'Live' : 'Awaiting client',
+            statusText: getPaneStatusText(clientParticipant, clientVideoTrack, 'Awaiting client'),
             title: 'Client',
-            videoTrack: getVideoTrackByParticipant(state, clientParticipant)
+            videoTrack: clientVideoTrack
         },
         {
             description: 'Interpreter remains visible throughout the call',
             participant: interpreterParticipant,
             role: 'interpreter',
-            statusText: interpreterParticipant ? 'Live' : 'Awaiting interpreter',
+            statusText: getPaneStatusText(interpreterParticipant, interpreterVideoTrack, 'Awaiting interpreter'),
             title: 'Interpreter',
-            videoTrack: getVideoTrackByParticipant(state, interpreterParticipant)
+            videoTrack: interpreterVideoTrack
         },
         {
             description: 'Hearing party on video or phone',
             participant: hearingParticipant,
             role: 'hearing',
-            statusText: hearingParticipant ? 'Live' : 'Awaiting hearing party',
+            statusText: getPaneStatusText(hearingParticipant, hearingVideoTrack, 'Awaiting hearing party'),
             title: 'Hearing Party',
-            videoTrack: getVideoTrackByParticipant(state, hearingParticipant)
+            videoTrack: hearingVideoTrack
         }
     ];
 }
@@ -518,6 +551,7 @@ const VRSLayout = ({
             {visiblePanes.map(pane => {
                 const participantName = getParticipantName(pane.participant, pane.title);
                 const emptyMessage = getPaneEmptyMessage(pane.role, Boolean(pane.participant));
+                const shouldRenderVideo = isRenderableVideoTrack(pane.videoTrack);
                 const shouldShowDevicePanel = pane.participant?.local
                     && (pane.role === 'client' || pane.role === 'interpreter');
 
@@ -536,7 +570,7 @@ const VRSLayout = ({
                             <div className = { classes.statusBadge }>{pane.statusText}</div>
                         </div>
                         <div className = { classes.mediaFrame }>
-                            {pane.videoTrack
+                            {shouldRenderVideo
                                 ? (
                                     <>
                                         <VideoTrack
@@ -623,7 +657,7 @@ const VRSLayout = ({
 function _mapStateToProps(state: IReduxState): Omit<IProps, 'dispatch'> {
     const localParticipant = getLocalParticipant(state);
     const remoteParticipants = Array.from(state['features/base/participants'].remote.values())
-        .filter((participant: IParticipant) => !participant.fakeParticipant);
+        .filter(isVisibleRoomParticipant);
     const localRole = getStoredVrsRole();
     const targetClient = getStoredTargetClient();
 
@@ -652,6 +686,10 @@ function _mapStateToProps(state: IReduxState): Omit<IProps, 'dispatch'> {
         remainingParticipants = withoutParticipant(remainingParticipants, clientParticipant);
     }
 
+    const clientVideoTrack = getVideoTrackByParticipant(state, clientParticipant);
+    const interpreterVideoTrack = getVideoTrackByParticipant(state, interpreterParticipant);
+    const hearingVideoTrack = getVideoTrackByParticipant(state, hearingParticipant);
+
     return {
         _audioInputDevices: state['features/base/devices'].availableDevices.audioInput || [],
         _currentCameraDeviceId: getCurrentCameraDeviceId(state),
@@ -664,25 +702,25 @@ function _mapStateToProps(state: IReduxState): Omit<IProps, 'dispatch'> {
                 description: 'Deaf or hard-of-hearing participant',
                 participant: clientParticipant,
                 role: 'client' as const,
-                statusText: clientParticipant ? 'Live' : 'Awaiting client',
+                statusText: getPaneStatusText(clientParticipant, clientVideoTrack, 'Awaiting client'),
                 title: 'Client',
-                videoTrack: getVideoTrackByParticipant(state, clientParticipant)
+                videoTrack: clientVideoTrack
             },
             {
                 description: 'Interpreter remains visible throughout the call',
                 participant: interpreterParticipant,
                 role: 'interpreter' as const,
-                statusText: interpreterParticipant ? 'Live' : 'Awaiting interpreter',
+                statusText: getPaneStatusText(interpreterParticipant, interpreterVideoTrack, 'Awaiting interpreter'),
                 title: 'Interpreter',
-                videoTrack: getVideoTrackByParticipant(state, interpreterParticipant)
+                videoTrack: interpreterVideoTrack
             },
             {
                 description: 'Hearing party on video or phone',
                 participant: hearingParticipant,
                 role: 'hearing' as const,
-                statusText: hearingParticipant ? 'Live' : 'Awaiting hearing party',
+                statusText: getPaneStatusText(hearingParticipant, hearingVideoTrack, 'Awaiting hearing party'),
                 title: 'Hearing Party',
-                videoTrack: getVideoTrackByParticipant(state, hearingParticipant)
+                videoTrack: hearingVideoTrack
             }
         ]
     };
