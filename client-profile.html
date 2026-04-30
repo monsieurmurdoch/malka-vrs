@@ -8,6 +8,11 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
+        :focus-visible {
+            outline: 3px solid #ffd166;
+            outline-offset: 3px;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #1a4d6e 0%, #2d5a3d 50%, #4a3b2a 100%);
@@ -44,6 +49,9 @@
             font-size: 20px;
             font-weight: 300;
             opacity: 0.8;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .profile-header-right {
@@ -56,7 +64,11 @@
 
         .profile-user-name {
             font-size: 14px;
+            max-width: 220px;
             opacity: 0.7;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .sign-out-btn {
@@ -72,6 +84,21 @@
 
         .sign-out-btn:hover {
             background: rgba(255,255,255,0.2);
+        }
+
+        .sign-out-btn:focus-visible,
+        .profile-nav-btn:focus-visible,
+        .settings-btn:focus-visible,
+        .quick-action-btn:focus-visible,
+        .start-call-btn:focus-visible,
+        .dialer-btn:focus-visible,
+        .join-room-btn:focus-visible,
+        .call-back-btn:focus-visible,
+        .add-speed-dial-btn:focus-visible,
+        .contact-card:focus-visible,
+        .speed-dial-card:focus-visible {
+            outline: 3px solid #ffd166;
+            outline-offset: 3px;
         }
 
         .profile-nav-btn {
@@ -642,8 +669,9 @@
 
         /* Call history */
         .call-item {
-            display: flex;
-            justify-content: space-between;
+            display: grid;
+            gap: 12px;
+            grid-template-columns: minmax(0, 1fr) auto;
             align-items: center;
             padding: 12px 0;
             border-bottom: 1px solid rgba(255,255,255,0.06);
@@ -668,6 +696,13 @@
             font-size: 12px;
             opacity: 0.4;
             margin-top: 2px;
+        }
+
+        .call-actions {
+            align-items: flex-end;
+            display: grid;
+            gap: 6px;
+            justify-items: end;
         }
 
         .empty-state {
@@ -1836,8 +1871,30 @@
                 gap: 8px;
             }
 
+            .profile-header-left,
+            .profile-header-right {
+                width: 100%;
+            }
+
+            .profile-header-right {
+                justify-content: flex-start;
+            }
+
             .profile-header-title {
                 display: none;
+            }
+
+            .profile-user-name {
+                max-width: 100%;
+            }
+
+            .call-item {
+                grid-template-columns: 1fr;
+            }
+
+            .call-actions {
+                align-items: stretch;
+                justify-items: stretch;
             }
 
             .overlay-caller-name { font-size: 24px; }
@@ -2881,6 +2938,36 @@
             });
         };
 
+        window.__addHistoryContact = async function(name, phone) {
+            if (!phone) {
+                state.contactStatus = { type: 'error', message: 'This call does not have a phone number to save.' };
+                render();
+                return;
+            }
+
+            try {
+                const response = await fetch(API_BASE + '/api/contacts', {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify({
+                        name: name || phone,
+                        phoneNumber: phone,
+                        organization: 'Personal',
+                        notes: 'Added from call history.'
+                    })
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to add contact.');
+                }
+                await loadContacts();
+                state.contactStatus = { type: 'success', message: 'Contact added from call history.' };
+            } catch (error) {
+                state.contactStatus = { type: 'error', message: error.message || 'Failed to add contact.' };
+            }
+            render();
+        };
+
         window.__markMissedSeen = async function() {
             await apiFetch('/api/client/missed-calls/mark-seen', { method: 'POST' });
             state.missedCalls = [];
@@ -2917,6 +3004,33 @@
         function callDurationMinutes(call) {
             const duration = Number(call?.duration_minutes || call?.durationMinutes || 0);
             return Number.isFinite(duration) ? duration : 0;
+        }
+
+        function callContactName(call) {
+            return call?.callee_name || call?.caller_name || call?.client_name || '';
+        }
+
+        function callContactPhone(call) {
+            return call?.callee_phone || call?.caller_phone || call?.target_phone || '';
+        }
+
+        function renderAddContactButton(call) {
+            const phone = callContactPhone(call);
+
+            if (!phone) {
+                return '';
+            }
+
+            const name = callContactName(call) || phone;
+
+            return `
+                <button class="settings-btn secondary"
+                    data-action="add-history-contact"
+                    data-contact-name="${escapeHtml(name)}"
+                    data-contact-phone="${escapeHtml(phone)}">
+                    Add Contact
+                </button>
+            `;
         }
 
         function getUsageSummary(calls) {
@@ -3062,6 +3176,23 @@
                                     <input id="settings-remember-media" type="checkbox" ${checked(preferences.remember_media_permissions)}>
                                     Remember media permission
                                 </label>
+                                <div class="settings-group-title">Notifications</div>
+                                <label class="settings-toggle">
+                                    <input id="settings-notifications" type="checkbox" ${checked(preferences.notifications_enabled !== false)}>
+                                    Enable in-app notifications
+                                </label>
+                                <label class="settings-toggle">
+                                    <input id="settings-notify-missed" type="checkbox" ${checked(preferences.notify_missed_calls !== false)}>
+                                    Missed calls
+                                </label>
+                                <label class="settings-toggle">
+                                    <input id="settings-notify-voicemail" type="checkbox" ${checked(preferences.notify_voicemail !== false)}>
+                                    Voicemail
+                                </label>
+                                <label class="settings-toggle">
+                                    <input id="settings-notify-queue" type="checkbox" ${checked(preferences.notify_queue_updates !== false)}>
+                                    Interpreter request updates
+                                </label>
                                 <label class="settings-toggle">
                                     <input id="settings-dnd" type="checkbox" ${checked(preferences.dnd_enabled)}>
                                     Do not disturb
@@ -3130,9 +3261,13 @@
                                     <div class="call-interpreter">
                                         ${call.interpreter_name ? 'Interpreter: ' + call.interpreter_name : ''}
                                         ${call.callee_name ? 'Called: ' + call.callee_name : ''}
+                                        ${callContactPhone(call) ? ' · ' + callContactPhone(call) : ''}
                                     </div>
                                 </div>
-                                <div class="call-duration">${call.duration_minutes ? call.duration_minutes + ' min' : 'In progress'}</div>
+                                <div class="call-actions">
+                                    <div class="call-duration">${call.duration_minutes ? call.duration_minutes + ' min' : 'In progress'}</div>
+                                    ${renderAddContactButton(call)}
+                                </div>
                             </div>
                         `).join('') : '<div class="empty-state">No sessions yet.</div>'}
                     </div>
@@ -3152,9 +3287,13 @@
                                     <div class="call-interpreter">
                                         ${call.interpreter_name ? 'Interpreter: ' + call.interpreter_name : ''}
                                         ${call.callee_name ? 'Called: ' + call.callee_name : ''}
+                                        ${callContactPhone(call) ? ' · ' + callContactPhone(call) : ''}
                                     </div>
                                 </div>
-                                <div class="call-duration">${call.duration_minutes ? call.duration_minutes + ' min' : 'In progress'}</div>
+                                <div class="call-actions">
+                                    <div class="call-duration">${call.duration_minutes ? call.duration_minutes + ' min' : 'In progress'}</div>
+                                    ${renderAddContactButton(call)}
+                                </div>
                             </div>
                         `).join('') : '<div class="empty-state">No calls yet. Start your first call!</div>'}
                     </div>
@@ -3337,6 +3476,7 @@
                     return;
                 case 'join-room': return window.__joinRoom(element.dataset.roomName);
                 case 'call-back': return window.__callBack(element.dataset.phone || '');
+                case 'add-history-contact': return window.__addHistoryContact(element.dataset.contactName || '', element.dataset.contactPhone || '');
                 case 'mark-missed-seen': return window.__markMissedSeen();
                 case 'form-field': return window.__formField(element.dataset.field, element.value);
                 case 'save-speed-dial': return window.__saveSpeedDial();
@@ -3956,7 +4096,11 @@
                 camera_default_off: true,
                 mic_default_off: true,
                 skip_waiting_room: false,
-                remember_media_permissions: true
+                remember_media_permissions: true,
+                notifications_enabled: true,
+                notify_missed_calls: true,
+                notify_voicemail: true,
+                notify_queue_updates: true
             };
 
             if (canUseVri) {
@@ -4202,7 +4346,11 @@
                         camera_default_off: !!document.getElementById('settings-camera-off')?.checked,
                         mic_default_off: true,
                         skip_waiting_room: !!document.getElementById('settings-skip-waiting')?.checked,
-                        remember_media_permissions: !!document.getElementById('settings-remember-media')?.checked
+                        remember_media_permissions: !!document.getElementById('settings-remember-media')?.checked,
+                        notifications_enabled: !!document.getElementById('settings-notifications')?.checked,
+                        notify_missed_calls: !!document.getElementById('settings-notify-missed')?.checked,
+                        notify_voicemail: !!document.getElementById('settings-notify-voicemail')?.checked,
+                        notify_queue_updates: !!document.getElementById('settings-notify-queue')?.checked
                     })
                 });
                 const data = await response.json().catch(() => ({}));

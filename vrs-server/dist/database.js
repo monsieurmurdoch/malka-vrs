@@ -590,8 +590,16 @@ async function createTables() {
             mic_default_off BOOLEAN DEFAULT true,
             skip_waiting_room BOOLEAN DEFAULT false,
             remember_media_permissions BOOLEAN DEFAULT true,
+            notifications_enabled BOOLEAN DEFAULT true,
+            notify_missed_calls BOOLEAN DEFAULT true,
+            notify_voicemail BOOLEAN DEFAULT true,
+            notify_queue_updates BOOLEAN DEFAULT true,
             updated_at TIMESTAMPTZ DEFAULT NOW()
         );
+        ALTER TABLE client_preferences ADD COLUMN IF NOT EXISTS notifications_enabled BOOLEAN DEFAULT true;
+        ALTER TABLE client_preferences ADD COLUMN IF NOT EXISTS notify_missed_calls BOOLEAN DEFAULT true;
+        ALTER TABLE client_preferences ADD COLUMN IF NOT EXISTS notify_voicemail BOOLEAN DEFAULT true;
+        ALTER TABLE client_preferences ADD COLUMN IF NOT EXISTS notify_queue_updates BOOLEAN DEFAULT true;
 
         -- Call transfers (interpreter transfers to another number)
         CREATE TABLE IF NOT EXISTS call_transfers (
@@ -1495,10 +1503,18 @@ async function getInterpreterEarnings(interpreterId, periodStart, periodEnd) {
 // ============================================
 async function getClientCallHistory(clientId, limit = 20, offset = 0) {
     return await runQuery(`SELECT c.*, i.name as interpreter_name,
-                callee.name as callee_name
+                callee.name as callee_name,
+                COALESCE(callee_phone.phone_number, q.target_phone) as callee_phone
          FROM calls c
          LEFT JOIN interpreters i ON i.id = c.interpreter_id
          LEFT JOIN clients callee ON callee.id = c.callee_id
+         LEFT JOIN client_phone_numbers callee_phone
+            ON callee_phone.client_id = callee.id
+           AND callee_phone.is_primary = true
+           AND callee_phone.active = true
+         LEFT JOIN queue_requests q
+            ON q.room_name = c.room_name
+           AND q.client_id = c.client_id
          WHERE c.client_id = $1
          ORDER BY c.started_at DESC
          LIMIT $2 OFFSET $3`, [clientId, limit, offset]);
@@ -1855,14 +1871,20 @@ async function getClientPreferences(clientId) {
             camera_default_off: true,
             mic_default_off: true,
             skip_waiting_room: false,
-            remember_media_permissions: true
+            remember_media_permissions: true,
+            notifications_enabled: true,
+            notify_missed_calls: true,
+            notify_voicemail: true,
+            notify_queue_updates: true
         };
     }
     return rows[0];
 }
 async function updateClientPreferences(clientId, updates) {
     const allowed = ['dnd_enabled', 'dnd_message', 'dark_mode', 'camera_default_off',
-        'mic_default_off', 'skip_waiting_room', 'remember_media_permissions'];
+        'mic_default_off', 'skip_waiting_room', 'remember_media_permissions',
+        'notifications_enabled', 'notify_missed_calls', 'notify_voicemail',
+        'notify_queue_updates'];
     const fields = [];
     const params = [];
     let idx = 1;

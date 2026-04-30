@@ -306,7 +306,11 @@ const preferencesUpdateSchema = z.object({
     camera_default_off: z.boolean().optional(),
     mic_default_off: z.boolean().optional(),
     skip_waiting_room: z.boolean().optional(),
-    remember_media_permissions: z.boolean().optional()
+    remember_media_permissions: z.boolean().optional(),
+    notifications_enabled: z.boolean().optional(),
+    notify_missed_calls: z.boolean().optional(),
+    notify_voicemail: z.boolean().optional(),
+    notify_queue_updates: z.boolean().optional()
 });
 
 router.get('/preferences', authenticateUser, async (req, res) => {

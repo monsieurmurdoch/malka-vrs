@@ -237,8 +237,10 @@
 ### UX Polish
 - [ ] Responsive layout audit for desktop, tablet, and small mobile screens
 - [ ] Accessibility audit against WCAG 2.1 AA, especially keyboard access and visible focus
-- [ ] Notification preferences UI wired to backend preferences
-- [ ] Add-to-contacts from call history
+- [x] Notification preferences UI wired to backend preferences
+- [x] Add-to-contacts from call history when a call exposes a phone number
+- [ ] VRS contact handles/aliases tied to NANP numbers, pending compliance review
+  - Current FCC-facing assumption: a ten-digit NANP number remains the registered/routable identifier for VRS. Optional private handles may be an app-layer discovery shortcut only if they resolve back to the registered number and do not replace TRS numbering/eligibility requirements.
 - [ ] Reduce clutter in profile home views and keep secondary panels collapsible
 - [ ] Finalize Malka light/dark palette against current public website
 - [ ] Finalize caption/language controls location so they are available without crowding the room UI
