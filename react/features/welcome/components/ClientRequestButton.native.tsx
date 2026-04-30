@@ -1,50 +1,86 @@
 import React from 'react';
-import { connect } from 'react-redux';
 import { useTranslation } from 'react-i18next';
+import { connect } from 'react-redux';
 
-import { requestInterpreter } from '../actions';
 import { IReduxState } from '../../app/types';
 import Button from '../../base/ui/components/native/Button';
 import { BUTTON_TYPES } from '../../base/ui/constants.native';
+import { cancelInterpreterRequest, requestInterpreter } from '../../interpreter-queue/actions';
+import { QueueState } from '../../interpreter-queue/reducer';
+import { getPersistentItem } from '../../vrs-auth/storage';
 
 interface IProps {
+    _isConnected: boolean;
+    _isRequestPending: boolean;
+    _queuePosition?: number;
     _role?: string;
-    _roomName?: string;
-    requestInterpreter: (roomName: string) => void;
+    cancelInterpreterRequest: () => void;
+    requestInterpreter: (language?: string) => void;
 }
 
-const ClientRequestButton: React.FC<IProps> = ({ _role, _roomName, requestInterpreter }) => {
+const ClientRequestButton: React.FC<IProps> = ({
+    _isConnected,
+    _isRequestPending,
+    _queuePosition,
+    _role,
+    cancelInterpreterRequest: dispatchCancelInterpreterRequest,
+    requestInterpreter: dispatchRequestInterpreter
+}) => {
     const { t } = useTranslation();
-    
-    // Only show for client role
+    const handlePress = React.useCallback(() => {
+        if (_isRequestPending) {
+            dispatchCancelInterpreterRequest();
+
+            return;
+        }
+
+        dispatchRequestInterpreter('ASL');
+    }, [
+        _isRequestPending,
+        dispatchCancelInterpreterRequest,
+        dispatchRequestInterpreter
+    ]);
+
+    // Only show for client role.
     if (_role !== 'client') {
         return null;
     }
 
-    const handlePress = () => {
-        if (_roomName) {
-            requestInterpreter(_roomName);
-        }
-    };
+    const pendingLabel = typeof _queuePosition === 'number'
+        ? t('welcomepage.waitingForInterpreterWithPosition', {
+            position: _queuePosition
+        })
+        : t('welcomepage.waitingForInterpreter');
 
     return (
         <Button
-            accessibilityLabel={t('welcomepage.requestInterpreter')}
-            labelKey='welcomepage.requestInterpreter'
-            onClick={handlePress}
-            type={BUTTON_TYPES.SECONDARY}
-        />
+            accessibilityLabel = { _isRequestPending
+                ? pendingLabel
+                : t('welcomepage.requestInterpreter') }
+            disabled = { !_isConnected && !_isRequestPending }
+            label = { _isRequestPending
+                ? t('welcomepage.cancelInterpreterRequest')
+                : t('welcomepage.requestInterpreter') }
+            onClick = { handlePress }
+            type = { _isRequestPending ? BUTTON_TYPES.DESTRUCTIVE : BUTTON_TYPES.SECONDARY } />
     );
 };
 
 const mapStateToProps = (state: IReduxState) => {
     const jwtState = state['features/base/jwt'];
-    const conferenceState = state['features/base/conference'];
-    
+    const queueState = state['features/interpreter-queue'] as QueueState | undefined;
+    const storedRole = getPersistentItem('vrs_user_role');
+    const isClientAuth = getPersistentItem('vrs_client_auth') === 'true';
+
     return {
-        _role: jwtState?.user?.role || 'guest',
-        _roomName: conferenceState?.room || ''
+        _isConnected: Boolean(queueState?.isConnected),
+        _isRequestPending: Boolean(queueState?.isRequestPending),
+        _queuePosition: queueState?.queuePosition,
+        _role: jwtState?.user?.role || storedRole || (isClientAuth ? 'client' : 'guest')
     };
 };
 
-export default connect(mapStateToProps, { requestInterpreter })(ClientRequestButton);
+export default connect(mapStateToProps, {
+    cancelInterpreterRequest,
+    requestInterpreter
+})(ClientRequestButton);

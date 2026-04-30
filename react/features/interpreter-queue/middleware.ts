@@ -5,27 +5,22 @@
  * enabling real-time updates for interpreter matching and queue status.
  */
 
-import MiddlewareRegistry from '../base/redux/MiddlewareRegistry';
 import { CONFERENCE_LEFT } from '../base/conference/actionTypes';
+import MiddlewareRegistry from '../base/redux/MiddlewareRegistry';
+import { getUserRole } from '../base/user-role/functions';
+import { getPersistentItem } from '../vrs-auth/storage';
+
 import { queueService } from './InterpreterQueueService';
 import {
     interpreterRequestReceived,
     matchFound,
     meetingInitiated,
-    queueStatusUpdate,
-    queueConnectionChanged
+    queueConnectionChanged,
+    queueStatusUpdate
 } from './actions';
-import { getUserRole } from '../base/user-role/functions';
 
 function hasInterpreterSessionToken() {
-    try {
-        return Boolean(
-            (typeof localStorage !== 'undefined' && localStorage.getItem('vrs_auth_token'))
-            || (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('vrs_auth_token'))
-        );
-    } catch {
-        return false;
-    }
+    return Boolean(getPersistentItem('vrs_auth_token'));
 }
 
 MiddlewareRegistry.register((store: { dispatch: Function; getState: Function; _interpreterQueueInitialized?: boolean }) =>

@@ -488,6 +488,7 @@
 - [ ] VRI console exposes billing/usage summary without exposing admin-only billing controls
 - [ ] VRS client supports phone-number profile, dial-via-interpreter, contacts, call history, missed calls
 - [ ] Client can request interpreter, see pending status, cancel request, and auto-enter after match
+  - 2026-04-30: native welcome client action now uses the shared interpreter queue Redux/WebSocket flow with pending/cancel state; auto-enter after match and device smoke remain open.
 - [ ] Client can join active matched room with camera off/mic muted defaults
 - [ ] Client can leave call without being signed out
 - [ ] Client call end reliably writes call completion/CDR metadata
@@ -534,6 +535,7 @@
 - [ ] Jitsi Meet React Native SDK integration verified against current Droplet/Jitsi config
 - [ ] Mobile-safe WebSocket queue client with reconnect/backoff/session restore
   - 2026-04-30: shared auth/session storage now has a mobile in-memory fallback and the queue service can instantiate anywhere `WebSocket` exists instead of requiring browser storage. Still needs device-level verification plus secure native persistence.
+  - 2026-04-30: queue middleware now checks shared VRS auth storage instead of browser-only storage before interpreter connection, and the native client request button uses queue Redux/WebSocket request/cancel state.
 - [ ] Secure token storage: Keychain on iOS, Keystore/EncryptedSharedPreferences on Android
 - [ ] Deep links into active rooms and invite links
 - [ ] Push/background calling: APNs, FCM, CallKit, Android ConnectionService

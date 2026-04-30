@@ -1535,7 +1535,10 @@
         "startMeeting": "Start meeting",
         "terms": "Terms",
         "title": "Secure, fully featured, and completely free video conferencing",
-        "upcomingMeetings": "Your upcoming meetings"
+        "upcomingMeetings": "Your upcoming meetings",
+        "cancelInterpreterRequest": "Cancel Interpreter Request",
+        "waitingForInterpreter": "Waiting for interpreter assignment",
+        "waitingForInterpreterWithPosition": "Waiting for interpreter assignment. Queue position: {{position}}"
     },
     "whiteboard": {
         "accessibilityLabel": {
