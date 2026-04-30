@@ -5,6 +5,92 @@ This file is the project-level running status log. The current update stays at t
 ## Current Update
 
 - Updated: 2026-04-30
+- Branch: `codex/billing-system-main`
+- HEAD: `c72873f`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  status.md`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-30T18:51:24.821Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
+- Branch: `codex/billing-system-main`
+- HEAD: `c72873f`
+- Note: Billing system v1 committed: immutable invoice linkage, corporate billing accounts, protected billing APIs, admin billing dashboard, and roadmap updates.
+- Snapshot:
+No local changes at sync time.
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-30T18:50:48.777Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
+- Branch: `codex/billing-system-main`
+- HEAD: `c9e31da`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  ROADMAP.md`
+  - `M  docker-compose.prod.yml`
+  - `M  status.md`
+  - `M  vrs-admin-dashboard.html`
+  - `M  vrs-admin-dashboard.js`
+  - `M  vrs-server/__tests__/billing/billing-core.test.ts`
+  - `M  vrs-server/__tests__/billing/rate-service.test.ts`
+  - `M  vrs-server/src/billing/cdr-service.ts`
+  - `M  vrs-server/src/billing/config.ts`
+  - `A  vrs-server/src/billing/migrations/009_billing_accounts_and_invoice_links.sql`
+  - `M  vrs-server/src/billing/routes/billing-admin.ts`
+  - `M  vrs-server/src/billing/routes/billing-dashboard.ts`
+  - `M  vrs-server/src/billing/types.ts`
+  - `M  vrs-server/src/billing/vri-billing-pipeline.ts`
+  - `M  vrs-server/ws/handler.js`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-30T18:49:04.742Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
+- Branch: `codex/billing-system-main`
+- HEAD: `c9e31da`
+- Note: Billing system v1: immutable CDR invoice linkage, corporate billing accounts, VRI rate defaults, protected billing APIs, and admin billing dashboard.
+- Snapshot:
+Local changes at sync time:
+  - `M ROADMAP.md`
+  - `M docker-compose.prod.yml`
+  - `M vrs-admin-dashboard.html`
+  - `M vrs-admin-dashboard.js`
+  - `M vrs-server/__tests__/billing/billing-core.test.ts`
+  - `M vrs-server/__tests__/billing/rate-service.test.ts`
+  - `M vrs-server/src/billing/cdr-service.ts`
+  - `M vrs-server/src/billing/config.ts`
+  - `M vrs-server/src/billing/routes/billing-admin.ts`
+  - `M vrs-server/src/billing/routes/billing-dashboard.ts`
+  - `M vrs-server/src/billing/types.ts`
+  - `M vrs-server/src/billing/vri-billing-pipeline.ts`
+  - `M vrs-server/ws/handler.js`
+  - `?? vrs-server/src/billing/migrations/009_billing_accounts_and_invoice_links.sql`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-30T18:47:25.439Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
 - Branch: `codex/admin-dashboard-main`
 - HEAD: `ec362f2`
 - Note: Pre-push project status sync.
@@ -20,7 +106,7 @@ Local changes at sync time:
   - `M  vrs-ops-server/src/index.ts`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-30T12:40:59.005Z
 
 <!-- status:current:start -->

@@ -66,6 +66,10 @@ let currentAdminRole = localStorage.getItem('vrs_admin_role') || 'admin';
 const scheduledRefreshes = new Map();
 let operationsRows = [];
 let activeOperationsView = 'live';
+let billingCorporateAccounts = [];
+let billingInvoices = [];
+let billingCdrs = [];
+let billingRates = [];
 
 function scheduleRefresh(key, callback, delay = 250) {
     if (scheduledRefreshes.has(key)) {
@@ -145,6 +149,7 @@ function setupEventListeners() {
     document.getElementById('addCaptionerBtn')?.addEventListener('click', showAddCaptionerModal);
     document.getElementById('addAccountBtn')?.addEventListener('click', showAddAccountModal);
     document.getElementById('addClientBtn')?.addEventListener('click', showAddClientModal);
+    document.getElementById('addCorporateBillingBtn')?.addEventListener('click', showAddCorporateBillingModal);
     document.getElementById('exportInterpretersBtn')?.addEventListener('click', () => exportTableCsv('interpreters', getVisibleInterpreters()));
     document.getElementById('exportAccountsBtn')?.addEventListener('click', () => exportTableCsv('accounts', getVisibleAccounts()));
     document.getElementById('exportClientsBtn')?.addEventListener('click', () => exportTableCsv('clients', getVisibleClients()));
@@ -218,6 +223,18 @@ function setupEventListeners() {
             case 'remove-from-queue':
                 removeFromQueue(id);
                 break;
+            case 'billing-generate-invoice':
+                showGenerateInvoiceModal(id);
+                break;
+            case 'billing-link-client':
+                showLinkBillingClientModal(id);
+                break;
+            case 'billing-issue-invoice':
+                issueBillingInvoice(id);
+                break;
+            case 'billing-mark-paid':
+                markBillingInvoicePaid(id);
+                break;
         }
     });
 }
@@ -284,6 +301,9 @@ function loadTabData(tab) {
             break;
         case 'activity':
             loadActivityFeed();
+            break;
+        case 'billing':
+            loadBilling();
             break;
         case 'tenants':
             loadTenants();
@@ -2769,6 +2789,358 @@ function formatDateTime(dateStr) {
         minute: '2-digit',
         month: 'short'
     });
+}
+
+// ============================================
+// BILLING
+// ============================================
+
+function formatMoney(amount, currency = 'USD') {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currency || 'USD'
+    }).format(Number(amount) || 0);
+}
+
+async function loadBilling() {
+    try {
+        const [ status, corporateAccounts, invoices, cdrs, rates ] = await Promise.all([
+            apiCall('/billing/status'),
+            apiCall('/billing/corporate'),
+            apiCall('/billing/invoices?limit=25'),
+            apiCall('/billing/cdrs?limit=50'),
+            apiCall('/billing/rate-tiers?isActive=true')
+        ]);
+
+        billingCorporateAccounts = corporateAccounts || [];
+        billingInvoices = invoices || [];
+        billingCdrs = cdrs || [];
+        billingRates = rates || [];
+
+        renderBillingStatus(status);
+        renderBillingCorporateAccounts();
+        renderBillingInvoices();
+        renderBillingCdrs();
+        renderBillingRates();
+    } catch (error) {
+        console.error('[Billing] Error:', error);
+        const tbody = document.getElementById('billingCorporateTableBody');
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" style="text-align: center; color: var(--accent-red); padding: 24px;">
+                        Failed to load billing dashboard: ${escapeHtml(error.message)}
+                    </td>
+                </tr>
+            `;
+        }
+    }
+}
+
+function renderBillingStatus(status) {
+    const value = document.getElementById('billingStatusValue');
+    const trend = document.getElementById('billingStatusTrend');
+    const subtext = document.getElementById('billingStatusSubtext');
+    const corporateCount = document.getElementById('billingCorporateCount');
+    const invoiceCount = document.getElementById('billingInvoiceCount');
+    const cdrCount = document.getElementById('billingRecentCdrCount');
+
+    if (value) value.textContent = status?.enabled ? 'Ready' : 'Off';
+    if (trend) trend.textContent = status?.postgres || 'unknown';
+    if (subtext) subtext.textContent = status?.enabled
+        ? 'PostgreSQL billing subsystem connected'
+        : 'Billing environment is not configured';
+    if (corporateCount) corporateCount.textContent = billingCorporateAccounts.length;
+    if (invoiceCount) invoiceCount.textContent = billingInvoices.length;
+    if (cdrCount) cdrCount.textContent = billingCdrs.length;
+}
+
+function renderBillingCorporateAccounts() {
+    const tbody = document.getElementById('billingCorporateTableBody');
+    if (!tbody) return;
+
+    if (!billingCorporateAccounts.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    No corporate billing accounts yet.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = billingCorporateAccounts.map(account => `
+        <tr>
+            <td>
+                <div style="font-weight: 600;">${escapeHtml(account.organizationName)}</div>
+                <div style="font-size: 12px; color: var(--text-muted);">${escapeHtml(account.paymentMethod)} · ${escapeHtml(account.contractType)}</div>
+            </td>
+            <td>${escapeHtml(account.tenantId || 'malka')}</td>
+            <td>
+                <div>${escapeHtml(account.billingContactName)}</div>
+                <div style="font-size: 12px; color: var(--text-muted);">${escapeHtml(account.billingContactEmail)}</div>
+            </td>
+            <td>${escapeHtml(account.currency || 'USD')}</td>
+            <td>${account.defaultRatePerMinute ? formatMoney(account.defaultRatePerMinute, account.currency) + '/min' : 'Rate tier'}</td>
+            <td>${account.billingDay || 1}</td>
+            <td>
+                <button class="btn btn-small btn-secondary" data-action="billing-link-client" data-id="${account.id}">Link Client</button>
+                <button class="btn btn-small btn-primary" data-action="billing-generate-invoice" data-id="${account.id}">Invoice</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function renderBillingInvoices() {
+    const tbody = document.getElementById('billingInvoicesTableBody');
+    if (!tbody) return;
+
+    if (!billingInvoices.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    No invoices generated yet.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = billingInvoices.map(invoice => `
+        <tr>
+            <td>${escapeHtml(invoice.invoiceNumber)}</td>
+            <td>${escapeHtml(invoice.billingPeriodStart)} → ${escapeHtml(invoice.billingPeriodEnd)}</td>
+            <td>${formatMoney(invoice.total, invoice.currency)}</td>
+            <td><span class="status-badge ${invoice.status === 'paid' ? 'status-online' : invoice.status === 'issued' ? 'status-busy' : 'status-offline'}">${escapeHtml(invoice.status)}</span></td>
+            <td>
+                ${invoice.status === 'draft' ? `<button class="btn btn-small btn-secondary" data-action="billing-issue-invoice" data-id="${invoice.id}">Issue</button>` : ''}
+                ${invoice.status !== 'paid' ? `<button class="btn btn-small btn-primary" data-action="billing-mark-paid" data-id="${invoice.id}">Mark Paid</button>` : ''}
+            </td>
+        </tr>
+    `).join('');
+}
+
+function renderBillingRates() {
+    const tbody = document.getElementById('billingRatesTableBody');
+    if (!tbody) return;
+
+    if (!billingRates.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    No active rate tiers.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = billingRates.map(rate => `
+        <tr>
+            <td>${escapeHtml(String(rate.callType).toUpperCase())}</td>
+            <td>${escapeHtml(rate.label)}</td>
+            <td>${formatMoney(rate.perMinuteRate)}/min</td>
+            <td>${escapeHtml(rate.effectiveFrom)}${rate.effectiveTo ? ` → ${escapeHtml(rate.effectiveTo)}` : ''}</td>
+        </tr>
+    `).join('');
+}
+
+function renderBillingCdrs() {
+    const tbody = document.getElementById('billingCdrTableBody');
+    if (!tbody) return;
+
+    if (!billingCdrs.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    No billing CDRs yet.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = billingCdrs.map(cdr => {
+        const currency = cdr.metadata?.currency || 'USD';
+        return `
+            <tr>
+                <td>
+                    <div style="font-weight: 600;">${escapeHtml(cdr.callId)}</div>
+                    <div style="font-size: 12px; color: var(--text-muted);">${formatDateTime(cdr.startTime)}</div>
+                </td>
+                <td>${escapeHtml(String(cdr.callType).toUpperCase())}</td>
+                <td>${formatDurationSeconds(cdr.durationSeconds || 0)}</td>
+                <td>${formatMoney(cdr.perMinuteRate, currency)}/min</td>
+                <td>${formatMoney(cdr.totalCharge, currency)}</td>
+                <td>${escapeHtml(cdr.billingStatus)}</td>
+                <td>${cdr.invoiceId ? escapeHtml(cdr.invoiceId.slice(0, 8)) : 'Uninvoiced'}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function showAddCorporateBillingModal() {
+    const tenantId = localStorage.getItem('vrs_admin_tenant') || defaultTenantId();
+    openAdminModal({
+        title: 'Add Corporate Billing Account',
+        subtitle: 'Creates the bill-to entity for VRI usage and invoice generation.',
+        body: `
+            <form id="billingCorporateForm" class="form-grid">
+                <label>Organization<input name="organizationName" required></label>
+                <label>Tenant
+                    <select name="tenantId">
+                        <option value="malka" ${tenantId === 'malka' ? 'selected' : ''}>Malka</option>
+                        <option value="maple" ${tenantId === 'maple' ? 'selected' : ''}>Maple</option>
+                    </select>
+                </label>
+                <label>Billing contact<input name="billingContactName" required></label>
+                <label>Billing email<input name="billingContactEmail" type="email" required></label>
+                <label>Currency
+                    <select name="currency">
+                        <option value="USD">USD</option>
+                        <option value="CAD" ${tenantId === 'maple' ? 'selected' : ''}>CAD</option>
+                    </select>
+                </label>
+                <label>VRI ASL-English rate/min<input name="defaultRatePerMinute" type="number" step="0.01" min="0" value="${tenantId === 'maple' ? '1.25' : '1.00'}"></label>
+                <label>Contract
+                    <select name="contractType">
+                        <option value="monthly">Monthly</option>
+                        <option value="per_call">Per call</option>
+                        <option value="quarterly">Quarterly</option>
+                    </select>
+                </label>
+                <label>Billing day<input name="billingDay" type="number" min="1" max="28" value="1"></label>
+                <label class="full-width">Notes<textarea name="notes"></textarea></label>
+            </form>
+        `,
+        footer: `
+            <button class="btn btn-secondary" type="button" data-modal-close>Cancel</button>
+            <button class="btn btn-primary" type="submit" form="billingCorporateForm">Create Account</button>
+        `
+    });
+
+    document.getElementById('billingCorporateForm')?.addEventListener('submit', async event => {
+        event.preventDefault();
+        const values = getFormValues(event.currentTarget);
+        try {
+            await apiCall('/billing/corporate', {
+                method: 'POST',
+                body: JSON.stringify({
+                    ...values,
+                    defaultRatePerMinute: Number(values.defaultRatePerMinute) || undefined,
+                    billingDay: Number(values.billingDay) || 1
+                })
+            });
+            closeAdminModal();
+            loadBilling();
+        } catch (error) {
+            alert(`Failed to create billing account: ${error.message}`);
+        }
+    });
+}
+
+async function showLinkBillingClientModal(accountId) {
+    if (!allClients.length) {
+        await loadClients();
+    }
+
+    const account = billingCorporateAccounts.find(item => item.id === accountId);
+    const clientOptions = allClients.map(client => `
+        <option value="${client.id || client.client_id}">${escapeHtml(client.name)} · ${escapeHtml(client.email)}</option>
+    `).join('');
+
+    openAdminModal({
+        title: 'Link Client to Billing Account',
+        subtitle: account ? `Attach a VRI client profile to ${account.organizationName}.` : '',
+        body: `
+            <form id="billingClientLinkForm" class="form-grid">
+                <label class="full-width">Client
+                    <select name="clientId" required>${clientOptions}</select>
+                </label>
+                <label>Tenant
+                    <select name="tenantId">
+                        <option value="malka">Malka</option>
+                        <option value="maple" ${account?.tenantId === 'maple' ? 'selected' : ''}>Maple</option>
+                    </select>
+                </label>
+            </form>
+        `,
+        footer: `
+            <button class="btn btn-secondary" type="button" data-modal-close>Cancel</button>
+            <button class="btn btn-primary" type="submit" form="billingClientLinkForm">Link Client</button>
+        `
+    });
+
+    document.getElementById('billingClientLinkForm')?.addEventListener('submit', async event => {
+        event.preventDefault();
+        const values = getFormValues(event.currentTarget);
+        try {
+            await apiCall(`/billing/corporate/${accountId}/clients`, {
+                method: 'POST',
+                body: JSON.stringify(values)
+            });
+            closeAdminModal();
+            loadBilling();
+        } catch (error) {
+            alert(`Failed to link client: ${error.message}`);
+        }
+    });
+}
+
+function showGenerateInvoiceModal(accountId) {
+    const now = new Date();
+    const periodEnd = now.toISOString().slice(0, 10);
+    const periodStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    const periodStart = periodStartDate.toISOString().slice(0, 10);
+
+    openAdminModal({
+        title: 'Generate VRI Invoice',
+        subtitle: 'Invoices only uninvoiced CDRs for this corporate account.',
+        body: `
+            <form id="billingInvoiceForm" class="form-grid">
+                <label>Period start<input name="periodStart" type="date" value="${periodStart}" required></label>
+                <label>Period end<input name="periodEnd" type="date" value="${periodEnd}" required></label>
+            </form>
+        `,
+        footer: `
+            <button class="btn btn-secondary" type="button" data-modal-close>Cancel</button>
+            <button class="btn btn-primary" type="submit" form="billingInvoiceForm">Generate Draft</button>
+        `
+    });
+
+    document.getElementById('billingInvoiceForm')?.addEventListener('submit', async event => {
+        event.preventDefault();
+        const values = getFormValues(event.currentTarget);
+        try {
+            await apiCall(`/billing/corporate/${accountId}/invoices`, {
+                method: 'POST',
+                body: JSON.stringify(values)
+            });
+            closeAdminModal();
+            loadBilling();
+        } catch (error) {
+            alert(`Failed to generate invoice: ${error.message}`);
+        }
+    });
+}
+
+async function issueBillingInvoice(invoiceId) {
+    try {
+        await apiCall(`/billing/invoices/${invoiceId}/issue`, { method: 'POST', body: '{}' });
+        loadBilling();
+    } catch (error) {
+        alert(`Failed to issue invoice: ${error.message}`);
+    }
+}
+
+async function markBillingInvoicePaid(invoiceId) {
+    try {
+        await apiCall(`/billing/invoices/${invoiceId}/pay`, { method: 'POST', body: '{}' });
+        loadBilling();
+    } catch (error) {
+        alert(`Failed to mark invoice paid: ${error.message}`);
+    }
 }
 
 // ============================================

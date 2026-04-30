@@ -48,6 +48,9 @@ export interface CreateCdrInput {
     calleeNumber?: string;
     language?: string;
     corporateAccountId?: string;
+    rateTierId?: string | null;
+    perMinuteRate?: number;
+    metadata?: Record<string, unknown>;
 }
 
 // ─── CDR Status Transitions ────────────────────────────────
@@ -91,14 +94,17 @@ export interface CreateRateTierInput {
 
 export interface CorporateAccount {
     id: string;
+    tenantId: string;
     organizationName: string;
     billingContactName: string;
     billingContactEmail: string;
     billingContactPhone: string | null;
+    currency: string;
     stripeCustomerId: string | null;
     paymentMethod: 'invoice' | 'stripe' | 'wire';
     contractType: 'monthly' | 'per_call' | 'quarterly';
     contractedRateTierId: string | null;
+    defaultRatePerMinute: number | null;
     billingDay: number;
     addressLine1: string | null;
     addressLine2: string | null;
@@ -114,13 +120,16 @@ export interface CorporateAccount {
 }
 
 export interface CreateCorporateAccountInput {
+    tenantId?: string;
     organizationName: string;
     billingContactName: string;
     billingContactEmail: string;
     billingContactPhone?: string;
+    currency?: string;
     paymentMethod?: 'invoice' | 'stripe' | 'wire';
     contractType: 'monthly' | 'per_call' | 'quarterly';
     contractedRateTierId?: string;
+    defaultRatePerMinute?: number;
     billingDay?: number;
     addressLine1?: string;
     addressLine2?: string;
@@ -143,6 +152,7 @@ export interface Invoice {
     subtotal: number;
     tax: number;
     total: number;
+    currency: string;
     status: InvoiceStatus;
     stripeInvoiceId: string | null;
     stripePaymentIntentId: string | null;

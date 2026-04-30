@@ -391,24 +391,30 @@
 - [ ] Monthly CDR aggregation pipeline
 - [ ] TRS Fund submission formatting
 - [ ] Reconciliation against payments/disputes
-- [ ] Per-minute rate table management
+- [x] Per-minute rate table management
 
 ### VRI Billing
-- [ ] Corporate account management
-- [ ] Default VRI ASL-to-English rate: **$1.00 USD / $1.25 CAD per interpreter minute** until contract-specific pricing supersedes it
+- [x] Corporate account management
+- [x] Default VRI ASL-to-English rate: **$1.00 USD / $1.25 CAD per interpreter minute** until contract-specific pricing supersedes it
+- [x] Client-to-corporate billing account linkage for VRI CDR attribution
 - [ ] Per-client VRI rate overrides by corporate account, tenant, currency, language pair, and effective date
+- [x] Account-level VRI rate override by tenant/currency for current ASL-English billing
 - [ ] Rate templates for future spoken/signed language pairs and captioning services without hard-coding prices yet
 - [ ] Interpreter profile billing options: supported service modes, language pairs, captioning eligibility, pay rate, currency, contractor/vendor details, and payout preferences
 - [x] VRI CDRs tagged at call origination/CDR creation
-- [ ] Invoice generation
-- [ ] Auto-generate corporate invoices from immutable VRI CDRs by billing period
+- [x] Invoice generation
+- [x] Auto-generate corporate invoices from immutable VRI CDRs by billing period
+- [x] Immutable invoice linkage through `invoice_cdrs` rather than mutating CDRs
 - [ ] Auto-email issued invoices to billing contacts, likely through Resend
 - [ ] Stripe/payment integration
 - [ ] Payment method support: card, ACH/manual invoice path, and admin-recorded offline payments
+- [x] Admin-recorded offline payment status for generated invoices
 - [ ] Stripe webhook handling for paid, failed, disputed, overdue, and cancelled invoices
 - [ ] Corporate billing dashboard
+- [x] Corporate billing dashboard API protected by admin auth for initial internal use
 - [ ] Corporate usage dashboard: day/week/month totals, invoice history, downloadable CSV/PDF
-- [ ] Admin billing dashboard: corporate accounts, rates, invoice drafts, issued invoices, payment status, disputes, write-offs
+- [x] Admin billing dashboard v1: corporate accounts, client links, rates, CDRs, invoice drafts, issued invoices, and paid status
+- [ ] Expand admin billing dashboard with disputes, write-offs, CSV/PDF exports, and invoice delivery status
 - [ ] Evaluate build-vs-integrate path for billing/CRM: custom in-app billing cockpit vs integrating an open-source CRM/accounting system
 - [ ] Strict VRS/VRI separation in call creation, routing, billing, and audit trails
 
@@ -423,7 +429,8 @@
 
 ### Billing Safeguards
 - [ ] Immutable `call_type` at call creation
-- [ ] Separate VRS and VRI billing pipelines
+- [x] Separate VRS and VRI billing pipelines
+- [x] Billing admin/dashboard API routes require admin or superadmin JWT
 - [ ] Automated reconciliation anomaly checks
 - [ ] Monthly billing audit report
 - [ ] FCC audit export with chain of custody

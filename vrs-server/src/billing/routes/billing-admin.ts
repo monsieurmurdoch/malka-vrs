@@ -7,10 +7,22 @@
 
 import { Router, Request, Response } from 'express';
 import * as billingDb from '../../lib/billing-db';
+import { normalizeAuthClaims, verifyJwtToken } from '../../lib/auth';
 import { getCdrs, getCdrById, getCdrStatusHistory, transitionCdrStatus } from '../cdr-service';
 import { getRateTiers, createRateTier, deactivateRateTier } from '../rate-service';
 import { generateMonthlyAggregation, formatTrsSubmission, markTrsSubmitted, reconcileTrsPayment } from '../vrs-billing-pipeline';
-import { getCorporateAccounts, getCorporateAccount, createCorporateAccount, generateInvoice, issueInvoice, markInvoicePaid, getCorporateBillingSummary } from '../vri-billing-pipeline';
+import {
+    getCorporateAccounts,
+    getCorporateAccount,
+    createCorporateAccount,
+    generateInvoice,
+    issueInvoice,
+    markInvoicePaid,
+    getCorporateAccountClients,
+    linkClientToCorporateAccount,
+    getInvoices,
+    getInvoice,
+} from '../vri-billing-pipeline';
 import { runMonthlyReconciliation, getReconciliationReport, resolveVariance } from '../reconciliation-service';
 import { getAuditLog } from '../audit-service';
 import { TrsFormatter } from '../formatters/trs-formatter';
@@ -20,6 +32,30 @@ import type { BillingFormatter } from '../formatters/formatter-interface';
 import type { CallType, BillingStatus } from '../config';
 
 export const router = Router();
+
+function authenticateBillingAdmin(req: Request, res: Response, next: () => void): void {
+    try {
+        const header = req.headers.authorization || '';
+        const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+        if (!token) {
+            res.status(401).json({ error: 'Authentication required' });
+            return;
+        }
+
+        const claims = normalizeAuthClaims(verifyJwtToken(token) as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+        if (claims.role !== 'admin' && claims.role !== 'superadmin') {
+            res.status(403).json({ error: 'Admin access required' });
+            return;
+        }
+
+        (req as any).user = claims; // eslint-disable-line @typescript-eslint/no-explicit-any
+        next();
+    } catch (_err) {
+        res.status(401).json({ error: 'Invalid token' });
+    }
+}
+
+router.use(authenticateBillingAdmin);
 
 function single(value: unknown): string {
     if (Array.isArray(value)) {
@@ -236,6 +272,31 @@ router.get('/corporate/:id', async (req: Request, res: Response) => {
     }
 });
 
+/** GET /api/billing/corporate/:id/clients — List clients linked to corporate account */
+router.get('/corporate/:id/clients', async (req: Request, res: Response) => {
+    try {
+        const clients = await getCorporateAccountClients(single(req.params.id));
+        res.json(clients);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch linked clients' });
+    }
+});
+
+/** POST /api/billing/corporate/:id/clients — Link client to corporate account */
+router.post('/corporate/:id/clients', async (req: Request, res: Response) => {
+    try {
+        await linkClientToCorporateAccount(
+            req.body.clientId,
+            req.body.tenantId || 'malka',
+            single(req.params.id),
+            (req as any).user?.id // eslint-disable-line @typescript-eslint/no-explicit-any
+        );
+        res.status(201).json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to link client to corporate account' });
+    }
+});
+
 /** POST /api/billing/corporate/:id/invoices — Generate invoice */
 router.post('/corporate/:id/invoices', async (req: Request, res: Response) => {
     try {
@@ -249,6 +310,32 @@ router.post('/corporate/:id/invoices', async (req: Request, res: Response) => {
         res.status(201).json(invoice);
     } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
         res.status(400).json({ error: err.message || 'Failed to generate invoice' });
+    }
+});
+
+/** GET /api/billing/invoices — List invoices */
+router.get('/invoices', async (req: Request, res: Response) => {
+    try {
+        const invoices = await getInvoices({
+            corporateAccountId: req.query.corporateAccountId ? single(req.query.corporateAccountId) : undefined,
+            status: req.query.status ? single(req.query.status) as any : undefined, // eslint-disable-line @typescript-eslint/no-explicit-any
+            limit: req.query.limit ? queryNumber(req.query.limit, 50) : 50,
+            offset: req.query.offset ? queryNumber(req.query.offset, 0) : 0,
+        });
+        res.json(invoices);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch invoices' });
+    }
+});
+
+/** GET /api/billing/invoices/:id — Invoice detail with immutable CDRs */
+router.get('/invoices/:id', async (req: Request, res: Response) => {
+    try {
+        const invoice = await getInvoice(single(req.params.id));
+        if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+        res.json(invoice);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch invoice' });
     }
 });
 

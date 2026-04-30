@@ -886,6 +886,7 @@
                 <button class="nav-tab" data-tab="clients">Clients</button>
                 <button class="nav-tab" data-tab="queue">Live Queue</button>
                 <button class="nav-tab" data-tab="activity">Activity</button>
+                <button class="nav-tab" data-tab="billing">Billing</button>
                 <button class="nav-tab" data-tab="tenants">Tenants</button>
             </nav>
         </div>
@@ -1477,6 +1478,157 @@
                 </div>
                 <div class="activity-feed" id="activityFeed">
                     <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Tenants Tab -->
+        <div class="tab-content" id="billing-tab">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div class="stat-icon green">💵</div>
+                        <span class="stat-trend" id="billingStatusTrend">--</span>
+                    </div>
+                    <div class="stat-value" id="billingStatusValue">--</div>
+                    <div class="stat-label">Billing DB</div>
+                    <div class="stat-subtext" id="billingStatusSubtext">Loading billing status...</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div class="stat-icon blue">🏢</div>
+                    </div>
+                    <div class="stat-value" id="billingCorporateCount">--</div>
+                    <div class="stat-label">Corporate Accounts</div>
+                    <div class="stat-subtext">VRI billing entities</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div class="stat-icon orange">🧾</div>
+                    </div>
+                    <div class="stat-value" id="billingInvoiceCount">--</div>
+                    <div class="stat-label">Recent Invoices</div>
+                    <div class="stat-subtext">Draft, issued, and paid</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div class="stat-icon purple">📞</div>
+                    </div>
+                    <div class="stat-value" id="billingRecentCdrCount">--</div>
+                    <div class="stat-label">Recent CDRs</div>
+                    <div class="stat-subtext">Immutable usage records</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-header">
+                    <h2 class="section-title">Corporate Billing Accounts</h2>
+                    <div class="section-actions">
+                        <button class="btn btn-primary" id="addCorporateBillingBtn">+ Corporate Account</button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Organization</th>
+                                <th>Tenant</th>
+                                <th>Contact</th>
+                                <th>Currency</th>
+                                <th>Rate</th>
+                                <th>Billing Day</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="billingCorporateTableBody">
+                            <tr>
+                                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                                    Loading corporate accounts...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="two-column">
+                <div class="section">
+                    <div class="section-header">
+                        <h2 class="section-title">Invoices</h2>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Invoice</th>
+                                    <th>Period</th>
+                                    <th>Total</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="billingInvoicesTableBody">
+                                <tr>
+                                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                                        Loading invoices...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-header">
+                        <h2 class="section-title">Rate Tiers</h2>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Service</th>
+                                    <th>Label</th>
+                                    <th>Rate</th>
+                                    <th>Effective</th>
+                                </tr>
+                            </thead>
+                            <tbody id="billingRatesTableBody">
+                                <tr>
+                                    <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                                        Loading rates...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-header">
+                    <h2 class="section-title">Recent CDRs</h2>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Call</th>
+                                <th>Service</th>
+                                <th>Duration</th>
+                                <th>Rate</th>
+                                <th>Total</th>
+                                <th>Status</th>
+                                <th>Invoice</th>
+                            </tr>
+                        </thead>
+                        <tbody id="billingCdrTableBody">
+                            <tr>
+                                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                                    Loading CDRs...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

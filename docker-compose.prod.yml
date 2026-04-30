@@ -146,6 +146,7 @@ services:
       - BILLING_PG_DATABASE=${PGDATABASE:-malka_vrs}
       - BILLING_PG_USER=${PGUSER:-malka}
       - BILLING_PG_PASSWORD=${PGPASSWORD:-malka}
+      - BILLING_DEFAULT_VRI_RATE=${MALKA_VRI_RATE_PER_MINUTE:-1.00}
     depends_on:
       pgbouncer:
         condition: service_healthy
@@ -171,6 +172,7 @@ services:
       - BILLING_PG_DATABASE=${PGDATABASE:-malka_vrs}
       - BILLING_PG_USER=${PGUSER:-malka}
       - BILLING_PG_PASSWORD=${PGPASSWORD:-malka}
+      - BILLING_DEFAULT_VRI_RATE=${MAPLE_VRI_RATE_PER_MINUTE:-1.25}
     depends_on:
       pgbouncer:
         condition: service_healthy

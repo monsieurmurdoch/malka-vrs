@@ -156,15 +156,38 @@ async function createBillingCdrForCall(callId, fallbackCallType = 'vrs') {
     }
 
     const { createCdr } = require('../dist/billing/cdr-service');
+    const callType = call.call_type || fallbackCallType;
+    const metadata = {};
+    let corporateAccount = null;
+
+    if (callType === 'vri' && call.client_id) {
+        try {
+            const client = await db.getClient(call.client_id);
+            const tenantId = client?.tenant_id || client?.tenantId || 'malka';
+            const { getCorporateAccountForClient } = require('../dist/billing/vri-billing-pipeline');
+            corporateAccount = await getCorporateAccountForClient(call.client_id, tenantId);
+            metadata.tenantId = tenantId;
+            if (corporateAccount) {
+                metadata.currency = corporateAccount.currency;
+                metadata.corporateAccountId = corporateAccount.id;
+            }
+        } catch (err) {
+            log.warn({ err, callId }, 'Could not resolve corporate billing account for VRI CDR');
+        }
+    }
+
     return createCdr({
         callId: call.id,
-        callType: call.call_type || fallbackCallType,
+        callType,
         callerId: call.client_id,
         interpreterId: call.interpreter_id,
         startTime: new Date(call.started_at),
         endTime: call.ended_at ? new Date(call.ended_at) : new Date(),
         durationSeconds: (call.duration_minutes || 0) * 60,
         language: call.language,
+        corporateAccountId: corporateAccount?.id,
+        perMinuteRate: corporateAccount?.defaultRatePerMinute || undefined,
+        metadata,
     });
 }
 

@@ -65,7 +65,7 @@ export function loadBillingConfig(): BillingConfig {
         },
         rates: {
             defaultVrsRatePerMinute: parseFloat(process.env.BILLING_DEFAULT_VRS_RATE || '3.50'),
-            defaultVriRatePerMinute: parseFloat(process.env.BILLING_DEFAULT_VRI_RATE || '4.95'),
+            defaultVriRatePerMinute: parseFloat(process.env.BILLING_DEFAULT_VRI_RATE || '1.00'),
         },
     };
 

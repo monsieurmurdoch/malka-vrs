@@ -51,6 +51,7 @@ describe('cdr-service', () => {
 
             // Mock rate lookup
             (billingDb.query as jest.Mock)
+                .mockResolvedValueOnce({ rows: [] })
                 .mockResolvedValueOnce({
                     rows: [{ id: 'tier-1', per_minute_rate: '3.5000' }],
                 })
@@ -82,14 +83,14 @@ describe('cdr-service', () => {
             expect(result!.totalCharge).toBe(17.5); // 5 min * $3.50
             expect(result!.billingStatus).toBe('pending');
 
-            // Verify query was called for rate lookup and CDR insert
-            expect(billingDb.query).toHaveBeenCalledTimes(3);
+            // Duplicate check, rate lookup, CDR insert, audit insert.
+            expect(billingDb.query).toHaveBeenCalledTimes(4);
         });
 
         it('transitionCdrStatus inserts a status transition', async () => {
             (billingDb.query as jest.Mock)
                 .mockResolvedValueOnce({
-                    rows: [{ billing_status: 'pending' }],
+                    rows: [{ current_status: 'pending' }],
                 })
                 .mockResolvedValueOnce({ rows: [], rowCount: 0 })
                 .mockResolvedValueOnce({ rows: [], rowCount: 0 }); // audit log

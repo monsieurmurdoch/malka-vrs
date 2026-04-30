@@ -7,10 +7,35 @@
 
 import { Router, Request, Response } from 'express';
 import * as billingDb from '../../lib/billing-db';
+import { normalizeAuthClaims, verifyJwtToken } from '../../lib/auth';
 import { getCdrs } from '../cdr-service';
 import { getCorporateBillingSummary, getCorporateAccount } from '../vri-billing-pipeline';
 
 export const router = Router();
+
+function authenticateBillingDashboard(req: Request, res: Response, next: () => void): void {
+    try {
+        const header = req.headers.authorization || '';
+        const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+        if (!token) {
+            res.status(401).json({ error: 'Authentication required' });
+            return;
+        }
+
+        const claims = normalizeAuthClaims(verifyJwtToken(token) as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+        if (claims.role !== 'admin' && claims.role !== 'superadmin') {
+            res.status(403).json({ error: 'Admin access required' });
+            return;
+        }
+
+        (req as any).user = claims; // eslint-disable-line @typescript-eslint/no-explicit-any
+        next();
+    } catch (_err) {
+        res.status(401).json({ error: 'Invalid token' });
+    }
+}
+
+router.use(authenticateBillingDashboard);
 
 function single(value: unknown): string {
     if (Array.isArray(value)) {
@@ -78,7 +103,9 @@ router.get('/dashboard/:accountId/profile', async (req: Request, res: Response) 
             organizationName: account.organizationName,
             billingContactName: account.billingContactName,
             billingContactEmail: account.billingContactEmail,
+            currency: account.currency,
             contractType: account.contractType,
+            defaultRatePerMinute: account.defaultRatePerMinute,
             billingDay: account.billingDay,
             country: account.country,
         });
