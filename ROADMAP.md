@@ -238,7 +238,7 @@
 - [x] Make interpreter/client/account CSV exports available from roster tables
 - [x] Clarify admin dashboard labels: Available Interpreters are staff ready for matching; Waiting Client Requests are clients currently waiting in queue
 - [x] Tighten admin live refresh for interpreter availability and queue-state changes so manual refresh is not normally needed
-- [ ] Replace CRM note fields with dedicated schedule, billing, payout, and manager-note tables once those subsystems are live
+- [ ] Replace CRM note fields with dedicated schedule, billing, payout, utilization, and manager-note tables once those subsystems are live
 
 ### Calls, Rooms & Queue Follow-Up
 - [ ] Linked hangup for interpreted calls: if the client or interpreter ends an interpreted VRI/VRS session, the other party exits too
@@ -398,28 +398,47 @@
 - [ ] Default VRI ASL-to-English rate: **$1.00 USD / $1.25 CAD per interpreter minute** until contract-specific pricing supersedes it
 - [ ] Per-client VRI rate overrides by corporate account, tenant, currency, language pair, and effective date
 - [ ] Rate templates for future spoken/signed language pairs and captioning services without hard-coding prices yet
-- [ ] Interpreter profile billing options: supported service modes, language pairs, captioning eligibility, pay rate, currency, contractor/vendor details, and payout preferences
 - [x] VRI CDRs tagged at call origination/CDR creation
-- [ ] Invoice generation
-- [ ] Auto-generate corporate invoices from immutable VRI CDRs by billing period
-- [ ] Auto-email issued invoices to billing contacts, likely through Resend
-- [ ] Stripe/payment integration
-- [ ] Payment method support: card, ACH/manual invoice path, and admin-recorded offline payments
-- [ ] Stripe webhook handling for paid, failed, disputed, overdue, and cancelled invoices
-- [ ] Corporate billing dashboard
+- [ ] Billing architecture decision: use Stripe Billing for corporate VRI usage, invoices, payment collection, and customer portal unless a later accounting constraint forces another provider
+- [ ] Stripe product/price catalog: VRI interpreter-minute meter, tenant/currency-specific prices, and per-client override metadata
+- [ ] Stripe customer mapping: tenant/corporate account -> Stripe customer, with billing contacts, currency, tax metadata, and payment terms
+- [ ] Stripe usage ingestion from immutable VRI CDRs: one idempotent meter event or invoice line source per completed billable interpreter minute
+- [ ] Invoice generation: draft invoices from CDRs, review/approve, finalize, and send through Stripe-hosted invoices
+- [ ] Auto-email issued invoices to billing contacts through Stripe invoice emails; evaluate Resend only for custom supplemental summaries
+- [ ] Payment method support: card, ACH/pre-authorized debit where available, manual invoice path, and admin-recorded offline payments
+- [ ] Stripe webhook handling for invoice finalized, paid, payment failed, overdue/uncollectible, disputed, refunded, voided, and subscription/customer changes
 - [ ] Corporate usage dashboard: day/week/month totals, invoice history, downloadable CSV/PDF
 - [ ] Admin billing dashboard: corporate accounts, rates, invoice drafts, issued invoices, payment status, disputes, write-offs
-- [ ] Evaluate build-vs-integrate path for billing/CRM: custom in-app billing cockpit vs integrating an open-source CRM/accounting system
+- [ ] Billing reconciliation dashboard: compare internal CDR totals, Stripe meter events/invoice lines, invoice totals, payments, credits, disputes, and write-offs
+- [ ] Build-vs-integrate decision: keep operational billing cockpit in-app, integrate/export to accounting later rather than adopting a full external CRM as source of truth
 - [ ] Strict VRS/VRI separation in call creation, routing, billing, and audit trails
 
 ### Interpreter Payouts & Invoicing
-- [ ] Interpreter payout model: employee vs contractor, hourly vs per-minute vs minimum blocks, currency, tax/vendor metadata
-- [ ] Interpreter payable records generated from completed CDRs and queue/call lifecycle events
-- [ ] Interpreter invoice generation for contractor interpreters by billing period
-- [ ] Interpreter payout review workflow: draft, approved, paid, disputed, adjusted
+- [ ] Interpreter profile billing options: supported service modes, language pairs, captioning eligibility, pay rate, currency, employee/contractor status, vendor/tax details, and payout preferences
+- [ ] Interpreter payout model: hourly, per-minute, minimum blocks, scheduled shift guarantees, on-call premiums, language/service-mode differentials, currency, and effective dates
+- [ ] Interpreter payable records generated from completed CDRs, queue lifecycle events, availability sessions, break sessions, scheduled shifts, adjustments, and manager approvals
+- [ ] Stripe Connect decision: use Connect for automated contractor payouts only after legal/accounting confirms platform liability, contractor onboarding, tax reporting, and supported countries; keep payroll/accounting export path for employees
+- [ ] Interpreter invoice generation for contractor interpreters by billing period, with draft review before payment
+- [ ] Interpreter payout review workflow: draft, approved, paid, failed, disputed, adjusted, reversed
 - [ ] Export payout reports for accounting/payroll
 - [ ] Optional payment rails investigation: Stripe Connect, Wise, ACH provider, or manual accounting export
 - [ ] Interpreter profile billing tab for earnings, invoices, payout method, tax/vendor documents, and payout history
+
+### Interpreter Scheduling & Utilization
+- [ ] Dedicated interpreter schedule tables: availability windows, scheduled shifts, time-off/unavailable blocks, recurring schedule rules, tenant/service-mode/language eligibility, and manager overrides
+- [ ] Dedicated billing tables: `billing_customers`, `billing_rates`, `billing_invoice_batches`, `billing_invoice_items`, `billing_payments`, `billing_adjustments`, and `stripe_webhook_events`
+- [ ] Dedicated payout tables: `interpreter_pay_rates`, `interpreter_payables`, `interpreter_payout_batches`, `interpreter_payout_items`, `interpreter_payout_adjustments`, and `interpreter_vendor_profiles`
+- [ ] Dedicated schedule/utilization tables: `interpreter_schedule_windows`, `interpreter_availability_sessions`, `interpreter_break_sessions`, `interpreter_shift_targets`, `interpreter_shift_exceptions`, and `interpreter_utilization_summaries`
+- [ ] Dedicated manager-note tables: structured notes linked to interpreter/client/corporate account, note type, visibility, author, timestamp, audit trail, and follow-up date
+- [ ] Interpreter self-scheduling UI: interpreters can view required/target weekly hours, signed-on hours so far, scheduled hours remaining, and add/adjust availability to fill gaps
+- [ ] Admin scheduling UI: weekly roster by tenant, service mode, language, interpreter, coverage gaps, overstaffing, and pending interpreter schedule changes
+- [ ] Availability session tracking: when an interpreter goes available, unavailable, on break, busy/in-call, or offline, record start/end timestamps with source and reason
+- [ ] Break tracking: paid/unpaid break classification, break reason, break duration, break frequency, and compliance/manager review flags
+- [ ] Utilization metrics: hands-up/available minutes per scheduled hour, in-call minutes per available hour, paid break minutes per scheduled hour, queue acceptance rate, decline/no-answer rate, idle time, and after-call/admin time
+- [ ] Weekly utilization dashboard for interpreters: scheduled hours, signed-on hours, hands-up hours, in-call hours, breaks, remaining target hours, and earnings/payables preview
+- [ ] Weekly utilization dashboard for admin: coverage by hour, fill-rate, interpreter adherence, break patterns, productivity, queue SLA impact, and exportable payroll/accounting summary
+- [ ] Service-mode utilization split: VRS vs VRI vs captioning availability and in-call minutes, with tenant/language filters
+- [ ] Utilization audit trail: manual edits, manager notes, schedule changes, payout adjustments, and dispute resolution history
 
 ### Billing Safeguards
 - [ ] Immutable `call_type` at call creation
