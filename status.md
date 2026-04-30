@@ -6,6 +6,69 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-30
 - Branch: `hermes/mobile-parity`
+- HEAD: `6f0e9e6`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  status.md`
+  - `M vrs-admin-dashboard.html`
+  - `M vrs-admin-dashboard.js`
+  - `M vrs-ops-server/dist/index.d.ts.map`
+  - `M vrs-ops-server/dist/index.js`
+  - `M vrs-ops-server/dist/index.js.map`
+  - `M vrs-ops-server/src/index.ts`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-30T13:06:51.788Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
+- Branch: `hermes/mobile-parity`
+- HEAD: `6f0e9e6`
+- Parity slice: Native client interpreter request/pending/cancel queue wiring.
+- Completed:
+  - Moved the native welcome-page client Request Interpreter button from the legacy welcome `fetch('/api/queue/request')` action path to the shared interpreter queue Redux/WebSocket actions.
+  - Added native pending/cancel button behavior driven by `features/interpreter-queue` state, including queue-position accessibility copy.
+  - Kept the button hidden for unauthenticated/unknown roles by reading stored VRS role/client-auth state instead of defaulting every native user to `client`.
+  - Switched queue middleware's interpreter-auth guard to shared VRS auth storage instead of direct `localStorage`/`sessionStorage`, preserving native AsyncStorage hydration from the previous slice.
+  - Added English copy for pending/cancel interpreter request states and roadmap notes for the mobile client queue slice.
+- Validated:
+  - `npx eslint react/features/welcome/components/ClientRequestButton.native.tsx` passed.
+  - TypeScript `transpileModule` parse check passed for `ClientRequestButton.native.tsx` and `interpreter-queue/middleware.ts`.
+  - Targeted no-emit TypeScript was attempted and remains blocked by existing repo type-surface debt outside this slice; output captured in `/tmp/malka-mobile-validation/native-client-queue-targeted-tsc.log`.
+  - Targeted ESLint for `interpreter-queue/middleware.ts` still reports existing formatting/JSDoc/interface-style debt in that file; output captured in `/tmp/malka-mobile-validation/native-client-queue-eslint.log`.
+- Blocked / incomplete:
+  - Auto-enter after match remains open for the client queue parity checklist.
+  - Device-level mobile smoke for request/pending/cancel remains pending.
+  - Full native TypeScript remains blocked by existing native/web ambient declaration and module-resolution debt.
+  - Secure token storage still needs Keychain/Keystore-backed storage.
+- Mobile files intentionally in scope:
+  - `ROADMAP.md`
+  - `lang/main.json`
+  - `react/features/interpreter-queue/middleware.ts`
+  - `react/features/welcome/components/ClientRequestButton.native.tsx`
+  - `status.md`
+- Unrelated local changes left untouched / not in mobile scope:
+  - `vrs-admin-dashboard.html`
+  - `vrs-admin-dashboard.js`
+  - `vrs-ops-server/dist/index.d.ts.map`
+  - `vrs-ops-server/dist/index.js`
+  - `vrs-ops-server/dist/index.js.map`
+  - `vrs-ops-server/src/index.ts`
+- Next best mobile parity slice: wire client match/meeting-initiated queue events into native room navigation, with camera-off/mic-muted defaults if compatible with existing app navigation.
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-30T13:06:37.645Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
+- Branch: `hermes/mobile-parity`
 - HEAD: `572a544`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -23,7 +86,7 @@ Local changes at sync time:
   - `M vrs-ops-server/src/index.ts`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-30T13:06:10.851Z
 
 <!-- status:current:start -->
