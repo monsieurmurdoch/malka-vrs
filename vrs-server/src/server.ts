@@ -70,6 +70,7 @@ const auth = require('../lib/auth');
 // Billing routes (TypeScript — compiled)
 const { router: billingAdminRouter } = require('./billing/routes/billing-admin');
 const { router: billingDashboardRouter } = require('./billing/routes/billing-dashboard');
+const { router: billingWebhookRouter } = require('./billing/routes/stripe-webhooks');
 
 // WebSocket handler
 const { handleConnection } = require('../ws/handler');
@@ -201,6 +202,9 @@ app.use('/api', rateLimit({
 app.use(httpMetricsMiddleware);
 app.use(requestId);
 app.use(requestLogger);
+
+// Stripe needs the exact raw body for webhook signature verification.
+app.use('/api/billing/webhooks', billingWebhookRouter);
 
 // Body parsing
 app.use(express.json({ limit: '1mb' }));

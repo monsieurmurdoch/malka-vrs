@@ -11,6 +11,16 @@ import { getCdrs, getCdrById, getCdrStatusHistory, transitionCdrStatus } from '.
 import { getRateTiers, createRateTier, deactivateRateTier } from '../rate-service';
 import { generateMonthlyAggregation, formatTrsSubmission, markTrsSubmitted, reconcileTrsPayment } from '../vrs-billing-pipeline';
 import { getCorporateAccounts, getCorporateAccount, createCorporateAccount, generateInvoice, issueInvoice, markInvoicePaid, getCorporateBillingSummary } from '../vri-billing-pipeline';
+import {
+    createManagerNote,
+    createScheduleWindow,
+    listManagerNotes,
+    listPayables,
+    listScheduleWindows,
+    listUtilizationSummaries,
+    recordAvailabilitySession,
+    recordBreakSession,
+} from '../interpreter-operations-service';
 import { runMonthlyReconciliation, getReconciliationReport, resolveVariance } from '../reconciliation-service';
 import { getAuditLog } from '../audit-service';
 import { TrsFormatter } from '../formatters/trs-formatter';
@@ -276,6 +286,130 @@ router.post('/invoices/:id/pay', async (req: Request, res: Response) => {
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: 'Failed to mark invoice as paid' });
+    }
+});
+
+// ─── Interpreter Operations ────────────────────────────────
+
+/** GET /api/billing/interpreter-utilization — Weekly interpreter utilization summaries */
+router.get('/interpreter-utilization', async (req: Request, res: Response) => {
+    try {
+        const summaries = await listUtilizationSummaries({
+            interpreterId: req.query.interpreterId ? single(req.query.interpreterId) : undefined,
+            tenantId: req.query.tenantId ? single(req.query.tenantId) : undefined,
+            weekStart: req.query.weekStart ? single(req.query.weekStart) : undefined,
+            limit: req.query.limit ? queryNumber(req.query.limit, 100) : undefined,
+        });
+        res.json(summaries);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch interpreter utilization' });
+    }
+});
+
+/** GET /api/billing/interpreters/:id/schedule-windows — Interpreter schedule windows */
+router.get('/interpreters/:id/schedule-windows', async (req: Request, res: Response) => {
+    try {
+        const windows = await listScheduleWindows({
+            interpreterId: single(req.params.id),
+            tenantId: req.query.tenantId ? single(req.query.tenantId) : undefined,
+            fromDate: req.query.fromDate ? single(req.query.fromDate) : undefined,
+            toDate: req.query.toDate ? single(req.query.toDate) : undefined,
+            limit: req.query.limit ? queryNumber(req.query.limit, 100) : undefined,
+        });
+        res.json(windows);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch schedule windows' });
+    }
+});
+
+/** POST /api/billing/interpreters/:id/schedule-windows — Create interpreter schedule window */
+router.post('/interpreters/:id/schedule-windows', async (req: Request, res: Response) => {
+    try {
+        const window = await createScheduleWindow({
+            ...req.body,
+            interpreterId: single(req.params.id),
+            createdBy: (req as any).user?.id, // eslint-disable-line @typescript-eslint/no-explicit-any
+        });
+        if (!window) return res.status(503).json({ error: 'Billing not configured' });
+        res.status(201).json(window);
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        res.status(400).json({ error: err.message || 'Failed to create schedule window' });
+    }
+});
+
+/** POST /api/billing/interpreters/:id/availability-sessions — Record availability/busy/offline time */
+router.post('/interpreters/:id/availability-sessions', async (req: Request, res: Response) => {
+    try {
+        const session = await recordAvailabilitySession({
+            ...req.body,
+            interpreterId: single(req.params.id),
+        });
+        if (!session) return res.status(503).json({ error: 'Billing not configured' });
+        res.status(201).json(session);
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        res.status(400).json({ error: err.message || 'Failed to record availability session' });
+    }
+});
+
+/** POST /api/billing/interpreters/:id/break-sessions — Record interpreter break time */
+router.post('/interpreters/:id/break-sessions', async (req: Request, res: Response) => {
+    try {
+        const session = await recordBreakSession({
+            ...req.body,
+            interpreterId: single(req.params.id),
+        });
+        if (!session) return res.status(503).json({ error: 'Billing not configured' });
+        res.status(201).json(session);
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        res.status(400).json({ error: err.message || 'Failed to record break session' });
+    }
+});
+
+/** GET /api/billing/interpreters/:id/payables — Interpreter payables */
+router.get('/interpreters/:id/payables', async (req: Request, res: Response) => {
+    try {
+        const payables = await listPayables({
+            interpreterId: single(req.params.id),
+            tenantId: req.query.tenantId ? single(req.query.tenantId) : undefined,
+            status: req.query.status ? single(req.query.status) : undefined,
+            periodStart: req.query.periodStart ? single(req.query.periodStart) : undefined,
+            periodEnd: req.query.periodEnd ? single(req.query.periodEnd) : undefined,
+            limit: req.query.limit ? queryNumber(req.query.limit, 100) : undefined,
+        });
+        res.json(payables);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch interpreter payables' });
+    }
+});
+
+/** GET /api/billing/manager-notes/:entityType/:entityId — Admin manager notes */
+router.get('/manager-notes/:entityType/:entityId', async (req: Request, res: Response) => {
+    try {
+        const notes = await listManagerNotes({
+            entityType: single(req.params.entityType),
+            entityId: single(req.params.entityId),
+            tenantId: req.query.tenantId ? single(req.query.tenantId) : undefined,
+            limit: req.query.limit ? queryNumber(req.query.limit, 100) : undefined,
+        });
+        res.json(notes);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch manager notes' });
+    }
+});
+
+/** POST /api/billing/manager-notes/:entityType/:entityId — Create admin manager note */
+router.post('/manager-notes/:entityType/:entityId', async (req: Request, res: Response) => {
+    try {
+        const note = await createManagerNote({
+            ...req.body,
+            entityType: single(req.params.entityType),
+            entityId: single(req.params.entityId),
+            createdBy: (req as any).user?.id, // eslint-disable-line @typescript-eslint/no-explicit-any
+        });
+        if (!note) return res.status(503).json({ error: 'Billing not configured' });
+        res.status(201).json(note);
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        res.status(400).json({ error: err.message || 'Failed to create manager note' });
     }
 });
 

@@ -17,7 +17,6 @@ import type {
     CorporateAccount,
     CreateCorporateAccountInput,
     Invoice,
-    BillingCdr,
 } from './types';
 
 // ─── Corporate Account Management ──────────────────────────
@@ -36,8 +35,9 @@ export async function createCorporateAccount(
         `INSERT INTO corporate_accounts (
             id, organization_name, billing_contact_name, billing_contact_email,
             billing_contact_phone, payment_method, contract_type, contracted_rate_tier_id,
-            billing_day, address_line1, address_line2, city, state, zip, country, notes, created_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+            billing_day, currency, tax_id, payment_terms_days, stripe_price_id, stripe_subscription_id,
+            address_line1, address_line2, city, state, zip, country, notes, created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`,
         [
             id,
             input.organizationName,
@@ -48,6 +48,11 @@ export async function createCorporateAccount(
             input.contractType,
             input.contractedRateTierId || null,
             input.billingDay || 1,
+            (input.currency || 'USD').toUpperCase(),
+            input.taxId || null,
+            input.paymentTermsDays || 30,
+            input.stripePriceId || null,
+            input.stripeSubscriptionId || null,
             input.addressLine1 || null,
             input.addressLine2 || null,
             input.city || null,
@@ -131,12 +136,15 @@ export async function generateInvoice(
 
     // Get VRI CDRs for this account in the period
     const cdrs = await billingDb.query(
-        `SELECT * FROM billing_cdrs
-         WHERE corporate_account_id = $1
-           AND call_type = 'vri'
-           AND start_time >= $2
-           AND start_time < $3
-         ORDER BY start_time`,
+        `SELECT c.*
+         FROM billing_cdrs c
+         LEFT JOIN billing_invoice_items bii ON bii.cdr_id = c.id
+         WHERE c.corporate_account_id = $1
+           AND c.call_type = 'vri'
+           AND c.start_time >= $2
+           AND c.start_time < $3
+           AND bii.id IS NULL
+         ORDER BY c.start_time`,
         [corporateAccountId, periodStart, periodEnd]
     );
 
@@ -151,8 +159,8 @@ export async function generateInvoice(
         `INSERT INTO invoices (
             corporate_account_id, invoice_number,
             billing_period_start, billing_period_end,
-            subtotal, tax, total, status, created_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            subtotal, tax, total, currency, status, created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING id, created_at`,
         [
             corporateAccountId,
@@ -162,6 +170,7 @@ export async function generateInvoice(
             subtotal,
             tax,
             total,
+            account.currency,
             'draft',
             performedBy || null,
         ]
@@ -169,15 +178,26 @@ export async function generateInvoice(
 
     const invoiceId = result.rows[0].id;
 
-    // Link CDRs to this invoice
-    await billingDb.query(
-        `UPDATE billing_cdrs SET invoice_id = $1
-         WHERE corporate_account_id = $2
-           AND call_type = 'vri'
-           AND start_time >= $3
-           AND start_time < $4`,
-        [invoiceId, corporateAccountId, periodStart, periodEnd]
-    );
+    for (const row of cdrs.rows) {
+        const durationMinutes = Math.ceil(Number(row.duration_seconds || 0) / 60);
+        const totalCharge = parseFloat(row.total_charge as string);
+        await billingDb.query(
+            `INSERT INTO billing_invoice_items (
+                invoice_id, cdr_id, description, quantity, unit_amount, total, currency, metadata
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (cdr_id) WHERE cdr_id IS NOT NULL DO NOTHING`,
+            [
+                invoiceId,
+                row.id,
+                `VRI interpreter minutes: ${new Date(row.start_time as string).toISOString()}`,
+                durationMinutes,
+                parseFloat(row.per_minute_rate as string),
+                totalCharge,
+                account.currency,
+                JSON.stringify({ callId: row.call_id, language: row.language || null }),
+            ]
+        );
+    }
 
     await logBillingEvent('invoice_generated', 'invoice', invoiceId, {
         corporateAccountId,
@@ -198,9 +218,12 @@ export async function generateInvoice(
         subtotal,
         tax,
         total,
+        currency: account.currency,
         status: 'draft',
         stripeInvoiceId: null,
         stripePaymentIntentId: null,
+        stripeHostedInvoiceUrl: null,
+        stripeInvoicePdfUrl: null,
         issuedAt: null,
         dueDate: null,
         paidAt: null,
@@ -236,21 +259,33 @@ export async function issueInvoice(
         try {
             const stripe = createStripeProvider();
             const dueDateObj = new Date();
-            dueDateObj.setDate(dueDateObj.getDate() + 30);
+            dueDateObj.setDate(dueDateObj.getDate() + (account.paymentTermsDays || 30));
             dueDate = dueDateObj.toISOString().slice(0, 10);
 
+            const itemRows = await billingDb.query(
+                'SELECT description, quantity, unit_amount, total FROM billing_invoice_items WHERE invoice_id = $1 ORDER BY created_at',
+                [invoiceId]
+            );
             const stripeInvoice = await stripe.createInvoice({
                 customerId: account.stripeCustomerId,
-                items: [{
-                    description: `VRI Services: ${invoiceRow.billing_period_start} to ${invoiceRow.billing_period_end}`,
-                    quantity: 1,
-                    unitAmount: Math.round(invoiceRow.total * 100),
-                    total: Math.round(invoiceRow.total * 100),
-                }],
+                currency: account.currency.toLowerCase(),
+                items: itemRows.rows.map((item: Record<string, unknown>) => ({
+                    description: item.description as string,
+                    quantity: Number(item.quantity || 1),
+                    unitAmount: Math.round(parseFloat(item.unit_amount as string) * 100),
+                    total: Math.round(parseFloat(item.total as string) * 100),
+                })),
                 dueDate: dueDateObj,
                 metadata: { invoiceId },
             });
             stripeInvoiceId = stripeInvoice.id;
+            await billingDb.query(
+                `UPDATE invoices
+                 SET stripe_hosted_invoice_url = $1,
+                     stripe_invoice_pdf_url = $2
+                 WHERE id = $3`,
+                [stripeInvoice.hostedUrl || null, stripeInvoice.pdfUrl || null, invoiceId]
+            );
         } catch (err) {
             console.error('[VRI Billing] Failed to create Stripe invoice:', err);
         }
@@ -267,7 +302,8 @@ export async function issueInvoice(
         performedBy,
     });
 
-    return null; // Caller should re-fetch if needed
+    const updated = await billingDb.query('SELECT * FROM invoices WHERE id = $1', [invoiceId]);
+    return updated.rows[0] ? mapInvoiceRow(updated.rows[0]) : null;
 }
 
 /**
@@ -335,7 +371,9 @@ export async function markInvoicePaid(
 
     // Transition CDRs linked to this invoice to 'paid'
     const cdrs = await billingDb.query<{ id: string }>(
-        'SELECT id FROM billing_cdrs WHERE invoice_id = $1',
+        `SELECT cdr_id AS id
+         FROM billing_invoice_items
+         WHERE invoice_id = $1 AND cdr_id IS NOT NULL`,
         [invoiceId]
     );
 
@@ -364,10 +402,15 @@ function mapCorporateRow(row: Record<string, unknown>): CorporateAccount {
         billingContactEmail: row.billing_contact_email as string,
         billingContactPhone: row.billing_contact_phone as string | null,
         stripeCustomerId: row.stripe_customer_id as string | null,
+        stripePriceId: row.stripe_price_id as string | null,
+        stripeSubscriptionId: row.stripe_subscription_id as string | null,
         paymentMethod: row.payment_method as 'invoice' | 'stripe' | 'wire',
         contractType: row.contract_type as 'monthly' | 'per_call' | 'quarterly',
         contractedRateTierId: row.contracted_rate_tier_id as string | null,
         billingDay: row.billing_day as number,
+        currency: (row.currency as string) || 'USD',
+        taxId: row.tax_id as string | null,
+        paymentTermsDays: row.payment_terms_days as number || 30,
         addressLine1: row.address_line1 as string | null,
         addressLine2: row.address_line2 as string | null,
         city: row.city as string | null,
@@ -392,9 +435,12 @@ function mapInvoiceRow(row: Record<string, unknown>): Invoice {
         subtotal: parseFloat(row.subtotal as string),
         tax: parseFloat(row.tax as string),
         total: parseFloat(row.total as string),
+        currency: (row.currency as string) || 'USD',
         status: row.status as Invoice['status'],
         stripeInvoiceId: row.stripe_invoice_id as string | null,
         stripePaymentIntentId: row.stripe_payment_intent_id as string | null,
+        stripeHostedInvoiceUrl: row.stripe_hosted_invoice_url as string | null,
+        stripeInvoicePdfUrl: row.stripe_invoice_pdf_url as string | null,
         issuedAt: row.issued_at ? new Date(row.issued_at as string) : null,
         dueDate: row.due_date as string | null,
         paidAt: row.paid_at ? new Date(row.paid_at as string) : null,

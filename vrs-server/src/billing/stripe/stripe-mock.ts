@@ -32,6 +32,7 @@ export class MockStripeProvider implements StripeProvider {
     async createInvoice(params: {
         customerId: string;
         items: { description: string; quantity: number; unitAmount: number; total: number }[];
+        currency?: string;
         dueDate?: Date;
         metadata?: Record<string, string>;
     }): Promise<StripeInvoice> {
@@ -68,9 +69,20 @@ export class MockStripeProvider implements StripeProvider {
     }
 
     async verifyWebhookSignature(_payload: string, _signature: string): Promise<WebhookEvent> {
+        let payload: Record<string, unknown> = {};
+        try {
+            payload = JSON.parse(_payload || '{}');
+        } catch {
+            payload = {};
+        }
+
         return {
-            type: 'invoice.paid',
-            data: { mock: true },
+            id: String(payload.id || this.nextId('evt')),
+            livemode: Boolean(payload.livemode),
+            type: String(payload.type || 'invoice.paid'),
+            data: (payload.data && typeof payload.data === 'object'
+                ? (payload.data as { object?: Record<string, unknown> }).object
+                : undefined) || { mock: true },
         };
     }
 }

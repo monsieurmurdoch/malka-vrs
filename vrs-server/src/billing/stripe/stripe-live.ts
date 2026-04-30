@@ -39,6 +39,7 @@ export class LiveStripeProvider implements StripeProvider {
     async createInvoice(params: {
         customerId: string;
         items: { description: string; quantity: number; unitAmount: number; total: number }[];
+        currency?: string;
         dueDate?: Date;
         metadata?: Record<string, string>;
     }): Promise<StripeInvoice> {
@@ -49,7 +50,7 @@ export class LiveStripeProvider implements StripeProvider {
                 description: item.description,
                 quantity: item.quantity,
                 unit_amount: item.unitAmount,
-                currency: 'usd',
+                currency: params.currency || 'usd',
             });
         }
 
@@ -67,6 +68,7 @@ export class LiveStripeProvider implements StripeProvider {
             status: invoice.status,
             total: invoice.total,
             hostedUrl: invoice.hosted_invoice_url || undefined,
+            pdfUrl: invoice.invoice_pdf || undefined,
         };
     }
 
@@ -79,6 +81,7 @@ export class LiveStripeProvider implements StripeProvider {
                 status: invoice.status,
                 total: invoice.total,
                 hostedUrl: invoice.hosted_invoice_url || undefined,
+                pdfUrl: invoice.invoice_pdf || undefined,
                 paidAt: invoice.status_transitions?.paid_at
                     ? new Date(invoice.status_transitions.paid_at * 1000).toISOString()
                     : undefined,
@@ -114,6 +117,8 @@ export class LiveStripeProvider implements StripeProvider {
             process.env.BILLING_STRIPE_WEBHOOK_SECRET || ''
         );
         return {
+            id: event.id,
+            livemode: Boolean(event.livemode),
             type: event.type,
             data: event.data.object as Record<string, unknown>,
         };

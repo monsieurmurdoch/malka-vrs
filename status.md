@@ -6,6 +6,67 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-30
 - Branch: `codex/billing-utilization-roadmap`
+- HEAD: `df9f10c`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  ROADMAP.md`
+  - `M  status.md`
+  - `M  vrs-server/__tests__/billing/billing-core.test.ts`
+  - `M  vrs-server/package-lock.json`
+  - `M  vrs-server/package.json`
+  - `M  vrs-server/src/billing/cdr-service.ts`
+  - `A  vrs-server/src/billing/interpreter-operations-service.ts`
+  - `A  vrs-server/src/billing/migrations/009_create_billing_operations_tables.sql`
+  - `M  vrs-server/src/billing/routes/billing-admin.ts`
+  - `A  vrs-server/src/billing/routes/stripe-webhooks.ts`
+  - `A  vrs-server/src/billing/stripe-webhook-service.ts`
+  - `M  vrs-server/src/billing/stripe/stripe-interface.ts`
+  - `M  vrs-server/src/billing/stripe/stripe-live.ts`
+  - `M  vrs-server/src/billing/stripe/stripe-mock.ts`
+  - `M  vrs-server/src/billing/types.ts`
+  - `M  vrs-server/src/billing/vri-billing-pipeline.ts`
+  - `M  vrs-server/src/server.ts`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-30T20:37:06.301Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
+- Branch: `codex/billing-utilization-roadmap`
+- HEAD: `df9f10c`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M ROADMAP.md`
+  - `M vrs-server/__tests__/billing/billing-core.test.ts`
+  - `M vrs-server/package-lock.json`
+  - `M vrs-server/package.json`
+  - `M vrs-server/src/billing/cdr-service.ts`
+  - `M vrs-server/src/billing/routes/billing-admin.ts`
+  - `M vrs-server/src/billing/stripe/stripe-interface.ts`
+  - `M vrs-server/src/billing/stripe/stripe-live.ts`
+  - `M vrs-server/src/billing/stripe/stripe-mock.ts`
+  - `M vrs-server/src/billing/types.ts`
+  - `M vrs-server/src/billing/vri-billing-pipeline.ts`
+  - `M vrs-server/src/server.ts`
+  - `?? vrs-server/src/billing/interpreter-operations-service.ts`
+  - `?? vrs-server/src/billing/migrations/009_create_billing_operations_tables.sql`
+  - `?? vrs-server/src/billing/routes/stripe-webhooks.ts`
+  - `?? vrs-server/src/billing/stripe-webhook-service.ts`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-30T20:36:17.004Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
+- Branch: `codex/billing-utilization-roadmap`
 - HEAD: `c9e31da`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -13,7 +74,7 @@ Local changes at sync time:
   - `M  ROADMAP.md`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-30T20:10:41.693Z
 
 <!-- status:current:start -->

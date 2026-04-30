@@ -24,6 +24,7 @@ export interface StripeInvoice {
     status: string;
     total: number;       // in cents
     hostedUrl?: string;
+    pdfUrl?: string;
     paidAt?: string;
 }
 
@@ -34,6 +35,8 @@ export interface StripePaymentResult {
 }
 
 export interface WebhookEvent {
+    id?: string;
+    livemode?: boolean;
     type: string;
     data: Record<string, unknown>;
 }
@@ -50,6 +53,7 @@ export interface StripeProvider {
     createInvoice(params: {
         customerId: string;
         items: InvoiceItem[];
+        currency?: string;
         dueDate?: Date;
         metadata?: Record<string, string>;
     }): Promise<StripeInvoice>;
