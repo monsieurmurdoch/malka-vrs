@@ -38,7 +38,9 @@ import VRIConsoleScreen from './vri/VRIConsoleScreen';
 import VRISettingsScreen from './vri/VRISettingsScreen';
 import VRIUsageScreen from './vri/VRIUsageScreen';
 import VRSHomeScreen from './vrs/VRSHomeScreen';
+import VoicemailInboxScreen from './vrs/VoicemailInboxScreen';
 import MobileLoginScreen from './auth/MobileLoginScreen';
+import InterpreterHomeScreen from './interpreter/InterpreterHomeScreen';
 import CallHistoryScreen from './vrs/CallHistoryScreen';
 import ContactsScreen from './vrs/ContactsScreen';
 import ContactDetailScreen from './vrs/ContactDetailScreen';
@@ -58,6 +60,12 @@ function getInitialRoute(): string {
         || getPersistentItem('vrs_auth_token');
 
     if (isAuthed) {
+        const role = getPersistentItem('vrs_user_role');
+
+        if (role === 'interpreter') {
+            return screen.interpreter.home;
+        }
+
         return isVriApp() ? screen.vri.console : screen.vrs.home;
     }
 
@@ -180,6 +188,14 @@ const RootNavigationContainer = ({ dispatch, isUnsafeRoomWarningAvailable, isWel
                 <RootStack.Screen // @ts-ignore
                     component = { VRIUsageScreen }
                     name = { screen.vri.usage }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen // @ts-ignore
+                    component = { VoicemailInboxScreen }
+                    name = { screen.vrs.voicemail }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen // @ts-ignore
+                    component = { InterpreterHomeScreen }
+                    name = { screen.interpreter.home }
                     options = { fullScreenOptions } />
             </RootStack.Navigator>
         </NavigationContainer>

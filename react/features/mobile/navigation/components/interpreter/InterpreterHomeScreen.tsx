@@ -1,0 +1,425 @@
+/**
+ * Interpreter Home Screen.
+ *
+ * Main screen for sign language interpreters on mobile.
+ * Shows availability toggle, queue state, incoming requests, and active session.
+ */
+
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
+
+import {
+    acceptInterpreterRequest,
+    cancelInterpreterRequest,
+    declineInterpreterRequest
+} from '../../../../interpreter-queue/actions';
+import { QueueState } from '../../../../interpreter-queue/reducer';
+import { queueService } from '../../../../interpreter-queue/InterpreterQueueService';
+import { clearPersistentItems, getPersistentJson } from '../../../../vrs-auth/storage';
+import { navigateRoot } from '../../rootNavigationContainerRef';
+import { screen } from '../../routes';
+
+interface InterpreterInfo {
+    id?: string;
+    name?: string;
+    role?: string;
+    languages?: string[];
+}
+
+interface IncomingRequest {
+    id: string;
+    clientName?: string;
+    language?: string;
+    timestamp?: number;
+    roomName?: string;
+}
+
+const InterpreterHomeScreen = () => {
+    const dispatch = useDispatch();
+    const queueState = useSelector((state: any) => state['features/interpreter-queue'] as QueueState | undefined);
+    const isConnected = Boolean(queueState?.isConnected);
+    const matchData = queueState?.matchData;
+    const pendingRequests = (queueState as any)?.pendingRequests as IncomingRequest[] | undefined;
+
+    const userInfo = getPersistentJson<InterpreterInfo>('vrs_user_info');
+    const [ isAvailable, setIsAvailable ] = useState(false);
+    const [ activeTime, setActiveTime ] = useState(0);
+
+    const isInSession = Boolean(matchData?.roomName);
+
+    // Track session time
+    useEffect(() => {
+        if (!isInSession) {
+            setActiveTime(0);
+
+            return;
+        }
+
+        const interval = setInterval(() => setActiveTime(prev => prev + 1), 1000);
+
+        return () => clearInterval(interval);
+    }, [ isInSession ]);
+
+    const handleToggleAvailability = useCallback(() => {
+        const next = !isAvailable;
+        setIsAvailable(next);
+
+        if (next) {
+            queueService.updateInterpreterStatus(
+                'active',
+                userInfo?.name,
+                userInfo?.languages || [ 'ASL', 'English' ]
+            );
+        } else {
+            queueService.updateInterpreterStatus('inactive', userInfo?.name, []);
+        }
+    }, [ isAvailable, userInfo ]);
+
+    const handleAccept = useCallback((request: IncomingRequest) => {
+        dispatch(acceptInterpreterRequest(request.id));
+    }, [ dispatch ]);
+
+    const handleDecline = useCallback((request: IncomingRequest) => {
+        dispatch(declineInterpreterRequest(request.id));
+    }, [ dispatch ]);
+
+    const handleLogout = useCallback(() => {
+        clearPersistentItems([
+            'vrs_user_role',
+            'vrs_auth_token',
+            'vrs_user_info',
+            'vrs_client_auth',
+            'vrs_interpreter_auth',
+            'vrs_active_call'
+        ]);
+        navigateRoot(screen.auth.login);
+    }, []);
+
+    const formatTime = (seconds: number) => {
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+
+        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    };
+
+    const activeRequest = pendingRequests?.[0];
+
+    return (
+        <SafeAreaView style = { styles.container }>
+            <View style = { styles.header }>
+                <Text style = { styles.headerTitle }>
+                    { userInfo?.name || 'Interpreter' }
+                </Text>
+                <TouchableOpacity
+                    accessibilityLabel = 'Sign out'
+                    onPress = { handleLogout }
+                    style = { styles.logoutButton }>
+                    <Text style = { styles.logoutText }>Sign Out</Text>
+                </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle = { styles.content }>
+                {/* Availability Toggle */}
+                <TouchableOpacity
+                    accessibilityLabel = { isAvailable ? 'Go offline' : 'Go available' }
+                    accessibilityRole = 'switch'
+                    onPress = { handleToggleAvailability }
+                    style = { [
+                        styles.availabilityCard,
+                        isAvailable ? styles.available : styles.offline,
+                        isInSession && styles.inSession
+                    ] }
+                    disabled = { isInSession }>
+                    <View style = { [
+                        styles.statusDot,
+                        isAvailable ? styles.dotGreen : styles.dotGray
+                    ] } />
+                    <Text style = { styles.availabilityText }>
+                        { isInSession
+                            ? 'In Session'
+                            : isAvailable
+                                ? 'Available'
+                                : 'Offline' }
+                    </Text>
+                </TouchableOpacity>
+
+                {/* Active Session */}
+                { isInSession && (
+                    <View style = { styles.sessionCard }>
+                        <Text style = { styles.sessionLabel }>Active Session</Text>
+                        <Text style = { styles.sessionTimer }>{ formatTime(activeTime) }</Text>
+                    </View>
+                ) }
+
+                {/* Incoming Request */}
+                { activeRequest && !isInSession && (
+                    <View style = { styles.requestCard }>
+                        <Text style = { styles.requestTitle }>Incoming Request</Text>
+                        <Text style = { styles.requestClient }>
+                            { activeRequest.clientName || 'Unknown client' }
+                        </Text>
+                        <Text style = { styles.requestLanguage }>
+                            Language: { activeRequest.language || 'ASL' }
+                        </Text>
+                        <View style = { styles.requestActions }>
+                            <TouchableOpacity
+                                accessibilityLabel = 'Accept request'
+                                onPress = { () => handleAccept(activeRequest) }
+                                style = { styles.acceptButton }>
+                                <Text style = { styles.acceptText }>Accept</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                accessibilityLabel = 'Decline request'
+                                onPress = { () => handleDecline(activeRequest) }
+                                style = { styles.declineButton }>
+                                <Text style = { styles.declineText }>Decline</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                ) }
+
+                {/* Queue Status */}
+                { isAvailable && !isInSession && !activeRequest && (
+                    <View style = { styles.waitingCard }>
+                        <Text style = { styles.waitingText }>
+                            Waiting for incoming requests...
+                        </Text>
+                    </View>
+                ) }
+
+                {/* Languages */}
+                { (userInfo?.languages?.length ?? 0) > 0 && (
+                    <View style = { styles.languagesCard }>
+                        <Text style = { styles.sectionLabel }>Languages</Text>
+                        <View style = { styles.languageTags }>
+                            { (userInfo?.languages || []).map(lang => (
+                                <View key = { lang } style = { styles.languageTag }>
+                                    <Text style = { styles.languageTagText }>{ lang }</Text>
+                                </View>
+                            )) }
+                        </View>
+                    </View>
+                ) }
+            </ScrollView>
+
+            {/* Connection Status */}
+            <View style = { styles.connectionBar }>
+                <View style = { [
+                    styles.connectionDot,
+                    isConnected ? styles.dotGreen : styles.dotOrange
+                ] } />
+                <Text style = { styles.connectionText }>
+                    { isConnected ? 'Connected to queue' : 'Reconnecting...' }
+                </Text>
+            </View>
+        </SafeAreaView>
+    );
+};
+
+const styles = StyleSheet.create({
+    acceptButton: {
+        backgroundColor: '#4caf50',
+        borderRadius: 10,
+        flex: 1,
+        marginRight: 8,
+        paddingVertical: 12
+    },
+    acceptText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '600',
+        textAlign: 'center'
+    },
+    availabilityCard: {
+        alignItems: 'center',
+        borderRadius: 14,
+        elevation: 3,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        marginBottom: 20,
+        marginHorizontal: 16,
+        padding: 18
+    },
+    availabilityText: {
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: '600',
+        marginLeft: 10
+    },
+    available: {
+        backgroundColor: '#2e7d32',
+        shadowColor: '#4caf50'
+    },
+    connectionBar: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        justifyContent: 'center',
+        paddingVertical: 12
+    },
+    connectionDot: {
+        borderRadius: 4,
+        height: 8,
+        marginRight: 8,
+        width: 8
+    },
+    connectionText: {
+        color: '#888',
+        fontSize: 12
+    },
+    container: {
+        backgroundColor: '#0f0f23',
+        flex: 1
+    },
+    content: {
+        paddingBottom: 40
+    },
+    declineButton: {
+        backgroundColor: '#d32f2f',
+        borderRadius: 10,
+        flex: 1,
+        paddingVertical: 12
+    },
+    declineText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '600',
+        textAlign: 'center'
+    },
+    dotGray: {
+        backgroundColor: '#666'
+    },
+    dotGreen: {
+        backgroundColor: '#4caf50'
+    },
+    dotOrange: {
+        backgroundColor: '#ff9800'
+    },
+    header: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingTop: 16
+    },
+    headerTitle: {
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: '600'
+    },
+    inSession: {
+        backgroundColor: '#1565c0'
+    },
+    languagesCard: {
+        marginHorizontal: 16,
+        marginTop: 8
+    },
+    languageTag: {
+        backgroundColor: '#1a1a2e',
+        borderRadius: 6,
+        marginRight: 8,
+        marginBottom: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 4
+    },
+    languageTagText: {
+        color: '#aaa',
+        fontSize: 13
+    },
+    languageTags: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginTop: 6
+    },
+    logoutButton: {
+        paddingHorizontal: 12,
+        paddingVertical: 6
+    },
+    logoutText: {
+        color: '#888',
+        fontSize: 13
+    },
+    offline: {
+        backgroundColor: '#424242',
+        shadowColor: '#666'
+    },
+    requestActions: {
+        flexDirection: 'row',
+        marginTop: 16
+    },
+    requestCard: {
+        backgroundColor: '#1a1a2e',
+        borderRadius: 14,
+        marginHorizontal: 16,
+        marginBottom: 16,
+        padding: 20
+    },
+    requestClient: {
+        color: '#fff',
+        fontSize: 20,
+        fontWeight: '700',
+        marginTop: 4
+    },
+    requestLanguage: {
+        color: '#888',
+        fontSize: 14,
+        marginTop: 4
+    },
+    requestTitle: {
+        color: '#ff9800',
+        fontSize: 13,
+        fontWeight: '600',
+        textTransform: 'uppercase'
+    },
+    sectionLabel: {
+        color: '#888',
+        fontSize: 12,
+        fontWeight: '600',
+        letterSpacing: 0.5,
+        textTransform: 'uppercase'
+    },
+    sessionCard: {
+        alignItems: 'center',
+        backgroundColor: '#1a1a2e',
+        borderRadius: 14,
+        marginHorizontal: 16,
+        marginBottom: 16,
+        padding: 24
+    },
+    sessionLabel: {
+        color: '#888',
+        fontSize: 12,
+        fontWeight: '600',
+        textTransform: 'uppercase'
+    },
+    sessionTimer: {
+        color: '#4caf50',
+        fontSize: 40,
+        fontVariant: [ 'tabular-nums' ],
+        fontWeight: '700',
+        marginTop: 4
+    },
+    statusDot: {
+        borderRadius: 6,
+        height: 12,
+        width: 12
+    },
+    waitingCard: {
+        alignItems: 'center',
+        marginHorizontal: 16,
+        paddingVertical: 40
+    },
+    waitingText: {
+        color: '#666',
+        fontSize: 15
+    }
+});
+
+export default InterpreterHomeScreen;

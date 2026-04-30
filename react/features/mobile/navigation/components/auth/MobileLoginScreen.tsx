@@ -32,6 +32,7 @@ const MobileLoginScreen = () => {
 
     const [ name, setName ] = useState('');
     const [ orgCode, setOrgCode ] = useState('');
+    const [ role, setRole ] = useState<'client' | 'interpreter'>('client');
     const [ loading, setLoading ] = useState(false );
 
     const handleLogin = useCallback(() => {
@@ -43,10 +44,9 @@ const MobileLoginScreen = () => {
 
         setLoading(true);
 
-        const userId = `client-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
         const now = Date.now();
-        const role = 'client';
         const serviceMode = isVRI ? 'vri' : 'vrs';
+        const userId = `${role}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
         const user = {
             id: userId,
@@ -54,6 +54,7 @@ const MobileLoginScreen = () => {
             name: trimmedName,
             tenantId,
             serviceModes: [ serviceMode ],
+            languages: role === 'interpreter' ? [ 'ASL', 'English' ] : undefined,
             isAuthenticated: true,
             authenticatedAt: now,
             expiresAt: now + 4 * 60 * 60 * 1000 // 4 hours
@@ -63,12 +64,18 @@ const MobileLoginScreen = () => {
         setPersistentItem('vrs_client_auth', 'true');
         setPersistentItem('vrs_user_info', JSON.stringify(user));
 
-        // Navigate to the correct home screen for this tenant
-        const homeScreen = isVRI ? screen.vri.console : screen.vrs.home;
+        // Navigate to the correct home screen for this role and tenant
+        let homeScreen;
+
+        if (role === 'interpreter') {
+            homeScreen = screen.interpreter.home;
+        } else {
+            homeScreen = isVRI ? screen.vri.console : screen.vrs.home;
+        }
 
         navigateRoot(homeScreen);
         setLoading(false);
-    }, [ name, orgCode, tenantId, isVRI, dispatch ]);
+    }, [ name, orgCode, tenantId, isVRI, role, dispatch ]);
 
     return (
         <SafeAreaView style = { styles.container }>
@@ -85,6 +92,24 @@ const MobileLoginScreen = () => {
 
                 {/* Login Form */}
                 <View style = { styles.form }>
+                    {/* Role Selector */}
+                    <View style = { styles.roleRow }>
+                        <TouchableOpacity
+                            onPress = { () => setRole('client') }
+                            style = { [ styles.roleButton, role === 'client' && styles.roleButtonActive ] }>
+                            <Text style = { [ styles.roleText, role === 'client' && styles.roleTextActive ] }>
+                                { isVRI ? 'VRI Client' : 'VRS Client' }
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress = { () => setRole('interpreter') }
+                            style = { [ styles.roleButton, role === 'interpreter' && styles.roleButtonActive ] }>
+                            <Text style = { [ styles.roleText, role === 'interpreter' && styles.roleTextActive ] }>
+                                Interpreter
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+
                     <Text style = { styles.label }>Your Name</Text>
                     <TextInput
                         autoCapitalize = 'words'
@@ -205,6 +230,29 @@ const styles = StyleSheet.create({
         color: '#888',
         fontSize: 14,
         marginTop: 4
+    },
+    roleRow: {
+        flexDirection: 'row',
+        marginBottom: 20
+    },
+    roleButton: {
+        backgroundColor: '#1a1a2e',
+        borderRadius: 8,
+        flex: 1,
+        marginRight: 8,
+        paddingVertical: 10
+    },
+    roleButtonActive: {
+        backgroundColor: '#2979ff'
+    },
+    roleText: {
+        color: '#888',
+        fontSize: 14,
+        fontWeight: '600',
+        textAlign: 'center'
+    },
+    roleTextActive: {
+        color: '#fff'
     }
 });
 

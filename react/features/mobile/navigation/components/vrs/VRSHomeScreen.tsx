@@ -23,6 +23,7 @@ import { QueueState } from '../../../../interpreter-queue/reducer';
 import { clearPersistentItems, getPersistentJson, setPersistentItem } from '../../../../vrs-auth/storage';
 import { navigateRoot } from '../../rootNavigationContainerRef';
 import { screen } from '../../routes';
+import NetworkStatusBar from '../NetworkStatusBar';
 
 interface UserInfo {
     name?: string;
@@ -89,6 +90,7 @@ const VRSHomeScreen = () => {
 
     return (
         <SafeAreaView style = { styles.container }>
+            <NetworkStatusBar isConnected = { isConnected } />
             <ScrollView contentContainerStyle = { styles.scrollContent }>
                 {/* Header */}
                 <View style = { styles.header }>
@@ -212,6 +214,26 @@ const VRSHomeScreen = () => {
                     </TouchableOpacity>
                 </View>
 
+                {/* Voicemail Link */}
+                <TouchableOpacity
+                    accessibilityLabel = 'Open voicemail inbox'
+                    accessibilityRole = 'button'
+                    onPress = { () => navigateRoot(screen.vrs.voicemail) }
+                    style = { styles.voicemailRow }>
+                    <Text style = { styles.voicemailIcon }>{'\u{1F4E3}'}</Text>
+                    <Text style = { styles.voicemailLabel }>Voicemail</Text>
+                    { (() => {
+                        const vms = getPersistentJson<{ isRead: boolean }[]>('vrs_voicemails');
+                        const count = vms ? vms.filter(v => !v.isRead).length : 0;
+
+                        return count > 0 ? (
+                            <View style = { styles.voicemailBadge }>
+                                <Text style = { styles.voicemailBadgeText }>{ count }</Text>
+                            </View>
+                        ) : null;
+                    })() }
+                </TouchableOpacity>
+
                 {/* Connection Status */}
                 <View style = { styles.statusBar }>
                     <View style = { [
@@ -304,6 +326,39 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         flex: 1,
         flexWrap: 'wrap'
+    },
+    voicemailBadge: {
+        backgroundColor: '#d32f2f',
+        borderRadius: 10,
+        marginLeft: 'auto',
+        minWidth: 20,
+        paddingHorizontal: 6,
+        paddingVertical: 2
+    },
+    voicemailBadgeText: {
+        color: '#fff',
+        fontSize: 11,
+        fontWeight: '700',
+        textAlign: 'center'
+    },
+    voicemailIcon: {
+        fontSize: 20,
+        marginRight: 10
+    },
+    voicemailLabel: {
+        color: '#ddd',
+        fontSize: 15,
+        fontWeight: '500'
+    },
+    voicemailRow: {
+        alignItems: 'center',
+        backgroundColor: '#1a1a2e',
+        borderRadius: 12,
+        flexDirection: 'row',
+        marginHorizontal: 16,
+        marginBottom: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 14
     },
     container: {
         backgroundColor: '#0f0f23',

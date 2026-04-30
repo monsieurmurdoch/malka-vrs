@@ -52,12 +52,16 @@ export const screen = {
         callHistory: 'VRS Call History',
         contacts: 'VRS Contacts',
         contactDetail: 'VRS Contact Detail',
-        dialPad: 'VRS Dial Pad'
+        dialPad: 'VRS Dial Pad',
+        voicemail: 'VRS Voicemail'
     },
     vri: {
         console: 'VRI Console',
         settings: 'VRI Settings',
         usage: 'VRI Usage'
+    },
+    interpreter: {
+        home: 'Interpreter Home'
     },
     welcome: {
         main: 'Welcome',

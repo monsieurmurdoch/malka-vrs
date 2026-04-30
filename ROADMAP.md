@@ -515,19 +515,24 @@
 - [x] Client supports captions/language controls in a mobile-appropriate location
   - 2026-04-30: VRSHomeScreen now has language selector (ASL, LSQ, English, French) and captions toggle (CC). Selection persists to storage and is used for interpreter requests.
 - [x] Client supports invite flow once VRI session invite model is built
-- [ ] Client supports visual voicemail inbox and unread badge
+- [x] Client supports visual voicemail inbox and unread badge
+  - 2026-04-30: VoicemailInboxScreen with unread dot, transcript preview, delete, mark-read. Unread badge on VRSHomeScreen voicemail link. Reads from vrs_voicemails local storage.
 - [x] Client supports contact history and notes
   - 2026-04-30: ContactDetailScreen shows contact profile, editable notes (persisted to storage), call history filtered to that contact, and call button. ContactsScreen tap now navigates to detail, with phone icon for quick-dial.
 
 ### Interpreter Mobile Parity
-- [ ] Interpreter login routes to interpreter profile, not client surface
-- [ ] Interpreter profile mirrors web structure with self-view, availability, queue state, tabs
+- [x] Interpreter login routes to interpreter profile, not client surface
+  - 2026-04-30: MobileLoginScreen now has role selector (Client/Interpreter). Interpreter auth sets vrs_user_role=interpreter and routes to InterpreterHomeScreen. getInitialRoute checks role for re-launch routing.
+- [x] Interpreter profile mirrors web structure with self-view, availability, queue state, tabs
+  - 2026-04-30: InterpreterHomeScreen with availability toggle, incoming request display, session timer, language tags, connection status.
 - [ ] Interpreter can set service modes: VRS, VRI, captioning eligibility
 - [ ] Interpreter can set language pairs and skills
-- [ ] Interpreter can go available/unavailable
+- [x] Interpreter can go available/unavailable
+  - 2026-04-30: Availability toggle on InterpreterHomeScreen calls queueService.updateInterpreterStatus('active'|'inactive'). Visual state: Available (green), Offline (gray), In Session (blue).
 - [ ] Interpreter receives incoming request notification while app is foregrounded
 - [ ] Interpreter receives push/call-style notification while app is backgrounded or locked
-- [ ] Interpreter can accept/decline request and auto-join correct room
+- [x] Interpreter can accept/decline request and auto-join correct room
+  - 2026-04-30: InterpreterHomeScreen shows pending requests from Redux state with Accept/Decline buttons. Accept dispatches acceptInterpreterRequest, which triggers auto-join via middleware. Decline dispatches declineInterpreterRequest.
 - [ ] Interpreter sees client/session context before accepting where permitted
 - [ ] Interpreter can end call and trigger call lifecycle completion
 - [ ] Interpreter billing/earnings tab shows payable minutes, invoice status, payout method placeholders
@@ -555,7 +560,8 @@
 - [ ] Choose shared TypeScript API client strategy to prevent web/mobile contract drift
 - [x] Extract shared auth/session/profile/queue/contact types where practical
   - 2026-04-30: Created react/features/mobile/types.ts with shared UserInfo, MatchData, QueueState, Contact, CallRecord, StoredActiveCall, and MediaDefaults interfaces.
-- [ ] Create mobile parity checklist template required for future web feature PRs
+- [x] Create mobile parity checklist template required for future web feature PRs
+  - 2026-04-30: Created docs/mobile-parity-pr-template.md covering shared code, browser APIs, storage, queue, whitelabel, and ROADMAP documentation requirements.
 - [ ] Jitsi Meet React Native SDK integration verified against current Droplet/Jitsi config
 - [ ] Mobile-safe WebSocket queue client with reconnect/backoff/session restore
   - 2026-04-30: shared auth/session storage now has a mobile in-memory fallback and the queue service can instantiate anywhere `WebSocket` exists instead of requiring browser storage. Still needs device-level verification plus secure native persistence.
@@ -565,7 +571,8 @@
 - [ ] Deep links into active rooms and invite links
 - [ ] Push/background calling: APNs, FCM, CallKit, Android ConnectionService
 - [ ] Reconnect/handoff behavior after app background, network switch, lock screen, and call interruption
-- [ ] Poor-network states and media fallback copy
+- [x] Poor-network states and media fallback copy
+  - 2026-04-30: NetworkStatusBar component shows orange banner when disconnected (dismissable). Wired into VRSHomeScreen and VRIConsoleScreen. Shows reconnecting state when WebSocket is reconnecting.
 - [ ] Tenant branding parity for Maple/Malka: logos, colors, app name, favicon/app icon/splash, copy
   - 2026-04-30: Mobile bundle IDs and display names added to tenant configs (mobile.iosBundleId, mobile.androidApplicationId, mobile.displayName). Whitelabel prebuild script now patches iOS Info.plist/pbxproj and Android build.gradle/strings.xml per tenant. Fastlane deploy lanes use tenant-specific bundle IDs.
 - [ ] Mobile QA matrix: iOS/Android, phone/tablet, permissions, orientation, Bluetooth, screen lock

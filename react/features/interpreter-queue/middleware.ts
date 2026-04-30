@@ -151,8 +151,15 @@ MiddlewareRegistry.register((store: { _interpreterQueueInitialized?: boolean; di
             queueService.endActiveCall();
             lastAutoEnteredQueueRoom = undefined;
 
-            // Route back to the tenant home screen (not sign-out)
-            const homeScreen = isVriApp() ? screen.vri.console : screen.vrs.home;
+            // Route back to the correct home screen based on role
+            const userRole = getPersistentItem('vrs_user_role');
+            let homeScreen;
+
+            if (userRole === 'interpreter') {
+                homeScreen = screen.interpreter.home;
+            } else {
+                homeScreen = isVriApp() ? screen.vri.console : screen.vrs.home;
+            }
             navigateRoot(homeScreen);
         }
 

@@ -20,6 +20,7 @@ import { QueueState } from '../../../../interpreter-queue/reducer';
 import { clearPersistentItems, getPersistentJson } from '../../../../vrs-auth/storage';
 import { navigateRoot } from '../../rootNavigationContainerRef';
 import { screen } from '../../routes';
+import NetworkStatusBar from '../NetworkStatusBar';
 
 interface UserInfo {
     name?: string;
@@ -86,6 +87,7 @@ const VRIConsoleScreen = () => {
 
     return (
         <SafeAreaView style = { styles.container }>
+            <NetworkStatusBar isConnected = { isConnected } />
             {/* Header with Logout */}
             <View style = { styles.header }>
                 <Text style = { styles.headerTitle }>
