@@ -490,7 +490,12 @@ app.get([ '/login', '/client-login', '/client' ], (_req: Request, res: Response,
     renderHtmlWithIncludes(path.join(staticRoot, 'index.html'), res, next);
 });
 
-app.get(/^\/(?:instant|vrs|vri|p2p|voicemail)-[A-Za-z0-9-]+$/, (_req: Request, res: Response, next: NextFunction) => {
+const roomRoutePattern = /^\/(?!(?:api|ops|twilio|images|css|libs|static|sounds|lang|fonts|modules|metadata|resources|react)(?:\/|$)|(?:health|readiness|metrics|favicon\.ico|manifest\.json|pwa-worker\.js)$)(?!.*\.[A-Za-z0-9]+$)[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/i;
+
+app.get([
+    /^\/(?:instant|vrs|vri|p2p|voicemail)-[A-Za-z0-9-]+$/i,
+    roomRoutePattern
+], (_req: Request, res: Response, next: NextFunction) => {
     renderHtmlWithIncludes(path.join(staticRoot, 'index.html'), res, next);
 });
 

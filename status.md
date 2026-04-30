@@ -6,6 +6,24 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-30
 - Branch: `main`
+- HEAD: `27e8b92`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M ROADMAP.md`
+  - `M  captioner-profile.html`
+  - `M  vrs-room-controls.js`
+  - `M  vrs-server/src/server.ts`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-30T04:59:44.042Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
+- Branch: `main`
 - HEAD: `201004f`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -13,7 +31,7 @@ Local changes at sync time:
   - `M  ROADMAP.md`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-30T04:47:46.827Z
 
 <!-- status:current:start -->

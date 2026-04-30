@@ -221,6 +221,11 @@
 - [x] PgBouncer transaction pooling
 - [x] Schema migration tooling
 
+### Malka/Multi-Mode Product Logic
+- [x] Confirm Malka VRS clients retain VRS phone-number-oriented flow
+- [x] Confirm Maple VRS test accounts are clearly separated from Maple VRI default experience
+- [x] Prevent aesthetic cross-wiring between Malka and Maple at build/runtime boundaries
+
 ---
 
 ## Immediate Open Work
@@ -228,11 +233,6 @@
 ### Maple VRI Pilot Readiness & White-Label Hardening (cont.)
 - [ ] Add optional SMS/email send to VRI session invites after Resend/Twilio policy is finalized
 - [ ] Implement PostgreSQL RLS policies for all tenant-owned tables
-
-### Malka/Multi-Mode Product Logic
-- [x] Confirm Malka VRS clients retain VRS phone-number-oriented flow
-- [x] Confirm Maple VRS test accounts are clearly separated from Maple VRI default experience
-- [x] Prevent aesthetic cross-wiring between Malka and Maple at build/runtime boundaries
 
 ### UX Polish
 - [ ] Responsive layout audit for desktop, tablet, and small mobile screens

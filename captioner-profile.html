@@ -18,6 +18,7 @@
 
         * {
             box-sizing: border-box;
+            min-width: 0;
         }
 
         body {
@@ -29,7 +30,7 @@
         }
 
         .page {
-            max-width: 1040px;
+            max-width: 1120px;
             margin: 0 auto;
             padding: 40px 20px 56px;
         }
@@ -42,16 +43,17 @@
         .card {
             background: var(--card);
             border: 1px solid var(--border);
-            border-radius: 18px;
+            border-radius: 8px;
             padding: 24px;
             backdrop-filter: blur(18px);
             -webkit-backdrop-filter: blur(18px);
             box-shadow: 0 10px 35px rgba(0, 0, 0, 0.22);
+            overflow-wrap: anywhere;
         }
 
         .hero {
-            display: flex;
-            justify-content: space-between;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
             gap: 16px;
             align-items: flex-start;
         }
@@ -67,14 +69,16 @@
 
         h1 {
             margin: 0 0 10px;
-            font-size: clamp(32px, 6vw, 48px);
+            font-size: clamp(28px, 4vw, 42px);
             line-height: 1.05;
+            overflow-wrap: anywhere;
         }
 
         p {
             margin: 0;
             color: var(--muted);
             line-height: 1.55;
+            overflow-wrap: anywhere;
         }
 
         .pill {
@@ -87,7 +91,9 @@
             color: var(--accent);
             font-size: 13px;
             font-weight: 700;
-            white-space: nowrap;
+            line-height: 1.25;
+            max-width: 100%;
+            text-align: center;
         }
 
         .grid {
@@ -98,7 +104,7 @@
 
         .metric {
             padding: 18px;
-            border-radius: 14px;
+            border-radius: 8px;
             background: rgba(255, 255, 255, 0.04);
             border: 1px solid rgba(255, 255, 255, 0.08);
         }
@@ -131,9 +137,9 @@
         }
 
         .join-row {
-            display: flex;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
             gap: 10px;
-            flex-wrap: wrap;
         }
 
         .join-input {
@@ -154,14 +160,18 @@
 
         button,
         a.button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             appearance: none;
             border: none;
-            border-radius: 12px;
+            border-radius: 8px;
             padding: 12px 16px;
             font: inherit;
             font-weight: 700;
             cursor: pointer;
             text-decoration: none;
+            text-align: center;
         }
 
         .primary {
@@ -187,7 +197,15 @@
 
         @media (max-width: 720px) {
             .hero {
-                flex-direction: column;
+                grid-template-columns: 1fr;
+            }
+
+            .pill {
+                justify-self: start;
+            }
+
+            .join-row {
+                grid-template-columns: 1fr;
             }
         }
     </style>

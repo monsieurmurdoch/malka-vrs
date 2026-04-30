@@ -101,6 +101,35 @@
         return call && call.callId ? call : null;
     }
 
+    function activeCallForCurrentRoom() {
+        var call = activeCall();
+        var roomName = currentRoomName();
+
+        if (!call || !roomName) {
+            return null;
+        }
+
+        return !call.roomName || call.roomName === roomName ? call : null;
+    }
+
+    function persistActiveCall(data) {
+        if (!data || !data.callId) {
+            return;
+        }
+
+        var previous = activeCall() || {};
+        var call = {
+            callId: data.callId,
+            callType: data.callType || previous.callType || 'vrs',
+            roomName: data.roomName || currentRoomName() || previous.roomName,
+            role: previous.role || currentRole(),
+            startedAt: previous.startedAt || new Date().toISOString()
+        };
+
+        try { localStorage.setItem('vrs_active_call', JSON.stringify(call)); } catch (e) {}
+        try { sessionStorage.setItem('vrs_active_call', JSON.stringify(call)); } catch (e) {}
+    }
+
     function sendActiveCallEnd() {
         var call = activeCall();
 
@@ -157,19 +186,24 @@
             idle: 'Request Interpreter',
             connecting: 'Connecting...',
             pending: 'Interpreter Requested',
-            matched: 'Interpreter Confirmed',
+            matched: 'Interpreter Connected',
             error: 'Try Interpreter Again'
         };
         var color = colors[nextState] || colors.idle;
+        var matched = nextState === 'matched';
 
         button.style.background = color[0];
         button.style.borderColor = color[1];
         button.style.color = color[2];
+        button.disabled = matched;
+        button.style.cursor = matched ? 'default' : 'pointer';
+        button.style.opacity = matched ? '0.92' : '1';
         button.setAttribute('aria-pressed', String(nextState === 'pending' || nextState === 'matched'));
+        button.setAttribute('aria-label', matched ? 'Interpreter connected' : 'Request Interpreter');
         button.title = nextState === 'pending'
             ? 'Cancel interpreter request'
             : nextState === 'matched'
-                ? 'An interpreter accepted and is joining this room'
+                ? 'Interpreter is connected to this room'
                 : 'Request a sign language interpreter';
         button.querySelector('[data-vrs-interpreter-dot]').style.background = color[3];
         button.querySelector('[data-vrs-interpreter-label]').textContent = labels[nextState] || labels.idle;
@@ -222,6 +256,8 @@
             } else if (message.type === 'match_found'
                     || message.type === 'request_accepted'
                     || message.type === 'meeting_initiated') {
+                persistActiveCall(data);
+                requestId = null;
                 setState('matched');
             } else if (message.type === 'request_cancelled'
                     || message.type === 'request_declined') {
@@ -391,6 +427,10 @@
 
         if (!toolbar) {
             return;
+        }
+
+        if (activeCallForCurrentRoom()) {
+            state = 'matched';
         }
 
         button = createButton();
