@@ -14,7 +14,9 @@ import { getCdrsForPeriod, transitionCdrStatus } from './cdr-service';
 import { createStripeProvider } from './stripe/stripe-factory';
 import { v4 as uuidv4 } from 'uuid';
 import type {
+    AdminBillingDashboard,
     CorporateAccount,
+    CorporateUsageSummary,
     CreateCorporateAccountInput,
     Invoice,
 } from './types';
@@ -33,13 +35,14 @@ export async function createCorporateAccount(
 
     await billingDb.query(
         `INSERT INTO corporate_accounts (
-            id, organization_name, billing_contact_name, billing_contact_email,
+            id, tenant_id, organization_name, billing_contact_name, billing_contact_email,
             billing_contact_phone, payment_method, contract_type, contracted_rate_tier_id,
             billing_day, currency, tax_id, payment_terms_days, stripe_price_id, stripe_subscription_id,
             address_line1, address_line2, city, state, zip, country, notes, created_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)`,
         [
             id,
+            input.tenantId || null,
             input.organizationName,
             input.billingContactName,
             input.billingContactEmail,
@@ -353,6 +356,142 @@ export async function getCorporateBillingSummary(
     };
 }
 
+export async function getCorporateUsageSummary(
+    corporateAccountId: string,
+    periodStart: string,
+    periodEnd: string
+): Promise<CorporateUsageSummary | null> {
+    if (!billingDb.isBillingDbReady()) return null;
+
+    const account = await getCorporateAccount(corporateAccountId);
+    if (!account) return null;
+
+    const totals = await usageTotals(corporateAccountId, periodStart, periodEnd);
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const weekStart = new Date(now);
+    weekStart.setUTCDate(now.getUTCDate() - now.getUTCDay());
+    const monthStart = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`;
+
+    return {
+        accountId: corporateAccountId,
+        periodStart,
+        periodEnd,
+        totalCalls: totals.totalCalls,
+        totalMinutes: totals.totalMinutes,
+        totalCharge: totals.totalCharge,
+        currency: account.currency,
+        day: await usageTotals(corporateAccountId, today, periodEnd),
+        week: await usageTotals(corporateAccountId, weekStart.toISOString().slice(0, 10), periodEnd),
+        month: await usageTotals(corporateAccountId, monthStart, periodEnd),
+    };
+}
+
+async function usageTotals(
+    corporateAccountId: string,
+    periodStart: string,
+    periodEnd: string
+): Promise<{ totalCalls: number; totalMinutes: number; totalCharge: number }> {
+    const result = await billingDb.query<{
+        total_calls: string;
+        total_seconds: string;
+        total_charge: string;
+    }>(
+        `SELECT COUNT(*) AS total_calls,
+                COALESCE(SUM(duration_seconds), 0) AS total_seconds,
+                COALESCE(SUM(total_charge), 0) AS total_charge
+         FROM billing_cdrs
+         WHERE corporate_account_id = $1
+           AND call_type = 'vri'
+           AND start_time >= $2
+           AND start_time < $3`,
+        [corporateAccountId, periodStart, periodEnd]
+    );
+
+    const row = result.rows[0] || { total_calls: '0', total_seconds: '0', total_charge: '0' };
+    return {
+        totalCalls: parseInt(row.total_calls || '0', 10),
+        totalMinutes: Math.round((parseInt(row.total_seconds || '0', 10) / 60) * 100) / 100,
+        totalCharge: parseFloat(row.total_charge || '0'),
+    };
+}
+
+export async function getCorporateUsageCsv(
+    corporateAccountId: string,
+    periodStart: string,
+    periodEnd: string
+): Promise<string | null> {
+    if (!billingDb.isBillingDbReady()) return null;
+
+    const result = await billingDb.query(
+        `SELECT call_id, start_time, end_time, duration_seconds, language,
+                per_minute_rate, total_charge
+         FROM billing_cdrs
+         WHERE corporate_account_id = $1
+           AND call_type = 'vri'
+           AND start_time >= $2
+           AND start_time < $3
+         ORDER BY start_time`,
+        [corporateAccountId, periodStart, periodEnd]
+    );
+
+    const lines = [
+        'call_id,start_time,end_time,duration_seconds,language,per_minute_rate,total_charge',
+        ...result.rows.map((row: Record<string, unknown>) => [
+            row.call_id,
+            row.start_time,
+            row.end_time,
+            row.duration_seconds,
+            row.language || '',
+            row.per_minute_rate,
+            row.total_charge,
+        ].map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')),
+    ];
+    return `${lines.join('\n')}\n`;
+}
+
+export async function getAdminBillingDashboard(): Promise<AdminBillingDashboard | null> {
+    if (!billingDb.isBillingDbReady()) return null;
+
+    const counts = await billingDb.query<{ status: string; count: string; total: string }>(
+        `SELECT status, COUNT(*) AS count, COALESCE(SUM(total), 0) AS total
+         FROM invoices
+         GROUP BY status`
+    );
+    const accounts = await billingDb.query<{ count: string }>(
+        `SELECT COUNT(*) AS count FROM corporate_accounts WHERE is_active = true`
+    );
+    const recent = await billingDb.query(
+        `SELECT * FROM invoices ORDER BY created_at DESC LIMIT 20`
+    );
+
+    const invoiceStatusCounts: Record<string, number> = {};
+    const totals = {
+        draft: 0,
+        issued: 0,
+        paid: 0,
+        overdue: 0,
+        cancelled: 0,
+        outstanding: 0,
+    };
+
+    for (const row of counts.rows) {
+        const status = row.status as keyof typeof totals;
+        const total = parseFloat(row.total || '0');
+        invoiceStatusCounts[row.status] = parseInt(row.count || '0', 10);
+        if (status in totals) totals[status] = total;
+        if (row.status === 'issued' || row.status === 'overdue') totals.outstanding += total;
+    }
+
+    return {
+        generatedAt: new Date(),
+        invoiceStatusCounts,
+        totals,
+        activeCorporateAccounts: parseInt(accounts.rows[0]?.count || '0', 10),
+        recentInvoices: recent.rows.map(mapInvoiceRow),
+    };
+}
+
 /**
  * Mark an invoice as paid.
  */
@@ -392,11 +531,45 @@ export async function markInvoicePaid(
     });
 }
 
+export async function recordInvoicePayment(input: {
+    invoiceId: string;
+    amount: number;
+    currency?: string;
+    provider?: string;
+    providerPaymentId?: string;
+    status?: string;
+    metadata?: Record<string, unknown>;
+    performedBy?: string;
+}): Promise<void> {
+    if (!billingDb.isBillingDbReady()) return;
+
+    await billingDb.query(
+        `INSERT INTO billing_payments (
+            invoice_id, provider, provider_payment_id, amount, currency, status,
+            received_at, metadata
+        ) VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7)`,
+        [
+            input.invoiceId,
+            input.provider || 'manual',
+            input.providerPaymentId || null,
+            input.amount,
+            (input.currency || 'USD').toUpperCase(),
+            input.status || 'succeeded',
+            JSON.stringify(input.metadata || {}),
+        ]
+    );
+
+    if ((input.status || 'succeeded') === 'succeeded') {
+        await markInvoicePaid(input.invoiceId, input.providerPaymentId, input.performedBy);
+    }
+}
+
 // ─── Row Mappers ───────────────────────────────────────────
 
 function mapCorporateRow(row: Record<string, unknown>): CorporateAccount {
     return {
         id: row.id as string,
+        tenantId: row.tenant_id as string | null,
         organizationName: row.organization_name as string,
         billingContactName: row.billing_contact_name as string,
         billingContactEmail: row.billing_contact_email as string,

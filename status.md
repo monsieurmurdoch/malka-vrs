@@ -6,6 +6,59 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-30
 - Branch: `codex/billing-utilization-roadmap`
+- HEAD: `f53cb61`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  ROADMAP.md`
+  - `M  status.md`
+  - `M  vrs-server/__tests__/billing/rate-service.test.ts`
+  - `M  vrs-server/src/billing/cdr-service.ts`
+  - `M  vrs-server/src/billing/config.ts`
+  - `M  vrs-server/src/billing/interpreter-operations-service.ts`
+  - `A  vrs-server/src/billing/migrations/010_vri_rates_payables_utilization.sql`
+  - `M  vrs-server/src/billing/rate-service.ts`
+  - `M  vrs-server/src/billing/routes/billing-admin.ts`
+  - `M  vrs-server/src/billing/routes/billing-dashboard.ts`
+  - `M  vrs-server/src/billing/stripe-webhook-service.ts`
+  - `M  vrs-server/src/billing/types.ts`
+  - `M  vrs-server/src/billing/vri-billing-pipeline.ts`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-30T20:57:37.090Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
+- Branch: `codex/billing-utilization-roadmap`
+- HEAD: `f53cb61`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M ROADMAP.md`
+  - `M vrs-server/__tests__/billing/rate-service.test.ts`
+  - `M vrs-server/src/billing/cdr-service.ts`
+  - `M vrs-server/src/billing/config.ts`
+  - `M vrs-server/src/billing/interpreter-operations-service.ts`
+  - `M vrs-server/src/billing/rate-service.ts`
+  - `M vrs-server/src/billing/routes/billing-admin.ts`
+  - `M vrs-server/src/billing/routes/billing-dashboard.ts`
+  - `M vrs-server/src/billing/stripe-webhook-service.ts`
+  - `M vrs-server/src/billing/types.ts`
+  - `M vrs-server/src/billing/vri-billing-pipeline.ts`
+  - `?? vrs-server/src/billing/migrations/010_vri_rates_payables_utilization.sql`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-30T20:56:49.720Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
+- Branch: `codex/billing-utilization-roadmap`
 - HEAD: `df9f10c`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -29,7 +82,7 @@ Local changes at sync time:
   - `M  vrs-server/src/server.ts`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-30T20:37:06.301Z
 
 <!-- status:current:start -->

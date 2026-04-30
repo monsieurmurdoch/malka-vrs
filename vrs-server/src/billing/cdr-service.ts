@@ -37,7 +37,11 @@ export async function createCdr(input: CreateCdrInput): Promise<BillingCdr | nul
 
         const { rateTierId, perMinuteRate } = await getEffectiveRate(
             input.callType,
-            input.startTime
+            input.startTime,
+            {
+                corporateAccountId: input.corporateAccountId || null,
+                languagePair: input.language || null,
+            }
         );
 
         const durationMinutes = input.durationSeconds / 60;

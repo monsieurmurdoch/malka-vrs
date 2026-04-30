@@ -8,18 +8,43 @@
 import { Router, Request, Response } from 'express';
 import * as billingDb from '../../lib/billing-db';
 import { getCdrs, getCdrById, getCdrStatusHistory, transitionCdrStatus } from '../cdr-service';
-import { getRateTiers, createRateTier, deactivateRateTier } from '../rate-service';
+import {
+    createRateTier,
+    createVriRateOverride,
+    deactivateRateTier,
+    getRateTiers,
+    listBillingRateTemplates,
+    listVriRateOverrides,
+} from '../rate-service';
 import { generateMonthlyAggregation, formatTrsSubmission, markTrsSubmitted, reconcileTrsPayment } from '../vrs-billing-pipeline';
-import { getCorporateAccounts, getCorporateAccount, createCorporateAccount, generateInvoice, issueInvoice, markInvoicePaid, getCorporateBillingSummary } from '../vri-billing-pipeline';
+import {
+    createCorporateAccount,
+    generateInvoice,
+    getAdminBillingDashboard,
+    getCorporateAccount,
+    getCorporateAccounts,
+    getCorporateBillingSummary,
+    getCorporateUsageCsv,
+    getCorporateUsageSummary,
+    issueInvoice,
+    markInvoicePaid,
+    recordInvoicePayment,
+} from '../vri-billing-pipeline';
 import {
     createManagerNote,
+    createPayRate,
     createScheduleWindow,
+    generatePayablesForPeriod,
+    generateWeeklyUtilizationSummary,
+    getVendorProfile,
     listManagerNotes,
     listPayables,
+    listPayRates,
     listScheduleWindows,
     listUtilizationSummaries,
     recordAvailabilitySession,
     recordBreakSession,
+    upsertVendorProfile,
 } from '../interpreter-operations-service';
 import { runMonthlyReconciliation, getReconciliationReport, resolveVariance } from '../reconciliation-service';
 import { getAuditLog } from '../audit-service';
@@ -84,6 +109,48 @@ router.delete('/rate-tiers/:id', async (req: Request, res: Response) => {
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: 'Failed to deactivate rate tier' });
+    }
+});
+
+/** GET /api/billing/rate-templates — Future service/language billing templates */
+router.get('/rate-templates', async (req: Request, res: Response) => {
+    try {
+        const templates = await listBillingRateTemplates({
+            serviceMode: req.query.serviceMode ? single(req.query.serviceMode) : undefined,
+            currency: req.query.currency ? single(req.query.currency) : undefined,
+        });
+        res.json(templates);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch rate templates' });
+    }
+});
+
+/** GET /api/billing/vri-rate-overrides — List VRI rate overrides */
+router.get('/vri-rate-overrides', async (req: Request, res: Response) => {
+    try {
+        const overrides = await listVriRateOverrides({
+            corporateAccountId: req.query.corporateAccountId ? single(req.query.corporateAccountId) : undefined,
+            tenantId: req.query.tenantId ? single(req.query.tenantId) : undefined,
+            currency: req.query.currency ? single(req.query.currency) : undefined,
+            isActive: req.query.isActive !== undefined ? single(req.query.isActive) === 'true' : undefined,
+        });
+        res.json(overrides);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch VRI rate overrides' });
+    }
+});
+
+/** POST /api/billing/vri-rate-overrides — Create VRI rate override */
+router.post('/vri-rate-overrides', async (req: Request, res: Response) => {
+    try {
+        const override = await createVriRateOverride({
+            ...req.body,
+            createdBy: (req as any).user?.id, // eslint-disable-line @typescript-eslint/no-explicit-any
+        });
+        if (!override) return res.status(503).json({ error: 'Billing not configured' });
+        res.status(201).json(override);
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        res.status(400).json({ error: err.message || 'Failed to create VRI rate override' });
     }
 });
 
@@ -262,6 +329,33 @@ router.post('/corporate/:id/invoices', async (req: Request, res: Response) => {
     }
 });
 
+/** GET /api/billing/corporate/:id/usage — Corporate usage summary or CSV */
+router.get('/corporate/:id/usage', async (req: Request, res: Response) => {
+    try {
+        const now = new Date();
+        const periodEnd = req.query.periodEnd
+            ? single(req.query.periodEnd)
+            : now.toISOString().slice(0, 10);
+        const periodStart = req.query.periodStart
+            ? single(req.query.periodStart)
+            : `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`;
+
+        if (single(req.query.format) === 'csv') {
+            const csv = await getCorporateUsageCsv(single(req.params.id), periodStart, periodEnd);
+            if (!csv) return res.status(503).json({ error: 'Billing not configured' });
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', `attachment; filename="vri-usage-${single(req.params.id)}.csv"`);
+            return res.send(csv);
+        }
+
+        const summary = await getCorporateUsageSummary(single(req.params.id), periodStart, periodEnd);
+        if (!summary) return res.status(404).json({ error: 'Usage not found' });
+        res.json(summary);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch corporate usage' });
+    }
+});
+
 /** POST /api/billing/invoices/:id/issue — Issue an invoice */
 router.post('/invoices/:id/issue', async (req: Request, res: Response) => {
     try {
@@ -289,6 +383,36 @@ router.post('/invoices/:id/pay', async (req: Request, res: Response) => {
     }
 });
 
+/** POST /api/billing/invoices/:id/payments — Record manual/offline invoice payment */
+router.post('/invoices/:id/payments', async (req: Request, res: Response) => {
+    try {
+        await recordInvoicePayment({
+            invoiceId: single(req.params.id),
+            amount: Number(req.body.amount),
+            currency: req.body.currency,
+            provider: req.body.provider || 'manual',
+            providerPaymentId: req.body.providerPaymentId,
+            status: req.body.status || 'succeeded',
+            metadata: req.body.metadata || {},
+            performedBy: (req as any).user?.id, // eslint-disable-line @typescript-eslint/no-explicit-any
+        });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to record invoice payment' });
+    }
+});
+
+/** GET /api/billing/admin-dashboard — Admin billing dashboard summary */
+router.get('/admin-dashboard', async (_req: Request, res: Response) => {
+    try {
+        const dashboard = await getAdminBillingDashboard();
+        if (!dashboard) return res.status(503).json({ error: 'Billing not configured' });
+        res.json(dashboard);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch admin billing dashboard' });
+    }
+});
+
 // ─── Interpreter Operations ────────────────────────────────
 
 /** GET /api/billing/interpreter-utilization — Weekly interpreter utilization summaries */
@@ -303,6 +427,37 @@ router.get('/interpreter-utilization', async (req: Request, res: Response) => {
         res.json(summaries);
     } catch (err) {
         res.status(500).json({ error: 'Failed to fetch interpreter utilization' });
+    }
+});
+
+/** POST /api/billing/interpreter-utilization/generate — Generate weekly utilization summary */
+router.post('/interpreter-utilization/generate', async (req: Request, res: Response) => {
+    try {
+        const summary = await generateWeeklyUtilizationSummary({
+            interpreterId: req.body.interpreterId,
+            tenantId: req.body.tenantId,
+            weekStart: req.body.weekStart,
+        });
+        if (!summary) return res.status(503).json({ error: 'Billing not configured' });
+        res.status(201).json(summary);
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        res.status(400).json({ error: err.message || 'Failed to generate utilization summary' });
+    }
+});
+
+/** POST /api/billing/interpreters/payables/generate — Generate draft interpreter payables from CDRs */
+router.post('/interpreters/payables/generate', async (req: Request, res: Response) => {
+    try {
+        const result = await generatePayablesForPeriod({
+            periodStart: req.body.periodStart,
+            periodEnd: req.body.periodEnd,
+            tenantId: req.body.tenantId,
+            interpreterId: req.body.interpreterId,
+            createdBy: (req as any).user?.id, // eslint-disable-line @typescript-eslint/no-explicit-any
+        });
+        res.json(result);
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        res.status(400).json({ error: err.message || 'Failed to generate interpreter payables' });
     }
 });
 
@@ -379,6 +534,56 @@ router.get('/interpreters/:id/payables', async (req: Request, res: Response) => 
         res.json(payables);
     } catch (err) {
         res.status(500).json({ error: 'Failed to fetch interpreter payables' });
+    }
+});
+
+/** GET /api/billing/interpreters/:id/vendor-profile — Interpreter vendor/payment profile */
+router.get('/interpreters/:id/vendor-profile', async (req: Request, res: Response) => {
+    try {
+        const profile = await getVendorProfile(single(req.params.id));
+        if (!profile) return res.status(404).json({ error: 'Vendor profile not found' });
+        res.json(profile);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch vendor profile' });
+    }
+});
+
+/** PUT /api/billing/interpreters/:id/vendor-profile — Upsert interpreter vendor/payment profile */
+router.put('/interpreters/:id/vendor-profile', async (req: Request, res: Response) => {
+    try {
+        const profile = await upsertVendorProfile({
+            ...req.body,
+            interpreterId: single(req.params.id),
+        });
+        if (!profile) return res.status(503).json({ error: 'Billing not configured' });
+        res.json(profile);
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        res.status(400).json({ error: err.message || 'Failed to upsert vendor profile' });
+    }
+});
+
+/** GET /api/billing/interpreters/:id/pay-rates — Interpreter pay rates */
+router.get('/interpreters/:id/pay-rates', async (req: Request, res: Response) => {
+    try {
+        const rates = await listPayRates(single(req.params.id));
+        res.json(rates);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch interpreter pay rates' });
+    }
+});
+
+/** POST /api/billing/interpreters/:id/pay-rates — Create interpreter pay rate */
+router.post('/interpreters/:id/pay-rates', async (req: Request, res: Response) => {
+    try {
+        const rate = await createPayRate({
+            ...req.body,
+            interpreterId: single(req.params.id),
+            createdBy: (req as any).user?.id, // eslint-disable-line @typescript-eslint/no-explicit-any
+        });
+        if (!rate) return res.status(503).json({ error: 'Billing not configured' });
+        res.status(201).json(rate);
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        res.status(400).json({ error: err.message || 'Failed to create interpreter pay rate' });
     }
 });
 

@@ -262,6 +262,310 @@ export async function listPayables(filters: {
     return result.rows.map(mapPayable);
 }
 
+export async function upsertVendorProfile(input: {
+    interpreterId: string;
+    tenantId?: string;
+    employmentType?: string;
+    legalName?: string;
+    companyName?: string;
+    taxIdentifierLast4?: string;
+    payoutMethod?: string;
+    stripeAccountId?: string;
+    currency?: string;
+    metadata?: Record<string, unknown>;
+}): Promise<Record<string, unknown> | null> {
+    if (!billingDb.isBillingDbReady()) return null;
+
+    const result = await billingDb.query(
+        `INSERT INTO interpreter_vendor_profiles (
+            interpreter_id, tenant_id, employment_type, legal_name, company_name,
+            tax_identifier_last4, payout_method, stripe_account_id, currency, metadata
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        ON CONFLICT (interpreter_id)
+        DO UPDATE SET
+            tenant_id = EXCLUDED.tenant_id,
+            employment_type = EXCLUDED.employment_type,
+            legal_name = EXCLUDED.legal_name,
+            company_name = EXCLUDED.company_name,
+            tax_identifier_last4 = EXCLUDED.tax_identifier_last4,
+            payout_method = EXCLUDED.payout_method,
+            stripe_account_id = EXCLUDED.stripe_account_id,
+            currency = EXCLUDED.currency,
+            metadata = EXCLUDED.metadata,
+            updated_at = NOW()
+        RETURNING *`,
+        [
+            input.interpreterId,
+            input.tenantId || null,
+            input.employmentType || 'contractor',
+            input.legalName || null,
+            input.companyName || null,
+            input.taxIdentifierLast4 || null,
+            input.payoutMethod || 'manual',
+            input.stripeAccountId || null,
+            (input.currency || 'USD').toUpperCase(),
+            JSON.stringify(input.metadata || {}),
+        ]
+    );
+
+    return mapGenericJson(result.rows[0]);
+}
+
+export async function getVendorProfile(interpreterId: string): Promise<Record<string, unknown> | null> {
+    if (!billingDb.isBillingDbReady()) return null;
+    const result = await billingDb.query(
+        'SELECT * FROM interpreter_vendor_profiles WHERE interpreter_id = $1',
+        [interpreterId]
+    );
+    return result.rows[0] ? mapGenericJson(result.rows[0]) : null;
+}
+
+export async function createPayRate(input: {
+    interpreterId: string;
+    tenantId?: string;
+    serviceMode?: string;
+    languagePair?: string;
+    rateType?: string;
+    rateAmount: number;
+    currency?: string;
+    minimumMinutes?: number;
+    effectiveFrom: string;
+    effectiveTo?: string;
+    createdBy?: string;
+}): Promise<Record<string, unknown> | null> {
+    if (!billingDb.isBillingDbReady()) return null;
+
+    const result = await billingDb.query(
+        `INSERT INTO interpreter_pay_rates (
+            interpreter_id, tenant_id, service_mode, language_pair, rate_type,
+            rate_amount, currency, minimum_minutes, effective_from, effective_to, created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        RETURNING *`,
+        [
+            input.interpreterId,
+            input.tenantId || null,
+            input.serviceMode || 'vri',
+            input.languagePair || 'ASL-EN',
+            input.rateType || 'hourly',
+            input.rateAmount,
+            (input.currency || 'USD').toUpperCase(),
+            input.minimumMinutes || 0,
+            input.effectiveFrom,
+            input.effectiveTo || null,
+            input.createdBy || null,
+        ]
+    );
+
+    return mapGenericJson(result.rows[0]);
+}
+
+export async function listPayRates(interpreterId: string): Promise<Record<string, unknown>[]> {
+    if (!billingDb.isBillingDbReady()) return [];
+    const result = await billingDb.query(
+        `SELECT * FROM interpreter_pay_rates
+         WHERE interpreter_id = $1
+         ORDER BY effective_from DESC, created_at DESC`,
+        [interpreterId]
+    );
+    return result.rows.map(mapGenericJson);
+}
+
+export async function generatePayablesForPeriod(input: {
+    periodStart: string;
+    periodEnd: string;
+    tenantId?: string;
+    interpreterId?: string;
+    createdBy?: string;
+}): Promise<{ created: number; skipped: number; missingRates: number }> {
+    if (!billingDb.isBillingDbReady()) return { created: 0, skipped: 0, missingRates: 0 };
+
+    const conditions = [
+        'c.interpreter_id IS NOT NULL',
+        'c.start_time >= $1',
+        'c.start_time < $2',
+        'bii.id IS NOT NULL',
+        'existing.id IS NULL',
+    ];
+    const params: unknown[] = [input.periodStart, input.periodEnd];
+    let paramIdx = 3;
+
+    if (input.tenantId) {
+        conditions.push(`ca.tenant_id = $${paramIdx++}`);
+        params.push(input.tenantId);
+    }
+    if (input.interpreterId) {
+        conditions.push(`c.interpreter_id = $${paramIdx++}`);
+        params.push(input.interpreterId);
+    }
+
+    const cdrs = await billingDb.query(
+        `SELECT c.*, ca.currency AS account_currency, ca.tenant_id
+         FROM billing_cdrs c
+         JOIN billing_invoice_items bii ON bii.cdr_id = c.id
+         LEFT JOIN corporate_accounts ca ON ca.id = c.corporate_account_id
+         LEFT JOIN interpreter_payables existing
+           ON existing.cdr_id = c.id AND existing.source_type = 'cdr'
+         WHERE ${conditions.join(' AND ')}
+         ORDER BY c.start_time`,
+        params
+    );
+
+    let created = 0;
+    let missingRates = 0;
+
+    for (const row of cdrs.rows) {
+        const rate = await findInterpreterPayRate({
+            interpreterId: row.interpreter_id as string,
+            tenantId: row.tenant_id as string | null,
+            serviceMode: row.call_type as string,
+            languagePair: normalizeLanguagePair(row.language as string | null),
+            date: new Date(row.start_time as string).toISOString().slice(0, 10),
+        });
+        const payableMinutes = Math.max(
+            rate?.minimumMinutes || 0,
+            Math.ceil(Number(row.duration_seconds || 0) / 60)
+        );
+        const rateAmount = rate?.rateAmount || 0;
+        const totalAmount = rate?.rateType === 'hourly'
+            ? Math.round((payableMinutes / 60) * rateAmount * 100) / 100
+            : Math.round(payableMinutes * rateAmount * 100) / 100;
+
+        if (!rate) missingRates++;
+
+        const inserted = await billingDb.query(
+            `INSERT INTO interpreter_payables (
+                interpreter_id, tenant_id, call_id, cdr_id, source_type,
+                service_mode, language_pair, payable_minutes, rate_amount,
+                total_amount, currency, status, period_start, period_end, metadata
+            ) VALUES ($1, $2, $3, $4, 'cdr', $5, $6, $7, $8, $9, $10, 'draft', $11, $12, $13)
+            ON CONFLICT (cdr_id, source_type) WHERE cdr_id IS NOT NULL DO NOTHING
+            RETURNING id`,
+            [
+                row.interpreter_id,
+                row.tenant_id || null,
+                row.call_id,
+                row.id,
+                row.call_type,
+                normalizeLanguagePair(row.language as string | null),
+                payableMinutes,
+                rateAmount,
+                totalAmount,
+                rate?.currency || row.account_currency || 'USD',
+                input.periodStart,
+                input.periodEnd,
+                JSON.stringify({ rateId: rate?.id || null, missingRate: !rate, createdBy: input.createdBy || null }),
+            ]
+        );
+        if (inserted.rows.length) created++;
+    }
+
+    return {
+        created,
+        skipped: cdrs.rows.length - created,
+        missingRates,
+    };
+}
+
+export async function generateWeeklyUtilizationSummary(input: {
+    interpreterId: string;
+    weekStart: string;
+    tenantId?: string;
+}): Promise<InterpreterUtilizationSummary | null> {
+    if (!billingDb.isBillingDbReady()) return null;
+
+    const start = new Date(`${input.weekStart}T00:00:00.000Z`);
+    const end = new Date(start);
+    end.setUTCDate(start.getUTCDate() + 7);
+
+    const schedule = await listScheduleWindows({
+        interpreterId: input.interpreterId,
+        tenantId: input.tenantId,
+        fromDate: start.toISOString(),
+        toDate: end.toISOString(),
+        limit: 500,
+    });
+    const availability = await billingDb.query(
+        `SELECT * FROM interpreter_availability_sessions
+         WHERE interpreter_id = $1
+           AND ($2::text IS NULL OR tenant_id = $2)
+           AND started_at < $4
+           AND COALESCE(ended_at, $4) >= $3`,
+        [input.interpreterId, input.tenantId || null, start.toISOString(), end.toISOString()]
+    );
+    const breaks = await billingDb.query(
+        `SELECT * FROM interpreter_break_sessions
+         WHERE interpreter_id = $1
+           AND ($2::text IS NULL OR tenant_id = $2)
+           AND started_at < $4
+           AND COALESCE(ended_at, $4) >= $3`,
+        [input.interpreterId, input.tenantId || null, start.toISOString(), end.toISOString()]
+    );
+
+    const scheduledMinutes = schedule.reduce((sum, item) => sum + overlapMinutes(item.startsAt, item.endsAt, start, end), 0);
+    let signedOnMinutes = 0;
+    let availableMinutes = 0;
+    let inCallMinutes = 0;
+
+    for (const row of availability.rows) {
+        const status = String(row.status || '').toLowerCase();
+        const minutes = overlapMinutes(
+            new Date(row.started_at as string),
+            row.ended_at ? new Date(row.ended_at as string) : end,
+            start,
+            end
+        );
+        if (status !== 'offline') signedOnMinutes += minutes;
+        if (status === 'active' || status === 'available') availableMinutes += minutes;
+        if (status === 'busy' || status === 'in_call' || status === 'in-call') inCallMinutes += minutes;
+    }
+
+    const breakMinutes = breaks.rows.reduce((sum, row) => sum + overlapMinutes(
+        new Date(row.started_at as string),
+        row.ended_at ? new Date(row.ended_at as string) : end,
+        start,
+        end
+    ), 0);
+    const idleMinutes = Math.max(availableMinutes - inCallMinutes, 0);
+    const utilizationRate = scheduledMinutes > 0
+        ? Math.round((inCallMinutes / scheduledMinutes) * 10000) / 10000
+        : 0;
+
+    const result = await billingDb.query(
+        `INSERT INTO interpreter_utilization_summaries (
+            interpreter_id, tenant_id, week_start, scheduled_minutes, signed_on_minutes,
+            available_minutes, in_call_minutes, break_minutes, idle_minutes,
+            utilization_rate, metadata, generated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+        ON CONFLICT (interpreter_id, tenant_id, week_start)
+        DO UPDATE SET
+            scheduled_minutes = EXCLUDED.scheduled_minutes,
+            signed_on_minutes = EXCLUDED.signed_on_minutes,
+            available_minutes = EXCLUDED.available_minutes,
+            in_call_minutes = EXCLUDED.in_call_minutes,
+            break_minutes = EXCLUDED.break_minutes,
+            idle_minutes = EXCLUDED.idle_minutes,
+            utilization_rate = EXCLUDED.utilization_rate,
+            metadata = EXCLUDED.metadata,
+            generated_at = NOW()
+        RETURNING *`,
+        [
+            input.interpreterId,
+            input.tenantId || null,
+            input.weekStart,
+            Math.round(scheduledMinutes),
+            Math.round(signedOnMinutes),
+            Math.round(availableMinutes),
+            Math.round(inCallMinutes),
+            Math.round(breakMinutes),
+            Math.round(idleMinutes),
+            utilizationRate,
+            JSON.stringify({ generatedBy: 'billing-utilization-rollup' }),
+        ]
+    );
+
+    return mapUtilizationSummary(result.rows[0]);
+}
+
 export async function createManagerNote(input: {
     entityType: string;
     entityId: string;
@@ -446,4 +750,75 @@ function mapManagerNote(row: Record<string, unknown>): ManagerNote {
         updatedAt: new Date(row.updated_at as string),
         metadata: parseMetadata(row.metadata),
     };
+}
+
+async function findInterpreterPayRate(input: {
+    interpreterId: string;
+    tenantId?: string | null;
+    serviceMode: string;
+    languagePair: string | null;
+    date: string;
+}): Promise<{
+    id: string;
+    rateType: string;
+    rateAmount: number;
+    currency: string;
+    minimumMinutes: number;
+} | null> {
+    const result = await billingDb.query(
+        `SELECT *
+         FROM interpreter_pay_rates
+         WHERE interpreter_id = $1
+           AND service_mode = $2
+           AND (tenant_id IS NULL OR tenant_id = $3)
+           AND (language_pair IS NULL OR language_pair = $4)
+           AND effective_from <= $5
+           AND (effective_to IS NULL OR effective_to >= $5)
+         ORDER BY
+           CASE WHEN tenant_id = $3 THEN 1 ELSE 0 END DESC,
+           CASE WHEN language_pair = $4 THEN 1 ELSE 0 END DESC,
+           effective_from DESC
+         LIMIT 1`,
+        [
+            input.interpreterId,
+            input.serviceMode,
+            input.tenantId || null,
+            input.languagePair || null,
+            input.date,
+        ]
+    );
+
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+        id: row.id as string,
+        rateType: row.rate_type as string,
+        rateAmount: parseFloat(row.rate_amount as string),
+        currency: row.currency as string,
+        minimumMinutes: Number(row.minimum_minutes || 0),
+    };
+}
+
+function normalizeLanguagePair(value?: string | null): string | null {
+    if (!value) return null;
+    const normalized = value.trim().toUpperCase();
+    if (normalized === 'ASL' || normalized === 'ASL/EN' || normalized === 'ASL-ENGLISH') {
+        return 'ASL-EN';
+    }
+    return normalized;
+}
+
+function overlapMinutes(rawStart: Date, rawEnd: Date, windowStart: Date, windowEnd: Date): number {
+    const start = Math.max(rawStart.getTime(), windowStart.getTime());
+    const end = Math.min(rawEnd.getTime(), windowEnd.getTime());
+    if (end <= start) return 0;
+    return (end - start) / 60000;
+}
+
+function mapGenericJson(row: Record<string, unknown>): Record<string, unknown> {
+    const mapped: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(row)) {
+        mapped[key] = key === 'metadata' ? parseMetadata(value) : value;
+    }
+    return mapped;
 }

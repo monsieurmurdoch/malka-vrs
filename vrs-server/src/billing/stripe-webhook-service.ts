@@ -128,6 +128,33 @@ async function recordPayment(event: WebhookEvent, status: string): Promise<void>
     );
 }
 
+async function recordAdjustment(event: WebhookEvent, reason: string): Promise<void> {
+    const metadata = eventObject(event).metadata as Record<string, unknown> | undefined;
+    const invoiceId = typeof metadata?.invoiceId === 'string'
+        ? metadata.invoiceId
+        : null;
+    const amount = Number(
+        eventObject(event).amount_refunded
+        || eventObject(event).amount
+        || eventObject(event).amount_disputed
+        || 0
+    ) / 100;
+    const currency = String(eventObject(event).currency || 'usd').toUpperCase();
+
+    await billingDb.query(
+        `INSERT INTO billing_adjustments (
+            invoice_id, amount, currency, reason, status, metadata
+        ) VALUES ($1, $2, $3, $4, 'draft', $5)`,
+        [
+            invoiceId,
+            amount * -1,
+            currency,
+            reason,
+            JSON.stringify({ stripeObjectId: eventObjectString(event, 'id'), eventType: event.type }),
+        ]
+    );
+}
+
 async function applyStripeEvent(event: WebhookEvent): Promise<void> {
     const stripeInvoiceId = eventObjectString(event, 'id');
 
@@ -151,6 +178,35 @@ async function applyStripeEvent(event: WebhookEvent): Promise<void> {
             await logBillingEvent('stripe_payment_failed', 'invoice', stripeInvoiceId, {
                 eventType: event.type,
                 stripeInvoiceId,
+            }, 'stripe:webhook');
+            return;
+
+        case 'charge.refunded':
+        case 'refund.created':
+        case 'refund.updated':
+            await recordAdjustment(event, 'stripe_refund');
+            await logBillingEvent('stripe_refund_recorded', 'stripe_event', event.id || eventObjectString(event, 'id'), {
+                eventType: event.type,
+            }, 'stripe:webhook');
+            return;
+
+        case 'charge.dispute.created':
+        case 'charge.dispute.updated':
+        case 'charge.dispute.closed':
+            await recordAdjustment(event, 'stripe_dispute');
+            await logBillingEvent('stripe_dispute_recorded', 'stripe_event', event.id || eventObjectString(event, 'id'), {
+                eventType: event.type,
+            }, 'stripe:webhook');
+            return;
+
+        case 'customer.updated':
+        case 'customer.deleted':
+        case 'customer.subscription.created':
+        case 'customer.subscription.updated':
+        case 'customer.subscription.deleted':
+            await logBillingEvent('stripe_customer_subscription_event', 'stripe_event', event.id || eventObjectString(event, 'id'), {
+                eventType: event.type,
+                stripeObjectId: eventObjectString(event, 'id'),
             }, 'stripe:webhook');
             return;
 

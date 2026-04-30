@@ -87,10 +87,62 @@ export interface CreateRateTierInput {
     createdBy?: string;
 }
 
+export interface RateLookupContext {
+    corporateAccountId?: string | null;
+    tenantId?: string | null;
+    languagePair?: string | null;
+    currency?: string | null;
+}
+
+export interface VriRateOverride {
+    id: string;
+    corporateAccountId: string | null;
+    tenantId: string | null;
+    serviceMode: string;
+    languagePair: string | null;
+    currency: string;
+    label: string;
+    perMinuteRate: number;
+    effectiveFrom: string;
+    effectiveTo: string | null;
+    isActive: boolean;
+    metadata: Record<string, unknown>;
+    createdAt: Date;
+    createdBy: string | null;
+}
+
+export interface CreateVriRateOverrideInput {
+    corporateAccountId?: string;
+    tenantId?: string;
+    serviceMode?: string;
+    languagePair?: string;
+    currency?: string;
+    label: string;
+    perMinuteRate: number;
+    effectiveFrom: string;
+    effectiveTo?: string;
+    metadata?: Record<string, unknown>;
+    createdBy?: string;
+}
+
+export interface BillingRateTemplate {
+    id: string;
+    serviceMode: string;
+    languagePair: string;
+    currency: string;
+    label: string;
+    defaultRate: number | null;
+    status: string;
+    metadata: Record<string, unknown>;
+    createdAt: Date;
+    createdBy: string | null;
+}
+
 // ─── Corporate Accounts ────────────────────────────────────
 
 export interface CorporateAccount {
     id: string;
+    tenantId: string | null;
     organizationName: string;
     billingContactName: string;
     billingContactEmail: string;
@@ -119,6 +171,7 @@ export interface CorporateAccount {
 }
 
 export interface CreateCorporateAccountInput {
+    tenantId?: string;
     organizationName: string;
     billingContactName: string;
     billingContactEmail: string;
@@ -277,6 +330,34 @@ export interface ManagerNote {
     createdAt: Date;
     updatedAt: Date;
     metadata: Record<string, unknown>;
+}
+
+export interface CorporateUsageSummary {
+    accountId: string;
+    periodStart: string;
+    periodEnd: string;
+    totalCalls: number;
+    totalMinutes: number;
+    totalCharge: number;
+    currency: string;
+    day: { totalCalls: number; totalMinutes: number; totalCharge: number };
+    week: { totalCalls: number; totalMinutes: number; totalCharge: number };
+    month: { totalCalls: number; totalMinutes: number; totalCharge: number };
+}
+
+export interface AdminBillingDashboard {
+    generatedAt: Date;
+    invoiceStatusCounts: Record<string, number>;
+    totals: {
+        draft: number;
+        issued: number;
+        paid: number;
+        overdue: number;
+        cancelled: number;
+        outstanding: number;
+    };
+    activeCorporateAccounts: number;
+    recentInvoices: Invoice[];
 }
 
 // ─── Monthly Aggregation ───────────────────────────────────
