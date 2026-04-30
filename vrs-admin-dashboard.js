@@ -64,6 +64,8 @@ let ws = null;
 let refreshInterval = null;
 let currentAdminRole = localStorage.getItem('vrs_admin_role') || 'admin';
 const scheduledRefreshes = new Map();
+let operationsRows = [];
+let activeOperationsView = 'live';
 
 function scheduleRefresh(key, callback, delay = 250) {
     if (scheduledRefreshes.has(key)) {
@@ -144,10 +146,26 @@ function setupEventListeners() {
     document.getElementById('addAccountBtn')?.addEventListener('click', showAddAccountModal);
     document.getElementById('addClientBtn')?.addEventListener('click', showAddClientModal);
     document.getElementById('exportInterpretersBtn')?.addEventListener('click', () => exportTableCsv('interpreters', getVisibleInterpreters()));
+    document.getElementById('exportAccountsBtn')?.addEventListener('click', () => exportTableCsv('accounts', getVisibleAccounts()));
     document.getElementById('exportClientsBtn')?.addEventListener('click', () => exportTableCsv('clients', getVisibleClients()));
     document.querySelectorAll('[data-modal-close]').forEach(button => button.addEventListener('click', closeAdminModal));
+    document.querySelectorAll('[data-ops-view]').forEach(button => {
+        button.addEventListener('click', () => {
+            activeOperationsView = button.dataset.opsView || 'live';
+            document.querySelectorAll('[data-ops-view]').forEach(viewButton => {
+                viewButton.classList.toggle('active', viewButton.dataset.opsView === activeOperationsView);
+            });
+            renderOperationsTable();
+        });
+    });
 
     // Filter changes
+    document.getElementById('opsTenantFilter')?.addEventListener('change', renderOperationsTable);
+    document.getElementById('opsServiceFilter')?.addEventListener('change', renderOperationsTable);
+    document.getElementById('opsFlowFilter')?.addEventListener('change', renderOperationsTable);
+    document.getElementById('opsRoleFilter')?.addEventListener('change', renderOperationsTable);
+    document.getElementById('opsStatusFilter')?.addEventListener('change', renderOperationsTable);
+    document.getElementById('opsSearch')?.addEventListener('input', debounce(renderOperationsTable, 250));
     document.getElementById('interpreterStatusFilter')?.addEventListener('change', filterInterpreters);
     document.getElementById('interpreterSearch')?.addEventListener('input', debounce(filterInterpreters, 300));
     document.getElementById('accountTenantFilter')?.addEventListener('change', loadAccounts);
@@ -211,8 +229,8 @@ function loadInitialData() {
     loadMonitoringSummary();
     connectWebSocket();
 
-    // Auto-refresh every 30 seconds
-    refreshInterval = setInterval(refreshCurrentTab, 30000);
+    // Keep ops presence fresh even if a websocket event is missed.
+    refreshInterval = setInterval(refreshCurrentTab, 10000);
 }
 
 async function validateOpsSession() {
@@ -411,7 +429,9 @@ function downloadCsv(filename, rows) {
     const link = document.createElement('a');
     link.href = url;
     link.download = `${filename}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
     link.click();
+    link.remove();
     URL.revokeObjectURL(url);
 }
 
@@ -427,6 +447,23 @@ function exportTableCsv(type, rows) {
             callsToday: interp.calls_today || 0,
             minutesThisWeek: interp.minutes_week || 0,
             lastActive: formatLastActive(interp)
+        })));
+        return;
+    }
+
+    if (type === 'accounts') {
+        downloadCsv('accounts', rows.map(account => ({
+            name: account.name,
+            role: account.role,
+            username: account.username || '',
+            email: account.email || '',
+            tenant: account.tenantId || 'malka',
+            serviceModes: account.serviceModes || [],
+            languages: account.languages || [],
+            organization: account.organization || '',
+            permissions: account.permissions || [],
+            active: account.active !== false ? 'active' : 'disabled',
+            lastLogin: account.lastLoginAt || 'Never'
         })));
         return;
     }
@@ -707,14 +744,25 @@ function syncQueuePauseButton(paused) {
 
 async function loadDashboardStats() {
     try {
-        const [ stats, activeCalls, dailyUsage ] = await Promise.all([
+        const [ stats, activeCalls, dailyUsage, interpreters, clients, queue ] = await Promise.all([
             apiCall('/admin/stats'),
             apiCall('/admin/calls/active').catch(() => []),
-            apiCall('/admin/usage/daily?days=7').catch(() => [])
+            apiCall('/admin/usage/daily?days=7').catch(() => []),
+            apiCall('/admin/interpreters').catch(() => allInterpreters),
+            apiCall('/admin/clients').catch(() => allClients),
+            apiCall('/admin/queue').catch(() => [])
         ]);
 
+        allInterpreters = interpreters;
+        allClients = clients;
         updateDashboardStats(stats, activeCalls, dailyUsage);
-        loadActiveInterpreters(activeCalls);
+        buildOperationsRows({ activeCalls, clients, interpreters, queue });
+        renderOperationsTable();
+        renderActiveInterpretersTable(
+            interpreters.filter(interpreter => interpreter.connected && interpreter.currentStatus !== 'offline').slice(0, 5),
+            activeCalls
+        );
+        renderQueuePreview(queue);
     } catch (error) {
         console.error('[Dashboard] Error:', error);
     }
@@ -790,7 +838,6 @@ function updateDashboardStats(stats, activeCalls = [], dailyUsage = []) {
 
     renderActiveCallsTable(activeCalls);
     renderWeeklyUsageChart(dailyUsage);
-    renderQueuePreview();
 }
 
 function renderMonitoringSummary({ summary, queueService, opsService, twilioService }) {
@@ -868,6 +915,333 @@ function calculateGrowth(thisWeek, lastWeek) {
     return `${growth > 0 ? '+' : ''}${growth}%`;
 }
 
+function normalizeStatus(value) {
+    return String(value || '').trim().toLowerCase().replace(/_/g, '-');
+}
+
+function normalizeServiceMode(value) {
+    const normalized = String(value || 'vri').trim().toLowerCase();
+    return normalized === 'vrs' ? 'vrs' : 'vri';
+}
+
+function formatFlow(value) {
+    return normalizeStatus(value) === 'scheduled' ? 'Scheduled' : 'On-demand';
+}
+
+function getStatusClass(status) {
+    const normalized = normalizeStatus(status);
+    const statusClasses = {
+        available: 'status-available',
+        assigned: 'status-assigned',
+        waiting: 'status-waiting',
+        connecting: 'status-connecting',
+        'in-call': 'status-in-call',
+        break: 'status-break',
+        offline: 'status-offline',
+        completed: 'status-completed',
+        cancelled: 'status-attention',
+        'no-show': 'status-attention'
+    };
+    return statusClasses[normalized] || 'status-offline';
+}
+
+function formatStatusLabel(status) {
+    const normalized = normalizeStatus(status);
+    const labels = {
+        available: 'Available',
+        assigned: 'Assigned',
+        waiting: 'Waiting',
+        connecting: 'Connecting',
+        'in-call': 'In Call',
+        break: 'On Break',
+        offline: 'Offline',
+        completed: 'Completed',
+        cancelled: 'Cancelled',
+        'no-show': 'No Show'
+    };
+    return labels[normalized] || 'Offline';
+}
+
+function formatRoleLabel(role) {
+    const normalized = normalizeStatus(role);
+    if (normalized === 'client') return 'Client';
+    if (normalized === 'interpreter') return 'Interpreter';
+    if (normalized === 'captioner') return 'Captioner';
+    if (normalized === 'session') return 'Session';
+    return role || 'Unknown';
+}
+
+function formatTenantLabel(tenantId) {
+    const normalized = String(tenantId || defaultTenantId()).toLowerCase();
+    return normalized === 'maple' ? 'Maple' : 'Malka';
+}
+
+function formatOperationUpdated(value) {
+    if (!value) {
+        return 'Live';
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return 'Live';
+    }
+
+    return formatDateTime(value);
+}
+
+function deriveInterpreterStatus(interpreter, activeCallMap) {
+    const nameKey = String(interpreter.name || '').toLowerCase();
+    const idKey = String(interpreter.id || '');
+    if (activeCallMap.has(idKey) || activeCallMap.has(nameKey)) {
+        return 'in-call';
+    }
+
+    if (interpreter.active === false) {
+        return 'offline';
+    }
+
+    if (!interpreter.connected) {
+        return 'offline';
+    }
+
+    const current = normalizeStatus(interpreter.currentStatus);
+    if (current === 'online' || current === 'active' || current === 'available') {
+        return 'available';
+    }
+    if (current === 'busy' || current === 'assigned' || current === 'teamed') {
+        return 'assigned';
+    }
+    if (current === 'connecting') {
+        return 'connecting';
+    }
+    if (current === 'in-call') {
+        return 'in-call';
+    }
+    if (current === 'break' || current === 'on-break') {
+        return 'break';
+    }
+    return 'offline';
+}
+
+function getPrimaryServiceMode(source, fallback = 'vri') {
+    const modes = source?.service_modes || source?.serviceModes;
+    if (Array.isArray(modes) && modes.length) {
+        return normalizeServiceMode(modes[0]);
+    }
+    return normalizeServiceMode(source?.serviceMode || source?.service_mode || source?.callType || source?.call_type || fallback);
+}
+
+function getFlowForService(serviceMode, source = {}) {
+    if (normalizeStatus(source.flow) === 'scheduled' || source.scheduled_at || source.scheduledAt) {
+        return 'scheduled';
+    }
+    return 'on-demand';
+}
+
+function buildOperationActiveCallMap(activeCalls = []) {
+    const map = new Map();
+    activeCalls.forEach(call => {
+        [
+            call.interpreter_id,
+            call.interpreterId,
+            String(call.interpreter_name || '').toLowerCase(),
+            call.client_id,
+            call.clientId,
+            String(call.client_name || '').toLowerCase()
+        ].filter(Boolean).forEach(key => map.set(String(key), call));
+    });
+    return map;
+}
+
+function buildOperationsRows({ activeCalls = [], clients = [], interpreters = [], queue = [] } = {}) {
+    const activeCallMap = buildOperationActiveCallMap(activeCalls);
+    const rows = [];
+    const queueClientKeys = new Set();
+    const activeClientKeys = new Set();
+
+    activeCalls.forEach(call => {
+        const serviceMode = getPrimaryServiceMode(call, 'vri');
+        const flow = getFlowForService(serviceMode, call);
+        const clientName = call.client_name || call.clientName || 'Client';
+        const interpreterName = call.interpreter_name || call.interpreterName || 'Unassigned interpreter';
+
+        [call.client_id, call.clientId, String(clientName).toLowerCase()].filter(Boolean).forEach(key => activeClientKeys.add(String(key)));
+
+        rows.push({
+            flow,
+            id: `call-${call.id || call.room_name || clientName}`,
+            info: `${clientName} with ${interpreterName} · ${call.room_name || 'room pending'} · ${formatDurationFromDate(call.started_at)}`,
+            name: clientName,
+            role: 'session',
+            service: serviceMode,
+            status: 'in-call',
+            tenant: call.tenantId || call.tenant_id || defaultTenantId(),
+            updatedAt: call.started_at,
+            view: 'live'
+        });
+    });
+
+    queue.forEach(item => {
+        const clientName = item.clientName || item.client_name || 'Unknown client';
+        const serviceMode = getPrimaryServiceMode(item, 'vri');
+        const flow = getFlowForService(serviceMode, item);
+        [item.clientId, item.client_id, String(clientName).toLowerCase()].filter(Boolean).forEach(key => queueClientKeys.add(String(key)));
+
+        rows.push({
+            flow,
+            id: `queue-${item.id || clientName}`,
+            info: `${item.language || 'ASL'} · ${item.roomName || item.room_name || 'room pending'} · wait ${item.wait_time || item.waitTime || '—'}`,
+            name: clientName,
+            role: 'client',
+            service: serviceMode,
+            status: 'waiting',
+            tenant: item.tenantId || item.tenant_id || defaultTenantId(),
+            updatedAt: item.createdAt || item.created_at,
+            view: 'live'
+        });
+    });
+
+    interpreters.forEach(interpreter => {
+        const serviceModes = Array.isArray(interpreter.service_modes) && interpreter.service_modes.length
+            ? interpreter.service_modes
+            : ['vri'];
+        const status = deriveInterpreterStatus(interpreter, activeCallMap);
+        const currentCall = activeCallMap.get(String(interpreter.id || ''))
+            || activeCallMap.get(String(interpreter.name || '').toLowerCase());
+        const visibleInLive = status !== 'offline';
+
+        serviceModes.forEach(mode => {
+            const serviceMode = normalizeServiceMode(mode);
+            rows.push({
+                flow: getFlowForService(serviceMode, interpreter),
+                id: `interpreter-${interpreter.id || interpreter.email}-${serviceMode}`,
+                info: currentCall
+                    ? `${currentCall.client_name || 'Client'} · ${currentCall.room_name || 'room pending'}`
+                    : `${Array.isArray(interpreter.languages) ? interpreter.languages.join(', ') : interpreter.languages || 'ASL'} · ${formatLastActive(interpreter)}`,
+                name: interpreter.name || interpreter.email || 'Interpreter',
+                role: 'interpreter',
+                service: serviceMode,
+                status,
+                tenant: interpreter.tenant_id || defaultTenantId(),
+                updatedAt: interpreter.last_active,
+                view: visibleInLive ? 'live staffing' : 'staffing'
+            });
+        });
+    });
+
+    clients.forEach(client => {
+        const clientKeys = [client.id, String(client.name || '').toLowerCase()].filter(Boolean).map(String);
+        const isVisible = clientKeys.some(key => queueClientKeys.has(key) || activeClientKeys.has(key));
+        if (!isVisible) {
+            return;
+        }
+
+        const isQueued = clientKeys.some(key => queueClientKeys.has(key));
+        const isActive = clientKeys.some(key => activeClientKeys.has(key));
+        const status = isActive ? 'in-call' : isQueued ? 'waiting' : 'connecting';
+        const serviceMode = getPrimaryServiceMode(client, defaultServiceModesForTenant(client.tenant_id || defaultTenantId())[0]);
+
+        rows.push({
+            flow: getFlowForService(serviceMode, client),
+            id: `client-${client.id || client.email}`,
+            info: `${client.organization || 'Personal'} · ${client.email || 'no email'}`,
+            name: client.name || client.email || 'Client',
+            role: 'client',
+            service: serviceMode,
+            status,
+            tenant: client.tenant_id || defaultTenantId(),
+            updatedAt: client.last_call || client.created_at,
+            view: 'live'
+        });
+    });
+
+    operationsRows = rows.sort((a, b) => {
+        const priority = {
+            waiting: 1,
+            assigned: 2,
+            connecting: 3,
+            'in-call': 4,
+            available: 5,
+            break: 6,
+            offline: 7,
+            completed: 8
+        };
+        return (priority[normalizeStatus(a.status)] || 99) - (priority[normalizeStatus(b.status)] || 99)
+            || String(a.name).localeCompare(String(b.name));
+    });
+}
+
+function getVisibleOperationsRows() {
+    const tenant = getSelectValue('opsTenantFilter');
+    const service = getSelectValue('opsServiceFilter');
+    const flow = getSelectValue('opsFlowFilter');
+    const role = getSelectValue('opsRoleFilter');
+    const status = getSelectValue('opsStatusFilter');
+    const search = String(document.getElementById('opsSearch')?.value || '').toLowerCase();
+
+    return operationsRows
+        .filter(row => activeOperationsView === 'live'
+            ? row.view.includes('live')
+            : activeOperationsView === 'staffing'
+                ? row.view.includes('staffing') || row.role === 'interpreter'
+                : row.flow === 'scheduled')
+        .filter(row => !tenant || row.tenant === tenant)
+        .filter(row => !service || row.service === service)
+        .filter(row => !flow || row.flow === flow)
+        .filter(row => !role || row.role === role)
+        .filter(row => !status || row.status === status)
+        .filter(row => !search
+            || String(row.name || '').toLowerCase().includes(search)
+            || String(row.info || '').toLowerCase().includes(search)
+            || String(row.tenant || '').toLowerCase().includes(search));
+}
+
+function renderOperationsTable() {
+    const tbody = document.getElementById('operationsTableBody');
+    if (!tbody) {
+        return;
+    }
+
+    const rows = getVisibleOperationsRows();
+
+    if (!rows.length) {
+        const emptyCopy = activeOperationsView === 'scheduled'
+            ? 'No scheduled VRI sessions are visible yet.'
+            : activeOperationsView === 'staffing'
+                ? 'No staff records match these filters.'
+                : 'No live operational rows match these filters.';
+
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    ${emptyCopy}
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = rows.map(row => `
+        <tr>
+            <td>
+                <div style="font-weight: 600;">${escapeHtml(row.name)}</div>
+            </td>
+            <td>${formatRoleLabel(row.role)}</td>
+            <td>${formatTenantLabel(row.tenant)}</td>
+            <td>${String(row.service || 'vri').toUpperCase()}</td>
+            <td>${formatFlow(row.flow)}</td>
+            <td>
+                <span class="status-badge ${getStatusClass(row.status)}">
+                    <span class="status-dot"></span>
+                    ${formatStatusLabel(row.status)}
+                </span>
+            </td>
+            <td><div class="ops-info">${escapeHtml(row.info || '—')}</div></td>
+            <td>${formatOperationUpdated(row.updatedAt)}</td>
+        </tr>
+    `).join('');
+}
+
 async function loadActiveInterpreters(activeCalls = []) {
     try {
         const interpreters = await apiCall('/admin/interpreters');
@@ -894,20 +1268,15 @@ function renderActiveInterpretersTable(interpreters, activeCalls = []) {
         return;
     }
 
-    const activeCallMap = new Map(activeCalls.map(call => [
-        String(call.interpreter_name || '').toLowerCase(),
-        call
-    ]));
+    const activeCallMap = buildOperationActiveCallMap(activeCalls);
 
     tbody.innerHTML = interpreters.map(interp => {
-        const statusClass = interp.currentStatus === 'online' ? 'status-online' :
-                           interp.currentStatus === 'busy' ? 'status-busy' : 'status-in-call';
-        const statusText = interp.currentStatus === 'online' ? 'Available' :
-                          interp.currentStatus === 'busy' ? 'Busy' : 'In Call';
-        const currentCall = activeCallMap.get(String(interp.name || '').toLowerCase());
+        const status = deriveInterpreterStatus(interp, activeCallMap);
+        const currentCall = activeCallMap.get(String(interp.id || ''))
+            || activeCallMap.get(String(interp.name || '').toLowerCase());
         const currentCallLabel = currentCall
             ? `${currentCall.client_name || 'Client'} · ${formatDurationFromDate(currentCall.started_at)}`
-            : (interp.currentStatus === 'busy' || interp.currentStatus === 'in-call' ? 'In progress' : '—');
+            : (status === 'assigned' || status === 'in-call' ? 'In progress' : '—');
 
         return `
             <tr>
@@ -916,9 +1285,9 @@ function renderActiveInterpretersTable(interpreters, activeCalls = []) {
                     <div style="font-size: 12px; color: var(--text-muted);">${Array.isArray(interp.languages) ? interp.languages.join(', ') : 'ASL'}</div>
                 </td>
                 <td>
-                    <span class="status-badge ${statusClass}">
+                    <span class="status-badge ${getStatusClass(status)}">
                         <span class="status-dot"></span>
-                        ${statusText}
+                        ${formatStatusLabel(status)}
                     </span>
                 </td>
                 <td>${currentCallLabel}</td>
@@ -1068,13 +1437,7 @@ function renderInterpretersTable(interpreters) {
     }
 
     tbody.innerHTML = interpreters.map(interp => {
-        const statusClass = interp.connected && interp.currentStatus === 'online' ? 'status-online' :
-                           interp.connected && interp.currentStatus === 'busy' ? 'status-busy' :
-                           interp.connected && interp.currentStatus === 'in-call' ? 'status-in-call' : 'status-offline';
-        const statusText = !interp.connected ? 'Offline' :
-                          interp.currentStatus === 'online' ? 'Available' :
-                          interp.currentStatus === 'busy' ? 'Busy' :
-                          interp.currentStatus === 'in-call' ? 'In Call' : 'Offline';
+        const status = deriveInterpreterStatus(interp, new Map());
 
         return `
             <tr>
@@ -1083,9 +1446,9 @@ function renderInterpretersTable(interpreters) {
                 <td>${Array.isArray(interp.languages) ? interp.languages.join(', ') : interp.languages}</td>
                 <td>${formatServiceModes(interp.service_modes)}</td>
                 <td>
-                    <span class="status-badge ${statusClass}">
+                    <span class="status-badge ${getStatusClass(status)}">
                         <span class="status-dot"></span>
-                        ${statusText}
+                        ${formatStatusLabel(status)}
                     </span>
                 </td>
                 <td>${interp.calls_today || 0}</td>
@@ -1234,10 +1597,7 @@ function getVisibleInterpreters() {
     return allInterpreters
         .filter(interp => {
             if (!statusFilter || statusFilter === 'all') return true;
-            if (statusFilter === 'online') return interp.connected && interp.currentStatus === 'online';
-            if (statusFilter === 'busy') return interp.connected && interp.currentStatus === 'busy';
-            if (statusFilter === 'offline') return !interp.connected || interp.currentStatus === 'offline';
-            return true;
+            return deriveInterpreterStatus(interp, new Map()) === statusFilter;
         })
         .filter(interp => !searchTerm
             || String(interp.name || '').toLowerCase().includes(searchTerm)
@@ -1303,6 +1663,7 @@ async function editInterpreter(id) {
             && item.role === 'interpreter';
     });
     const tenantId = interp.tenant_id || defaultTenantId();
+    const profile = account?.profile || {};
 
     openAdminModal({
         title: interp.name || 'Interpreter Profile',
@@ -1318,14 +1679,20 @@ async function editInterpreter(id) {
                     <input name="email" type="email" value="${escapeHtml(interp.email || '')}">
                 </div>
                 <div class="form-field">
+                    <label>Login email</label>
+                    <input name="loginEmail" type="email" value="${escapeHtml(account?.email || interp.email || '')}">
+                </div>
+                <div class="form-field">
+                    <label>Username</label>
+                    <input name="username" value="${escapeHtml(account?.username || '')}" placeholder="optional if email is supplied">
+                </div>
+                <div class="form-field">
                     <label>Company email</label>
-                    <input name="companyEmail" value="${escapeHtml(account?.email || interp.email || '')}" disabled>
-                    <div class="help-text">Account email is managed from the login account.</div>
+                    <input name="companyEmail" type="email" value="${escapeHtml(profile.companyEmail || '')}" placeholder="optional">
                 </div>
                 <div class="form-field">
                     <label>Other email</label>
-                    <input name="otherEmail" placeholder="optional" disabled>
-                    <div class="help-text">CRM contact fields are visible now; persistence is next.</div>
+                    <input name="alternateEmail" type="email" value="${escapeHtml(profile.alternateEmail || '')}" placeholder="optional">
                 </div>
                 <div class="form-field">
                     <label>Tenant</label>
@@ -1355,22 +1722,24 @@ async function editInterpreter(id) {
                 </div>
                 <div class="form-field full">
                     <label>Manager comments</label>
-                    <textarea name="managerComments" placeholder="Operational notes, QA comments, onboarding items" disabled></textarea>
-                    <div class="help-text">Notes need a dedicated audit-backed table before they should persist.</div>
+                    <textarea name="managerComments" placeholder="Operational notes, QA comments, onboarding items">${escapeHtml(profile.managerComments || '')}</textarea>
                 </div>
             </form>
             <div class="profile-panels">
                 <div class="profile-panel">
                     <h3>Schedule</h3>
-                    <p>Today: not connected to scheduling yet.<br>Last active: ${escapeHtml(formatLastActive(interp))}</p>
+                    <p>Last active: ${escapeHtml(formatLastActive(interp))}</p>
+                    <textarea form="interpreterEditForm" name="scheduleNotes" placeholder="Availability, recurring schedule, blackout notes">${escapeHtml(profile.scheduleNotes || '')}</textarea>
                 </div>
                 <div class="profile-panel">
                     <h3>Billing</h3>
                     <p>${Number(interp.minutes_week || 0)} minutes this week.<br>${Number(interp.calls_today || 0)} calls today.</p>
+                    <textarea form="interpreterEditForm" name="billingNotes" placeholder="Rate notes, invoicing cadence, billing flags">${escapeHtml(profile.billingNotes || '')}</textarea>
                 </div>
                 <div class="profile-panel">
                     <h3>Payment Info</h3>
-                    <p>Payment profile will live here once payout/invoice workflow is wired.</p>
+                    <p>Internal payout notes only. Do not store bank secrets here.</p>
+                    <textarea form="interpreterEditForm" name="paymentInfo" placeholder="Payout method summary, invoice contact, tax form status">${escapeHtml(profile.paymentInfo || '')}</textarea>
                 </div>
             </div>
         `,
@@ -1404,12 +1773,25 @@ async function editInterpreter(id) {
             if (account) {
                 const accountBody = {
                     active: boolFromFormValue(values.active),
+                    email: values.loginEmail || values.email || undefined,
                     languages: parseCsvList(values.languages),
+                    name: values.name,
                     password: values.password || undefined,
+                    profile: {
+                        alternateEmail: values.alternateEmail || '',
+                        billingNotes: values.billingNotes || '',
+                        companyEmail: values.companyEmail || '',
+                        managerComments: values.managerComments || '',
+                        paymentInfo: values.paymentInfo || '',
+                        scheduleNotes: values.scheduleNotes || ''
+                    },
                     serviceModes: serviceModes.length ? serviceModes : defaultServiceModesForTenant(selectedTenant)
                 };
                 if (currentAdminRole === 'superadmin') {
                     accountBody.tenantId = selectedTenant;
+                }
+                if (values.username) {
+                    accountBody.username = values.username;
                 }
 
                 await opsApiCall(`/admin/accounts/${account.id}`, {
@@ -1628,53 +2010,99 @@ function renderAccountsTable(accounts) {
     `).join('');
 }
 
+function getVisibleAccounts() {
+    return allAccounts.slice();
+}
+
 function showAddAccountModal() {
-    const role = prompt('Account role (superadmin, admin, interpreter, captioner):', 'interpreter');
-    if (!role) {
-        return;
-    }
-    const normalizedRole = role.trim().toLowerCase();
-    if (currentAdminRole !== 'superadmin' && normalizedRole === 'superadmin') {
-        alert('Tenant admins cannot create superadmin accounts.');
-        return;
-    }
+    const tenantId = defaultTenantId();
+    const serviceModes = defaultServiceModesForTenant(tenantId);
 
-    const name = prompt('Account name:');
-    if (!name) {
-        return;
-    }
-
-    const username = prompt('Username (optional if email is supplied):', '');
-    const email = prompt('Email (optional):', '');
-    const password = prompt(
-        'Temporary password:',
-        normalizedRole === 'interpreter' ? 'interpreter123!' : normalizedRole === 'captioner' ? 'captioner123!' : 'admin123!'
-    );
-
-    if (!password) {
-        return;
-    }
-
-    const languages = normalizedRole === 'interpreter' || normalizedRole === 'captioner'
-        ? prompt('Languages (comma-separated):', 'ASL, English')
-        : '';
-    const tenantId = currentAdminRole === 'superadmin'
-        ? prompt('Tenant ID:', defaultTenantId())
-        : defaultTenantId();
-    if (!tenantId) return;
-    const serviceModes = prompt('Service modes (comma-separated: vri, vrs):', defaultServiceModesForTenant(tenantId).join(','));
-    if (!serviceModes) return;
-
-    createAccount({
-        email,
-        languages: languages ? languages.split(',').map(language => language.trim()).filter(Boolean) : [],
-        name,
-        password,
-        serviceModes: parseServiceModes(serviceModes, defaultServiceModesForTenant(tenantId)),
-        tenantId,
-        role: normalizedRole,
-        username
+    openAdminModal({
+        title: 'Add Staff Account',
+        subtitle: 'Creates an admin, interpreter, or captioner login account.',
+        body: `
+            <form id="accountCreateForm" class="form-grid">
+                <div class="form-field">
+                    <label>Role</label>
+                    <select name="role" required>
+                        <option value="interpreter">Interpreter</option>
+                        <option value="captioner">Captioner</option>
+                        <option value="admin">Tenant Admin</option>
+                        ${currentAdminRole === 'superadmin' ? '<option value="superadmin">Superadmin</option>' : ''}
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>Name</label>
+                    <input name="name" required autocomplete="name">
+                </div>
+                <div class="form-field">
+                    <label>Email</label>
+                    <input name="email" type="email" autocomplete="email">
+                </div>
+                <div class="form-field">
+                    <label>Username</label>
+                    <input name="username" placeholder="optional if email is supplied">
+                </div>
+                <div class="form-field">
+                    <label>Temporary password</label>
+                    <input name="password" value="interpreter123!" required>
+                </div>
+                <div class="form-field">
+                    <label>Tenant</label>
+                    <select name="tenantId" ${currentAdminRole === 'superadmin' ? '' : 'disabled'}>
+                        <option value="malka" ${tenantId === 'malka' ? 'selected' : ''}>Malka</option>
+                        <option value="maple" ${tenantId === 'maple' ? 'selected' : ''}>Maple</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>Languages</label>
+                    <input name="languages" value="ASL, English">
+                </div>
+                <div class="form-field">
+                    <label>Organization</label>
+                    <input name="organization" placeholder="optional">
+                </div>
+                <div class="form-field full">
+                    <label>Queues</label>
+                    <div style="display:flex; gap:16px;">${serviceCheckboxes('serviceModes', serviceModes)}</div>
+                </div>
+                <div class="form-field full">
+                    <label>Permissions</label>
+                    <input name="permissions" placeholder="accounts:manage, vri:manage">
+                </div>
+            </form>
+        `,
+        footer: `
+            <button class="btn btn-secondary" type="button" data-modal-close>Cancel</button>
+            <button class="btn btn-primary" type="submit" form="accountCreateForm">Create Account</button>
+        `
     });
+
+    document.getElementById('accountCreateForm')?.addEventListener('submit', event => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const values = getFormValues(form);
+        const selectedTenant = currentAdminRole === 'superadmin' ? values.tenantId : tenantId;
+        const modes = selectedCheckboxValues(form, 'serviceModes');
+        if (!values.email && !values.username) {
+            alert('Provide either an email or a username.');
+            return;
+        }
+
+        createAccount({
+            email: values.email,
+            languages: parseCsvList(values.languages),
+            name: values.name,
+            organization: values.organization,
+            password: values.password,
+            permissions: parseCsvList(values.permissions),
+            role: values.role,
+            serviceModes: modes.length ? modes : defaultServiceModesForTenant(selectedTenant),
+            tenantId: selectedTenant,
+            username: values.username
+        });
+    }, { once: true });
 }
 
 async function createAccount(payload) {
@@ -1693,6 +2121,7 @@ async function createAccount(payload) {
         }
         credentialParts.push(`password: ${payload.password}`);
 
+        closeAdminModal();
         alert(`Account created successfully.\n${credentialParts.join('\n')}`);
         loadAccounts();
         loadMonitoringSummary();
@@ -1705,43 +2134,115 @@ async function editAccountPermissions(id) {
     const account = allAccounts.find(item => String(item.id) === String(id));
     if (!account) return;
 
-    const tenantId = currentAdminRole === 'superadmin'
-        ? prompt('Tenant ID:', account.tenantId || defaultTenantId())
-        : (account.tenantId || defaultTenantId());
-    if (!tenantId) return;
-    const modes = prompt('Service modes (comma-separated: vri, vrs):', formatServiceModes(account.serviceModes).toLowerCase());
-    if (!modes) return;
-    const languages = prompt('Languages (comma-separated):', Array.isArray(account.languages) ? account.languages.join(', ') : 'ASL');
-    if (languages === null) return;
-    const permissions = prompt('Permissions (comma-separated):', Array.isArray(account.permissions) ? account.permissions.join(', ') : '');
-    if (permissions === null) return;
-    const password = prompt('Reset password (leave blank to keep current password):', '');
-    if (password === null) return;
-    const active = confirm('Should this account remain active?');
+    const tenantId = account.tenantId || defaultTenantId();
+    const profile = account.profile || {};
 
-    try {
-        const body = {
-            active,
-            languages: languages.split(',').map(item => item.trim()).filter(Boolean),
-            password: password || undefined,
-            permissions: permissions.split(',').map(item => item.trim()).filter(Boolean),
-            serviceModes: parseServiceModes(modes)
-        };
-        if (currentAdminRole === 'superadmin') {
-            body.tenantId = tenantId;
+    openAdminModal({
+        title: account.name || 'Account',
+        subtitle: `${formatRoleLabel(account.role)} · ${tenantId} · ${formatServiceModes(account.serviceModes)}`,
+        body: `
+            <form id="accountEditForm" class="form-grid">
+                <div class="form-field">
+                    <label>Role</label>
+                    <input value="${escapeHtml(formatRoleLabel(account.role))}" disabled>
+                </div>
+                <div class="form-field">
+                    <label>Status</label>
+                    <select name="active">
+                        <option value="true" ${account.active === false ? '' : 'selected'}>Active</option>
+                        <option value="false" ${account.active === false ? 'selected' : ''}>Disabled</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>Name</label>
+                    <input name="name" value="${escapeHtml(account.name || '')}" required>
+                </div>
+                <div class="form-field">
+                    <label>Email</label>
+                    <input name="email" type="email" value="${escapeHtml(account.email || '')}">
+                </div>
+                <div class="form-field">
+                    <label>Username</label>
+                    <input name="username" value="${escapeHtml(account.username || '')}" placeholder="optional if email is supplied">
+                </div>
+                <div class="form-field">
+                    <label>Tenant</label>
+                    <select name="tenantId" ${currentAdminRole === 'superadmin' ? '' : 'disabled'}>
+                        <option value="malka" ${tenantId === 'malka' ? 'selected' : ''}>Malka</option>
+                        <option value="maple" ${tenantId === 'maple' ? 'selected' : ''}>Maple</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>Languages</label>
+                    <input name="languages" value="${escapeHtml(Array.isArray(account.languages) ? account.languages.join(', ') : 'ASL')}">
+                </div>
+                <div class="form-field">
+                    <label>Reset password</label>
+                    <input name="password" placeholder="leave blank to keep current password">
+                </div>
+                <div class="form-field full">
+                    <label>Queues</label>
+                    <div style="display:flex; gap:16px;">${serviceCheckboxes('serviceModes', account.serviceModes || defaultServiceModesForTenant(tenantId))}</div>
+                </div>
+                <div class="form-field full">
+                    <label>Organization</label>
+                    <input name="organization" value="${escapeHtml(account.organization || '')}" placeholder="optional">
+                </div>
+                <div class="form-field full">
+                    <label>Permissions</label>
+                    <input name="permissions" value="${escapeHtml(Array.isArray(account.permissions) ? account.permissions.join(', ') : '')}" placeholder="accounts:manage, vri:manage">
+                </div>
+                <div class="form-field full">
+                    <label>Manager comments</label>
+                    <textarea name="managerComments" placeholder="Internal admin notes">${escapeHtml(profile.managerComments || '')}</textarea>
+                </div>
+            </form>
+        `,
+        footer: `
+            <button class="btn btn-secondary" type="button" data-modal-close>Cancel</button>
+            <button class="btn btn-primary" type="submit" form="accountEditForm">Save Account</button>
+        `
+    });
+
+    document.getElementById('accountEditForm')?.addEventListener('submit', async event => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const values = getFormValues(form);
+        const selectedTenant = currentAdminRole === 'superadmin' ? values.tenantId : tenantId;
+        const serviceModes = selectedCheckboxValues(form, 'serviceModes');
+
+        try {
+            const body = {
+                active: boolFromFormValue(values.active),
+                email: values.email || undefined,
+                languages: parseCsvList(values.languages),
+                name: values.name,
+                organization: values.organization || '',
+                password: values.password || undefined,
+                permissions: parseCsvList(values.permissions),
+                profile: {
+                    managerComments: values.managerComments || ''
+                },
+                serviceModes: serviceModes.length ? serviceModes : defaultServiceModesForTenant(selectedTenant),
+                username: values.username || undefined
+            };
+            if (currentAdminRole === 'superadmin') {
+                body.tenantId = selectedTenant;
+            }
+
+            await opsApiCall(`/admin/accounts/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify(body)
+            });
+
+            closeAdminModal();
+            await loadAccounts();
+            await loadMonitoringSummary();
+            alert('Account updated.');
+        } catch (error) {
+            alert(`Failed to update account: ${error.message}`);
         }
-
-        await opsApiCall(`/admin/accounts/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(body)
-        });
-
-        await loadAccounts();
-        await loadMonitoringSummary();
-        alert('Account permissions updated.');
-    } catch (error) {
-        alert(`Failed to update account: ${error.message}`);
-    }
+    }, { once: true });
 }
 
 // ============================================
@@ -1816,18 +2317,72 @@ function renderClientsTable(clients) {
 }
 
 function showAddClientModal() {
-    const name = prompt('Client name:');
-    if (!name) return;
-    const email = prompt('Email:', '');
-    const password = prompt('Temporary password:', 'client123!');
-    if (!password) return;
-    const tenantId = currentAdminRole === 'superadmin'
-        ? prompt('Tenant ID:', defaultTenantId())
-        : defaultTenantId();
-    const organization = prompt('Organization:', tenantId === 'maple' ? 'Maple Corporate Pilot' : 'Personal');
-    const modes = prompt('Service modes (comma-separated: vri, vrs):', defaultServiceModesForTenant(tenantId).join(','));
+    const tenantId = defaultTenantId();
+    const serviceModes = defaultServiceModesForTenant(tenantId);
 
-    createClient({ name, email, organization, password, serviceModes: parseServiceModes(modes, defaultServiceModesForTenant(tenantId)), tenantId });
+    openAdminModal({
+        title: 'Add Client / Corporate Account',
+        subtitle: 'Creates a client login profile. Use VRI-only service modes for corporate VRI accounts.',
+        body: `
+            <form id="clientCreateForm" class="form-grid">
+                <div class="form-field">
+                    <label>Account Type</label>
+                    <select name="accountType">
+                        <option value="corporate" ${serviceModes.includes('vri') ? 'selected' : ''}>Corporate VRI</option>
+                        <option value="personal" ${serviceModes.includes('vrs') ? 'selected' : ''}>Personal VRS</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>Name</label>
+                    <input name="name" required autocomplete="name">
+                </div>
+                <div class="form-field">
+                    <label>Email</label>
+                    <input name="email" type="email" autocomplete="email">
+                </div>
+                <div class="form-field">
+                    <label>Temporary password</label>
+                    <input name="password" value="client123!" required>
+                </div>
+                <div class="form-field">
+                    <label>Tenant</label>
+                    <select name="tenantId" ${currentAdminRole === 'superadmin' ? '' : 'disabled'}>
+                        <option value="malka" ${tenantId === 'malka' ? 'selected' : ''}>Malka</option>
+                        <option value="maple" ${tenantId === 'maple' ? 'selected' : ''}>Maple</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>Organization</label>
+                    <input name="organization" value="${tenantId === 'maple' ? 'Maple Corporate Pilot' : 'Personal'}">
+                </div>
+                <div class="form-field full">
+                    <label>Service Permissions</label>
+                    <div style="display:flex; gap:16px;">${serviceCheckboxes('serviceModes', serviceModes)}</div>
+                </div>
+            </form>
+        `,
+        footer: `
+            <button class="btn btn-secondary" type="button" data-modal-close>Cancel</button>
+            <button class="btn btn-primary" type="submit" form="clientCreateForm">Create Client</button>
+        `
+    });
+
+    document.getElementById('clientCreateForm')?.addEventListener('submit', event => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const values = getFormValues(form);
+        const selectedTenant = currentAdminRole === 'superadmin' ? values.tenantId : tenantId;
+        const modes = selectedCheckboxValues(form, 'serviceModes');
+
+        createClient({
+            email: values.email,
+            name: values.name,
+            organization: values.organization || (values.accountType === 'corporate' ? 'Corporate' : 'Personal'),
+            password: values.password,
+            serviceModes: modes.length ? modes : defaultServiceModesForTenant(selectedTenant),
+            tenantId: selectedTenant
+        });
+    }, { once: true });
 }
 
 async function createClient(payload) {
@@ -1836,6 +2391,7 @@ async function createClient(payload) {
             method: 'POST',
             body: JSON.stringify(payload)
         });
+        closeAdminModal();
         await loadClients();
         alert('Client created.');
     } catch (error) {
@@ -1847,21 +2403,74 @@ async function editClientPermissions(id) {
     const client = allClients.find(item => String(item.id) === String(id));
     if (!client) return;
 
-    const modes = prompt('Service modes (comma-separated: vri, vrs):', formatServiceModes(client.service_modes).toLowerCase());
-    if (!modes) return;
-    const tenantId = prompt('Tenant ID:', client.tenant_id || (location.hostname.includes('maplecomm.ca') ? 'maple' : 'malka'));
-    if (!tenantId) return;
+    const tenantId = client.tenant_id || defaultTenantId();
 
-    try {
-        await apiCall(`/admin/clients/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify({ serviceModes: parseServiceModes(modes), tenantId })
-        });
-        await loadClients();
-        alert('Client permissions updated.');
-    } catch (error) {
-        alert(`Failed to update client: ${error.message}`);
-    }
+    openAdminModal({
+        title: client.name || 'Client Profile',
+        subtitle: `${client.organization || 'Personal'} · ${tenantId} · ${formatServiceModes(client.service_modes)}`,
+        body: `
+            <form id="clientEditForm" class="form-grid">
+                <div class="form-field">
+                    <label>Name</label>
+                    <input name="name" value="${escapeHtml(client.name || '')}" required>
+                </div>
+                <div class="form-field">
+                    <label>Email</label>
+                    <input name="email" type="email" value="${escapeHtml(client.email || '')}">
+                </div>
+                <div class="form-field">
+                    <label>Organization</label>
+                    <input name="organization" value="${escapeHtml(client.organization || 'Personal')}">
+                </div>
+                <div class="form-field">
+                    <label>Tenant</label>
+                    <select name="tenantId" ${currentAdminRole === 'superadmin' ? '' : 'disabled'}>
+                        <option value="malka" ${tenantId === 'malka' ? 'selected' : ''}>Malka</option>
+                        <option value="maple" ${tenantId === 'maple' ? 'selected' : ''}>Maple</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>Reset password</label>
+                    <input name="password" placeholder="leave blank to keep current password">
+                </div>
+                <div class="form-field full">
+                    <label>Service Permissions</label>
+                    <div style="display:flex; gap:16px;">${serviceCheckboxes('serviceModes', client.service_modes || defaultServiceModesForTenant(tenantId))}</div>
+                </div>
+            </form>
+        `,
+        footer: `
+            <button class="btn btn-secondary" type="button" data-modal-close>Cancel</button>
+            <button class="btn btn-primary" type="submit" form="clientEditForm">Save Client</button>
+        `
+    });
+
+    document.getElementById('clientEditForm')?.addEventListener('submit', async event => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const values = getFormValues(form);
+        const selectedTenant = currentAdminRole === 'superadmin' ? values.tenantId : tenantId;
+        const modes = selectedCheckboxValues(form, 'serviceModes');
+
+        try {
+            await apiCall(`/admin/clients/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    email: values.email || undefined,
+                    name: values.name,
+                    organization: values.organization || 'Personal',
+                    password: values.password || undefined,
+                    serviceModes: modes.length ? modes : defaultServiceModesForTenant(selectedTenant),
+                    tenantId: selectedTenant
+                })
+            });
+            closeAdminModal();
+            await loadClients();
+            alert('Client updated.');
+        } catch (error) {
+            alert(`Failed to update client: ${error.message}`);
+        }
+    }, { once: true });
 }
 
 function formatDate(dateStr) {

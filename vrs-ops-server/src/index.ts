@@ -186,18 +186,23 @@ const createAccountSchema = z.object({
     languages: z.array(z.string().max(20)).min(1).optional().default(['ASL']),
     organization: z.string().max(120).optional(),
     permissions: z.array(z.string().max(80)).optional().default([]),
+    profile: z.record(z.unknown()).optional().default({}),
     serviceModes: z.array(z.enum(['vrs', 'vri'])).min(1).optional().default(['vrs']),
     tenantId: z.string().max(80).optional().default('malka')
 });
 
 const updateAccountSchema = z.object({
     active: z.boolean().optional(),
+    email: z.string().max(254).optional(),
     languages: z.array(z.string().max(20)).min(1).optional(),
+    name: z.string().min(1).max(100).optional(),
     organization: z.string().max(120).optional(),
     password: z.string().min(8).max(128).optional(),
     permissions: z.array(z.string().max(80)).optional(),
+    profile: z.record(z.unknown()).optional(),
     serviceModes: z.array(z.enum(['vrs', 'vri'])).min(1).optional(),
-    tenantId: z.string().max(80).optional()
+    tenantId: z.string().max(80).optional(),
+    username: z.string().max(100).optional()
 }).refine(data => Object.keys(data).length > 0, {
     message: 'At least one field must be provided'
 });
@@ -224,6 +229,7 @@ type AuthDirectoryRecord = {
     organization?: string;
     passwordHash?: string;
     permissions?: string[];
+    profile?: Record<string, unknown>;
     role?: 'admin' | 'captioner' | 'interpreter' | 'superadmin';
     serviceModes?: string[];
     tenantId?: string;
@@ -333,6 +339,7 @@ function normalizeAccountRecord(record: AuthDirectoryRecord): AuthDirectoryRecor
         languages: record.languages || [ 'ASL' ],
         name: normalizedName,
         organization: record.organization?.trim() || '',
+        profile: record.profile && typeof record.profile === 'object' ? record.profile : {},
         role: record.role || 'interpreter',
         permissions: Array.isArray(record.permissions) ? record.permissions : [],
         serviceModes: Array.isArray(record.serviceModes) && record.serviceModes.length ? record.serviceModes : [ 'vrs' ],
@@ -483,6 +490,7 @@ async function initializePostgresOpsState(): Promise<PersistedOpsState | null> {
             languages JSONB NOT NULL DEFAULT '["ASL"]',
             service_modes JSONB NOT NULL DEFAULT '["vrs"]',
             permissions JSONB NOT NULL DEFAULT '[]',
+            profile JSONB NOT NULL DEFAULT '{}',
             tenant_id TEXT NOT NULL DEFAULT 'malka',
             organization TEXT NOT NULL DEFAULT '',
             active BOOLEAN NOT NULL DEFAULT true,
@@ -490,6 +498,8 @@ async function initializePostgresOpsState(): Promise<PersistedOpsState | null> {
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             last_login_at TIMESTAMPTZ
         );
+
+        ALTER TABLE ops_accounts ADD COLUMN IF NOT EXISTS profile JSONB NOT NULL DEFAULT '{}';
 
         CREATE TABLE IF NOT EXISTS ops_audit (
             id TEXT PRIMARY KEY,
@@ -575,7 +585,7 @@ async function initializePostgresOpsState(): Promise<PersistedOpsState | null> {
         opsPool.query(`
             SELECT
                 id, username, email, name, role, password_hash, languages,
-                service_modes, permissions, tenant_id, organization, active,
+                service_modes, permissions, profile, tenant_id, organization, active,
                 created_by, created_at, last_login_at
             FROM ops_accounts
             ORDER BY created_at DESC
@@ -654,6 +664,7 @@ async function initializePostgresOpsState(): Promise<PersistedOpsState | null> {
             organization: row.organization || '',
             passwordHash: row.password_hash,
             permissions: row.permissions || [],
+            profile: row.profile || {},
             role: row.role,
             serviceModes: row.service_modes || [ 'vrs' ],
             tenantId: row.tenant_id || 'malka',
@@ -678,10 +689,10 @@ async function upsertOpsAccount(record: AuthDirectoryRecord) {
     await opsPool.query(`
         INSERT INTO ops_accounts (
             id, username, email, name, role, password_hash, languages,
-            service_modes, permissions, tenant_id, organization, active,
+            service_modes, permissions, profile, tenant_id, organization, active,
             created_by, created_at, last_login_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10, $11, $12, $13, $14, $15)
+        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12, $13, $14, $15, $16)
         ON CONFLICT (id) DO UPDATE SET
             username = EXCLUDED.username,
             email = EXCLUDED.email,
@@ -691,6 +702,7 @@ async function upsertOpsAccount(record: AuthDirectoryRecord) {
             languages = EXCLUDED.languages,
             service_modes = EXCLUDED.service_modes,
             permissions = EXCLUDED.permissions,
+            profile = EXCLUDED.profile,
             tenant_id = EXCLUDED.tenant_id,
             organization = EXCLUDED.organization,
             active = EXCLUDED.active,
@@ -707,6 +719,7 @@ async function upsertOpsAccount(record: AuthDirectoryRecord) {
         JSON.stringify(normalized.languages || [ 'ASL' ]),
         JSON.stringify(normalized.serviceModes || [ 'vrs' ]),
         JSON.stringify(normalized.permissions || []),
+        JSON.stringify(normalized.profile || {}),
         normalized.tenantId || 'malka',
         normalized.organization || '',
         normalized.active !== false,
@@ -1046,6 +1059,7 @@ function sanitizeAccount(record: AuthDirectoryRecord) {
         name: record.name,
         organization: record.organization || '',
         permissions: record.permissions || [],
+        profile: record.profile || {},
         role: record.role,
         serviceModes: record.serviceModes || [ 'vrs' ],
         tenantId: record.tenantId || 'malka',
@@ -1982,7 +1996,7 @@ app.get('/api/admin/tenants', authenticateToken, requireRole('superadmin'), (_re
 
 app.post('/api/admin/accounts', authenticateToken, requireRole('admin', 'superadmin'), validateRequest(createAccountSchema), async (req: Request, res: Response) => {
     const actor = (req as any).user as AuthToken;
-    const { email, languages, name, organization, password, permissions, role, serviceModes, tenantId, username } = req.body;
+    const { email, languages, name, organization, password, permissions, profile, role, serviceModes, tenantId, username } = req.body;
     const normalizedRole = role === 'superadmin'
         ? 'superadmin'
         : role === 'admin'
@@ -2029,6 +2043,7 @@ app.post('/api/admin/accounts', authenticateToken, requireRole('admin', 'superad
         organization: String(organization || '').trim(),
         passwordHash: await bcrypt.hash(password, 10),
         permissions: Array.isArray(permissions) ? permissions : [],
+        profile: profile && typeof profile === 'object' ? profile : {},
         role: normalizedRole,
         serviceModes: Array.isArray(serviceModes) && serviceModes.length ? serviceModes : [ 'vrs' ],
         tenantId: actor.role === 'superadmin'
@@ -2093,15 +2108,26 @@ app.put('/api/admin/accounts/:id', authenticateToken, requireRole('admin', 'supe
     const updated = normalizeAccountRecord({
         ...existing,
         active: req.body.active ?? existing.active,
+        email: req.body.email ?? existing.email,
         languages: req.body.languages || existing.languages,
+        name: req.body.name ?? existing.name,
         organization: req.body.organization ?? existing.organization,
         passwordHash: req.body.password ? await bcrypt.hash(req.body.password, 10) : existing.passwordHash,
         permissions: req.body.permissions || existing.permissions,
+        profile: req.body.profile && typeof req.body.profile === 'object'
+            ? { ...(existing.profile || {}), ...req.body.profile }
+            : existing.profile,
         serviceModes: req.body.serviceModes || existing.serviceModes,
         tenantId: actor.role === 'superadmin'
             ? (req.body.tenantId || existing.tenantId || 'malka')
-            : existing.tenantId
+            : existing.tenantId,
+        username: req.body.username ?? existing.username
     });
+
+    if (!ensureUniqueAccountFields(updated, id)) {
+        res.status(409).json({ error: 'An account with that email or username already exists', code: 'CONFLICT' });
+        return;
+    }
 
     authDirectory = authDirectory.map(account => account.id === id ? updated : account);
     await persistOpsState();
@@ -2112,6 +2138,7 @@ app.put('/api/admin/accounts/:id', authenticateToken, requireRole('admin', 'supe
         active: updated.active !== false,
         permissions: updated.permissions || [],
         passwordChanged: Boolean(req.body.password),
+        profileChanged: Boolean(req.body.profile),
         serviceModes: updated.serviceModes || [ 'vrs' ],
         tenantId: updated.tenantId || 'malka',
         updatedRole: updated.role
