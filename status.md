@@ -6,6 +6,69 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-30
 - Branch: `codex/admin-dashboard-production`
+- HEAD: `45728db`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `MM ROADMAP.md`
+  - `M  react/features/vrs-auth/VRSSAuthService.ts`
+  - `M  react/features/vrs-auth/storage.ts`
+  - `M  status.md`
+  - `M vrs-admin-dashboard.html`
+  - `M vrs-admin-dashboard.js`
+  - `M vrs-ops-server/dist/index.d.ts.map`
+  - `M vrs-ops-server/dist/index.js`
+  - `M vrs-ops-server/dist/index.js.map`
+  - `M vrs-ops-server/src/index.ts`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-30T12:40:15.200Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
+- Branch: `codex/admin-dashboard-production`
+- HEAD: `45728db`
+- Parity slice: Native AsyncStorage-backed VRS auth/session hydration.
+- Completed:
+  - Extended shared VRS auth/session storage to write through to `@react-native-async-storage/async-storage` when native storage is available while preserving browser `localStorage`/`sessionStorage` behavior.
+  - Added async hydration helpers so mobile can repopulate the in-memory cache from AsyncStorage before auth/session validation.
+  - Updated `VRSSAuthService` to expose a `ready()` hydration promise and await storage hydration before login/session validation.
+  - Added async token recovery for `validateSession()` and removed the prior downlevel `Uint8Array` iterator pattern from local token generation.
+  - Added a roadmap note under mobile security parity: AsyncStorage restore is implemented, but true secure token storage still needs Keychain/Keystore-backed storage.
+- Validated:
+  - Targeted `npx tsc --noEmit --skipLibCheck --target es2015 --module commonjs --jsx react --esModuleInterop react/features/vrs-auth/storage.ts react/features/vrs-auth/VRSSAuthService.ts` passed.
+  - TypeScript `transpileModule` parse check passed for `storage.ts` and `VRSSAuthService.ts`.
+  - Targeted ESLint was re-run and remains blocked by existing repo style/JSDoc lint debt; slice-specific import ordering and unused import issues are resolved.
+  - `git diff --check` passed.
+- Blocked / incomplete:
+  - `npm run tsc:native` remains blocked by existing native/web type-surface debt, including web-only device imports in the native project, missing DOM globals, and React Native/global type conflicts.
+  - AsyncStorage is persistent but not secure/encrypted; secure mobile token storage remains open until a Keychain/Keystore dependency is selected.
+  - Device-level mobile smoke for login/session restore is still pending.
+- Mobile files intentionally in scope:
+  - `ROADMAP.md`
+  - `react/features/vrs-auth/VRSSAuthService.ts`
+  - `react/features/vrs-auth/storage.ts`
+  - `status.md`
+- Unrelated local changes left untouched / not in mobile scope:
+  - `vrs-admin-dashboard.html`
+  - `vrs-admin-dashboard.js`
+  - `vrs-ops-server/dist/index.d.ts.map`
+  - `vrs-ops-server/dist/index.js`
+  - `vrs-ops-server/dist/index.js.map`
+  - `vrs-ops-server/src/index.ts`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-30T12:39:32.556Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
+- Branch: `codex/admin-dashboard-production`
 - HEAD: `4dd3bf8`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -15,7 +78,7 @@ Local changes at sync time:
   - `M vrs-ops-server/src/index.ts`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-30T12:19:50.275Z
 
 <!-- status:current:start -->

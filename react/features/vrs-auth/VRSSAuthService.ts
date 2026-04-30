@@ -5,9 +5,15 @@
  * Validates roles with backend server and manages session tokens.
  */
 
-import { VRSRole, VRSUser, AuthResponse, LoginCredentials, ValidationResult, AuthToken } from './types';
-import { STORAGE_KEYS, TOKEN_EXPIRY, ROLE_PERMISSIONS } from './constants';
-import { clearPersistentItems, getPersistentItem, removePersistentItem, setPersistentItem } from './storage';
+import { ROLE_PERMISSIONS, STORAGE_KEYS, TOKEN_EXPIRY } from './constants';
+import {
+    clearPersistentItems,
+    getPersistentItem,
+    getPersistentItemAsync,
+    hydratePersistentItems,
+    setPersistentItem
+} from './storage';
+import { AuthResponse, AuthToken, LoginCredentials, VRSRole, VRSUser, ValidationResult } from './types';
 
 // Config will be loaded from Jitsi's config
 declare var config: any;
@@ -34,8 +40,8 @@ function getVRSConfig() {
 function toBase64Url(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer);
     let binary = '';
-    for (const byte of bytes) {
-        binary += String.fromCharCode(byte);
+    for (let index = 0; index < bytes.length; index++) {
+        binary += String.fromCharCode(bytes[index]);
     }
 
     return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -70,10 +76,16 @@ class VRSSAuthService {
     private currentUser: VRSUser | null = null;
     private validationCache: Map<string, { result: ValidationResult; timestamp: number }> = new Map();
     private cacheTimeout = 60000; // 1 minute cache
+    private storageReady: Promise<void>;
 
     constructor() {
         this.config = getVRSConfig();
         this.loadUserFromStorage();
+        this.storageReady = this.hydrateUserFromStorage();
+    }
+
+    ready(): Promise<void> {
+        return this.storageReady;
     }
 
     /**
@@ -145,6 +157,8 @@ class VRSSAuthService {
      * For interpreters: requires server validation
      */
     async login(credentials: LoginCredentials): Promise<AuthResponse> {
+        await this.storageReady;
+
         try {
             const { role, name, email, password, languages } = credentials;
 
@@ -271,7 +285,9 @@ class VRSSAuthService {
      * Validate current session with server
      */
     async validateSession(): Promise<ValidationResult> {
-        const token = this.getStoredToken();
+        await this.storageReady;
+
+        const token = await this.getStoredTokenAsync();
         if (!token) {
             return { valid: false, error: 'No authentication token found' };
         }
@@ -375,6 +391,19 @@ class VRSSAuthService {
         setPersistentItem(STORAGE_KEYS.USER_INFO, JSON.stringify(user));
     }
 
+    private async hydrateUserFromStorage(): Promise<void> {
+        await hydratePersistentItems([
+            STORAGE_KEYS.USER_ROLE,
+            STORAGE_KEYS.AUTH_TOKEN,
+            STORAGE_KEYS.USER_INFO,
+            STORAGE_KEYS.CLIENT_AUTH,
+            'vrs_interpreter_auth',
+            'vrs_active_call'
+        ]);
+
+        this.loadUserFromStorage();
+    }
+
     private loadUserFromStorage(): void {
         try {
             const userInfo = getPersistentItem(STORAGE_KEYS.USER_INFO);
@@ -397,6 +426,19 @@ class VRSSAuthService {
     private getStoredToken(): AuthToken | null {
         try {
             const tokenStr = getPersistentItem(STORAGE_KEYS.AUTH_TOKEN);
+            if (tokenStr) {
+                return JSON.parse(tokenStr) as AuthToken;
+            }
+        } catch (error) {
+            console.error('Error loading token from storage:', error);
+        }
+
+        return null;
+    }
+
+    private async getStoredTokenAsync(): Promise<AuthToken | null> {
+        try {
+            const tokenStr = await getPersistentItemAsync(STORAGE_KEYS.AUTH_TOKEN);
             if (tokenStr) {
                 return JSON.parse(tokenStr) as AuthToken;
             }

@@ -233,11 +233,12 @@
 
 ### Admin Portal Refinement
 - [ ] Real-browser verify top-level admin dashboard navigation after replacing static buttons with hash-routing handlers
-- [ ] Expand interpreter admin profile into a full CRM-style record: password reset, company/alternate email, schedule, billing, payment info, manager comments, language permissions, and VRI/VRS queues
-- [ ] Add corporate client account creation/editing from tenant admin and superadmin contexts
-- [ ] Make interpreter/client CSV exports available from roster tables
+- [x] Expand interpreter admin profile into a full CRM-style record: password reset, company/alternate email, schedule/billing/payment notes, manager comments, language permissions, and VRI/VRS queues
+- [x] Add corporate client account creation/editing from tenant admin and superadmin contexts
+- [x] Make interpreter/client/account CSV exports available from roster tables
 - [x] Clarify admin dashboard labels: Available Interpreters are staff ready for matching; Waiting Client Requests are clients currently waiting in queue
-- [ ] Tighten admin live refresh for interpreter availability and queue-state changes so manual refresh is not normally needed
+- [x] Tighten admin live refresh for interpreter availability and queue-state changes so manual refresh is not normally needed
+- [ ] Replace CRM note fields with dedicated schedule, billing, payout, and manager-note tables once those subsystems are live
 
 ### Calls, Rooms & Queue Follow-Up
 - [ ] Linked hangup for interpreted calls: if the client or interpreter ends an interpreted VRI/VRS session, the other party exits too
@@ -475,6 +476,7 @@
 - [ ] Offline/reconnect parity: WebSocket reconnect, active call rejoin, network loss states, background/foreground transitions
 - [ ] Accessibility parity: VoiceOver/TalkBack labels, Dynamic Type/text scaling, reduced motion, color contrast, keyboard/switch access where feasible
 - [ ] Security parity: secure storage for tokens, biometric unlock decision, logout/session clearing, no secrets in mobile bundles
+  - 2026-04-30: VRS auth/session storage now hydrates from native AsyncStorage when available, so mobile can restore role/token/user state after reload; true secure token storage still needs a Keychain/Keystore-backed dependency.
 - [ ] Observability parity: crash reporting, structured mobile logs, request/session IDs, call lifecycle breadcrumbs
 
 ### Client Mobile Parity
