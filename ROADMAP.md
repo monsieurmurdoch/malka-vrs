@@ -230,9 +230,9 @@
 - [ ] Implement PostgreSQL RLS policies for all tenant-owned tables
 
 ### Malka/Multi-Mode Product Logic
-- [ ] Confirm Malka VRS clients retain VRS phone-number-oriented flow
-- [ ] Confirm Maple VRS test accounts are clearly separated from Maple VRI default experience
-- [ ] Prevent aesthetic cross-wiring between Malka and Maple at build/runtime boundaries
+- [x] Confirm Malka VRS clients retain VRS phone-number-oriented flow
+- [x] Confirm Maple VRS test accounts are clearly separated from Maple VRI default experience
+- [x] Prevent aesthetic cross-wiring between Malka and Maple at build/runtime boundaries
 
 ### UX Polish
 - [ ] Responsive layout audit for desktop, tablet, and small mobile screens
