@@ -1,0 +1,329 @@
+/**
+ * VRI Client Console Screen.
+ *
+ * Focused corporate VRI session console for Maple/Malka VRI clients.
+ * Large self-view, Request Interpreter action, session controls.
+ */
+
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
+
+import { cancelInterpreterRequest, requestInterpreter } from '../../../../interpreter-queue/actions';
+import { QueueState } from '../../../../interpreter-queue/reducer';
+import { clearPersistentItems, getPersistentJson } from '../../../../vrs-auth/storage';
+import { navigateRoot } from '../../rootNavigationContainerRef';
+import { screen } from '../../routes';
+
+interface UserInfo {
+    name?: string;
+    organization?: string;
+    role?: string;
+    serviceModes?: string[];
+}
+
+const VRIConsoleScreen = () => {
+    const dispatch = useDispatch();
+    const queueState = useSelector((state: any) => state['features/interpreter-queue'] as QueueState | undefined);
+    const isConnected = Boolean(queueState?.isConnected);
+    const isRequestPending = Boolean(queueState?.isRequestPending);
+    const queuePosition = queueState?.queuePosition;
+    const matchData = queueState?.matchData;
+
+    const userInfo = getPersistentJson<UserInfo>('vrs_user_info');
+    const [ elapsedTime, setElapsedTime ] = useState(0);
+
+    // Track time since match was found
+    useEffect(() => {
+        if (!matchData) {
+            setElapsedTime(0);
+
+            return;
+        }
+
+        const interval = setInterval(() => {
+            setElapsedTime(prev => prev + 1);
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [ matchData ]);
+
+    const handleRequestInterpreter = useCallback(() => {
+        if (isRequestPending) {
+            dispatch(cancelInterpreterRequest());
+
+            return;
+        }
+        dispatch(requestInterpreter('ASL'));
+    }, [ dispatch, isRequestPending ]);
+
+    const handleLogout = useCallback(() => {
+        clearPersistentItems([
+            'vrs_user_role',
+            'vrs_auth_token',
+            'vrs_user_info',
+            'vrs_client_auth',
+            'vrs_interpreter_auth',
+            'vrs_active_call'
+        ]);
+        navigateRoot(screen.auth.login);
+    }, []);
+
+    const formatTime = (seconds: number) => {
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+
+        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    };
+
+    const isInSession = Boolean(matchData?.roomName);
+
+    return (
+        <SafeAreaView style = { styles.container }>
+            {/* Header with Logout */}
+            <View style = { styles.header }>
+                <Text style = { styles.headerTitle }>
+                    { userInfo?.organization || 'VRI Console' }
+                </Text>
+                <TouchableOpacity
+                    onPress = { handleLogout }
+                    style = { styles.logoutButton }>
+                    <Text style = { styles.logoutText }>Sign Out</Text>
+                </TouchableOpacity>
+            </View>
+
+            {/* Self-View Area */}
+            <View style = { styles.selfViewArea }>
+                <View style = { styles.selfViewPlaceholder }>
+                    <Text style = { styles.selfViewText }>
+                        { isInSession ? 'In Session' : 'Camera Preview' }
+                    </Text>
+                    <Text style = { styles.selfViewSubtext }>
+                        { isInSession
+                            ? `With ${matchData?.interpreterName || 'interpreter'}`
+                            : 'Self-view will appear here' }
+                    </Text>
+                </View>
+            </View>
+
+            {/* Session Info */}
+            <View style = { styles.sessionInfo }>
+                { isInSession ? (
+                    <>
+                        <Text style = { styles.sessionLabel }>Active VRI Session</Text>
+                        <Text style = { styles.sessionTimer }>{ formatTime(elapsedTime) }</Text>
+                        <Text style = { styles.sessionDetail }>
+                            Interpreter: { matchData?.interpreterName || 'Assigned' }
+                        </Text>
+                    </>
+                ) : (
+                    <>
+                        <Text style = { styles.sessionLabel }>
+                            { isRequestPending
+                                ? `Queue Position: ${queuePosition ?? '—'}`
+                                : 'No Active Session' }
+                        </Text>
+                        { isRequestPending && (
+                            <Text style = { styles.sessionDetail }>
+                                Waiting for an available interpreter...
+                            </Text>
+                        ) }
+                    </>
+                ) }
+            </View>
+
+            {/* Primary Action — only request/cancel, never manual room entry */}
+            <View style = { styles.actions }>
+                <TouchableOpacity
+                    onPress = { handleRequestInterpreter }
+                    style = { [
+                        styles.requestButton,
+                        isRequestPending && styles.cancelButton,
+                        isInSession && styles.requestButtonDisabled
+                    ] }
+                    disabled = { isInSession }>
+                    <Text style = { styles.requestButtonText }>
+                        { isInSession
+                            ? 'Session Active'
+                            : isRequestPending
+                                ? 'Cancel Request'
+                                : 'Request Interpreter' }
+                    </Text>
+                </TouchableOpacity>
+            </View>
+
+            {/* Connection Status */}
+            <View style = { styles.footer }>
+                <View style = { styles.quickLinks }>
+                    <TouchableOpacity
+                        onPress = { () => navigateRoot(screen.vri.settings) }
+                        style = { styles.quickLink }>
+                        <Text style = { styles.quickLinkText }>Settings</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress = { () => navigateRoot(screen.vri.usage) }
+                        style = { styles.quickLink }>
+                        <Text style = { styles.quickLinkText }>Usage</Text>
+                    </TouchableOpacity>
+                </View>
+                <View style = { styles.connectionRow }>
+                    <View style = { [
+                        styles.dot,
+                        isConnected ? styles.dotGreen : styles.dotOrange
+                    ] } />
+                    <Text style = { styles.connectionText }>
+                        { isConnected ? 'Connected' : 'Reconnecting...' }
+                    </Text>
+                </View>
+            </View>
+        </SafeAreaView>
+    );
+};
+
+const styles = StyleSheet.create({
+    actions: {
+        paddingHorizontal: 24,
+        paddingVertical: 16
+    },
+    cancelButton: {
+        backgroundColor: '#d32f2f'
+    },
+    connectionRow: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        justifyContent: 'center'
+    },
+    connectionText: {
+        color: '#888',
+        fontSize: 12
+    },
+    container: {
+        backgroundColor: '#0a0a1a',
+        flex: 1
+    },
+    dot: {
+        borderRadius: 4,
+        height: 8,
+        marginRight: 6,
+        width: 8
+    },
+    dotGreen: {
+        backgroundColor: '#4caf50'
+    },
+    dotOrange: {
+        backgroundColor: '#ff9800'
+    },
+    footer: {
+        alignItems: 'center',
+        paddingBottom: 24,
+        paddingTop: 8
+    },
+    header: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingTop: 16
+    },
+    headerTitle: {
+        color: '#ffffff',
+        fontSize: 18,
+        fontWeight: '600'
+    },
+    logoutButton: {
+        paddingHorizontal: 12,
+        paddingVertical: 6
+    },
+    logoutText: {
+        color: '#888',
+        fontSize: 13
+    },
+    quickLink: {
+        backgroundColor: '#1a1a2e',
+        borderRadius: 8,
+        paddingHorizontal: 16,
+        paddingVertical: 8
+    },
+    quickLinkText: {
+        color: '#aaa',
+        fontSize: 13
+    },
+    quickLinks: {
+        flexDirection: 'row',
+        gap: 12,
+        marginBottom: 12
+    },
+    requestButton: {
+        alignItems: 'center',
+        backgroundColor: '#2979ff',
+        borderRadius: 14,
+        elevation: 3,
+        padding: 18,
+        shadowColor: '#2979ff',
+        shadowOffset: { height: 3, width: 0 },
+        shadowOpacity: 0.25,
+        shadowRadius: 6
+    },
+    requestButtonDisabled: {
+        backgroundColor: '#1a1a3e',
+        elevation: 0,
+        shadowColor: 'transparent',
+        shadowOpacity: 0
+    },
+    requestButtonText: {
+        color: '#fff',
+        fontSize: 17,
+        fontWeight: '600'
+    },
+    selfViewArea: {
+        flex: 1,
+        paddingHorizontal: 16,
+        paddingTop: 16
+    },
+    selfViewPlaceholder: {
+        alignItems: 'center',
+        backgroundColor: '#1a1a2e',
+        borderRadius: 16,
+        flex: 1,
+        justifyContent: 'center'
+    },
+    selfViewSubtext: {
+        color: '#555',
+        fontSize: 13,
+        marginTop: 4
+    },
+    selfViewText: {
+        color: '#777',
+        fontSize: 16,
+        fontWeight: '500'
+    },
+    sessionDetail: {
+        color: '#999',
+        fontSize: 13,
+        marginTop: 4
+    },
+    sessionInfo: {
+        alignItems: 'center',
+        paddingVertical: 16
+    },
+    sessionLabel: {
+        color: '#ddd',
+        fontSize: 16,
+        fontWeight: '600'
+    },
+    sessionTimer: {
+        color: '#2979ff',
+        fontSize: 36,
+        fontVariant: [ 'tabular-nums' ],
+        fontWeight: '700',
+        marginTop: 4
+    }
+});
+
+export default VRIConsoleScreen;

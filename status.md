@@ -6,6 +6,38 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-30
 - Branch: `hermes/mobile-parity`
+- HEAD: `80f9949`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  ROADMAP.md`
+  - `M  android/fastlane/Fastfile`
+  - `A  docs/mobile-release-checklist.md`
+  - `M  globals.native.d.ts`
+  - `M  ios/fastlane/Fastfile`
+  - `M  react/features/app/actions.native.ts`
+  - `M  react/features/app/actions.web.ts`
+  - `M  react/features/app/types.ts`
+  - `M  react/features/base/whitelabel/constants.ts`
+  - `M  react/features/base/whitelabel/functions.ts`
+  - `M  react/features/base/whitelabel/types.ts`
+  - `M  react/features/call-management/components/CallWaitingOverlay.tsx`
+  - `M  react/features/call-management/components/DNDToggle.tsx`
+  - `M  react/features/call-management/components/DarkModeToggle.tsx`
+  - `M  react/features/call-management/components/InCallChatPanel.tsx`
+  - `M  react/features/call-management/middleware.ts`
+  - `M  react/features/contacts/components/web/ContactNotes.tsx`
+  - `M  react/features/contacts/components/web/ContactsDrawer.tsx`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-30T20:49:21.685Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
+- Branch: `hermes/mobile-parity`
 - HEAD: `30f5249`
 - Parity slice: Native client interpreter request/pending/cancel queue wiring.
 - Completed:
@@ -40,7 +72,7 @@ This file is the project-level running status log. The current update stays at t
 - Next best mobile parity slice: wire client match/meeting-initiated queue events into native room navigation, with camera-off/mic-muted defaults if compatible with existing app navigation.
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-30T13:07:23.035Z
 
 <!-- status:current:start -->

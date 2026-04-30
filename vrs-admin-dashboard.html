@@ -627,6 +627,13 @@
             grid-column: 1 / -1;
         }
 
+        .form-field.actions-row {
+            align-self: end;
+            flex-direction: row;
+            align-items: center;
+            gap: 10px;
+        }
+
         .form-field label {
             color: var(--text-secondary);
             font-size: 12px;
@@ -676,6 +683,26 @@
             color: var(--text-secondary);
             font-size: 13px;
             line-height: 1.45;
+        }
+
+        .profile-panel textarea {
+            width: 100%;
+            min-height: 82px;
+            margin-top: 10px;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.24);
+            color: var(--text-primary);
+            font: inherit;
+            resize: vertical;
+        }
+
+        .profile-panel ul {
+            margin: 8px 0 0 18px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            line-height: 1.5;
         }
 
         .help-text {
@@ -1241,6 +1268,7 @@
                     <h2 class="section-title">🛡️ Admin, Interpreter & Captioner Accounts</h2>
                     <div class="section-actions">
                         <button class="btn btn-primary" id="addAccountBtn">+ Add Account</button>
+                        <button class="btn btn-secondary" id="exportAccountsBtn">Export CSV</button>
                     </div>
                 </div>
                 <div class="filter-bar">
@@ -1256,6 +1284,7 @@
                         Role
                         <select class="filter-select" id="accountRoleFilter">
                             <option value="">All Roles</option>
+                            <option value="superadmin">Superadmin</option>
                             <option value="admin">Admin</option>
                             <option value="interpreter">Interpreter</option>
                             <option value="captioner">Captioner</option>

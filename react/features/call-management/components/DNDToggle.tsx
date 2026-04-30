@@ -62,7 +62,7 @@ const DNDToggle = () => {
                         Auto-reply message:
                         <textarea
                             value = { message }
-                            onChange = { e => setMessage(e.target.value) }
+                            onChange = { e => setMessage(e.target.value ?? '') }
                             placeholder = 'e.g. I am unavailable, please leave a message.'
                             rows = { 3 } />
                     </label>

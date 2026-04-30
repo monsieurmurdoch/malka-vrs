@@ -44,6 +44,21 @@ export const screen = {
         profile: 'Profile'
     },
     unsafeRoomWarning: 'Unsafe Room Warning',
+    auth: {
+        login: 'Login'
+    },
+    vrs: {
+        home: 'VRS Home',
+        callHistory: 'VRS Call History',
+        contacts: 'VRS Contacts',
+        contactDetail: 'VRS Contact Detail',
+        dialPad: 'VRS Dial Pad'
+    },
+    vri: {
+        console: 'VRI Console',
+        settings: 'VRI Settings',
+        usage: 'VRI Usage'
+    },
     welcome: {
         main: 'Welcome',
         tabs: {

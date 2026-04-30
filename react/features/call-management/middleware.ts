@@ -128,7 +128,7 @@ function applyDarkMode(mode: 'light' | 'dark' | 'system') {
         body.classList.add('vrs-light');
     } else {
         // system — detect OS preference
-        const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+        const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches;
 
         body.classList.add(prefersDark ? 'vrs-dark' : 'vrs-light');
     }

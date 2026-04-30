@@ -5,10 +5,12 @@ import { StatusBar } from 'react-native';
 import { connect } from 'react-redux';
 
 import { IReduxState, IStore } from '../../../app/types';
+import { isVriApp } from '../../../base/whitelabel/functions';
 import DialInSummary from '../../../invite/components/dial-in-summary/native/DialInSummary';
 import Prejoin from '../../../prejoin/components/native/Prejoin';
 import UnsafeRoomWarning from '../../../prejoin/components/native/UnsafeRoomWarning';
 import { isUnsafeRoomWarningEnabled } from '../../../prejoin/functions';
+import { getPersistentItem } from '../../../vrs-auth/storage';
 // eslint-disable-next-line
 // @ts-ignore
 import WelcomePage from '../../../welcome/components/WelcomePage';
@@ -21,6 +23,7 @@ import {
     conferenceNavigationContainerScreenOptions,
     connectingScreenOptions,
     dialInSummaryScreenOptions,
+    fullScreenOptions,
     navigationContainerTheme,
     preJoinScreenOptions,
     unsafeMeetingScreenOptions,
@@ -31,8 +34,35 @@ import {
 import ConnectingPage from './ConnectingPage';
 import ConferenceNavigationContainer
     from './conference/components/ConferenceNavigationContainer';
+import VRIConsoleScreen from './vri/VRIConsoleScreen';
+import VRISettingsScreen from './vri/VRISettingsScreen';
+import VRIUsageScreen from './vri/VRIUsageScreen';
+import VRSHomeScreen from './vrs/VRSHomeScreen';
+import MobileLoginScreen from './auth/MobileLoginScreen';
+import CallHistoryScreen from './vrs/CallHistoryScreen';
+import ContactsScreen from './vrs/ContactsScreen';
+import ContactDetailScreen from './vrs/ContactDetailScreen';
+import DialPadScreen from './vrs/DialPadScreen';
 
 const RootStack = createStackNavigator();
+
+/**
+ * Determine the initial route based on auth state and tenant app type.
+ *
+ * - If the user is already authenticated, route directly to the app home.
+ * - If not authenticated, show the login screen.
+ * - Falls back to the standard Jitsi welcome/connecting flow for SDK usage.
+ */
+function getInitialRoute(): string {
+    const isAuthed = getPersistentItem('vrs_client_auth') === 'true'
+        || getPersistentItem('vrs_auth_token');
+
+    if (isAuthed) {
+        return isVriApp() ? screen.vri.console : screen.vrs.home;
+    }
+
+    return screen.auth.login;
+}
 
 
 interface IProps {
@@ -56,7 +86,7 @@ interface IProps {
 
 const RootNavigationContainer = ({ dispatch, isUnsafeRoomWarningAvailable, isWelcomePageAvailable }: IProps) => {
     const initialRouteName = isWelcomePageAvailable
-        ? screen.welcome.main : screen.connecting;
+        ? getInitialRoute() : screen.connecting;
     const onReady = useCallback(() => {
         dispatch({
             type: _ROOT_NAVIGATION_READY,
@@ -115,6 +145,42 @@ const RootNavigationContainer = ({ dispatch, isUnsafeRoomWarningAvailable, isWel
                     component = { ConferenceNavigationContainer }
                     name = { screen.conference.root }
                     options = { conferenceNavigationContainerScreenOptions } />
+                <RootStack.Screen // @ts-ignore
+                    component = { MobileLoginScreen }
+                    name = { screen.auth.login }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen // @ts-ignore
+                    component = { VRSHomeScreen }
+                    name = { screen.vrs.home }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen // @ts-ignore
+                    component = { VRIConsoleScreen }
+                    name = { screen.vri.console }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen // @ts-ignore
+                    component = { DialPadScreen }
+                    name = { screen.vrs.dialPad }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen // @ts-ignore
+                    component = { ContactsScreen }
+                    name = { screen.vrs.contacts }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen // @ts-ignore
+                    component = { CallHistoryScreen }
+                    name = { screen.vrs.callHistory }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen // @ts-ignore
+                    component = { ContactDetailScreen }
+                    name = { screen.vrs.contactDetail }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen // @ts-ignore
+                    component = { VRISettingsScreen }
+                    name = { screen.vri.settings }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen // @ts-ignore
+                    component = { VRIUsageScreen }
+                    name = { screen.vri.usage }
+                    options = { fullScreenOptions } />
             </RootStack.Navigator>
         </NavigationContainer>
     );

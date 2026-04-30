@@ -210,7 +210,7 @@ export default function ContactNotes({ notes, onAdd, onUpdate, onDelete }: Props
                         <>
                             <textarea
                                 className = { classes.editArea }
-                                onChange = { e => setEditContent(e.target.value) }
+                                onChange = { e => setEditContent(e.target.value ?? '') }
                                 rows = { 3 }
                                 value = { editContent } />
                             <div className = { classes.editBtnRow }>
@@ -251,7 +251,7 @@ export default function ContactNotes({ notes, onAdd, onUpdate, onDelete }: Props
                 <textarea
                     className = { classes.addInput }
                     disabled = { adding }
-                    onChange = { e => setNewContent(e.target.value) }
+                    onChange = { e => setNewContent(e.target.value ?? '') }
                     onKeyDown = { e => {
                         if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                             handleAdd();

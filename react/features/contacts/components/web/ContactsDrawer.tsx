@@ -1236,7 +1236,7 @@ function ContactEditForm({ contact, groups, onCancel, onSaved }: ContactEditForm
                 <label className = { classes.formLabel }>Notes</label>
                 <textarea
                     className = { classes.formInput }
-                    onChange = { e => setNotes(e.target.value) }
+                    onChange = { e => setNotes(e.target.value ?? '') }
                     rows = { 2 }
                     value = { notes } />
             </div>

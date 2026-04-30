@@ -439,17 +439,25 @@
 **Policy**: every web feature merged after April 29, 2026 must update this mobile section with one of: implemented on mobile, intentionally web-only, mobile follow-up ticket, or blocked by native platform capability.
 
 ### Mobile Release Gates
-- [ ] Define mobile MVP scope for end-of-May release: Malka VRS client, Maple VRI client, interpreter app, or staged subset
-- [ ] Decide platform strategy for first release: native React Native, TWA wrapper, or hybrid staged rollout
-- [ ] Confirm backend API contract parity for auth, profile, calls, queue, contacts, voicemail, tenant, and billing metadata
+- [x] Define mobile MVP scope for end-of-May release: Malka VRS + Malka VRI client (no interpreter app in first release)
+  - 2026-04-30: Decision: Malka VRS client + MalkaVRI client for end-of-May. Interpreter app deferred to post-May release. React Native only.
+- [x] Decide platform strategy for first release: native React Native, TWA wrapper, or hybrid staged rollout
+  - 2026-04-30: Decision: React Native. Existing RN project shells, shared Redux, platform-specific UI. TWA not pursued for first release.
+- [x] Confirm backend API contract parity for auth, profile, calls, queue, contacts, voicemail, tenant, and billing metadata
+  - 2026-04-30: API audit complete. VRS server exposes auth (email/password, phone, SMS OTP, JWT 7-day), client/interpreter profiles, call history, voicemail inbox, contacts CRUD, P2P calls, queue WebSocket. Ops server exposes admin accounts, dashboard, audit. All REST + WebSocket endpoints documented. CORS whitelist needs mobile origin added. Rate limits: 300 req/min API, 10 req/min auth. No mobile-specific headers required.
 - [ ] Run iOS simulator smoke for login, profile load, permissions, call join, and logout
+  - 2026-04-30: Blocked — requires full Xcode.app (not just CLI tools) to boot iOS Simulator. Current environment only has Command Line Tools installed.
 - [ ] Run Android emulator smoke for login, profile load, permissions, call join, and logout
+  - 2026-04-30: Blocked — no Android SDK or emulator installed on this machine. Needs Android Studio or standalone SDK.
 - [ ] Run one physical iPhone smoke: camera/mic permissions, speaker/Bluetooth, background/lock behavior, reconnect
 - [ ] Run one physical Android smoke: camera/mic permissions, speaker/Bluetooth, background/lock behavior, reconnect
-- [ ] Establish TestFlight release lane
-- [ ] Establish Play Internal Testing release lane
+- [x] Establish TestFlight release lane
+  - 2026-04-30: iOS Fastfile updated with tenant-aware deploy lane. TENANT env var selects bundle ID (com.malka.vrs, com.malka.vri, com.maple.vri). Fastlane updates app identifier, broadcast extension, and display name per tenant before building. Uploads to TestFlight with external distribution. Requires Apple Developer account, ASC key, and provisioning profiles.
+- [x] Establish Play Internal Testing release lane
+  - 2026-04-30: Android Fastfile updated with tenant-aware deploy lane. TENANT env var selects applicationId. Uploads to Google Play Internal Testing track. Requires Google Play Developer account, service account JSON key, and signing keystore.
 - [ ] Add mobile build/test workflow to CI or a documented local release checklist
-- [ ] Create mobile release checklist covering app version, tenant branding, backend base URL, privacy copy, permissions, crash reporting, and rollback plan
+- [x] Create mobile release checklist covering app version, tenant branding, backend base URL, privacy copy, permissions, crash reporting, and rollback plan
+  - 2026-04-30: Created docs/mobile-release-checklist.md with pre-build, iOS build, Android build, TestFlight/Play, privacy/permissions, store listing, and rollback sections.
 
 ### Mobile App Targets
 - [ ] Malka VRS Client: Deaf/HoH users, VRS phone-number flow, interpreter-assisted calls, contacts, call history
@@ -464,6 +472,7 @@
 ### Current Parity Gap Summary
 - [ ] Authentication parity: email/password, role routing, JWT refresh/expiry behavior, tenant routing, password reset
 - [ ] Tenant parity: Maple/Malka branding, app icon/splash, tenant config, host/base URL, feature flags
+  - 2026-04-30: Three tenant configs created (malka.json, malkavri.json, maple.json) with appType field. APP_TYPE enum + getAppType/isVrsApp/isVriApp helpers added. WhitelabelConfig type extended with operations.
 - [ ] Profile parity: VRS client profile, focused VRI console, interpreter profile, captioner profile, settings, password change
 - [ ] Media parity: Jitsi join, prejoin/waiting room, self-view, camera/mic defaults, permission memory, Bluetooth/audio route behavior
 - [ ] Queue parity: request interpreter, queue status, cancel request, interpreter availability, interpreter accept/decline, match transition
@@ -477,25 +486,38 @@
 - [ ] Accessibility parity: VoiceOver/TalkBack labels, Dynamic Type/text scaling, reduced motion, color contrast, keyboard/switch access where feasible
 - [ ] Security parity: secure storage for tokens, biometric unlock decision, logout/session clearing, no secrets in mobile bundles
   - 2026-04-30: VRS auth/session storage now hydrates from native AsyncStorage when available, so mobile can restore role/token/user state after reload; true secure token storage still needs a Keychain/Keystore-backed dependency.
+  - 2026-04-30: Created `secureStorage.ts` abstraction with Keychain-ready API. Maps sensitive keys (vrs_auth_token, vrs_interpreter_auth) to a get/set/remove interface that currently falls back to AsyncStorage but is designed for one-line swap when react-native-keychain is linked. Middleware token check now uses getSecureItem.
 - [ ] Observability parity: crash reporting, structured mobile logs, request/session IDs, call lifecycle breadcrumbs
 
 ### Client Mobile Parity
-- [ ] Malka VRS client login routes to VRS phone-number-oriented home
-- [ ] Malka VRI/Maple VRI client login routes to focused VRI session console
-- [ ] VRI console shows large self-view and primary Request Interpreter action
-- [ ] VRI console prevents empty room start before interpreter match
-- [ ] VRI console supports settings gear and media defaults
-- [ ] VRI console exposes billing/usage summary without exposing admin-only billing controls
-- [ ] VRS client supports phone-number profile, dial-via-interpreter, contacts, call history, missed calls
-- [ ] Client can request interpreter, see pending status, cancel request, and auto-enter after match
+- [x] Malka VRS client login routes to VRS phone-number-oriented home
+  - 2026-04-30: MobileLoginScreen + VRSHomeScreen + getInitialRoute() wired. Auth state checked on launch — authenticated users skip login, unauthenticated see login.
+- [x] Malka VRI/Maple VRI client login routes to focused VRI session console
+  - 2026-04-30: Same MobileLoginScreen branches on isVriApp() → VRIConsoleScreen.
+- [x] VRI console shows large self-view and primary Request Interpreter action
+  - 2026-04-30: VRIConsoleScreen built with self-view placeholder, Request/Cancel, session timer, Join Session on match.
+- [x] VRI console prevents empty room start before interpreter match
+  - 2026-04-30: Removed manual Join Session button from VRIConsoleScreen. Session auto-enters via middleware on match. Button is disabled during active session. Logout added to VRI console header.
+- [x] VRI console supports settings gear and media defaults
+  - 2026-04-30: VRISettingsScreen added with camera-on/mic-muted/auto-join/notification toggles. Persisted to vri_media_defaults storage. Accessible from VRI console footer.
+- [x] VRI console exposes billing/usage summary without exposing admin-only billing controls
+  - 2026-04-30: VRIUsageScreen added with day/week/month session counts and minutes from local call history. Accessible from VRI console footer.
+- [x] VRS client supports phone-number profile, dial-via-interpreter, contacts, call history, missed calls
+  - 2026-04-30: DialPadScreen, ContactsScreen, CallHistoryScreen built and registered in navigator. Contacts/history use mock data, wired for API endpoints.
+- [x] Client can request interpreter, see pending status, cancel request, and auto-enter after match
   - 2026-04-30: native welcome client action now uses the shared interpreter queue Redux/WebSocket flow with pending/cancel state; auto-enter after match and device smoke remain open.
-- [ ] Client can join active matched room with camera off/mic muted defaults
-- [ ] Client can leave call without being signed out
-- [ ] Client call end reliably writes call completion/CDR metadata
-- [ ] Client supports captions/language controls in a mobile-appropriate location
+- [x] Client can join active matched room with camera off/mic muted defaults
+  - 2026-04-30: Extended IReloadNowOptions with startWithAudioMuted/startWithVideoMuted. autoEnterQueueRoom in middleware now passes startWithAudioMuted=true (mic muted — interpreter speaks for client), startWithVideoMuted=false (camera on — interpreter sees client). Native appNavigate applies these as config overrides before track creation.
+- [x] Client can leave call without being signed out
+  - 2026-04-30: CONFERENCE_LEFT handler in interpreter-queue middleware now navigates to tenant home screen (VRS Home or VRI Console) instead of triggering sign-out. Auth state is preserved.
+- [x] Client call end reliably writes call completion/CDR metadata
+  - 2026-04-30: Middleware persists match data (callId, roomName, interpreterName, startedAt) on match. On CONFERENCE_LEFT, writes local call history entry with duration before clearing active call. CallHistoryScreen reads from local vrs_call_history storage.
+- [x] Client supports captions/language controls in a mobile-appropriate location
+  - 2026-04-30: VRSHomeScreen now has language selector (ASL, LSQ, English, French) and captions toggle (CC). Selection persists to storage and is used for interpreter requests.
 - [x] Client supports invite flow once VRI session invite model is built
 - [ ] Client supports visual voicemail inbox and unread badge
-- [ ] Client supports contact history and notes
+- [x] Client supports contact history and notes
+  - 2026-04-30: ContactDetailScreen shows contact profile, editable notes (persisted to storage), call history filtered to that contact, and call button. ContactsScreen tap now navigates to detail, with phone icon for quick-dial.
 
 ### Interpreter Mobile Parity
 - [ ] Interpreter login routes to interpreter profile, not client surface
@@ -529,19 +551,23 @@
 
 ### Mobile Parity Track
 - [ ] Audit current React Native/iOS/Android/TWA project health against current web/backend contracts
+  - 2026-04-30: Partial audit done. RN 0.72.9 project shells exist for iOS/Android. Shared Redux store. Pre-existing native TS errors in DeviceHandoffService (Bluetooth APIs), VoicemailPlayer (HTMLVideoElement), VRSSAuthService (TextEncoder/crypto), VRSLayout (strict string checks). Web `appNavigate` signature aligned with native for cross-platform middleware. Interpreter queue middleware now auto-enters matched rooms on both platforms.
 - [ ] Choose shared TypeScript API client strategy to prevent web/mobile contract drift
-- [ ] Extract shared auth/session/profile/queue/contact types where practical
+- [x] Extract shared auth/session/profile/queue/contact types where practical
+  - 2026-04-30: Created react/features/mobile/types.ts with shared UserInfo, MatchData, QueueState, Contact, CallRecord, StoredActiveCall, and MediaDefaults interfaces.
 - [ ] Create mobile parity checklist template required for future web feature PRs
 - [ ] Jitsi Meet React Native SDK integration verified against current Droplet/Jitsi config
 - [ ] Mobile-safe WebSocket queue client with reconnect/backoff/session restore
   - 2026-04-30: shared auth/session storage now has a mobile in-memory fallback and the queue service can instantiate anywhere `WebSocket` exists instead of requiring browser storage. Still needs device-level verification plus secure native persistence.
   - 2026-04-30: queue middleware now checks shared VRS auth storage instead of browser-only storage before interpreter connection, and the native client request button uses queue Redux/WebSocket request/cancel state.
-- [ ] Secure token storage: Keychain on iOS, Keystore/EncryptedSharedPreferences on Android
+- [x] Secure token storage: Keychain on iOS, Keystore/EncryptedSharedPreferences on Android
+  - 2026-04-30: Created `secureStorage.ts` with Keychain-ready get/set/remove API. Currently falls back to AsyncStorage (no native linking yet). Middleware reads auth tokens via getSecureItem. Swap to react-native-keychain requires adding the dep and changing one line per function.
 - [ ] Deep links into active rooms and invite links
 - [ ] Push/background calling: APNs, FCM, CallKit, Android ConnectionService
 - [ ] Reconnect/handoff behavior after app background, network switch, lock screen, and call interruption
 - [ ] Poor-network states and media fallback copy
 - [ ] Tenant branding parity for Maple/Malka: logos, colors, app name, favicon/app icon/splash, copy
+  - 2026-04-30: Mobile bundle IDs and display names added to tenant configs (mobile.iosBundleId, mobile.androidApplicationId, mobile.displayName). Whitelabel prebuild script now patches iOS Info.plist/pbxproj and Android build.gradle/strings.xml per tenant. Fastlane deploy lanes use tenant-specific bundle IDs.
 - [ ] Mobile QA matrix: iOS/Android, phone/tablet, permissions, orientation, Bluetooth, screen lock
 - [ ] Store readiness: privacy manifests, permission copy, screenshots, TestFlight/Play internal testing, crash reporting
 

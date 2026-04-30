@@ -30,7 +30,7 @@ const CallWaitingOverlay = () => {
 
     // Vibration pattern for incoming call alert
     useEffect(() => {
-        if (incomingCall && navigator.vibrate) {
+        if (incomingCall && typeof navigator.vibrate === 'function') {
             navigator.vibrate([ 200, 100, 200, 100, 200 ]);
         }
     }, [ incomingCall ]);

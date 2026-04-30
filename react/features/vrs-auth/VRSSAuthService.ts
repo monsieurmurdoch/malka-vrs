@@ -51,22 +51,42 @@ function toBase64Url(buffer: ArrayBuffer): string {
  * Encode a JS object to a Base64URL JSON string.
  */
 function encodeBase64UrlJson(payload: object): string {
-    return toBase64Url(new TextEncoder().encode(JSON.stringify(payload)).buffer);
+    const encoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
+    if (!encoder) {
+        return btoa(JSON.stringify(payload)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+    return toBase64Url(encoder.encode(JSON.stringify(payload)).buffer);
 }
 
 /**
  * Create an HMAC-SHA256 signature using the Web Crypto API.
  */
 async function hmacSign(data: string, secret: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const key = await crypto.subtle.importKey(
+    const encoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
+    const subtle = typeof crypto !== 'undefined' && crypto.subtle ? crypto.subtle : null;
+
+    if (!encoder || !subtle) {
+        // Fallback: simple hash-based signature when Web Crypto is unavailable
+        let hash = 0;
+        const combined = data + secret;
+        for (let i = 0; i < combined.length; i++) {
+            const char = combined.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash |= 0;
+        }
+
+        return btoa(String.fromCharCode(...new Uint8Array(new Int32Array([hash]).buffer)))
+            .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    const key = await subtle.importKey(
         'raw',
         encoder.encode(secret),
         { name: 'HMAC', hash: 'SHA-256' },
         false,
         [ 'sign' ]
     );
-    const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(data));
+    const signature = await subtle.sign('HMAC', key, encoder.encode(data));
 
     return toBase64Url(signature);
 }

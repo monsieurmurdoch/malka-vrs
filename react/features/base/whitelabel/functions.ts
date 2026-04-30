@@ -5,7 +5,7 @@
  * (generated at build time by scripts/whitelabel-prebuild.js).
  */
 
-import { FEATURES, type FeatureKey } from './constants';
+import { APP_TYPE, FEATURES, type AppType, type FeatureKey } from './constants';
 
 /**
  * Get the full whitelabel config object.
@@ -95,4 +95,48 @@ export function getLogoUrl(): string {
 export function isWhitelabeled(): boolean {
     const wl = window.__WHITELABEL__;
     return wl ? wl.tenantId !== 'malka' : false;
+}
+
+/**
+ * Get the current tenant ID.
+ */
+export function getTenantId(): string {
+    return window.__WHITELABEL__?.tenantId ?? 'malka';
+}
+
+/**
+ * Get the app type (VRS or VRI) for the current build.
+ *
+ * Determined by the `operations.appType` field in the tenant config.
+ * Falls back to checking `features.vrs` vs `features.vri`.
+ */
+export function getAppType(): AppType {
+    const wl = window.__WHITELABEL__;
+
+    // Explicit appType from tenant config
+    if (wl?.operations?.appType) {
+        return wl.operations.appType as AppType;
+    }
+
+    // Fallback: infer from default service modes
+    const modes = wl?.operations?.defaultServiceModes;
+    if (modes?.includes('vrs')) {
+        return APP_TYPE.VRS;
+    }
+
+    return APP_TYPE.VRI;
+}
+
+/**
+ * Whether this build is a VRS app (MalkaVRS).
+ */
+export function isVrsApp(): boolean {
+    return getAppType() === APP_TYPE.VRS;
+}
+
+/**
+ * Whether this build is a VRI app (MalkaVRI or MapleVRI).
+ */
+export function isVriApp(): boolean {
+    return getAppType() === APP_TYPE.VRI;
 }

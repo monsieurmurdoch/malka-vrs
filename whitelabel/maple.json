@@ -49,6 +49,7 @@
   },
   "operations": {
     "defaultServiceModes": ["vri"],
+    "appType": "vri",
     "billing": {
       "currency": "CAD",
       "vriAslEnglishPerMinute": 1.25,
@@ -70,6 +71,11 @@
         "languages": ["English", "French"]
       }
     }
+  },
+  "mobile": {
+    "iosBundleId": "com.maple.vri",
+    "androidApplicationId": "com.maple.vri",
+    "displayName": "MapleVRI"
   },
   "features": {
     "vrs": { "enabled": true },

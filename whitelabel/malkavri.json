@@ -1,19 +1,17 @@
 {
-  "tenantId": "malka",
+  "tenantId": "malkavri",
   "brand": {
-    "appName": "MalkaVRS",
+    "appName": "MalkaVRI",
     "providerName": "Malka Communications",
-    "tagline": "Video Relay Service",
-    "description": "Join a WebRTC video conference powered by Malka Communications",
+    "tagline": "Video Remote Interpreting",
+    "description": "Join a VRI interpretation session powered by Malka Communications",
     "supportUrl": "https://community.jitsi.org/",
     "inviteDomain": ""
   },
   "domains": {
-    "clientVrs": "vrs.malkacomm.com",
     "clientVri": "vri.malkacomm.com",
     "interpreter": "terp.malkacomm.com",
-    "admin": "admin.malkacomm.com",
-    "aiLab": "asltoenglish.malkacomm.com"
+    "admin": "admin.malkacomm.com"
   },
   "theme": {
     "primary": "#0D1A38",
@@ -49,19 +47,15 @@
     }
   },
   "operations": {
-    "defaultServiceModes": ["vrs"],
-    "appType": "vrs",
+    "defaultServiceModes": ["vri"],
+    "appType": "vri",
     "billing": {
       "currency": "USD",
       "vriAslEnglishPerMinute": 1,
-      "invoicePrefix": "MALKA",
-      "billingAccountMode": "tenant-default"
+      "invoicePrefix": "MALKA-VRI",
+      "billingAccountMode": "corporate"
     },
     "interpreterPools": {
-      "vrs": {
-        "id": "malka-vrs-default",
-        "languages": ["ASL", "English"]
-      },
       "vri": {
         "id": "malka-vri-corporate",
         "languages": ["ASL", "English"]
@@ -73,16 +67,16 @@
     }
   },
   "mobile": {
-    "iosBundleId": "com.malka.vrs",
-    "androidApplicationId": "com.malka.vrs",
-    "displayName": "MalkaVRS"
+    "iosBundleId": "com.malka.vri",
+    "androidApplicationId": "com.malka.vri",
+    "displayName": "MalkaVRI"
   },
   "features": {
-    "vrs": { "enabled": true },
+    "vrs": { "enabled": false },
     "vri": { "enabled": true },
-    "voicemail": { "enabled": true },
+    "voicemail": { "enabled": false },
     "recording": { "enabled": true },
-    "phoneDialOut": { "enabled": true },
+    "phoneDialOut": { "enabled": false },
     "languages": {
       "enabled": ["en", "fr", "asl", "lsq", "es", "zh", "ar", "de", "it", "pt", "ja", "ko", "ru", "hi", "nl"],
       "default": "en"

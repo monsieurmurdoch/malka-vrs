@@ -47,7 +47,7 @@ const InCallChatPanel = ({ callId }: Props) => {
 
     // Auto-scroll to bottom on new messages
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        messagesEndRef.current?.scrollIntoView?.({ behavior: 'smooth' });
     }, [ messages ]);
 
     const handleSend = () => {
@@ -119,7 +119,7 @@ const InCallChatPanel = ({ callId }: Props) => {
                     <div className = 'chat-input-area'>
                         <textarea
                             value = { inputText }
-                            onChange = { e => setInputText(e.target.value) }
+                            onChange = { e => setInputText(e.target.value ?? '') }
                             onKeyDown = { handleKeyDown }
                             placeholder = 'Type a message...'
                             rows = { 1 } />

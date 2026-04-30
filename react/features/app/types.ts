@@ -182,4 +182,6 @@ export interface IReduxState {
 
 export interface IReloadNowOptions {
     hidePrejoin?: boolean;
+    startWithAudioMuted?: boolean;
+    startWithVideoMuted?: boolean;
 }

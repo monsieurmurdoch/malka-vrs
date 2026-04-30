@@ -10,15 +10,31 @@ declare global {
     }
 
     interface IWindow {
+        __WHITELABEL__?: {
+            tenantId?: string;
+            appName?: string;
+            assets?: { logo?: string; logoWhite?: string; [k: string]: string | undefined };
+            features?: { [k: string]: any };
+            [k: string]: any;
+        };
         JITSI_MEET_LITE_SDK: boolean;
         JitsiMeetJS: any;
         Twilio?: any;
+        confirm?: (message: string) => boolean;
         config: IConfig;
+        crypto?: {
+            subtle?: {
+                importKey: (format: string, keyData: any, algorithm: any, extractable: boolean, keyUsages: string[]) => Promise<any>;
+                sign: (algorithm: any, key: any, data: any) => Promise<ArrayBuffer>;
+            };
+        };
         document: any;
         innerHeight: number;
         innerWidth: number;
         interfaceConfig: any;
         location: ILocation;
+        matchMedia?: (query: string) => { matches: boolean; addListener: Function; removeListener: Function; addEventListener: Function; removeEventListener: Function };
+        open?: (url: string, target?: string, features?: string) => any;
         PressureObserver?: any;
         PressureRecord?: any;
         ReactNativeWebView?: any;
@@ -41,10 +57,12 @@ declare global {
     }
 
     interface INavigator {
+        bluetooth?: any;
         mediaDevices?: {
             getUserMedia: (constraints?: any) => Promise<MediaStream>;
         };
         product: string;
+        vibrate?: (pattern: number | number[]) => boolean;
     }
 
     interface Storage {
@@ -83,14 +101,24 @@ declare global {
     }
 
     interface HTMLInputElement extends EventTarget {
+        files?: FileList | null;
         value: string;
     }
 
     interface HTMLVideoElement extends Element {
-        onplaying: ((event?: any) => void) | null;
+        currentTime: number;
+        duration: number;
+        paused: boolean;
+        pause(): void;
         play(): Promise<void>;
+        onplaying: ((event?: any) => void) | null;
         srcObject: any;
         volume: number;
+    }
+
+    interface HTMLDivElement extends Element {
+        getBoundingClientRect(): { left: number; top: number; right: number; bottom: number; width: number; height: number };
+        scrollIntoView?(options?: any): void;
     }
 
     interface MutationObserver {
@@ -107,12 +135,19 @@ declare global {
     }
 
     const APP: any;
+    const alert: (message?: any) => void;
     const atob: (value: string) => string;
+    const BluetoothDevice: any;
+    type BluetoothDevice = any;
     const btoa: (value: string) => string;
+    const confirm: (message?: string) => boolean;
+    const crypto: IWindow['crypto'];
     const document: any;
     const interfaceConfig: any;
     const localStorage: Storage;
     const navigator: INavigator;
     const sessionStorage: Storage;
+    const TextDecoder: IWindow['TextDecoder'];
+    const TextEncoder: IWindow['TextEncoder'];
     const window: IWindow;
 }

@@ -60,6 +60,11 @@ export interface WhitelabelConfig {
     theme: WhitelabelTheme;
     features: WhitelabelFeatures;
     assets: WhitelabelAssets;
+    operations?: {
+        appType?: string;
+        defaultServiceModes?: string[];
+        [key: string]: any;
+    };
 }
 
 declare global {
