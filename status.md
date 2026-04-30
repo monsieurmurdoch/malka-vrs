@@ -5,18 +5,47 @@ This file is the project-level running status log. The current update stays at t
 ## Current Update
 
 - Updated: 2026-04-30
-- Branch: `hermes/mobile-parity`
-- HEAD: `ec362f2`
+- Branch: `codex/admin-dashboard-production`
+- HEAD: `b90ac8e`
 - Note: Pre-push project status sync.
 - Snapshot:
 Local changes at sync time:
   - `M  ROADMAP.md`
+  - `M  react/features/interpreter-queue/InterpreterQueueService.ts`
+  - `M  react/features/vrs-auth/VRSSAuthService.ts`
+  - `M  react/features/vrs-auth/storage.ts`
   - `M  status.md`
-  - `M  vrs-admin-dashboard.html`
-  - `M  vrs-admin-dashboard.js`
+  - `M vrs-ops-server/src/index.ts`
 
 <!-- status:current:end -->
 ## Archive
+### Archived Update - 2026-04-30T12:19:36.114Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
+- Branch: `codex/admin-dashboard-production`
+- HEAD: `b90ac8e`
+- Parity slice: Mobile auth/session storage + queue WebSocket runtime foundation.
+- Completed:
+  - Added a shared in-memory fallback to VRS auth/session storage so React Native/mobile runtimes without `localStorage`/`sessionStorage` can share login/session data during an app run.
+  - Switched VRS auth role recovery to shared storage instead of direct `sessionStorage`.
+  - Switched interpreter queue auth/session reads and active-call cleanup to shared storage.
+  - Relaxed queue service instantiation from browser-storage-only to any runtime with `WebSocket`, closing part of the roadmap mobile-safe queue-client gap.
+  - Mirrored the roadmap note for the mobile-safe WebSocket queue client; secure native persistence and device verification remain open.
+- Validated:
+  - `git diff --check` passed.
+  - `node` + TypeScript `transpileModule` parse check passed for `storage.ts`, `VRSSAuthService.ts`, and `InterpreterQueueService.ts`.
+  - Targeted ESLint and `npm run tsc:native` were attempted but remain blocked by existing repo lint/type debt (legacy JSDoc/style rules and ambient DOM/React Native/audioworklet conflicts), not by a syntax failure in the edited slice.
+- Blocked / incomplete:
+  - Secure mobile token persistence still needs Keychain/Keystore/EncryptedSharedPreferences.
+  - Device-level queue/auth smoke is still pending.
+  - Repo-wide TypeScript remains blocked by pre-existing duplicate global type declarations.
+- Next best mobile parity slice: add native secure storage behind the same VRS storage interface, then wire login/session restore through it before queue/device smoke.
+
+<!-- status:current:end -->
+
 ### Archived Update - 2026-04-30T12:11:49.637Z
 
 <!-- status:current:start -->

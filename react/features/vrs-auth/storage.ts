@@ -1,9 +1,13 @@
 /**
- * Shared browser storage helpers for VRS auth/session data.
+ * Shared storage helpers for VRS auth/session data.
  *
  * We mirror auth data into both localStorage and sessionStorage so existing
- * pages keep working while login persists across browser restarts.
+ * pages keep working while login persists across browser restarts. React Native
+ * does not expose those browser globals, so we also keep an in-memory fallback
+ * that lets mobile flows share auth/session data during the current app run.
  */
+
+const memoryStorage = new Map<string, string>();
 
 function getLocalStorage(): Storage | undefined {
     try {
@@ -61,6 +65,7 @@ export function getPersistentItem(key: string): string | null {
     const local = safeGet(getLocalStorage(), key);
     if (local !== null) {
         safeSet(getSessionStorage(), key, local);
+        memoryStorage.set(key, local);
 
         return local;
     }
@@ -68,17 +73,22 @@ export function getPersistentItem(key: string): string | null {
     const session = safeGet(getSessionStorage(), key);
     if (session !== null) {
         safeSet(getLocalStorage(), key, session);
+        memoryStorage.set(key, session);
+
+        return session;
     }
 
-    return session;
+    return memoryStorage.get(key) ?? null;
 }
 
 export function setPersistentItem(key: string, value: string): void {
+    memoryStorage.set(key, value);
     safeSet(getLocalStorage(), key, value);
     safeSet(getSessionStorage(), key, value);
 }
 
 export function removePersistentItem(key: string): void {
+    memoryStorage.delete(key);
     safeRemove(getLocalStorage(), key);
     safeRemove(getSessionStorage(), key);
 }

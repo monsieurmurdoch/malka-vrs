@@ -6,6 +6,7 @@
  */
 
 import { getUserRole } from '../base/user-role/functions';
+import { getPersistentJson, removePersistentItem } from '../vrs-auth/storage';
 
 declare var config: any;
 
@@ -85,29 +86,7 @@ function getVRSConfig() {
 }
 
 function getStoredJson<T>(key: string): T | null {
-    try {
-        const localValue = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
-        if (localValue) {
-            if (typeof sessionStorage !== 'undefined') {
-                sessionStorage.setItem(key, localValue);
-            }
-
-            return JSON.parse(localValue) as T;
-        }
-
-        const sessionValue = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(key) : null;
-        if (sessionValue) {
-            if (typeof localStorage !== 'undefined') {
-                localStorage.setItem(key, sessionValue);
-            }
-
-            return JSON.parse(sessionValue) as T;
-        }
-    } catch (error) {
-        return null;
-    }
-
-    return null;
+    return getPersistentJson<T>(key);
 }
 
 function getCurrentRoomName(): string | undefined {
@@ -568,12 +547,7 @@ class InterpreterQueueService {
             }
         });
 
-        try {
-            localStorage.removeItem('vrs_active_call');
-            sessionStorage.removeItem('vrs_active_call');
-        } catch {
-            // Storage cleanup is best effort; duplicate call_end is idempotent server-side.
-        }
+        removePersistentItem('vrs_active_call');
     }
 
     public send(message: QueueMessage) {
@@ -639,11 +613,11 @@ class InterpreterQueueService {
     }
 }
 
-const isBrowser = typeof window !== 'undefined' && typeof sessionStorage !== 'undefined';
+const hasWebSocketRuntime = typeof WebSocket !== 'undefined';
 let _queueService: InterpreterQueueService | null = null;
 
 function getQueueServiceInstance(): InterpreterQueueService | null {
-    if (!isBrowser) {
+    if (!hasWebSocketRuntime) {
         return null;
     }
 

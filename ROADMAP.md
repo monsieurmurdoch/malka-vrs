@@ -531,6 +531,7 @@
 - [ ] Create mobile parity checklist template required for future web feature PRs
 - [ ] Jitsi Meet React Native SDK integration verified against current Droplet/Jitsi config
 - [ ] Mobile-safe WebSocket queue client with reconnect/backoff/session restore
+  - 2026-04-30: shared auth/session storage now has a mobile in-memory fallback and the queue service can instantiate anywhere `WebSocket` exists instead of requiring browser storage. Still needs device-level verification plus secure native persistence.
 - [ ] Secure token storage: Keychain on iOS, Keystore/EncryptedSharedPreferences on Android
 - [ ] Deep links into active rooms and invite links
 - [ ] Push/background calling: APNs, FCM, CallKit, Android ConnectionService

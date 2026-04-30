@@ -84,17 +84,14 @@ class VRSSAuthService {
     }
 
     /**
-     * Get stored role from sessionStorage (fallback)
+     * Get stored role from shared storage (browser storage on web, in-memory on mobile fallback).
      */
     private getStoredRole(): VRSRole {
-        if (typeof sessionStorage === 'undefined') {
-            return 'none';
-        }
-
-        const role = sessionStorage.getItem(STORAGE_KEYS.USER_ROLE);
+        const role = getPersistentItem(STORAGE_KEYS.USER_ROLE);
         if (role && ['client', 'interpreter', 'admin', 'superadmin'].includes(role)) {
             return role as VRSRole;
         }
+
         return 'none';
     }
 
