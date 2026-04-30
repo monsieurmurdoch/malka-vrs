@@ -1478,9 +1478,11 @@
             }
 
             if (kind === 'camera') {
+                settings.cameraDeviceId = deviceId || undefined;
                 settings.userSelectedCameraDeviceId = deviceId || undefined;
                 settings.userSelectedCameraDeviceLabel = selected?.label || undefined;
             } else {
+                settings.micDeviceId = deviceId || undefined;
                 settings.userSelectedMicDeviceId = deviceId || undefined;
                 settings.userSelectedMicDeviceLabel = selected?.label || undefined;
             }
@@ -1504,14 +1506,28 @@
             persistInterpreterPreferences(getInterpreterPreferences());
         }
 
-        function buildInterpreterRoomUrl(roomName) {
+        function persistSelectedJitsiDevicesForRoom() {
+            const selectedCameraId = state.mediaDevices.selectedCameraId || getPersistentItem('vrs_camera_device_id') || '';
+            const selectedMicId = state.mediaDevices.selectedMicId || getPersistentItem('vrs_microphone_device_id') || '';
+
+            if (selectedCameraId) {
+                persistJitsiDevicePreference('camera', selectedCameraId);
+            }
+            if (selectedMicId) {
+                persistJitsiDevicePreference('microphone', selectedMicId);
+            }
+        }
+
+        function buildInterpreterRoomUrl(roomName, options) {
             const prefs = getInterpreterPreferences();
+            const opts = options || {};
             const query = new URLSearchParams({
                 role: 'interpreter'
             });
             const config = new URLSearchParams({
                 'config.startWithAudioMuted': 'true',
-                'config.startWithVideoMuted': String(prefs.cameraDefaultOff)
+                'config.startWithVideoMuted': String(prefs.cameraDefaultOff),
+                'config.prejoinConfig.enabled': String(opts.skipPrejoin !== true)
             });
             return '/' + encodeURIComponent(roomName) + '?' + query.toString() + '#' + config.toString();
         }
@@ -1650,7 +1666,8 @@
                         clearTimeout(wsReconnectTimer);
                         persistActiveCall(msg.data);
                         setPersistentItem('vrs_user_role', 'interpreter');
-                        window.location.href = buildInterpreterRoomUrl(msg.data.roomName);
+                        persistSelectedJitsiDevicesForRoom();
+                        window.location.href = buildInterpreterRoomUrl(msg.data.roomName, { skipPrejoin: true });
                     }
                     break;
 

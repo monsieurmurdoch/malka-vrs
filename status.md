@@ -5,6 +5,23 @@ This file is the project-level running status log. The current update stays at t
 ## Current Update
 
 - Updated: 2026-04-30
+- Branch: `main`
+- HEAD: `bdc748e`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M ROADMAP.md`
+  - `M  client-profile.html`
+  - `M  interpreter-profile.html`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-30T04:34:24.670Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
 - Branch: `codex/current-work`
 - HEAD: `66c0b6a`
 - Note: Pre-push project status sync.
@@ -27,7 +44,7 @@ Local changes at sync time:
   - `M  vrs-server/ws/schemas.js`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-30T01:26:37.448Z
 
 <!-- status:current:start -->

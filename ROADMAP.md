@@ -201,10 +201,6 @@
 - [x] Roadmap mirrored to Obsidian
 - [x] Dedicated `codex/logging-observability` branch created for observability/logging work
 
----
-
-## Immediate Open Work
-
 ### Maple VRI Pilot Readiness
 - [x] Admin moderation filters by tenant and service mode (`malka`/`maple`, `vrs`/`vri`)
 - [x] Add DB-level immutability guard for `calls.call_type`
@@ -214,19 +210,29 @@
 - [x] VRI invite links scoped to the queue/session object, expiring after session end or short unmatched timeout
 - [x] VRI guest flow: invited Deaf/hearing participants land in waiting/prejoin and can join once the interpreter-connected room is live
 - [x] In-room VRI invite button: obvious secondary toolbar action with copy link, not hidden in settings/extras
+
+### White-Label Hardening
+- [x] Tenant isolation decision documented: shared PostgreSQL tables with RLS path, not schema-per-tenant yet
+- [x] Separate JWT signing key support per tenant (`VRS_JWT_SECRET_MALKA`, `VRS_JWT_SECRET_MAPLE`) with shared-secret fallback for local/legacy compatibility
+- [x] Tenant-specific splash screens, app icons, PWA manifest, and mobile asset slots declared in tenant configs
+- [x] Tenant-specific billing/interpreter-pool configuration declared beyond service-mode metadata
+
+### Database Scaling
+- [x] PgBouncer transaction pooling
+- [x] Schema migration tooling
+
+---
+
+## Immediate Open Work
+
+### Maple VRI Pilot Readiness & White-Label Hardening (cont.)
 - [ ] Add optional SMS/email send to VRI session invites after Resend/Twilio policy is finalized
+- [ ] Implement PostgreSQL RLS policies for all tenant-owned tables
 
 ### Malka/Multi-Mode Product Logic
 - [ ] Confirm Malka VRS clients retain VRS phone-number-oriented flow
 - [ ] Confirm Maple VRS test accounts are clearly separated from Maple VRI default experience
 - [ ] Prevent aesthetic cross-wiring between Malka and Maple at build/runtime boundaries
-
-### White-Label Hardening
-- [x] Tenant isolation decision documented: shared PostgreSQL tables with RLS path, not schema-per-tenant yet
-- [ ] Implement PostgreSQL RLS policies for all tenant-owned tables
-- [x] Separate JWT signing key support per tenant (`VRS_JWT_SECRET_MALKA`, `VRS_JWT_SECRET_MAPLE`) with shared-secret fallback for local/legacy compatibility
-- [x] Tenant-specific splash screens, app icons, PWA manifest, and mobile asset slots declared in tenant configs
-- [x] Tenant-specific billing/interpreter-pool configuration declared beyond service-mode metadata
 
 ### UX Polish
 - [ ] Responsive layout audit for desktop, tablet, and small mobile screens
@@ -302,8 +308,6 @@
 - [ ] Make VRS server stateless enough for multiple instances behind a load balancer
 
 ### Database Scaling
-- [x] PgBouncer transaction pooling
-- [x] Schema migration tooling
 - [ ] Read replicas for dashboard/analytics queries
 - [ ] Partition `calls` and `activity_log` by month
 - [ ] Query-plan review for queue matching, call history, dashboard stats

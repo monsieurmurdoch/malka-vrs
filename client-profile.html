@@ -2238,9 +2238,11 @@
             }
 
             if (kind === 'camera') {
+                settings.cameraDeviceId = deviceId || undefined;
                 settings.userSelectedCameraDeviceId = deviceId || undefined;
                 settings.userSelectedCameraDeviceLabel = selected?.label || undefined;
             } else {
+                settings.micDeviceId = deviceId || undefined;
                 settings.userSelectedMicDeviceId = deviceId || undefined;
                 settings.userSelectedMicDeviceLabel = selected?.label || undefined;
             }
@@ -2262,6 +2264,18 @@
             };
             persistJitsiDevicePreference(kind, deviceId || '');
             persistRoomPreferences();
+        }
+
+        function persistSelectedJitsiDevicesForRoom() {
+            const selectedCameraId = state.mediaDevices.selectedCameraId || getPersistentItem('vrs_camera_device_id') || '';
+            const selectedMicId = state.mediaDevices.selectedMicId || getPersistentItem('vrs_microphone_device_id') || '';
+
+            if (selectedCameraId) {
+                persistJitsiDevicePreference('camera', selectedCameraId);
+            }
+            if (selectedMicId) {
+                persistJitsiDevicePreference('microphone', selectedMicId);
+            }
         }
 
         function canUseRealtimeMedia() {
@@ -2390,6 +2404,7 @@
             const opts = options || {};
             const startWithAudioMuted = opts.forceMicMuted || prefs.micDefaultOff;
             const startWithVideoMuted = opts.forceCameraOff || prefs.cameraDefaultOff;
+            const skipPrejoin = opts.skipPrejoin === true || prefs.skipWaitingRoom;
             const query = new URLSearchParams();
             if (opts.includeRole !== false) {
                 query.set('role', role || 'client');
@@ -2397,7 +2412,7 @@
             const config = new URLSearchParams({
                 'config.startWithAudioMuted': String(startWithAudioMuted),
                 'config.startWithVideoMuted': String(startWithVideoMuted),
-                'config.prejoinConfig.enabled': String(!prefs.skipWaitingRoom)
+                'config.prejoinConfig.enabled': String(!skipPrejoin)
             });
 
             const queryString = query.toString();
@@ -2423,6 +2438,7 @@
                 setPersistentItem('vrs_user_role', role || 'client');
                 setPersistentItem('vrs_client_auth', 'true');
             }
+            persistSelectedJitsiDevicesForRoom();
             persistRoomPreferences();
             window.location.href = buildRoomUrl(roomName, role || 'client', opts);
         }
@@ -2530,7 +2546,8 @@
                         setPersistentItem('vrs_user_role', 'client');
                         navigateToRoom(msg.data.roomName, 'client', {
                             forceCameraOff: callType === 'vri',
-                            forceMicMuted: true
+                            forceMicMuted: true,
+                            skipPrejoin: true
                         });
                     }
                     break;
