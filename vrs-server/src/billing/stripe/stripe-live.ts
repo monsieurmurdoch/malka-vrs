@@ -5,7 +5,15 @@
  * Requires BILLING_STRIPE_SECRET_KEY to be set.
  */
 
-import type { StripeProvider, StripeCustomer, StripeInvoice, StripePaymentResult, WebhookEvent } from './stripe-interface';
+import type {
+    StripeProvider,
+    StripeCustomer,
+    StripeInvoice,
+    StripePaymentResult,
+    WebhookEvent,
+    StripePortalSession,
+    StripeCreditNote,
+} from './stripe-interface';
 
 export class LiveStripeProvider implements StripeProvider {
     private stripe: any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -91,6 +99,29 @@ export class LiveStripeProvider implements StripeProvider {
         }
     }
 
+    async sendInvoice(invoiceId: string): Promise<StripeInvoice> {
+        let invoice = await this.stripe.invoices.retrieve(invoiceId);
+        if (invoice.status === 'draft') {
+            invoice = await this.stripe.invoices.finalizeInvoice(invoiceId);
+        }
+
+        if (invoice.status === 'open') {
+            invoice = await this.stripe.invoices.sendInvoice(invoiceId);
+        }
+
+        return {
+            id: invoice.id,
+            customerId: invoice.customer as string,
+            status: invoice.status,
+            total: invoice.total,
+            hostedUrl: invoice.hosted_invoice_url || undefined,
+            pdfUrl: invoice.invoice_pdf || undefined,
+            paidAt: invoice.status_transitions?.paid_at
+                ? new Date(invoice.status_transitions.paid_at * 1000).toISOString()
+                : undefined,
+        };
+    }
+
     async createPaymentIntent(params: {
         amount: number;
         currency: string;
@@ -107,6 +138,57 @@ export class LiveStripeProvider implements StripeProvider {
             id: intent.id,
             status: intent.status,
             clientSecret: intent.client_secret || undefined,
+        };
+    }
+
+    async createCustomerPortalSession(params: {
+        customerId: string;
+        returnUrl: string;
+    }): Promise<StripePortalSession> {
+        const session = await this.stripe.billingPortal.sessions.create({
+            customer: params.customerId,
+            return_url: params.returnUrl,
+        });
+        return { url: session.url };
+    }
+
+    async createSetupIntent(params: {
+        customerId: string;
+        usage?: 'on_session' | 'off_session';
+        metadata?: Record<string, string>;
+    }): Promise<StripePaymentResult> {
+        const intent = await this.stripe.setupIntents.create({
+            customer: params.customerId,
+            usage: params.usage || 'off_session',
+            automatic_payment_methods: { enabled: true },
+            metadata: params.metadata,
+        });
+        return {
+            id: intent.id,
+            status: intent.status,
+            clientSecret: intent.client_secret || undefined,
+        };
+    }
+
+    async createCreditNote(params: {
+        invoiceId: string;
+        amount: number;
+        reason?: string;
+        metadata?: Record<string, string>;
+    }): Promise<StripeCreditNote> {
+        const note = await this.stripe.creditNotes.create({
+            invoice: params.invoiceId,
+            amount: params.amount,
+            reason: 'requested_by_customer',
+            metadata: {
+                ...(params.metadata || {}),
+                internalReason: params.reason || '',
+            },
+        });
+        return {
+            id: note.id,
+            status: note.status,
+            amount: note.amount,
         };
     }
 

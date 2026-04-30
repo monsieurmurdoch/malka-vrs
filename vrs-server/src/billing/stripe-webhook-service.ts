@@ -72,6 +72,16 @@ async function markWebhookStatus(
     );
 }
 
+async function markWebhookReplay(eventId: string): Promise<void> {
+    await billingDb.query(
+        `UPDATE stripe_webhook_events
+         SET replay_count = replay_count + 1,
+             last_replayed_at = NOW()
+         WHERE stripe_event_id = $1`,
+        [eventId]
+    );
+}
+
 async function getInvoiceIdByStripeInvoiceId(stripeInvoiceId: string): Promise<string | null> {
     const result = await billingDb.query(
         'SELECT id FROM invoices WHERE stripe_invoice_id = $1 LIMIT 1',
@@ -266,6 +276,49 @@ export async function handleStripeWebhook(
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         await markWebhookStatus(eventId, 'failed', message);
+        throw err;
+    }
+}
+
+export async function replayStripeWebhookEvent(
+    eventId: string
+): Promise<StripeWebhookResult> {
+    if (!billingDb.isBillingDbReady()) {
+        return { processed: false, reason: 'billing_not_configured' };
+    }
+
+    const result = await billingDb.query(
+        'SELECT * FROM stripe_webhook_events WHERE stripe_event_id = $1 OR id::text = $1 LIMIT 1',
+        [eventId]
+    );
+    const row = result.rows[0];
+    if (!row) {
+        return { processed: false, reason: 'event_not_found', eventId };
+    }
+
+    const payload = typeof row.payload === 'string'
+        ? JSON.parse(row.payload)
+        : row.payload;
+    const event: WebhookEvent = {
+        id: payload.id || row.stripe_event_id,
+        livemode: Boolean(row.livemode),
+        type: payload.type || row.event_type,
+        data: payload.data || {},
+    };
+    const stripeEventId = row.stripe_event_id as string;
+
+    try {
+        await applyStripeEvent(event);
+        await markWebhookReplay(stripeEventId);
+        await markWebhookStatus(stripeEventId, 'processed');
+        return {
+            processed: true,
+            eventId: stripeEventId,
+            eventType: event.type,
+        };
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        await markWebhookStatus(stripeEventId, 'failed', message);
         throw err;
     }
 }

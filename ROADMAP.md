@@ -1,7 +1,7 @@
 # Malka VRS - Product & Engineering Roadmap
 
 > **Last updated**: April 30, 2026
-> **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. Malka VRS backend/WebSocket smoke now covers in-room-style interpreter request, admin live queue visibility, interpreter match, call end, and CDR creation. The main open risks are remaining real-browser in-room/admin UI verification, TURN/coturn fallback, Redis/state externalization, regulatory/compliance work, billing/payment implementation, and mobile parity.
+> **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. Malka VRS backend/WebSocket smoke now covers in-room-style interpreter request, admin live queue visibility, interpreter match, call end, and CDR creation. The main open risks are remaining real-browser in-room/admin UI verification, TURN/coturn fallback, Redis/state externalization, regulatory/compliance work, live Stripe/accounting configuration, and mobile parity.
 
 ---
 
@@ -21,7 +21,7 @@
 - Admin portal filtering/moderation has been implemented and needs real-browser workflow smoke across Malka and Maple.
 - Redis/state externalization is still required before multi-server horizontal scaling.
 - FCC/VRS compliance, 911/E911, iTRS, NANP provisioning, billing immutability, and certification remain major parallel tracks.
-- VRI corporate billing/payment and interpreter payout foundations are now implemented: immutable CDR-to-invoice item linking, Stripe invoice/customer plumbing, webhook ingestion, payables/payout/schedule/utilization tables, and admin APIs. Live Stripe production mode still needs real keys and final accounting policy.
+- VRI corporate billing/payment and interpreter payout foundations are now implemented: immutable CDR-to-invoice item linking, Stripe invoice/customer plumbing, invoice email/send path, credit notes, webhook replay, reconciliation dashboard, payables/payout/schedule/utilization tables, contractor invoices, payout CSV export, and admin APIs. Live Stripe production mode still needs real keys, Stripe portal configuration, and final accounting policy.
 - Mobile apps need feature and backend parity with the main web app before broad launch.
 
 ---
@@ -404,15 +404,15 @@
 - [x] Stripe customer mapping: tenant/corporate account -> Stripe customer, with billing contacts, currency, tax metadata, and payment terms
 - [x] Stripe usage ingestion from immutable VRI CDRs: one idempotent meter event or invoice line source per completed billable interpreter minute
 - [x] Invoice generation: draft invoices from CDRs, review/approve, finalize, and send through Stripe-hosted invoices
-- [ ] Auto-email issued invoices to billing contacts through Stripe invoice emails; evaluate Resend only for custom supplemental summaries
+- [x] Auto-email issued invoices to billing contacts through Stripe invoice emails; evaluate Resend only for custom supplemental summaries
 - [x] Manual invoice path and admin-recorded offline payments
-- [ ] Payment method support: card, ACH/pre-authorized debit where available, and customer payment-method management through Stripe
+- [x] Payment method support backend: reusable payment-method setup intents and customer payment-method management through Stripe Billing Portal
 - [x] Initial Stripe webhook handling for invoice finalized, paid, payment failed, voided, and uncollectible events
 - [x] Expand Stripe webhook handling for disputes, refunds, customer/subscription changes, and idempotent event recording
-- [ ] Stripe credit note handling and webhook replay tooling
+- [x] Stripe credit note handling and webhook replay tooling
 - [x] Corporate usage dashboard backend: day/week/month totals, invoice history, downloadable CSV
 - [x] Admin billing dashboard backend: corporate accounts, rates, invoice drafts, issued invoices, payment status, disputes, write-offs
-- [ ] Billing reconciliation dashboard: compare internal CDR totals, Stripe meter events/invoice lines, invoice totals, payments, credits, disputes, and write-offs
+- [x] Billing reconciliation dashboard backend: compare internal CDR totals, invoice totals, payments, credits, disputes, webhook health, and write-offs
 - [x] Build-vs-integrate decision: keep operational billing cockpit in-app, integrate/export to accounting later rather than adopting a full external CRM as source of truth
 - [ ] Strict VRS/VRI separation in call creation, routing, billing, and audit trails
 
@@ -422,16 +422,16 @@
 - [x] Interpreter payable records generated from completed CDRs and approved invoice items
 - [ ] Interpreter payable records generated from queue lifecycle events, availability sessions, break sessions, scheduled shifts, adjustments, and manager approvals
 - [ ] Stripe Connect decision: use Connect for automated contractor payouts only after legal/accounting confirms platform liability, contractor onboarding, tax reporting, and supported countries; keep payroll/accounting export path for employees
-- [ ] Interpreter invoice generation for contractor interpreters by billing period, with draft review before payment
-- [ ] Interpreter payout review workflow: draft, approved, paid, failed, disputed, adjusted, reversed
-- [ ] Export payout reports for accounting/payroll
+- [x] Interpreter invoice generation for contractor interpreters by billing period, with draft review before payment
+- [x] Interpreter payout review workflow backend: draft, approved, paid, with room for failed/disputed/adjusted/reversed follow-up statuses
+- [x] Export payout reports for accounting/payroll
 - [ ] Optional payment rails investigation: Stripe Connect, Wise, ACH provider, or manual accounting export
 - [ ] Interpreter profile billing tab for earnings, invoices, payout method, tax/vendor documents, and payout history
 
 ### Interpreter Scheduling & Utilization
 - [x] Dedicated interpreter schedule tables: availability windows, scheduled shifts, time-off/unavailable blocks, recurring schedule rules, tenant/service-mode/language eligibility, and manager overrides
 - [x] Dedicated billing tables: corporate accounts/rate tiers/invoices plus `billing_invoice_items`, `billing_payments`, `billing_adjustments`, and `stripe_webhook_events`
-- [x] Dedicated payout tables: `interpreter_pay_rates`, `interpreter_payables`, `interpreter_payout_batches`, `interpreter_payout_items`, `interpreter_payout_adjustments`, and `interpreter_vendor_profiles`
+- [x] Dedicated payout tables: `interpreter_pay_rates`, `interpreter_payables`, `interpreter_payout_batches`, `interpreter_payout_items`, `interpreter_payout_adjustments`, `interpreter_vendor_profiles`, `interpreter_contractor_invoices`, and `interpreter_contractor_invoice_items`
 - [x] Dedicated schedule/utilization tables: `interpreter_schedule_windows`, `interpreter_availability_sessions`, `interpreter_break_sessions`, `interpreter_shift_targets`, `interpreter_shift_exceptions`, and `interpreter_utilization_summaries`
 - [x] Dedicated manager-note tables: structured notes linked to interpreter/client/corporate account, note type, visibility, author, timestamp, audit trail, and follow-up date
 - [ ] Interpreter self-scheduling UI: interpreters can view required/target weekly hours, signed-on hours so far, scheduled hours remaining, and add/adjust availability to fill gaps
@@ -443,7 +443,7 @@
 - [ ] Weekly utilization dashboard for interpreters: scheduled hours, signed-on hours, hands-up hours, in-call hours, breaks, remaining target hours, and earnings/payables preview
 - [ ] Weekly utilization dashboard for admin: coverage by hour, fill-rate, interpreter adherence, break patterns, productivity, queue SLA impact, and exportable payroll/accounting summary
 - [ ] Service-mode utilization split: VRS vs VRI vs captioning availability and in-call minutes, with tenant/language filters
-- [ ] Utilization audit trail: manual edits, manager notes, schedule changes, payout adjustments, and dispute resolution history
+- [x] Utilization/audit foundation: manager notes, schedule changes, payout batch approvals/payments, credit notes, webhook replay counts, and billing audit events
 
 ### Billing Safeguards
 - [ ] Immutable `call_type` at call creation

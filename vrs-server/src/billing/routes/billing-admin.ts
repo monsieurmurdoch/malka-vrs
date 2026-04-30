@@ -19,6 +19,9 @@ import {
 import { generateMonthlyAggregation, formatTrsSubmission, markTrsSubmitted, reconcileTrsPayment } from '../vrs-billing-pipeline';
 import {
     createCorporateAccount,
+    createCorporatePaymentMethodSetup,
+    createCorporatePortalSession,
+    createInvoiceCreditNote,
     generateInvoice,
     getAdminBillingDashboard,
     getCorporateAccount,
@@ -32,22 +35,35 @@ import {
 } from '../vri-billing-pipeline';
 import {
     createManagerNote,
+    createContractorInvoice,
     createPayRate,
+    createPayoutBatch,
     createScheduleWindow,
+    approvePayoutBatch,
+    exportPayoutBatchCsv,
     generatePayablesForPeriod,
     generateWeeklyUtilizationSummary,
     getVendorProfile,
+    listContractorInvoices,
     listManagerNotes,
     listPayables,
     listPayRates,
+    listPayoutBatches,
+    markPayoutBatchPaid,
     listScheduleWindows,
     listUtilizationSummaries,
     recordAvailabilitySession,
     recordBreakSession,
     upsertVendorProfile,
 } from '../interpreter-operations-service';
-import { runMonthlyReconciliation, getReconciliationReport, resolveVariance } from '../reconciliation-service';
+import {
+    runMonthlyReconciliation,
+    getReconciliationReport,
+    resolveVariance,
+    getBillingReconciliationDashboard,
+} from '../reconciliation-service';
 import { getAuditLog } from '../audit-service';
+import { replayStripeWebhookEvent } from '../stripe-webhook-service';
 import { TrsFormatter } from '../formatters/trs-formatter';
 import { CsvFormatter } from '../formatters/csv-formatter';
 import { JsonFormatter } from '../formatters/json-formatter';
@@ -356,6 +372,34 @@ router.get('/corporate/:id/usage', async (req: Request, res: Response) => {
     }
 });
 
+/** POST /api/billing/corporate/:id/portal-session — Stripe billing portal session */
+router.post('/corporate/:id/portal-session', async (req: Request, res: Response) => {
+    try {
+        const session = await createCorporatePortalSession({
+            corporateAccountId: single(req.params.id),
+            returnUrl: req.body.returnUrl,
+        });
+        if (!session) return res.status(503).json({ error: 'Billing not configured' });
+        res.json(session);
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        res.status(400).json({ error: err.message || 'Failed to create portal session' });
+    }
+});
+
+/** POST /api/billing/corporate/:id/payment-method-setup — Stripe setup intent */
+router.post('/corporate/:id/payment-method-setup', async (req: Request, res: Response) => {
+    try {
+        const setup = await createCorporatePaymentMethodSetup({
+            corporateAccountId: single(req.params.id),
+            usage: req.body.usage,
+        });
+        if (!setup) return res.status(503).json({ error: 'Billing not configured' });
+        res.status(201).json(setup);
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        res.status(400).json({ error: err.message || 'Failed to create payment method setup' });
+    }
+});
+
 /** POST /api/billing/invoices/:id/issue — Issue an invoice */
 router.post('/invoices/:id/issue', async (req: Request, res: Response) => {
     try {
@@ -366,6 +410,23 @@ router.post('/invoices/:id/issue', async (req: Request, res: Response) => {
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: 'Failed to issue invoice' });
+    }
+});
+
+/** POST /api/billing/invoices/:id/credit-notes — Create credit note/adjustment */
+router.post('/invoices/:id/credit-notes', async (req: Request, res: Response) => {
+    try {
+        const note = await createInvoiceCreditNote({
+            invoiceId: single(req.params.id),
+            amount: Number(req.body.amount),
+            reason: req.body.reason || 'billing_adjustment',
+            metadata: req.body.metadata || {},
+            createdBy: (req as any).user?.id, // eslint-disable-line @typescript-eslint/no-explicit-any
+        });
+        if (!note) return res.status(503).json({ error: 'Billing not configured' });
+        res.status(201).json(note);
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        res.status(400).json({ error: err.message || 'Failed to create credit note' });
     }
 });
 
@@ -458,6 +519,84 @@ router.post('/interpreters/payables/generate', async (req: Request, res: Respons
         res.json(result);
     } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
         res.status(400).json({ error: err.message || 'Failed to generate interpreter payables' });
+    }
+});
+
+/** GET /api/billing/interpreter-payout-batches — List payout batches */
+router.get('/interpreter-payout-batches', async (req: Request, res: Response) => {
+    try {
+        const batches = await listPayoutBatches({
+            tenantId: req.query.tenantId ? single(req.query.tenantId) : undefined,
+            status: req.query.status ? single(req.query.status) : undefined,
+            periodStart: req.query.periodStart ? single(req.query.periodStart) : undefined,
+            periodEnd: req.query.periodEnd ? single(req.query.periodEnd) : undefined,
+            limit: req.query.limit ? queryNumber(req.query.limit, 100) : undefined,
+        });
+        res.json(batches);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch payout batches' });
+    }
+});
+
+/** POST /api/billing/interpreter-payout-batches — Create payout batch */
+router.post('/interpreter-payout-batches', async (req: Request, res: Response) => {
+    try {
+        const batch = await createPayoutBatch({
+            periodStart: req.body.periodStart,
+            periodEnd: req.body.periodEnd,
+            tenantId: req.body.tenantId,
+            currency: req.body.currency,
+            metadata: req.body.metadata || {},
+            createdBy: (req as any).user?.id, // eslint-disable-line @typescript-eslint/no-explicit-any
+        });
+        if (!batch) return res.status(503).json({ error: 'Billing not configured' });
+        res.status(201).json(batch);
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        res.status(400).json({ error: err.message || 'Failed to create payout batch' });
+    }
+});
+
+/** POST /api/billing/interpreter-payout-batches/:id/approve — Approve payout batch */
+router.post('/interpreter-payout-batches/:id/approve', async (req: Request, res: Response) => {
+    try {
+        const batch = await approvePayoutBatch(
+            single(req.params.id),
+            (req as any).user?.id // eslint-disable-line @typescript-eslint/no-explicit-any
+        );
+        if (!batch) return res.status(404).json({ error: 'Payout batch not found' });
+        res.json(batch);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to approve payout batch' });
+    }
+});
+
+/** POST /api/billing/interpreter-payout-batches/:id/pay — Mark payout batch paid */
+router.post('/interpreter-payout-batches/:id/pay', async (req: Request, res: Response) => {
+    try {
+        const batch = await markPayoutBatchPaid(
+            single(req.params.id),
+            (req as any).user?.id // eslint-disable-line @typescript-eslint/no-explicit-any
+        );
+        if (!batch) return res.status(404).json({ error: 'Payout batch not found' });
+        res.json(batch);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to mark payout batch paid' });
+    }
+});
+
+/** GET /api/billing/interpreter-payout-batches/:id/export — Export payout CSV */
+router.get('/interpreter-payout-batches/:id/export', async (req: Request, res: Response) => {
+    try {
+        const csv = await exportPayoutBatchCsv(
+            single(req.params.id),
+            (req as any).user?.id // eslint-disable-line @typescript-eslint/no-explicit-any
+        );
+        if (!csv) return res.status(503).json({ error: 'Billing not configured' });
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="payout-${single(req.params.id)}.csv"`);
+        res.send(csv);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to export payout batch' });
     }
 });
 
@@ -587,6 +726,42 @@ router.post('/interpreters/:id/pay-rates', async (req: Request, res: Response) =
     }
 });
 
+/** GET /api/billing/interpreters/:id/contractor-invoices — Contractor invoices */
+router.get('/interpreters/:id/contractor-invoices', async (req: Request, res: Response) => {
+    try {
+        const invoices = await listContractorInvoices({
+            interpreterId: single(req.params.id),
+            tenantId: req.query.tenantId ? single(req.query.tenantId) : undefined,
+            status: req.query.status ? single(req.query.status) : undefined,
+            periodStart: req.query.periodStart ? single(req.query.periodStart) : undefined,
+            periodEnd: req.query.periodEnd ? single(req.query.periodEnd) : undefined,
+            limit: req.query.limit ? queryNumber(req.query.limit, 100) : undefined,
+        });
+        res.json(invoices);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch contractor invoices' });
+    }
+});
+
+/** POST /api/billing/interpreters/:id/contractor-invoices — Generate contractor invoice */
+router.post('/interpreters/:id/contractor-invoices', async (req: Request, res: Response) => {
+    try {
+        const invoice = await createContractorInvoice({
+            interpreterId: single(req.params.id),
+            periodStart: req.body.periodStart,
+            periodEnd: req.body.periodEnd,
+            tenantId: req.body.tenantId,
+            currency: req.body.currency,
+            metadata: req.body.metadata || {},
+            createdBy: (req as any).user?.id, // eslint-disable-line @typescript-eslint/no-explicit-any
+        });
+        if (!invoice) return res.status(503).json({ error: 'Billing not configured' });
+        res.status(201).json(invoice);
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        res.status(400).json({ error: err.message || 'Failed to create contractor invoice' });
+    }
+});
+
 /** GET /api/billing/manager-notes/:entityType/:entityId — Admin manager notes */
 router.get('/manager-notes/:entityType/:entityId', async (req: Request, res: Response) => {
     try {
@@ -643,6 +818,24 @@ router.get('/reconciliation', async (req: Request, res: Response) => {
     }
 });
 
+/** GET /api/billing/reconciliation-dashboard — Live reconciliation dashboard */
+router.get('/reconciliation-dashboard', async (req: Request, res: Response) => {
+    try {
+        const now = new Date();
+        const periodEnd = req.query.periodEnd
+            ? single(req.query.periodEnd)
+            : now.toISOString();
+        const periodStart = req.query.periodStart
+            ? single(req.query.periodStart)
+            : `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`;
+        const dashboard = await getBillingReconciliationDashboard({ periodStart, periodEnd });
+        if (!dashboard) return res.status(503).json({ error: 'Billing not configured' });
+        res.json(dashboard);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch reconciliation dashboard' });
+    }
+});
+
 /** POST /api/billing/reconciliation/:id/resolve — Resolve variance */
 router.post('/reconciliation/:id/resolve', async (req: Request, res: Response) => {
     try {
@@ -654,6 +847,17 @@ router.post('/reconciliation/:id/resolve', async (req: Request, res: Response) =
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: 'Failed to resolve variance' });
+    }
+});
+
+/** POST /api/billing/webhooks/stripe/:eventId/replay — Replay recorded Stripe webhook */
+router.post('/webhooks/stripe/:eventId/replay', async (req: Request, res: Response) => {
+    try {
+        const result = await replayStripeWebhookEvent(single(req.params.eventId));
+        if (!result.processed) return res.status(404).json(result);
+        res.json(result);
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        res.status(400).json({ error: err.message || 'Failed to replay Stripe webhook' });
     }
 });
 

@@ -255,6 +255,8 @@ export async function issueInvoice(
     const account = await getCorporateAccount(invoiceRow.corporate_account_id);
 
     let stripeInvoiceId: string | null = null;
+    let stripeHostedInvoiceUrl: string | null = null;
+    let stripeInvoicePdfUrl: string | null = null;
     let dueDate: string | null = null;
 
     // Send to Stripe if applicable
@@ -281,13 +283,16 @@ export async function issueInvoice(
                 dueDate: dueDateObj,
                 metadata: { invoiceId },
             });
-            stripeInvoiceId = stripeInvoice.id;
+            const sentInvoice = await stripe.sendInvoice(stripeInvoice.id);
+            stripeInvoiceId = sentInvoice.id;
+            stripeHostedInvoiceUrl = sentInvoice.hostedUrl || stripeInvoice.hostedUrl || null;
+            stripeInvoicePdfUrl = sentInvoice.pdfUrl || stripeInvoice.pdfUrl || null;
             await billingDb.query(
                 `UPDATE invoices
                  SET stripe_hosted_invoice_url = $1,
                      stripe_invoice_pdf_url = $2
                  WHERE id = $3`,
-                [stripeInvoice.hostedUrl || null, stripeInvoice.pdfUrl || null, invoiceId]
+                [stripeHostedInvoiceUrl, stripeInvoicePdfUrl, invoiceId]
             );
         } catch (err) {
             console.error('[VRI Billing] Failed to create Stripe invoice:', err);
@@ -302,6 +307,8 @@ export async function issueInvoice(
 
     await logBillingEvent('invoice_issued', 'invoice', invoiceId, {
         stripeInvoiceId,
+        stripeHostedInvoiceUrl,
+        stripeInvoicePdfUrl,
         performedBy,
     });
 
@@ -564,6 +571,123 @@ export async function recordInvoicePayment(input: {
     }
 }
 
+export async function createCorporatePortalSession(input: {
+    corporateAccountId: string;
+    returnUrl: string;
+}): Promise<{ url: string } | null> {
+    if (!billingDb.isBillingDbReady()) return null;
+
+    const account = await getCorporateAccount(input.corporateAccountId);
+    if (!account) throw new Error(`Corporate account ${input.corporateAccountId} not found`);
+    if (!account.stripeCustomerId) throw new Error('Corporate account does not have a Stripe customer');
+
+    const provider = createStripeProvider();
+    return provider.createCustomerPortalSession({
+        customerId: account.stripeCustomerId,
+        returnUrl: input.returnUrl,
+    });
+}
+
+export async function createCorporatePaymentMethodSetup(input: {
+    corporateAccountId: string;
+    usage?: 'on_session' | 'off_session';
+}): Promise<{ id: string; status: string; clientSecret?: string } | null> {
+    if (!billingDb.isBillingDbReady()) return null;
+
+    const account = await getCorporateAccount(input.corporateAccountId);
+    if (!account) throw new Error(`Corporate account ${input.corporateAccountId} not found`);
+    if (!account.stripeCustomerId) throw new Error('Corporate account does not have a Stripe customer');
+
+    const provider = createStripeProvider();
+    return provider.createSetupIntent({
+        customerId: account.stripeCustomerId,
+        usage: input.usage || 'off_session',
+        metadata: { corporateAccountId: input.corporateAccountId },
+    });
+}
+
+export async function createInvoiceCreditNote(input: {
+    invoiceId: string;
+    amount: number;
+    reason: string;
+    createdBy?: string;
+    metadata?: Record<string, unknown>;
+}): Promise<Record<string, unknown> | null> {
+    if (!billingDb.isBillingDbReady()) return null;
+
+    const result = await billingDb.query(
+        `SELECT i.*, ca.payment_method
+         FROM invoices i
+         LEFT JOIN corporate_accounts ca ON ca.id = i.corporate_account_id
+         WHERE i.id = $1`,
+        [input.invoiceId]
+    );
+    if (!result.rows[0]) throw new Error(`Invoice ${input.invoiceId} not found`);
+
+    const invoice = result.rows[0];
+    const currency = String(invoice.currency || 'USD').toUpperCase();
+    let providerCreditNoteId: string | null = null;
+    let providerStatus = 'issued';
+
+    if (invoice.payment_method === 'stripe' && invoice.stripe_invoice_id) {
+        const provider = createStripeProvider();
+        const creditNote = await provider.createCreditNote({
+            invoiceId: invoice.stripe_invoice_id as string,
+            amount: Math.round(input.amount * 100),
+            reason: input.reason,
+            metadata: { invoiceId: input.invoiceId },
+        });
+        providerCreditNoteId = creditNote.id;
+        providerStatus = creditNote.status || providerStatus;
+    }
+
+    const note = await billingDb.query(
+        `INSERT INTO billing_credit_notes (
+            invoice_id, provider, provider_credit_note_id, amount, currency, reason,
+            status, created_by, metadata
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        RETURNING *`,
+        [
+            input.invoiceId,
+            invoice.payment_method === 'stripe' ? 'stripe' : 'manual',
+            providerCreditNoteId,
+            input.amount,
+            currency,
+            input.reason,
+            providerStatus,
+            input.createdBy || null,
+            JSON.stringify(input.metadata || {}),
+        ]
+    );
+
+    await billingDb.query(
+        `INSERT INTO billing_adjustments (
+            invoice_id, amount, currency, reason, status, created_by, metadata
+        ) VALUES ($1, $2, $3, $4, 'approved', $5, $6)`,
+        [
+            input.invoiceId,
+            input.amount * -1,
+            currency,
+            input.reason,
+            input.createdBy || null,
+            JSON.stringify({
+                source: 'credit_note',
+                creditNoteId: note.rows[0].id,
+                providerCreditNoteId,
+            }),
+        ]
+    );
+
+    await logBillingEvent('invoice_credit_note_created', 'invoice', input.invoiceId, {
+        amount: input.amount,
+        currency,
+        reason: input.reason,
+        providerCreditNoteId,
+    }, input.createdBy || null);
+
+    return mapGenericJson(note.rows[0]);
+}
+
 // ─── Row Mappers ───────────────────────────────────────────
 
 function mapCorporateRow(row: Record<string, unknown>): CorporateAccount {
@@ -620,4 +744,20 @@ function mapInvoiceRow(row: Record<string, unknown>): Invoice {
         createdAt: new Date(row.created_at as string),
         createdBy: row.created_by as string | null,
     };
+}
+
+function mapGenericJson(row: Record<string, unknown>): Record<string, unknown> {
+    const mapped: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(row)) {
+        if (key === 'metadata' && typeof value === 'string') {
+            try {
+                mapped[key] = JSON.parse(value);
+            } catch {
+                mapped[key] = {};
+            }
+        } else {
+            mapped[key] = value;
+        }
+    }
+    return mapped;
 }

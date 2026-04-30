@@ -6,6 +6,107 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-04-30
 - Branch: `codex/billing-utilization-roadmap`
+- HEAD: `b6259e9`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  ROADMAP.md`
+  - `M  status.md`
+  - `M  vrs-server/__tests__/billing/stripe-mock.test.ts`
+  - `M  vrs-server/src/billing/interpreter-operations-service.ts`
+  - `A  vrs-server/src/billing/migrations/011_billing_portal_credit_payouts.sql`
+  - `M  vrs-server/src/billing/reconciliation-service.ts`
+  - `M  vrs-server/src/billing/routes/billing-admin.ts`
+  - `M  vrs-server/src/billing/stripe-webhook-service.ts`
+  - `M  vrs-server/src/billing/stripe/stripe-interface.ts`
+  - `M  vrs-server/src/billing/stripe/stripe-live.ts`
+  - `M  vrs-server/src/billing/stripe/stripe-mock.ts`
+  - `M  vrs-server/src/billing/vri-billing-pipeline.ts`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-30T21:20:52.523Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
+- Branch: `codex/billing-utilization-roadmap`
+- HEAD: `b6259e9`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M ROADMAP.md`
+  - `M status.md`
+  - `M vrs-server/__tests__/billing/stripe-mock.test.ts`
+  - `M vrs-server/src/billing/interpreter-operations-service.ts`
+  - `M vrs-server/src/billing/reconciliation-service.ts`
+  - `M vrs-server/src/billing/routes/billing-admin.ts`
+  - `M vrs-server/src/billing/stripe-webhook-service.ts`
+  - `M vrs-server/src/billing/stripe/stripe-interface.ts`
+  - `M vrs-server/src/billing/stripe/stripe-live.ts`
+  - `M vrs-server/src/billing/stripe/stripe-mock.ts`
+  - `M vrs-server/src/billing/vri-billing-pipeline.ts`
+  - `?? vrs-server/src/billing/migrations/011_billing_portal_credit_payouts.sql`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-30T21:20:07.284Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
+- Branch: `codex/billing-utilization-roadmap`
+- HEAD: `b6259e9`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M ROADMAP.md`
+  - `M status.md`
+  - `M vrs-server/src/billing/interpreter-operations-service.ts`
+  - `M vrs-server/src/billing/reconciliation-service.ts`
+  - `M vrs-server/src/billing/routes/billing-admin.ts`
+  - `M vrs-server/src/billing/stripe-webhook-service.ts`
+  - `M vrs-server/src/billing/stripe/stripe-interface.ts`
+  - `M vrs-server/src/billing/stripe/stripe-live.ts`
+  - `M vrs-server/src/billing/stripe/stripe-mock.ts`
+  - `M vrs-server/src/billing/vri-billing-pipeline.ts`
+  - `?? vrs-server/src/billing/migrations/011_billing_portal_credit_payouts.sql`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-30T21:17:41.016Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
+- Branch: `codex/billing-utilization-roadmap`
+- HEAD: `b6259e9`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M ROADMAP.md`
+  - `M vrs-server/src/billing/interpreter-operations-service.ts`
+  - `M vrs-server/src/billing/reconciliation-service.ts`
+  - `M vrs-server/src/billing/routes/billing-admin.ts`
+  - `M vrs-server/src/billing/stripe-webhook-service.ts`
+  - `M vrs-server/src/billing/stripe/stripe-interface.ts`
+  - `M vrs-server/src/billing/stripe/stripe-live.ts`
+  - `M vrs-server/src/billing/stripe/stripe-mock.ts`
+  - `M vrs-server/src/billing/vri-billing-pipeline.ts`
+  - `?? vrs-server/src/billing/migrations/011_billing_portal_credit_payouts.sql`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-30T21:17:22.494Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
+- Branch: `codex/billing-utilization-roadmap`
 - HEAD: `f53cb61`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -25,7 +126,7 @@ Local changes at sync time:
   - `M  vrs-server/src/billing/vri-billing-pipeline.ts`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-30T20:57:37.090Z
 
 <!-- status:current:start -->

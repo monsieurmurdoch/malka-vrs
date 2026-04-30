@@ -34,6 +34,16 @@ export interface StripePaymentResult {
     clientSecret?: string;
 }
 
+export interface StripePortalSession {
+    url: string;
+}
+
+export interface StripeCreditNote {
+    id: string;
+    status: string;
+    amount: number;       // in cents
+}
+
 export interface WebhookEvent {
     id?: string;
     livemode?: boolean;
@@ -58,6 +68,9 @@ export interface StripeProvider {
         metadata?: Record<string, string>;
     }): Promise<StripeInvoice>;
 
+    /** Finalize and email an invoice through Stripe Billing */
+    sendInvoice(invoiceId: string): Promise<StripeInvoice>;
+
     /** Retrieve an existing invoice */
     getInvoice(invoiceId: string): Promise<StripeInvoice | null>;
 
@@ -68,6 +81,27 @@ export interface StripeProvider {
         customerId: string;
         metadata?: Record<string, string>;
     }): Promise<StripePaymentResult>;
+
+    /** Create a hosted billing portal session for saved payment methods/invoices */
+    createCustomerPortalSession(params: {
+        customerId: string;
+        returnUrl: string;
+    }): Promise<StripePortalSession>;
+
+    /** Create a setup intent for collecting a reusable payment method */
+    createSetupIntent(params: {
+        customerId: string;
+        usage?: 'on_session' | 'off_session';
+        metadata?: Record<string, string>;
+    }): Promise<StripePaymentResult>;
+
+    /** Create a credit note against a Stripe invoice */
+    createCreditNote(params: {
+        invoiceId: string;
+        amount: number;      // in cents
+        reason?: string;
+        metadata?: Record<string, string>;
+    }): Promise<StripeCreditNote>;
 
     /** Verify a webhook signature and parse the event */
     verifyWebhookSignature(payload: string, signature: string): Promise<WebhookEvent>;

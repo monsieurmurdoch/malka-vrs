@@ -6,6 +6,7 @@
  */
 
 import * as billingDb from '../lib/billing-db';
+import { logBillingEvent } from './audit-service';
 import type {
     InterpreterAvailabilitySession,
     InterpreterBreakSession,
@@ -464,6 +465,380 @@ export async function generatePayablesForPeriod(input: {
         skipped: cdrs.rows.length - created,
         missingRates,
     };
+}
+
+export async function createPayoutBatch(input: {
+    periodStart: string;
+    periodEnd: string;
+    tenantId?: string;
+    currency?: string;
+    createdBy?: string;
+    metadata?: Record<string, unknown>;
+}): Promise<Record<string, unknown> | null> {
+    if (!billingDb.isBillingDbReady()) return null;
+
+    const currency = (input.currency || 'USD').toUpperCase();
+    const batch = await billingDb.transaction(async (client) => {
+        const insertedBatch = await client.query(
+            `INSERT INTO interpreter_payout_batches (
+                tenant_id, period_start, period_end, status, currency, total_amount,
+                created_by, metadata
+            ) VALUES ($1, $2, $3, 'draft', $4, 0, $5, $6)
+            RETURNING *`,
+            [
+                input.tenantId || null,
+                input.periodStart,
+                input.periodEnd,
+                currency,
+                input.createdBy || null,
+                JSON.stringify(input.metadata || {}),
+            ]
+        );
+        const batchId = insertedBatch.rows[0].id;
+
+        await client.query(
+            `INSERT INTO interpreter_payout_items (
+                payout_batch_id, payable_id, interpreter_id, amount, currency
+            )
+            SELECT $1, p.id, p.interpreter_id, p.total_amount, p.currency
+            FROM interpreter_payables p
+            LEFT JOIN interpreter_payout_items existing ON existing.payable_id = p.id
+            WHERE p.status IN ('draft', 'approved')
+              AND p.period_start >= $2
+              AND p.period_end <= $3
+              AND p.currency = $4
+              AND ($5::text IS NULL OR p.tenant_id = $5)
+              AND existing.id IS NULL`,
+            [batchId, input.periodStart, input.periodEnd, currency, input.tenantId || null]
+        );
+
+        const total = await client.query(
+            `SELECT COALESCE(SUM(amount), 0) AS total
+             FROM interpreter_payout_items
+             WHERE payout_batch_id = $1`,
+            [batchId]
+        );
+
+        const updated = await client.query(
+            `UPDATE interpreter_payout_batches
+             SET total_amount = $2
+             WHERE id = $1
+             RETURNING *`,
+            [batchId, total.rows[0].total]
+        );
+        return updated.rows[0];
+    });
+
+    if (batch) {
+        await logBillingEvent('interpreter_payout_batch_created', 'interpreter_payout_batch', batch.id, {
+            periodStart: input.periodStart,
+            periodEnd: input.periodEnd,
+            totalAmount: batch.total_amount,
+        }, input.createdBy || null);
+        return mapGenericJson(batch);
+    }
+    return null;
+}
+
+export async function approvePayoutBatch(
+    batchId: string,
+    approvedBy?: string
+): Promise<Record<string, unknown> | null> {
+    if (!billingDb.isBillingDbReady()) return null;
+
+    const batch = await billingDb.transaction(async (client) => {
+        const updated = await client.query(
+            `UPDATE interpreter_payout_batches
+             SET status = 'approved',
+                 approved_by = $2,
+                 approved_at = NOW()
+             WHERE id = $1
+             RETURNING *`,
+            [batchId, approvedBy || null]
+        );
+        if (!updated.rows[0]) return null;
+
+        await client.query(
+            `UPDATE interpreter_payables p
+             SET status = 'approved',
+                 approved_by = COALESCE(p.approved_by, $2),
+                 approved_at = COALESCE(p.approved_at, NOW())
+             FROM interpreter_payout_items item
+             WHERE item.payable_id = p.id
+               AND item.payout_batch_id = $1`,
+            [batchId, approvedBy || null]
+        );
+        return updated.rows[0];
+    });
+
+    if (batch) {
+        await logBillingEvent('interpreter_payout_batch_approved', 'interpreter_payout_batch', batchId, {}, approvedBy || null);
+        return mapGenericJson(batch);
+    }
+    return null;
+}
+
+export async function markPayoutBatchPaid(
+    batchId: string,
+    paidBy?: string
+): Promise<Record<string, unknown> | null> {
+    if (!billingDb.isBillingDbReady()) return null;
+
+    const batch = await billingDb.transaction(async (client) => {
+        const updated = await client.query(
+            `UPDATE interpreter_payout_batches
+             SET status = 'paid',
+                 paid_at = NOW(),
+                 paid_by = $2
+             WHERE id = $1
+             RETURNING *`,
+            [batchId, paidBy || null]
+        );
+        if (!updated.rows[0]) return null;
+
+        await client.query(
+            `UPDATE interpreter_payables p
+             SET status = 'paid',
+                 paid_at = NOW(),
+                 paid_by = $2
+             FROM interpreter_payout_items item
+             WHERE item.payable_id = p.id
+               AND item.payout_batch_id = $1`,
+            [batchId, paidBy || null]
+        );
+        return updated.rows[0];
+    });
+
+    if (batch) {
+        await logBillingEvent('interpreter_payout_batch_paid', 'interpreter_payout_batch', batchId, {}, paidBy || null);
+        return mapGenericJson(batch);
+    }
+    return null;
+}
+
+export async function exportPayoutBatchCsv(
+    batchId: string,
+    exportedBy?: string
+): Promise<string | null> {
+    if (!billingDb.isBillingDbReady()) return null;
+
+    const result = await billingDb.query(
+        `SELECT b.id AS batch_id, b.period_start, b.period_end, b.status AS batch_status,
+                item.interpreter_id, item.amount, item.currency,
+                p.call_id, p.service_mode, p.language_pair, p.payable_minutes, p.rate_amount,
+                p.status AS payable_status
+         FROM interpreter_payout_batches b
+         JOIN interpreter_payout_items item ON item.payout_batch_id = b.id
+         JOIN interpreter_payables p ON p.id = item.payable_id
+         WHERE b.id = $1
+         ORDER BY item.interpreter_id, p.created_at`,
+        [batchId]
+    );
+
+    await billingDb.query(
+        `UPDATE interpreter_payout_batches
+         SET exported_at = NOW(), exported_by = $2
+         WHERE id = $1`,
+        [batchId, exportedBy || null]
+    );
+
+    const lines = [
+        'batch_id,period_start,period_end,batch_status,interpreter_id,call_id,service_mode,language_pair,payable_minutes,rate_amount,amount,currency,payable_status',
+        ...result.rows.map((row: Record<string, unknown>) => [
+            row.batch_id,
+            row.period_start,
+            row.period_end,
+            row.batch_status,
+            row.interpreter_id,
+            row.call_id || '',
+            row.service_mode,
+            row.language_pair || '',
+            row.payable_minutes,
+            row.rate_amount,
+            row.amount,
+            row.currency,
+            row.payable_status,
+        ].map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')),
+    ];
+
+    await logBillingEvent('interpreter_payout_batch_exported', 'interpreter_payout_batch', batchId, {
+        rowCount: result.rows.length,
+    }, exportedBy || null);
+
+    return `${lines.join('\n')}\n`;
+}
+
+export async function listPayoutBatches(filters: {
+    tenantId?: string;
+    status?: string;
+    periodStart?: string;
+    periodEnd?: string;
+    limit?: number;
+}): Promise<Record<string, unknown>[]> {
+    if (!billingDb.isBillingDbReady()) return [];
+
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    let paramIdx = 1;
+
+    if (filters.tenantId) {
+        conditions.push(`tenant_id = $${paramIdx++}`);
+        params.push(filters.tenantId);
+    }
+    if (filters.status) {
+        conditions.push(`status = $${paramIdx++}`);
+        params.push(filters.status);
+    }
+    if (filters.periodStart) {
+        conditions.push(`period_end >= $${paramIdx++}`);
+        params.push(filters.periodStart);
+    }
+    if (filters.periodEnd) {
+        conditions.push(`period_start < $${paramIdx++}`);
+        params.push(filters.periodEnd);
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    params.push(filters.limit || 100);
+
+    const result = await billingDb.query(
+        `SELECT * FROM interpreter_payout_batches ${where}
+         ORDER BY created_at DESC
+         LIMIT $${paramIdx}`,
+        params
+    );
+    return result.rows.map(mapGenericJson);
+}
+
+export async function createContractorInvoice(input: {
+    interpreterId: string;
+    periodStart: string;
+    periodEnd: string;
+    tenantId?: string;
+    currency?: string;
+    createdBy?: string;
+    metadata?: Record<string, unknown>;
+}): Promise<Record<string, unknown> | null> {
+    if (!billingDb.isBillingDbReady()) return null;
+
+    const currency = (input.currency || 'USD').toUpperCase();
+    const invoice = await billingDb.transaction(async (client) => {
+        const payables = await client.query(
+            `SELECT p.*
+             FROM interpreter_payables p
+             LEFT JOIN interpreter_contractor_invoice_items existing ON existing.payable_id = p.id
+             WHERE p.interpreter_id = $1
+               AND p.status IN ('draft', 'approved')
+               AND p.period_start >= $2
+               AND p.period_end <= $3
+               AND p.currency = $4
+               AND ($5::text IS NULL OR p.tenant_id = $5)
+               AND existing.id IS NULL
+             ORDER BY p.period_start, p.created_at`,
+            [input.interpreterId, input.periodStart, input.periodEnd, currency, input.tenantId || null]
+        );
+        const subtotal = payables.rows.reduce(
+            (sum, row: Record<string, unknown>) => sum + parseFloat(row.total_amount as string),
+            0
+        );
+        const invoiceNumber = `TERP-${Date.now()}-${input.interpreterId.slice(0, 8)}`;
+        const inserted = await client.query(
+            `INSERT INTO interpreter_contractor_invoices (
+                interpreter_id, tenant_id, invoice_number, period_start, period_end,
+                subtotal, adjustments, total, currency, status, created_by, metadata
+            ) VALUES ($1, $2, $3, $4, $5, $6, 0, $6, $7, 'draft', $8, $9)
+            RETURNING *`,
+            [
+                input.interpreterId,
+                input.tenantId || null,
+                invoiceNumber,
+                input.periodStart,
+                input.periodEnd,
+                subtotal,
+                currency,
+                input.createdBy || null,
+                JSON.stringify(input.metadata || {}),
+            ]
+        );
+        const invoiceId = inserted.rows[0].id;
+
+        for (const payable of payables.rows) {
+            await client.query(
+                `INSERT INTO interpreter_contractor_invoice_items (
+                    contractor_invoice_id, payable_id, description, amount, currency, metadata
+                ) VALUES ($1, $2, $3, $4, $5, $6)
+                ON CONFLICT (payable_id) DO NOTHING`,
+                [
+                    invoiceId,
+                    payable.id,
+                    `${payable.service_mode || 'service'} ${payable.language_pair || ''} minutes`,
+                    payable.total_amount,
+                    payable.currency,
+                    JSON.stringify({ callId: payable.call_id || null }),
+                ]
+            );
+        }
+
+        return inserted.rows[0];
+    });
+
+    if (invoice) {
+        await logBillingEvent('interpreter_contractor_invoice_created', 'interpreter_contractor_invoice', invoice.id, {
+            interpreterId: input.interpreterId,
+            periodStart: input.periodStart,
+            periodEnd: input.periodEnd,
+            total: invoice.total,
+        }, input.createdBy || null);
+        return mapGenericJson(invoice);
+    }
+    return null;
+}
+
+export async function listContractorInvoices(filters: {
+    interpreterId?: string;
+    tenantId?: string;
+    status?: string;
+    periodStart?: string;
+    periodEnd?: string;
+    limit?: number;
+}): Promise<Record<string, unknown>[]> {
+    if (!billingDb.isBillingDbReady()) return [];
+
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    let paramIdx = 1;
+
+    if (filters.interpreterId) {
+        conditions.push(`interpreter_id = $${paramIdx++}`);
+        params.push(filters.interpreterId);
+    }
+    if (filters.tenantId) {
+        conditions.push(`tenant_id = $${paramIdx++}`);
+        params.push(filters.tenantId);
+    }
+    if (filters.status) {
+        conditions.push(`status = $${paramIdx++}`);
+        params.push(filters.status);
+    }
+    if (filters.periodStart) {
+        conditions.push(`period_end >= $${paramIdx++}`);
+        params.push(filters.periodStart);
+    }
+    if (filters.periodEnd) {
+        conditions.push(`period_start < $${paramIdx++}`);
+        params.push(filters.periodEnd);
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    params.push(filters.limit || 100);
+
+    const result = await billingDb.query(
+        `SELECT * FROM interpreter_contractor_invoices ${where}
+         ORDER BY created_at DESC
+         LIMIT $${paramIdx}`,
+        params
+    );
+    return result.rows.map(mapGenericJson);
 }
 
 export async function generateWeeklyUtilizationSummary(input: {
