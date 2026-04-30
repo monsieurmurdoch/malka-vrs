@@ -24,6 +24,7 @@
             --accent-red: #dc3545;
             --accent-orange: #FF6B35;
             --accent-yellow: #ffc107;
+            --accent-purple: #8a62ce;
         }
 
         body {
@@ -375,6 +376,76 @@
         .status-offline .status-dot { background: #6c757d; }
         .status-busy .status-dot { background: var(--accent-red); }
         .status-in-call .status-dot { background: var(--accent-blue); }
+
+        .status-available {
+            background: rgba(40, 167, 69, 0.18);
+            color: var(--accent-green);
+        }
+
+        .status-assigned,
+        .status-waiting {
+            background: rgba(255, 193, 7, 0.18);
+            color: var(--accent-yellow);
+        }
+
+        .status-connecting {
+            background: rgba(74, 158, 255, 0.18);
+            color: var(--accent-blue);
+        }
+
+        .status-break {
+            background: rgba(138, 98, 206, 0.18);
+            color: var(--accent-purple);
+        }
+
+        .status-completed {
+            background: rgba(40, 167, 69, 0.14);
+            color: var(--accent-green);
+        }
+
+        .status-attention {
+            background: rgba(220, 53, 69, 0.18);
+            color: var(--accent-red);
+        }
+
+        .status-available .status-dot { background: var(--accent-green); }
+        .status-assigned .status-dot,
+        .status-waiting .status-dot { background: var(--accent-yellow); }
+        .status-connecting .status-dot { background: var(--accent-blue); }
+        .status-break .status-dot { background: var(--accent-purple); }
+        .status-completed .status-dot { background: var(--accent-green); }
+        .status-attention .status-dot { background: var(--accent-red); }
+
+        .ops-view-toggle {
+            display: inline-flex;
+            gap: 4px;
+            padding: 4px;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .ops-view-btn {
+            border: 0;
+            border-radius: 9px;
+            padding: 8px 12px;
+            background: transparent;
+            color: var(--text-secondary);
+            font: inherit;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .ops-view-btn.active {
+            background: var(--accent-blue);
+            color: white;
+        }
+
+        .ops-info {
+            max-width: 320px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
 
         /* Queue List */
         .queue-item {
@@ -852,6 +923,97 @@
                 </div>
             </div>
 
+            <div class="section">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <span class="live-indicator">
+                            <span class="live-dot"></span>
+                            LIVE
+                        </span>
+                        Unified Operations
+                    </h2>
+                    <div class="section-actions">
+                        <div class="ops-view-toggle" aria-label="Operations view">
+                            <button class="ops-view-btn active" type="button" data-ops-view="live">Live Ops</button>
+                            <button class="ops-view-btn" type="button" data-ops-view="staffing">Staffing</button>
+                            <button class="ops-view-btn" type="button" data-ops-view="scheduled">Scheduled VRI</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="filter-bar">
+                    <label class="filter-label">
+                        Tenant
+                        <select class="filter-select" id="opsTenantFilter">
+                            <option value="">All Tenants</option>
+                            <option value="malka">Malka</option>
+                            <option value="maple">Maple</option>
+                        </select>
+                    </label>
+                    <label class="filter-label">
+                        Service
+                        <select class="filter-select" id="opsServiceFilter">
+                            <option value="">All Services</option>
+                            <option value="vrs">VRS</option>
+                            <option value="vri">VRI</option>
+                        </select>
+                    </label>
+                    <label class="filter-label">
+                        Flow
+                        <select class="filter-select" id="opsFlowFilter">
+                            <option value="">All Flows</option>
+                            <option value="on-demand">On-demand</option>
+                            <option value="scheduled">Scheduled</option>
+                        </select>
+                    </label>
+                    <label class="filter-label">
+                        Role
+                        <select class="filter-select" id="opsRoleFilter">
+                            <option value="">All Roles</option>
+                            <option value="client">Client</option>
+                            <option value="interpreter">Interpreter</option>
+                            <option value="session">Session</option>
+                        </select>
+                    </label>
+                    <label class="filter-label">
+                        Status
+                        <select class="filter-select" id="opsStatusFilter">
+                            <option value="">All Statuses</option>
+                            <option value="available">Available</option>
+                            <option value="waiting">Waiting</option>
+                            <option value="assigned">Assigned</option>
+                            <option value="connecting">Connecting</option>
+                            <option value="in-call">In Call</option>
+                            <option value="break">On Break</option>
+                            <option value="offline">Offline</option>
+                        </select>
+                    </label>
+                    <input type="text" class="search-input" placeholder="Search operations..." id="opsSearch">
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Role</th>
+                                <th>Tenant</th>
+                                <th>Service</th>
+                                <th>Flow</th>
+                                <th>Status</th>
+                                <th>Info</th>
+                                <th>Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody id="operationsTableBody">
+                            <tr>
+                                <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                                    Loading unified operations...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <div class="two-column">
                 <!-- Active Interpreters -->
                 <div class="section">
@@ -1008,8 +1170,10 @@
                 <div class="filter-bar">
                     <select class="filter-select" id="interpreterStatusFilter">
                         <option value="all">All Status</option>
-                        <option value="online">Online</option>
-                        <option value="busy">In Call</option>
+                        <option value="available">Available</option>
+                        <option value="assigned">Assigned</option>
+                        <option value="in-call">In Call</option>
+                        <option value="break">On Break</option>
                         <option value="offline">Offline</option>
                     </select>
                     <input type="text" class="search-input" placeholder="Search interpreters..." id="interpreterSearch">

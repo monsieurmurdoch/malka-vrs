@@ -56,6 +56,7 @@
 ### Admin Portal
 - [x] Queue dashboard for ops team
 - [x] Admin live queue/activity filters by tenant, service mode, language, and role
+- [x] Unified admin operations table with tenant, service, flow, role, and shared status filters
 - [x] Admin account moderation for client/interpreter/captioner permissions
 - [x] Admin audit export for account/permission changes
 - [x] Superadmin dashboard for managing tenants
@@ -235,7 +236,7 @@
 - [ ] Expand interpreter admin profile into a full CRM-style record: password reset, company/alternate email, schedule, billing, payment info, manager comments, language permissions, and VRI/VRS queues
 - [ ] Add corporate client account creation/editing from tenant admin and superadmin contexts
 - [ ] Make interpreter/client CSV exports available from roster tables
-- [ ] Clarify admin dashboard labels: Available Interpreters are staff ready for matching; Waiting Client Requests are clients currently waiting in queue
+- [x] Clarify admin dashboard labels: Available Interpreters are staff ready for matching; Waiting Client Requests are clients currently waiting in queue
 - [ ] Tighten admin live refresh for interpreter availability and queue-state changes so manual refresh is not normally needed
 
 ### Calls, Rooms & Queue Follow-Up

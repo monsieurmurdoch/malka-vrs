@@ -64,6 +64,8 @@ let ws = null;
 let refreshInterval = null;
 let currentAdminRole = localStorage.getItem('vrs_admin_role') || 'admin';
 const scheduledRefreshes = new Map();
+let operationsRows = [];
+let activeOperationsView = 'live';
 
 function scheduleRefresh(key, callback, delay = 250) {
     if (scheduledRefreshes.has(key)) {
@@ -146,8 +148,23 @@ function setupEventListeners() {
     document.getElementById('exportInterpretersBtn')?.addEventListener('click', () => exportTableCsv('interpreters', getVisibleInterpreters()));
     document.getElementById('exportClientsBtn')?.addEventListener('click', () => exportTableCsv('clients', getVisibleClients()));
     document.querySelectorAll('[data-modal-close]').forEach(button => button.addEventListener('click', closeAdminModal));
+    document.querySelectorAll('[data-ops-view]').forEach(button => {
+        button.addEventListener('click', () => {
+            activeOperationsView = button.dataset.opsView || 'live';
+            document.querySelectorAll('[data-ops-view]').forEach(viewButton => {
+                viewButton.classList.toggle('active', viewButton.dataset.opsView === activeOperationsView);
+            });
+            renderOperationsTable();
+        });
+    });
 
     // Filter changes
+    document.getElementById('opsTenantFilter')?.addEventListener('change', renderOperationsTable);
+    document.getElementById('opsServiceFilter')?.addEventListener('change', renderOperationsTable);
+    document.getElementById('opsFlowFilter')?.addEventListener('change', renderOperationsTable);
+    document.getElementById('opsRoleFilter')?.addEventListener('change', renderOperationsTable);
+    document.getElementById('opsStatusFilter')?.addEventListener('change', renderOperationsTable);
+    document.getElementById('opsSearch')?.addEventListener('input', debounce(renderOperationsTable, 250));
     document.getElementById('interpreterStatusFilter')?.addEventListener('change', filterInterpreters);
     document.getElementById('interpreterSearch')?.addEventListener('input', debounce(filterInterpreters, 300));
     document.getElementById('accountTenantFilter')?.addEventListener('change', loadAccounts);
@@ -707,14 +724,25 @@ function syncQueuePauseButton(paused) {
 
 async function loadDashboardStats() {
     try {
-        const [ stats, activeCalls, dailyUsage ] = await Promise.all([
+        const [ stats, activeCalls, dailyUsage, interpreters, clients, queue ] = await Promise.all([
             apiCall('/admin/stats'),
             apiCall('/admin/calls/active').catch(() => []),
-            apiCall('/admin/usage/daily?days=7').catch(() => [])
+            apiCall('/admin/usage/daily?days=7').catch(() => []),
+            apiCall('/admin/interpreters').catch(() => allInterpreters),
+            apiCall('/admin/clients').catch(() => allClients),
+            apiCall('/admin/queue').catch(() => [])
         ]);
 
+        allInterpreters = interpreters;
+        allClients = clients;
         updateDashboardStats(stats, activeCalls, dailyUsage);
-        loadActiveInterpreters(activeCalls);
+        buildOperationsRows({ activeCalls, clients, interpreters, queue });
+        renderOperationsTable();
+        renderActiveInterpretersTable(
+            interpreters.filter(interpreter => interpreter.connected && interpreter.currentStatus !== 'offline').slice(0, 5),
+            activeCalls
+        );
+        renderQueuePreview(queue);
     } catch (error) {
         console.error('[Dashboard] Error:', error);
     }
@@ -790,7 +818,6 @@ function updateDashboardStats(stats, activeCalls = [], dailyUsage = []) {
 
     renderActiveCallsTable(activeCalls);
     renderWeeklyUsageChart(dailyUsage);
-    renderQueuePreview();
 }
 
 function renderMonitoringSummary({ summary, queueService, opsService, twilioService }) {
@@ -868,6 +895,333 @@ function calculateGrowth(thisWeek, lastWeek) {
     return `${growth > 0 ? '+' : ''}${growth}%`;
 }
 
+function normalizeStatus(value) {
+    return String(value || '').trim().toLowerCase().replace(/_/g, '-');
+}
+
+function normalizeServiceMode(value) {
+    const normalized = String(value || 'vri').trim().toLowerCase();
+    return normalized === 'vrs' ? 'vrs' : 'vri';
+}
+
+function formatFlow(value) {
+    return normalizeStatus(value) === 'scheduled' ? 'Scheduled' : 'On-demand';
+}
+
+function getStatusClass(status) {
+    const normalized = normalizeStatus(status);
+    const statusClasses = {
+        available: 'status-available',
+        assigned: 'status-assigned',
+        waiting: 'status-waiting',
+        connecting: 'status-connecting',
+        'in-call': 'status-in-call',
+        break: 'status-break',
+        offline: 'status-offline',
+        completed: 'status-completed',
+        cancelled: 'status-attention',
+        'no-show': 'status-attention'
+    };
+    return statusClasses[normalized] || 'status-offline';
+}
+
+function formatStatusLabel(status) {
+    const normalized = normalizeStatus(status);
+    const labels = {
+        available: 'Available',
+        assigned: 'Assigned',
+        waiting: 'Waiting',
+        connecting: 'Connecting',
+        'in-call': 'In Call',
+        break: 'On Break',
+        offline: 'Offline',
+        completed: 'Completed',
+        cancelled: 'Cancelled',
+        'no-show': 'No Show'
+    };
+    return labels[normalized] || 'Offline';
+}
+
+function formatRoleLabel(role) {
+    const normalized = normalizeStatus(role);
+    if (normalized === 'client') return 'Client';
+    if (normalized === 'interpreter') return 'Interpreter';
+    if (normalized === 'captioner') return 'Captioner';
+    if (normalized === 'session') return 'Session';
+    return role || 'Unknown';
+}
+
+function formatTenantLabel(tenantId) {
+    const normalized = String(tenantId || defaultTenantId()).toLowerCase();
+    return normalized === 'maple' ? 'Maple' : 'Malka';
+}
+
+function formatOperationUpdated(value) {
+    if (!value) {
+        return 'Live';
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return 'Live';
+    }
+
+    return formatDateTime(value);
+}
+
+function deriveInterpreterStatus(interpreter, activeCallMap) {
+    const nameKey = String(interpreter.name || '').toLowerCase();
+    const idKey = String(interpreter.id || '');
+    if (activeCallMap.has(idKey) || activeCallMap.has(nameKey)) {
+        return 'in-call';
+    }
+
+    if (interpreter.active === false) {
+        return 'offline';
+    }
+
+    if (!interpreter.connected) {
+        return 'offline';
+    }
+
+    const current = normalizeStatus(interpreter.currentStatus);
+    if (current === 'online' || current === 'active' || current === 'available') {
+        return 'available';
+    }
+    if (current === 'busy' || current === 'assigned' || current === 'teamed') {
+        return 'assigned';
+    }
+    if (current === 'connecting') {
+        return 'connecting';
+    }
+    if (current === 'in-call') {
+        return 'in-call';
+    }
+    if (current === 'break' || current === 'on-break') {
+        return 'break';
+    }
+    return 'offline';
+}
+
+function getPrimaryServiceMode(source, fallback = 'vri') {
+    const modes = source?.service_modes || source?.serviceModes;
+    if (Array.isArray(modes) && modes.length) {
+        return normalizeServiceMode(modes[0]);
+    }
+    return normalizeServiceMode(source?.serviceMode || source?.service_mode || source?.callType || source?.call_type || fallback);
+}
+
+function getFlowForService(serviceMode, source = {}) {
+    if (normalizeStatus(source.flow) === 'scheduled' || source.scheduled_at || source.scheduledAt) {
+        return 'scheduled';
+    }
+    return 'on-demand';
+}
+
+function buildOperationActiveCallMap(activeCalls = []) {
+    const map = new Map();
+    activeCalls.forEach(call => {
+        [
+            call.interpreter_id,
+            call.interpreterId,
+            String(call.interpreter_name || '').toLowerCase(),
+            call.client_id,
+            call.clientId,
+            String(call.client_name || '').toLowerCase()
+        ].filter(Boolean).forEach(key => map.set(String(key), call));
+    });
+    return map;
+}
+
+function buildOperationsRows({ activeCalls = [], clients = [], interpreters = [], queue = [] } = {}) {
+    const activeCallMap = buildOperationActiveCallMap(activeCalls);
+    const rows = [];
+    const queueClientKeys = new Set();
+    const activeClientKeys = new Set();
+
+    activeCalls.forEach(call => {
+        const serviceMode = getPrimaryServiceMode(call, 'vri');
+        const flow = getFlowForService(serviceMode, call);
+        const clientName = call.client_name || call.clientName || 'Client';
+        const interpreterName = call.interpreter_name || call.interpreterName || 'Unassigned interpreter';
+
+        [call.client_id, call.clientId, String(clientName).toLowerCase()].filter(Boolean).forEach(key => activeClientKeys.add(String(key)));
+
+        rows.push({
+            flow,
+            id: `call-${call.id || call.room_name || clientName}`,
+            info: `${clientName} with ${interpreterName} · ${call.room_name || 'room pending'} · ${formatDurationFromDate(call.started_at)}`,
+            name: clientName,
+            role: 'session',
+            service: serviceMode,
+            status: 'in-call',
+            tenant: call.tenantId || call.tenant_id || defaultTenantId(),
+            updatedAt: call.started_at,
+            view: 'live'
+        });
+    });
+
+    queue.forEach(item => {
+        const clientName = item.clientName || item.client_name || 'Unknown client';
+        const serviceMode = getPrimaryServiceMode(item, 'vri');
+        const flow = getFlowForService(serviceMode, item);
+        [item.clientId, item.client_id, String(clientName).toLowerCase()].filter(Boolean).forEach(key => queueClientKeys.add(String(key)));
+
+        rows.push({
+            flow,
+            id: `queue-${item.id || clientName}`,
+            info: `${item.language || 'ASL'} · ${item.roomName || item.room_name || 'room pending'} · wait ${item.wait_time || item.waitTime || '—'}`,
+            name: clientName,
+            role: 'client',
+            service: serviceMode,
+            status: 'waiting',
+            tenant: item.tenantId || item.tenant_id || defaultTenantId(),
+            updatedAt: item.createdAt || item.created_at,
+            view: 'live'
+        });
+    });
+
+    interpreters.forEach(interpreter => {
+        const serviceModes = Array.isArray(interpreter.service_modes) && interpreter.service_modes.length
+            ? interpreter.service_modes
+            : ['vri'];
+        const status = deriveInterpreterStatus(interpreter, activeCallMap);
+        const currentCall = activeCallMap.get(String(interpreter.id || ''))
+            || activeCallMap.get(String(interpreter.name || '').toLowerCase());
+        const visibleInLive = status !== 'offline';
+
+        serviceModes.forEach(mode => {
+            const serviceMode = normalizeServiceMode(mode);
+            rows.push({
+                flow: getFlowForService(serviceMode, interpreter),
+                id: `interpreter-${interpreter.id || interpreter.email}-${serviceMode}`,
+                info: currentCall
+                    ? `${currentCall.client_name || 'Client'} · ${currentCall.room_name || 'room pending'}`
+                    : `${Array.isArray(interpreter.languages) ? interpreter.languages.join(', ') : interpreter.languages || 'ASL'} · ${formatLastActive(interpreter)}`,
+                name: interpreter.name || interpreter.email || 'Interpreter',
+                role: 'interpreter',
+                service: serviceMode,
+                status,
+                tenant: interpreter.tenant_id || defaultTenantId(),
+                updatedAt: interpreter.last_active,
+                view: visibleInLive ? 'live staffing' : 'staffing'
+            });
+        });
+    });
+
+    clients.forEach(client => {
+        const clientKeys = [client.id, String(client.name || '').toLowerCase()].filter(Boolean).map(String);
+        const isVisible = clientKeys.some(key => queueClientKeys.has(key) || activeClientKeys.has(key));
+        if (!isVisible) {
+            return;
+        }
+
+        const isQueued = clientKeys.some(key => queueClientKeys.has(key));
+        const isActive = clientKeys.some(key => activeClientKeys.has(key));
+        const status = isActive ? 'in-call' : isQueued ? 'waiting' : 'connecting';
+        const serviceMode = getPrimaryServiceMode(client, defaultServiceModesForTenant(client.tenant_id || defaultTenantId())[0]);
+
+        rows.push({
+            flow: getFlowForService(serviceMode, client),
+            id: `client-${client.id || client.email}`,
+            info: `${client.organization || 'Personal'} · ${client.email || 'no email'}`,
+            name: client.name || client.email || 'Client',
+            role: 'client',
+            service: serviceMode,
+            status,
+            tenant: client.tenant_id || defaultTenantId(),
+            updatedAt: client.last_call || client.created_at,
+            view: 'live'
+        });
+    });
+
+    operationsRows = rows.sort((a, b) => {
+        const priority = {
+            waiting: 1,
+            assigned: 2,
+            connecting: 3,
+            'in-call': 4,
+            available: 5,
+            break: 6,
+            offline: 7,
+            completed: 8
+        };
+        return (priority[normalizeStatus(a.status)] || 99) - (priority[normalizeStatus(b.status)] || 99)
+            || String(a.name).localeCompare(String(b.name));
+    });
+}
+
+function getVisibleOperationsRows() {
+    const tenant = getSelectValue('opsTenantFilter');
+    const service = getSelectValue('opsServiceFilter');
+    const flow = getSelectValue('opsFlowFilter');
+    const role = getSelectValue('opsRoleFilter');
+    const status = getSelectValue('opsStatusFilter');
+    const search = String(document.getElementById('opsSearch')?.value || '').toLowerCase();
+
+    return operationsRows
+        .filter(row => activeOperationsView === 'live'
+            ? row.view.includes('live')
+            : activeOperationsView === 'staffing'
+                ? row.view.includes('staffing') || row.role === 'interpreter'
+                : row.flow === 'scheduled')
+        .filter(row => !tenant || row.tenant === tenant)
+        .filter(row => !service || row.service === service)
+        .filter(row => !flow || row.flow === flow)
+        .filter(row => !role || row.role === role)
+        .filter(row => !status || row.status === status)
+        .filter(row => !search
+            || String(row.name || '').toLowerCase().includes(search)
+            || String(row.info || '').toLowerCase().includes(search)
+            || String(row.tenant || '').toLowerCase().includes(search));
+}
+
+function renderOperationsTable() {
+    const tbody = document.getElementById('operationsTableBody');
+    if (!tbody) {
+        return;
+    }
+
+    const rows = getVisibleOperationsRows();
+
+    if (!rows.length) {
+        const emptyCopy = activeOperationsView === 'scheduled'
+            ? 'No scheduled VRI sessions are visible yet.'
+            : activeOperationsView === 'staffing'
+                ? 'No staff records match these filters.'
+                : 'No live operational rows match these filters.';
+
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    ${emptyCopy}
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = rows.map(row => `
+        <tr>
+            <td>
+                <div style="font-weight: 600;">${escapeHtml(row.name)}</div>
+            </td>
+            <td>${formatRoleLabel(row.role)}</td>
+            <td>${formatTenantLabel(row.tenant)}</td>
+            <td>${String(row.service || 'vri').toUpperCase()}</td>
+            <td>${formatFlow(row.flow)}</td>
+            <td>
+                <span class="status-badge ${getStatusClass(row.status)}">
+                    <span class="status-dot"></span>
+                    ${formatStatusLabel(row.status)}
+                </span>
+            </td>
+            <td><div class="ops-info">${escapeHtml(row.info || '—')}</div></td>
+            <td>${formatOperationUpdated(row.updatedAt)}</td>
+        </tr>
+    `).join('');
+}
+
 async function loadActiveInterpreters(activeCalls = []) {
     try {
         const interpreters = await apiCall('/admin/interpreters');
@@ -894,20 +1248,14 @@ function renderActiveInterpretersTable(interpreters, activeCalls = []) {
         return;
     }
 
-    const activeCallMap = new Map(activeCalls.map(call => [
-        String(call.interpreter_name || '').toLowerCase(),
-        call
-    ]));
+    const activeCallMap = buildOperationActiveCallMap(activeCalls);
 
     tbody.innerHTML = interpreters.map(interp => {
-        const statusClass = interp.currentStatus === 'online' ? 'status-online' :
-                           interp.currentStatus === 'busy' ? 'status-busy' : 'status-in-call';
-        const statusText = interp.currentStatus === 'online' ? 'Available' :
-                          interp.currentStatus === 'busy' ? 'Busy' : 'In Call';
+        const status = deriveInterpreterStatus(interp, activeCallMap);
         const currentCall = activeCallMap.get(String(interp.name || '').toLowerCase());
         const currentCallLabel = currentCall
             ? `${currentCall.client_name || 'Client'} · ${formatDurationFromDate(currentCall.started_at)}`
-            : (interp.currentStatus === 'busy' || interp.currentStatus === 'in-call' ? 'In progress' : '—');
+            : (status === 'assigned' || status === 'in-call' ? 'In progress' : '—');
 
         return `
             <tr>
@@ -916,9 +1264,9 @@ function renderActiveInterpretersTable(interpreters, activeCalls = []) {
                     <div style="font-size: 12px; color: var(--text-muted);">${Array.isArray(interp.languages) ? interp.languages.join(', ') : 'ASL'}</div>
                 </td>
                 <td>
-                    <span class="status-badge ${statusClass}">
+                    <span class="status-badge ${getStatusClass(status)}">
                         <span class="status-dot"></span>
-                        ${statusText}
+                        ${formatStatusLabel(status)}
                     </span>
                 </td>
                 <td>${currentCallLabel}</td>
@@ -1068,13 +1416,7 @@ function renderInterpretersTable(interpreters) {
     }
 
     tbody.innerHTML = interpreters.map(interp => {
-        const statusClass = interp.connected && interp.currentStatus === 'online' ? 'status-online' :
-                           interp.connected && interp.currentStatus === 'busy' ? 'status-busy' :
-                           interp.connected && interp.currentStatus === 'in-call' ? 'status-in-call' : 'status-offline';
-        const statusText = !interp.connected ? 'Offline' :
-                          interp.currentStatus === 'online' ? 'Available' :
-                          interp.currentStatus === 'busy' ? 'Busy' :
-                          interp.currentStatus === 'in-call' ? 'In Call' : 'Offline';
+        const status = deriveInterpreterStatus(interp, new Map());
 
         return `
             <tr>
@@ -1083,9 +1425,9 @@ function renderInterpretersTable(interpreters) {
                 <td>${Array.isArray(interp.languages) ? interp.languages.join(', ') : interp.languages}</td>
                 <td>${formatServiceModes(interp.service_modes)}</td>
                 <td>
-                    <span class="status-badge ${statusClass}">
+                    <span class="status-badge ${getStatusClass(status)}">
                         <span class="status-dot"></span>
-                        ${statusText}
+                        ${formatStatusLabel(status)}
                     </span>
                 </td>
                 <td>${interp.calls_today || 0}</td>
@@ -1234,10 +1576,7 @@ function getVisibleInterpreters() {
     return allInterpreters
         .filter(interp => {
             if (!statusFilter || statusFilter === 'all') return true;
-            if (statusFilter === 'online') return interp.connected && interp.currentStatus === 'online';
-            if (statusFilter === 'busy') return interp.connected && interp.currentStatus === 'busy';
-            if (statusFilter === 'offline') return !interp.connected || interp.currentStatus === 'offline';
-            return true;
+            return deriveInterpreterStatus(interp, new Map()) === statusFilter;
         })
         .filter(interp => !searchTerm
             || String(interp.name || '').toLowerCase().includes(searchTerm)

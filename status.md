@@ -5,6 +5,41 @@ This file is the project-level running status log. The current update stays at t
 ## Current Update
 
 - Updated: 2026-04-30
+- Branch: `hermes/mobile-parity`
+- HEAD: `ec362f2`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  ROADMAP.md`
+  - `M  status.md`
+  - `M  vrs-admin-dashboard.html`
+  - `M  vrs-admin-dashboard.js`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-04-30T12:11:49.637Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
+- Branch: `hermes/mobile-parity`
+- HEAD: `ec362f2`
+- Note: Admin unified operations dashboard draft.
+- Snapshot:
+Local changes at sync time:
+  - `M ROADMAP.md`
+  - `M vrs-admin-dashboard.html`
+  - `M vrs-admin-dashboard.js`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-04-30T12:08:51.340Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-04-30
 - Branch: `main`
 - HEAD: `7cb523f`
 - Note: Pre-push project status sync.
@@ -22,7 +57,7 @@ Local changes at sync time:
   - `M  vrs-server/src/database.ts`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-04-30T07:12:47.076Z
 
 <!-- status:current:start -->
