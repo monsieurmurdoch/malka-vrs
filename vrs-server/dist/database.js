@@ -883,7 +883,7 @@ async function createInterpreter({ name, email, languages, password, serviceMode
     await runInsert('INSERT INTO interpreters (id, name, email, password_hash, languages, service_modes, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7)', [id, name, email, passwordHash, JSON.stringify(languages || ['ASL']), JSON.stringify(modes), tenant]);
     return { id, name, email, service_modes: modes, tenant_id: tenant };
 }
-async function updateInterpreter(id, { name, email, languages, active, serviceModes, service_modes, tenantId, tenant_id }) {
+async function updateInterpreter(id, { name, email, languages, active, password, serviceModes, service_modes, tenantId, tenant_id }) {
     const updates = [];
     const params = [];
     let paramIdx = 1;
@@ -902,6 +902,10 @@ async function updateInterpreter(id, { name, email, languages, active, serviceMo
     if (active !== undefined) {
         updates.push(`active = $${paramIdx++}`);
         params.push(!!active);
+    }
+    if (password !== undefined && password !== '') {
+        updates.push(`password_hash = $${paramIdx++}`);
+        params.push(await bcryptjs_1.default.hash(password, 10));
     }
     const modes = serviceModes || service_modes;
     if (modes !== undefined) {
@@ -1047,7 +1051,7 @@ async function getClient(id) {
     const rows = await runQuery('SELECT * FROM clients WHERE id = $1', [id]);
     return rows[0] ? { ...rows[0], service_modes: normalizeServiceModes(rows[0].service_modes) } : rows[0];
 }
-async function updateClient(id, { name, email, organization, serviceModes, service_modes, tenantId, tenant_id }) {
+async function updateClient(id, { name, email, organization, password, serviceModes, service_modes, tenantId, tenant_id }) {
     const updates = [];
     const params = [];
     let paramIdx = 1;
@@ -1062,6 +1066,10 @@ async function updateClient(id, { name, email, organization, serviceModes, servi
     if (organization !== undefined) {
         updates.push(`organization = $${paramIdx++}`);
         params.push(organization);
+    }
+    if (password !== undefined && password !== '') {
+        updates.push(`password_hash = $${paramIdx++}`);
+        params.push(await bcryptjs_1.default.hash(password, 10));
     }
     const modes = serviceModes || service_modes;
     if (modes !== undefined) {

@@ -780,7 +780,7 @@ async function createInterpreter({ name, email, languages, password, serviceMode
     return { id, name, email, service_modes: modes, tenant_id: tenant };
 }
 
-async function updateInterpreter(id: any, { name, email, languages, active, serviceModes, service_modes, tenantId, tenant_id }: any) {
+async function updateInterpreter(id: any, { name, email, languages, active, password, serviceModes, service_modes, tenantId, tenant_id }: any) {
     const updates = [];
     const params = [];
     let paramIdx = 1;
@@ -800,6 +800,10 @@ async function updateInterpreter(id: any, { name, email, languages, active, serv
     if (active !== undefined) {
         updates.push(`active = $${paramIdx++}`);
         params.push(!!active);
+    }
+    if (password !== undefined && password !== '') {
+        updates.push(`password_hash = $${paramIdx++}`);
+        params.push(await bcrypt.hash(password, 10));
     }
     const modes = serviceModes || service_modes;
     if (modes !== undefined) {
@@ -983,7 +987,7 @@ async function getClient(id: any) {
     return rows[0] ? { ...rows[0], service_modes: normalizeServiceModes(rows[0].service_modes) } : rows[0];
 }
 
-async function updateClient(id: any, { name, email, organization, serviceModes, service_modes, tenantId, tenant_id }: any) {
+async function updateClient(id: any, { name, email, organization, password, serviceModes, service_modes, tenantId, tenant_id }: any) {
     const updates = [];
     const params = [];
     let paramIdx = 1;
@@ -999,6 +1003,10 @@ async function updateClient(id: any, { name, email, organization, serviceModes, 
     if (organization !== undefined) {
         updates.push(`organization = $${paramIdx++}`);
         params.push(organization);
+    }
+    if (password !== undefined && password !== '') {
+        updates.push(`password_hash = $${paramIdx++}`);
+        params.push(await bcrypt.hash(password, 10));
     }
     const modes = serviceModes || service_modes;
     if (modes !== undefined) {

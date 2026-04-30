@@ -132,11 +132,20 @@ function setupEventListeners() {
     // Language toggle
     document.getElementById('langToggle')?.addEventListener('click', toggleLanguage);
 
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            window.location.hash = tab.dataset.tab || 'dashboard';
+        });
+    });
+
     // Add interpreter button
     document.getElementById('addInterpreterBtn')?.addEventListener('click', showAddInterpreterModal);
     document.getElementById('addCaptionerBtn')?.addEventListener('click', showAddCaptionerModal);
     document.getElementById('addAccountBtn')?.addEventListener('click', showAddAccountModal);
     document.getElementById('addClientBtn')?.addEventListener('click', showAddClientModal);
+    document.getElementById('exportInterpretersBtn')?.addEventListener('click', () => exportTableCsv('interpreters', getVisibleInterpreters()));
+    document.getElementById('exportClientsBtn')?.addEventListener('click', () => exportTableCsv('clients', getVisibleClients()));
+    document.querySelectorAll('[data-modal-close]').forEach(button => button.addEventListener('click', closeAdminModal));
 
     // Filter changes
     document.getElementById('interpreterStatusFilter')?.addEventListener('change', filterInterpreters);
@@ -227,6 +236,7 @@ async function validateOpsSession() {
         localStorage.setItem('vrs_admin_name', data.user.name);
         localStorage.setItem('vrs_admin_email', data.user.email || '');
         localStorage.setItem('vrs_admin_role', data.user.role);
+        localStorage.setItem('vrs_admin_tenant', data.user.tenantId || defaultTenantId());
         updateCurrentUserDisplay();
     } catch (error) {
         console.error('[Auth] Validation failed:', error);
@@ -330,6 +340,110 @@ async function opsApiCall(endpoint, options = {}) {
     return response.json();
 }
 
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function openAdminModal({ title, subtitle = '', body = '', footer = '' }) {
+    const modal = document.getElementById('adminModal');
+    const titleEl = document.getElementById('adminModalTitle');
+    const subtitleEl = document.getElementById('adminModalSubtitle');
+    const bodyEl = document.getElementById('adminModalBody');
+    const footerEl = document.getElementById('adminModalFooter');
+
+    if (!modal || !titleEl || !subtitleEl || !bodyEl || !footerEl) {
+        return;
+    }
+
+    titleEl.textContent = title;
+    subtitleEl.textContent = subtitle;
+    bodyEl.innerHTML = body;
+    footerEl.innerHTML = footer;
+    modal.querySelectorAll('[data-modal-close]').forEach(button => button.addEventListener('click', closeAdminModal));
+    modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeAdminModal() {
+    const modal = document.getElementById('adminModal');
+    if (!modal) return;
+    modal.classList.remove('active');
+    modal.setAttribute('aria-hidden', 'true');
+}
+
+function parseCsvList(value) {
+    return String(value || '')
+        .split(',')
+        .map(item => item.trim())
+        .filter(Boolean);
+}
+
+function getFormValues(form) {
+    return Object.fromEntries(new FormData(form).entries());
+}
+
+function boolFromFormValue(value) {
+    return value === 'true' || value === true;
+}
+
+function downloadCsv(filename, rows) {
+    if (!rows.length) {
+        alert('No rows to export.');
+        return;
+    }
+
+    const headers = Object.keys(rows[0]);
+    const csv = [
+        headers.join(','),
+        ...rows.map(row => headers.map(header => {
+            const value = Array.isArray(row[header]) ? row[header].join('; ') : row[header];
+            return `"${String(value ?? '').replace(/"/g, '""')}"`;
+        }).join(','))
+    ].join('\n');
+
+    const blob = new Blob([ csv ], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${filename}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+}
+
+function exportTableCsv(type, rows) {
+    if (type === 'interpreters') {
+        downloadCsv('interpreters', rows.map(interp => ({
+            name: interp.name,
+            email: interp.email,
+            tenant: interp.tenant_id || 'malka',
+            serviceModes: interp.service_modes || [],
+            languages: interp.languages || [],
+            status: interp.connected ? (interp.currentStatus || 'online') : 'offline',
+            callsToday: interp.calls_today || 0,
+            minutesThisWeek: interp.minutes_week || 0,
+            lastActive: formatLastActive(interp)
+        })));
+        return;
+    }
+
+    downloadCsv('clients', rows.map(client => ({
+        name: client.name,
+        email: client.email,
+        organization: client.organization || 'Personal',
+        tenant: client.tenant_id || 'malka',
+        serviceModes: client.service_modes || [],
+        status: client.connected ? 'online' : 'offline',
+        totalCalls: client.total_calls || 0,
+        lastCall: client.last_call || 'Never',
+        registered: client.created_at || ''
+    })));
+}
+
 async function login(username, password) {
     const response = await fetch(`${AUTH_API_BASE}/login`, {
         method: 'POST',
@@ -348,6 +462,7 @@ async function login(username, password) {
     localStorage.setItem('vrs_admin_name', data.user.name);
     localStorage.setItem('vrs_admin_email', data.user.email);
     localStorage.setItem('vrs_admin_role', data.user.role);
+    localStorage.setItem('vrs_admin_tenant', data.user.tenantId || defaultTenantId());
     currentAdminRole = data.user.role;
 
     return data;
@@ -361,6 +476,7 @@ function logout() {
     localStorage.removeItem('vrs_admin_name');
     localStorage.removeItem('vrs_admin_email');
     localStorage.removeItem('vrs_admin_role');
+    localStorage.removeItem('vrs_admin_tenant');
 
     if (ws) {
         ws.close();
@@ -394,7 +510,7 @@ function updateCurrentUserDisplay() {
     }
 
     if (accountsTab) {
-        accountsTab.style.display = role === 'superadmin' ? 'inline-flex' : 'none';
+        accountsTab.style.display = 'inline-flex';
     }
 
     if (tenantsTab) {
@@ -402,7 +518,7 @@ function updateCurrentUserDisplay() {
     }
 
     if (addAccountBtn) {
-        addAccountBtn.style.display = role === 'superadmin' ? 'inline-flex' : 'none';
+        addAccountBtn.style.display = 'inline-flex';
     }
 }
 
@@ -472,11 +588,12 @@ function handleWebSocketMessage(data) {
             }
             break;
         case 'queue_update':
+        case 'queue_status':
             if (window.location.hash.includes('queue')) {
-                scheduleRefresh('queue', loadLiveQueue, 150);
+                scheduleRefresh('queue', loadLiveQueue, 75);
             }
             renderQueuePreview(data.data);
-            scheduleRefresh('dashboard', loadDashboardStats, 150);
+            scheduleRefresh('dashboard', loadDashboardStats, 75);
             scheduleRefresh('monitoring', loadMonitoringSummary, 250);
             break;
         case 'queue_request_added':
@@ -485,8 +602,8 @@ function handleWebSocketMessage(data) {
         case 'queue_match_complete':
         case 'queue_paused':
         case 'queue_resumed':
-            scheduleRefresh('dashboard', loadDashboardStats, 150);
-            scheduleRefresh('queue', loadLiveQueue, 200);
+            scheduleRefresh('dashboard', loadDashboardStats, 75);
+            scheduleRefresh('queue', loadLiveQueue, 100);
             scheduleRefresh('monitoring', loadMonitoringSummary, 250);
             break;
         case 'ops_audit':
@@ -821,7 +938,8 @@ async function renderQueuePreview(queueData = null) {
             container.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-state-icon">✅</div>
-                    <p>No one in queue right now!</p>
+                    <p>No waiting client requests right now.</p>
+                    <p class="help-text">Interpreters who join queue appear under Available Interpreters; this section is only clients waiting for a match.</p>
                 </div>
             `;
             return;
@@ -1003,52 +1121,81 @@ function formatLastActive(interp) {
 }
 
 async function filterInterpreters() {
-    const statusFilter = document.getElementById('interpreterStatusFilter')?.value;
-    const searchTerm = document.getElementById('interpreterSearch')?.value.toLowerCase();
-
-    let filtered = [...allInterpreters];
-
-    if (statusFilter && statusFilter !== 'all') {
-        filtered = filtered.filter(interp => {
-            if (statusFilter === 'online') return interp.connected && interp.currentStatus === 'online';
-            if (statusFilter === 'busy') return interp.connected && interp.currentStatus === 'busy';
-            if (statusFilter === 'offline') return !interp.connected || interp.currentStatus === 'offline';
-            return true;
-        });
-    }
-
-    if (searchTerm) {
-        filtered = filtered.filter(interp =>
-            interp.name.toLowerCase().includes(searchTerm) ||
-            interp.email.toLowerCase().includes(searchTerm)
-        );
-    }
-
-    renderInterpretersTable(filtered);
+    renderInterpretersTable(getVisibleInterpreters());
 }
 
 function showAddInterpreterModal() {
-    if (currentAdminRole !== 'superadmin') {
-        alert('Only the superadmin account can create interpreter accounts.');
-        return;
-    }
+    const tenantId = defaultTenantId();
+    const serviceModes = defaultServiceModesForTenant(tenantId);
 
-    const name = prompt('Interpreter Name:');
-    if (!name) return;
+    openAdminModal({
+        title: 'Add Interpreter',
+        subtitle: 'Creates both the login account and interpreter roster profile for this tenant.',
+        body: `
+            <form id="interpreterCreateForm" class="form-grid">
+                <div class="form-field">
+                    <label>Name</label>
+                    <input name="name" required autocomplete="name">
+                </div>
+                <div class="form-field">
+                    <label>Primary email</label>
+                    <input name="email" type="email" autocomplete="email">
+                </div>
+                <div class="form-field">
+                    <label>Username</label>
+                    <input name="username" placeholder="optional if email is supplied">
+                </div>
+                <div class="form-field">
+                    <label>Temporary password</label>
+                    <input name="password" value="interpreter123!" required>
+                </div>
+                <div class="form-field">
+                    <label>Tenant</label>
+                    <select name="tenantId" ${currentAdminRole === 'superadmin' ? '' : 'disabled'}>
+                        <option value="malka" ${tenantId === 'malka' ? 'selected' : ''}>Malka</option>
+                        <option value="maple" ${tenantId === 'maple' ? 'selected' : ''}>Maple</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>Languages</label>
+                    <input name="languages" value="ASL, English">
+                </div>
+                <div class="form-field full">
+                    <label>Queues</label>
+                    <div style="display:flex; gap:16px;">${serviceCheckboxes('serviceModes', serviceModes)}</div>
+                </div>
+            </form>
+        `,
+        footer: `
+            <button class="btn btn-secondary" type="button" data-modal-close>Cancel</button>
+            <button class="btn btn-primary" type="submit" form="interpreterCreateForm">Create Interpreter</button>
+        `
+    });
 
-    const email = prompt('Email (optional):', '');
-    const username = prompt('Username (optional if email is supplied):', email ? email.split('@')[0] : '');
-    if (!email && !username) return;
-
-    const languages = prompt('Languages (comma-separated, e.g., ASL, BSL):', 'ASL');
-    const tenantId = prompt('Tenant ID:', defaultTenantId());
-    const modes = prompt('Service modes (comma-separated: vri, vrs):', defaultServiceModesForTenant(tenantId).join(','));
-
-    createInterpreter(name, email, languages.split(',').map(l => l.trim()), username, parseServiceModes(modes, defaultServiceModesForTenant(tenantId)), tenantId);
+    document.getElementById('interpreterCreateForm')?.addEventListener('submit', event => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const values = getFormValues(form);
+        const modes = selectedCheckboxValues(form, 'serviceModes');
+        const selectedTenant = currentAdminRole === 'superadmin' ? values.tenantId : tenantId;
+        if (!values.email && !values.username) {
+            alert('Provide either an email or a username.');
+            return;
+        }
+        createInterpreter(
+            values.name,
+            values.email,
+            parseCsvList(values.languages),
+            values.username,
+            modes.length ? modes : defaultServiceModesForTenant(selectedTenant),
+            selectedTenant,
+            values.password
+        );
+    }, { once: true });
 }
 
 function defaultTenantId() {
-    return location.hostname.includes('maplecomm.ca') ? 'maple' : 'malka';
+    return localStorage.getItem('vrs_admin_tenant') || (location.hostname.includes('maplecomm.ca') ? 'maple' : 'malka');
 }
 
 function defaultServiceModesForTenant(tenantId = defaultTenantId()) {
@@ -1080,7 +1227,38 @@ function buildQueryString(filters) {
     return query ? `?${query}` : '';
 }
 
-async function createInterpreter(name, email, languages, username, serviceModes = defaultServiceModesForTenant(), tenantId = defaultTenantId()) {
+function getVisibleInterpreters() {
+    const statusFilter = document.getElementById('interpreterStatusFilter')?.value;
+    const searchTerm = document.getElementById('interpreterSearch')?.value.toLowerCase();
+
+    return allInterpreters
+        .filter(interp => {
+            if (!statusFilter || statusFilter === 'all') return true;
+            if (statusFilter === 'online') return interp.connected && interp.currentStatus === 'online';
+            if (statusFilter === 'busy') return interp.connected && interp.currentStatus === 'busy';
+            if (statusFilter === 'offline') return !interp.connected || interp.currentStatus === 'offline';
+            return true;
+        })
+        .filter(interp => !searchTerm
+            || String(interp.name || '').toLowerCase().includes(searchTerm)
+            || String(interp.email || '').toLowerCase().includes(searchTerm));
+}
+
+function serviceCheckboxes(name, selected = []) {
+    const selectedModes = Array.isArray(selected) ? selected : parseServiceModes(selected);
+    const modes = new Set(selectedModes);
+
+    return `
+        <label><input type="checkbox" name="${name}" value="vrs" ${modes.has('vrs') ? 'checked' : ''}> VRS</label>
+        <label><input type="checkbox" name="${name}" value="vri" ${modes.has('vri') ? 'checked' : ''}> VRI</label>
+    `;
+}
+
+function selectedCheckboxValues(form, name) {
+    return Array.from(form.querySelectorAll(`input[name="${name}"]:checked`)).map(input => input.value);
+}
+
+async function createInterpreter(name, email, languages, username, serviceModes = defaultServiceModesForTenant(), tenantId = defaultTenantId(), password = 'interpreter123!') {
     try {
         await opsApiCall('/admin/accounts', {
             method: 'POST',
@@ -1088,7 +1266,7 @@ async function createInterpreter(name, email, languages, username, serviceModes 
                 email,
                 languages,
                 name,
-                password: 'interpreter123!',
+                password,
                 role: 'interpreter',
                 serviceModes,
                 tenantId,
@@ -1098,10 +1276,11 @@ async function createInterpreter(name, email, languages, username, serviceModes 
 
         await apiCall('/admin/interpreters', {
             method: 'POST',
-            body: JSON.stringify({ name, email, languages, password: 'interpreter123!', serviceModes, tenantId })
+            body: JSON.stringify({ name, email, languages, password, serviceModes, tenantId })
         });
 
-        alert(`Interpreter created successfully.\n${username ? `username: ${username}\n` : ''}${email ? `email: ${email}\n` : ''}password: interpreter123!`);
+        closeAdminModal();
+        alert(`Interpreter created successfully.\n${username ? `username: ${username}\n` : ''}${email ? `email: ${email}\n` : ''}password: ${password}`);
         loadInterpreters();
         loadAccounts();
         loadMonitoringSummary();
@@ -1114,21 +1293,139 @@ async function editInterpreter(id) {
     const interp = allInterpreters.find(item => String(item.id) === String(id));
     if (!interp) return;
 
-    const modes = prompt('Service modes (comma-separated: vri, vrs):', formatServiceModes(interp.service_modes).toLowerCase());
-    if (!modes) return;
-    const tenantId = prompt('Tenant ID:', interp.tenant_id || (location.hostname.includes('maplecomm.ca') ? 'maple' : 'malka'));
-    if (!tenantId) return;
-
-    try {
-        await apiCall(`/admin/interpreters/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify({ serviceModes: parseServiceModes(modes), tenantId })
-        });
-        await loadInterpreters();
-        alert('Interpreter permissions updated.');
-    } catch (error) {
-        alert(`Failed to update interpreter: ${error.message}`);
+    if (!allAccounts.length) {
+        await loadAccounts();
     }
+
+    const account = allAccounts.find(item => {
+        if (!interp.email || !item.email) return false;
+        return String(item.email).toLowerCase() === String(interp.email).toLowerCase()
+            && item.role === 'interpreter';
+    });
+    const tenantId = interp.tenant_id || defaultTenantId();
+
+    openAdminModal({
+        title: interp.name || 'Interpreter Profile',
+        subtitle: `${interp.email || 'No email'} · ${tenantId} · ${formatServiceModes(interp.service_modes)}`,
+        body: `
+            <form id="interpreterEditForm" class="form-grid">
+                <div class="form-field">
+                    <label>Name</label>
+                    <input name="name" value="${escapeHtml(interp.name)}" required>
+                </div>
+                <div class="form-field">
+                    <label>Primary email</label>
+                    <input name="email" type="email" value="${escapeHtml(interp.email || '')}">
+                </div>
+                <div class="form-field">
+                    <label>Company email</label>
+                    <input name="companyEmail" value="${escapeHtml(account?.email || interp.email || '')}" disabled>
+                    <div class="help-text">Account email is managed from the login account.</div>
+                </div>
+                <div class="form-field">
+                    <label>Other email</label>
+                    <input name="otherEmail" placeholder="optional" disabled>
+                    <div class="help-text">CRM contact fields are visible now; persistence is next.</div>
+                </div>
+                <div class="form-field">
+                    <label>Tenant</label>
+                    <select name="tenantId" ${currentAdminRole === 'superadmin' ? '' : 'disabled'}>
+                        <option value="malka" ${tenantId === 'malka' ? 'selected' : ''}>Malka</option>
+                        <option value="maple" ${tenantId === 'maple' ? 'selected' : ''}>Maple</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>Status</label>
+                    <select name="active">
+                        <option value="true" ${interp.active === false ? '' : 'selected'}>Active</option>
+                        <option value="false" ${interp.active === false ? 'selected' : ''}>Disabled</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>Languages</label>
+                    <input name="languages" value="${escapeHtml(Array.isArray(interp.languages) ? interp.languages.join(', ') : interp.languages || 'ASL')}">
+                </div>
+                <div class="form-field">
+                    <label>Reset password</label>
+                    <input name="password" placeholder="leave blank to keep current password">
+                </div>
+                <div class="form-field full">
+                    <label>Queues</label>
+                    <div style="display:flex; gap:16px;">${serviceCheckboxes('serviceModes', interp.service_modes || defaultServiceModesForTenant(tenantId))}</div>
+                </div>
+                <div class="form-field full">
+                    <label>Manager comments</label>
+                    <textarea name="managerComments" placeholder="Operational notes, QA comments, onboarding items" disabled></textarea>
+                    <div class="help-text">Notes need a dedicated audit-backed table before they should persist.</div>
+                </div>
+            </form>
+            <div class="profile-panels">
+                <div class="profile-panel">
+                    <h3>Schedule</h3>
+                    <p>Today: not connected to scheduling yet.<br>Last active: ${escapeHtml(formatLastActive(interp))}</p>
+                </div>
+                <div class="profile-panel">
+                    <h3>Billing</h3>
+                    <p>${Number(interp.minutes_week || 0)} minutes this week.<br>${Number(interp.calls_today || 0)} calls today.</p>
+                </div>
+                <div class="profile-panel">
+                    <h3>Payment Info</h3>
+                    <p>Payment profile will live here once payout/invoice workflow is wired.</p>
+                </div>
+            </div>
+        `,
+        footer: `
+            <button class="btn btn-secondary" type="button" data-modal-close>Cancel</button>
+            <button class="btn btn-primary" type="submit" form="interpreterEditForm">Save Profile</button>
+        `
+    });
+
+    document.getElementById('interpreterEditForm')?.addEventListener('submit', async event => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const values = getFormValues(form);
+        const selectedTenant = currentAdminRole === 'superadmin' ? values.tenantId : tenantId;
+        const serviceModes = selectedCheckboxValues(form, 'serviceModes');
+
+        try {
+            await apiCall(`/admin/interpreters/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    active: boolFromFormValue(values.active),
+                    email: values.email,
+                    languages: parseCsvList(values.languages),
+                    name: values.name,
+                    password: values.password || undefined,
+                    serviceModes: serviceModes.length ? serviceModes : defaultServiceModesForTenant(selectedTenant),
+                    tenantId: selectedTenant
+                })
+            });
+
+            if (account) {
+                const accountBody = {
+                    active: boolFromFormValue(values.active),
+                    languages: parseCsvList(values.languages),
+                    password: values.password || undefined,
+                    serviceModes: serviceModes.length ? serviceModes : defaultServiceModesForTenant(selectedTenant)
+                };
+                if (currentAdminRole === 'superadmin') {
+                    accountBody.tenantId = selectedTenant;
+                }
+
+                await opsApiCall(`/admin/accounts/${account.id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(accountBody)
+                });
+            }
+
+            closeAdminModal();
+            await loadInterpreters();
+            await loadAccounts();
+            alert('Interpreter profile updated.');
+        } catch (error) {
+            alert(`Failed to update interpreter: ${error.message}`);
+        }
+    }, { once: true });
 }
 
 // ============================================
@@ -1276,16 +1573,14 @@ async function editCaptioner(captionerId) {
 let allAccounts = [];
 
 async function loadAccounts() {
-    if (currentAdminRole !== 'superadmin') {
-        renderAccountsTable([]);
-        return;
-    }
-
     try {
+        const tenantFilter = currentAdminRole === 'superadmin'
+            ? getSelectValue('accountTenantFilter')
+            : defaultTenantId();
         allAccounts = await opsApiCall(`/admin/accounts${buildQueryString({
             role: getSelectValue('accountRoleFilter'),
             serviceMode: getSelectValue('accountServiceFilter'),
-            tenantId: getSelectValue('accountTenantFilter')
+            tenantId: tenantFilter
         })}`);
         renderAccountsTable(allAccounts);
     } catch (error) {
@@ -1303,7 +1598,7 @@ function renderAccountsTable(accounts) {
         tbody.innerHTML = `
             <tr>
                 <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 24px;">
-                    ${currentAdminRole === 'superadmin' ? 'No managed accounts found yet' : 'Superadmin access required'}
+                    No managed accounts found yet
                 </td>
             </tr>
         `;
@@ -1334,13 +1629,13 @@ function renderAccountsTable(accounts) {
 }
 
 function showAddAccountModal() {
-    if (currentAdminRole !== 'superadmin') {
-        alert('Only the superadmin account can create new accounts.');
-        return;
-    }
-
     const role = prompt('Account role (superadmin, admin, interpreter, captioner):', 'interpreter');
     if (!role) {
+        return;
+    }
+    const normalizedRole = role.trim().toLowerCase();
+    if (currentAdminRole !== 'superadmin' && normalizedRole === 'superadmin') {
+        alert('Tenant admins cannot create superadmin accounts.');
         return;
     }
 
@@ -1353,17 +1648,19 @@ function showAddAccountModal() {
     const email = prompt('Email (optional):', '');
     const password = prompt(
         'Temporary password:',
-        role === 'interpreter' ? 'interpreter123!' : role === 'captioner' ? 'captioner123!' : 'admin123!'
+        normalizedRole === 'interpreter' ? 'interpreter123!' : normalizedRole === 'captioner' ? 'captioner123!' : 'admin123!'
     );
 
     if (!password) {
         return;
     }
 
-    const languages = role === 'interpreter' || role === 'captioner'
+    const languages = normalizedRole === 'interpreter' || normalizedRole === 'captioner'
         ? prompt('Languages (comma-separated):', 'ASL, English')
         : '';
-    const tenantId = prompt('Tenant ID:', defaultTenantId());
+    const tenantId = currentAdminRole === 'superadmin'
+        ? prompt('Tenant ID:', defaultTenantId())
+        : defaultTenantId();
     if (!tenantId) return;
     const serviceModes = prompt('Service modes (comma-separated: vri, vrs):', defaultServiceModesForTenant(tenantId).join(','));
     if (!serviceModes) return;
@@ -1375,7 +1672,7 @@ function showAddAccountModal() {
         password,
         serviceModes: parseServiceModes(serviceModes, defaultServiceModesForTenant(tenantId)),
         tenantId,
-        role: role.trim().toLowerCase(),
+        role: normalizedRole,
         username
     });
 }
@@ -1408,7 +1705,9 @@ async function editAccountPermissions(id) {
     const account = allAccounts.find(item => String(item.id) === String(id));
     if (!account) return;
 
-    const tenantId = prompt('Tenant ID:', account.tenantId || defaultTenantId());
+    const tenantId = currentAdminRole === 'superadmin'
+        ? prompt('Tenant ID:', account.tenantId || defaultTenantId())
+        : (account.tenantId || defaultTenantId());
     if (!tenantId) return;
     const modes = prompt('Service modes (comma-separated: vri, vrs):', formatServiceModes(account.serviceModes).toLowerCase());
     if (!modes) return;
@@ -1416,18 +1715,25 @@ async function editAccountPermissions(id) {
     if (languages === null) return;
     const permissions = prompt('Permissions (comma-separated):', Array.isArray(account.permissions) ? account.permissions.join(', ') : '');
     if (permissions === null) return;
+    const password = prompt('Reset password (leave blank to keep current password):', '');
+    if (password === null) return;
     const active = confirm('Should this account remain active?');
 
     try {
+        const body = {
+            active,
+            languages: languages.split(',').map(item => item.trim()).filter(Boolean),
+            password: password || undefined,
+            permissions: permissions.split(',').map(item => item.trim()).filter(Boolean),
+            serviceModes: parseServiceModes(modes)
+        };
+        if (currentAdminRole === 'superadmin') {
+            body.tenantId = tenantId;
+        }
+
         await opsApiCall(`/admin/accounts/${id}`, {
             method: 'PUT',
-            body: JSON.stringify({
-                active,
-                languages: languages.split(',').map(item => item.trim()).filter(Boolean),
-                permissions: permissions.split(',').map(item => item.trim()).filter(Boolean),
-                serviceModes: parseServiceModes(modes),
-                tenantId
-            })
+            body: JSON.stringify(body)
         });
 
         await loadAccounts();
@@ -1454,19 +1760,21 @@ async function loadClients() {
 }
 
 function filterClients() {
+    renderClientsTable(getVisibleClients());
+}
+
+function getVisibleClients() {
     const tenant = getSelectValue('clientTenantFilter');
     const service = getSelectValue('clientServiceFilter');
     const search = String(document.getElementById('clientSearch')?.value || '').toLowerCase();
 
-    const filtered = allClients
+    return allClients
         .filter(client => !tenant || client.tenant_id === tenant)
         .filter(client => !service || (client.service_modes || []).includes(service))
         .filter(client => !search
             || String(client.name || '').toLowerCase().includes(search)
             || String(client.email || '').toLowerCase().includes(search)
             || String(client.organization || '').toLowerCase().includes(search));
-
-    renderClientsTable(filtered);
 }
 
 function renderClientsTable(clients) {
@@ -1508,19 +1816,18 @@ function renderClientsTable(clients) {
 }
 
 function showAddClientModal() {
-    if (currentAdminRole !== 'superadmin') {
-        alert('Only the superadmin account can create client accounts.');
-        return;
-    }
-
     const name = prompt('Client name:');
     if (!name) return;
     const email = prompt('Email:', '');
-    const tenantId = prompt('Tenant ID:', defaultTenantId());
+    const password = prompt('Temporary password:', 'client123!');
+    if (!password) return;
+    const tenantId = currentAdminRole === 'superadmin'
+        ? prompt('Tenant ID:', defaultTenantId())
+        : defaultTenantId();
     const organization = prompt('Organization:', tenantId === 'maple' ? 'Maple Corporate Pilot' : 'Personal');
     const modes = prompt('Service modes (comma-separated: vri, vrs):', defaultServiceModesForTenant(tenantId).join(','));
 
-    createClient({ name, email, organization, serviceModes: parseServiceModes(modes, defaultServiceModesForTenant(tenantId)), tenantId });
+    createClient({ name, email, organization, password, serviceModes: parseServiceModes(modes, defaultServiceModesForTenant(tenantId)), tenantId });
 }
 
 async function createClient(payload) {
@@ -1595,7 +1902,8 @@ function renderLiveQueue(queue) {
         container.innerHTML = `
             <div class="empty-state">
                 <div class="empty-state-icon">✅</div>
-                <p>No one in queue right now!</p>
+                <p>No waiting client requests right now.</p>
+                <p class="help-text">Available interpreters are listed separately on the dashboard and Interpreters tab.</p>
             </div>
         `;
         return;

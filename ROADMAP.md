@@ -1,6 +1,6 @@
 # Malka VRS - Product & Engineering Roadmap
 
-> **Last updated**: April 29, 2026
+> **Last updated**: April 30, 2026
 > **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. Malka VRS backend/WebSocket smoke now covers in-room-style interpreter request, admin live queue visibility, interpreter match, call end, and CDR creation. The main open risks are remaining real-browser in-room/admin UI verification, TURN/coturn fallback, Redis/state externalization, regulatory/compliance work, billing/payment implementation, and mobile parity.
 
 ---
@@ -229,6 +229,18 @@
 ---
 
 ## Immediate Open Work
+
+### Admin Portal Refinement
+- [ ] Real-browser verify top-level admin dashboard navigation after replacing static buttons with hash-routing handlers
+- [ ] Expand interpreter admin profile into a full CRM-style record: password reset, company/alternate email, schedule, billing, payment info, manager comments, language permissions, and VRI/VRS queues
+- [ ] Add corporate client account creation/editing from tenant admin and superadmin contexts
+- [ ] Make interpreter/client CSV exports available from roster tables
+- [ ] Clarify admin dashboard labels: Available Interpreters are staff ready for matching; Waiting Client Requests are clients currently waiting in queue
+- [ ] Tighten admin live refresh for interpreter availability and queue-state changes so manual refresh is not normally needed
+
+### Calls, Rooms & Queue Follow-Up
+- [ ] Linked hangup for interpreted calls: if the client or interpreter ends an interpreted VRI/VRS session, the other party exits too
+- [ ] Preserve independent hangup behavior for non-interpreted rooms: P2P instant rooms and deaf-to-deaf/direct calls should not force-close all participants
 
 ### Maple VRI Pilot Readiness & White-Label Hardening (cont.)
 - [ ] Add optional SMS/email send to VRI session invites after Resend/Twilio policy is finalized

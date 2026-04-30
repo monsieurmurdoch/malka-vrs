@@ -194,6 +194,7 @@ const updateAccountSchema = z.object({
     active: z.boolean().optional(),
     languages: z.array(z.string().max(20)).min(1).optional(),
     organization: z.string().max(120).optional(),
+    password: z.string().min(8).max(128).optional(),
     permissions: z.array(z.string().max(80)).optional(),
     serviceModes: z.array(z.enum(['vrs', 'vri'])).min(1).optional(),
     tenantId: z.string().max(80).optional()
@@ -2094,6 +2095,7 @@ app.put('/api/admin/accounts/:id', authenticateToken, requireRole('admin', 'supe
         active: req.body.active ?? existing.active,
         languages: req.body.languages || existing.languages,
         organization: req.body.organization ?? existing.organization,
+        passwordHash: req.body.password ? await bcrypt.hash(req.body.password, 10) : existing.passwordHash,
         permissions: req.body.permissions || existing.permissions,
         serviceModes: req.body.serviceModes || existing.serviceModes,
         tenantId: actor.role === 'superadmin'
@@ -2109,6 +2111,7 @@ app.put('/api/admin/accounts/:id', authenticateToken, requireRole('admin', 'supe
         actorRole: actor.role,
         active: updated.active !== false,
         permissions: updated.permissions || [],
+        passwordChanged: Boolean(req.body.password),
         serviceModes: updated.serviceModes || [ 'vrs' ],
         tenantId: updated.tenantId || 'malka',
         updatedRole: updated.role

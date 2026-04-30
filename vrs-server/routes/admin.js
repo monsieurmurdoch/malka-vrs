@@ -113,6 +113,7 @@ const updateInterpreterSchema = z.object({
     name: nameSchema.optional(),
     email: emailSchema.optional(),
     languages: languagesArraySchema,
+    password: passwordSchema.optional(),
     serviceModes: serviceModesArraySchema,
     tenantId: z.string().min(1).max(60).optional(),
     active: z.boolean().optional()
@@ -122,6 +123,7 @@ const createClientSchema = z.object({
     name: nameSchema,
     email: emailSchema.optional(),
     organization: z.string().min(1).max(200).optional(),
+    password: passwordSchema.optional(),
     serviceModes: serviceModesArraySchema,
     tenantId: z.string().min(1).max(60).optional()
 });
@@ -130,6 +132,7 @@ const updateClientSchema = z.object({
     name: nameSchema.optional(),
     email: emailSchema.optional(),
     organization: z.string().min(1).max(200).optional(),
+    password: passwordSchema.optional(),
     serviceModes: serviceModesArraySchema,
     tenantId: z.string().min(1).max(60).optional()
 });
@@ -244,13 +247,13 @@ router.post('/interpreters', validate(createInterpreterSchema), authenticateAdmi
 
 router.put('/interpreters/:id', validate(updateInterpreterSchema), authenticateAdmin, async (req, res) => {
     const { id } = req.params;
-    const { name, email, languages, active, serviceModes, tenantId } = req.body;
+    const { name, email, languages, active, password, serviceModes, tenantId } = req.body;
 
     try {
-        await db.updateInterpreter(id, { name, email, languages, active, serviceModes, tenantId });
+        await db.updateInterpreter(id, { name, email, languages, active, password, serviceModes, tenantId });
 
         activityLogger.log('interpreter_updated', {
-            adminId: req.admin.id, interpreterId: id, updates: { name, email, languages, active, serviceModes, tenantId }
+            adminId: req.admin.id, interpreterId: id, updates: { name, email, languages, active, passwordChanged: Boolean(password), serviceModes, tenantId }
         });
 
         res.json({ success: true });
@@ -370,10 +373,10 @@ router.get('/clients', authenticateAdmin, async (req, res) => {
 });
 
 router.post('/clients', validate(createClientSchema), authenticateAdmin, async (req, res) => {
-    const { name, email, organization, serviceModes, tenantId } = req.body;
+    const { name, email, organization, password, serviceModes, tenantId } = req.body;
 
     try {
-        const client = await db.createClient({ name, email, organization, serviceModes, tenantId });
+        const client = await db.createClient({ name, email, organization, password, serviceModes, tenantId });
 
         activityLogger.log('client_created', {
             adminId: req.admin.id, clientId: client.id, name, email, organization, serviceModes, tenantId
@@ -388,13 +391,13 @@ router.post('/clients', validate(createClientSchema), authenticateAdmin, async (
 
 router.put('/clients/:id', validate(updateClientSchema), authenticateAdmin, async (req, res) => {
     const { id } = req.params;
-    const { name, email, organization, serviceModes, tenantId } = req.body;
+    const { name, email, organization, password, serviceModes, tenantId } = req.body;
 
     try {
-        await db.updateClient(id, { name, email, organization, serviceModes, tenantId });
+        await db.updateClient(id, { name, email, organization, password, serviceModes, tenantId });
 
         activityLogger.log('client_updated', {
-            adminId: req.admin.id, clientId: id, updates: { name, email, organization, serviceModes, tenantId }
+            adminId: req.admin.id, clientId: id, updates: { name, email, organization, passwordChanged: Boolean(password), serviceModes, tenantId }
         });
 
         res.json({ success: true });
