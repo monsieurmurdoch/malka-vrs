@@ -458,7 +458,7 @@
 
 **Target**: mobile parity by **May 31, 2026**, with an internal/TestFlight/Play pilot sooner if the core call flow is stable. The web app is the source of truth until mobile parity is explicitly checked off.
 
-**Current mobile state**: native iOS and Android project shells exist, plus a TWA path, and the mobile parity branch now has first-pass React Native screens for login, VRS home, VRI console, contacts, call history, voicemail, interpreter home/settings/earnings, tenant config, native storage helpers, deep-link scaffolding, QA docs, and CI typecheck wiring. Client/interpreter email/password auth now calls the real production endpoints, native cold-start routing hydrates AsyncStorage before choosing a route, the queue client uses tenant domains instead of localhost on native, VRI self-view uses a native camera preview, and contacts/detail now call the contacts API with local cache fallback. Remaining scaffold gaps include call history/voicemail/usage mock data, secure Keychain/Keystore storage, push/background calling, and physical device media/call smoke.
+**Current mobile state**: native iOS and Android project shells exist, plus a TWA path, and the mobile parity branch now has first-pass React Native screens for login, VRS home, VRI console, contacts, call history, voicemail, interpreter home/settings/earnings, tenant config, native storage helpers, deep-link scaffolding, QA docs, and CI typecheck wiring. Client/interpreter email/password auth now calls the real production endpoints, native cold-start routing hydrates AsyncStorage before choosing a route, the queue client uses tenant domains instead of localhost on native, VRI self-view uses a native camera preview, and contacts/detail/call-history/VRI-usage/voicemail inbox now call production APIs with local cache fallback. Remaining release gaps include secure Keychain/Keystore storage, phone/SMS auth, push/background calling, embedded voicemail audio playback, billing invoice depth, and physical device media/call smoke.
 
 **Policy**: every web feature merged after April 29, 2026 must update this mobile section with one of: implemented on mobile, intentionally web-only, mobile follow-up ticket, or blocked by native platform capability.
 
@@ -467,13 +467,23 @@
   - 2026-04-30: Decision recorded on mobile branch: React Native client-first release, with interpreter app deferred from first release candidate.
 - [x] Decide platform strategy for first release: native React Native, not TWA-first
   - 2026-04-30: Existing RN shells/shared Redux path selected for the first release; TWA remains a fallback or later packaging option.
+- [x] Mobile email/password auth uses production client/interpreter endpoints instead of demo tokens
+  - 2026-05-01: Mobile login calls `/api/auth/client/login` or `/api/auth/interpreter/login`, stores real JWT metadata, and routes by backend role/app type.
+- [x] Native launch routing waits for AsyncStorage hydration before choosing login vs app route
+- [x] Native API and queue clients resolve tenant domains instead of falling back to `localhost`
+- [x] VRI self-view uses native camera preview and stores permission/default metadata
+- [x] Contacts list/detail use production contacts APIs with local cache fallback
+- [x] Call history uses `/api/client/call-history` with local cache fallback
+- [x] VRI usage summary aggregates `/api/client/call-history` with local cache fallback
+- [x] Voicemail inbox uses production inbox/unread/seen/delete/playback URL APIs with local cache fallback
 - [ ] Confirm backend API contract parity for auth, profile, calls, queue, contacts, voicemail, tenant, and billing metadata
-  - 2026-05-01 review: API client scaffolding exists, but mobile login still creates a demo token locally, and contacts/call history/voicemail/usage still rely on mock or local storage data. Keep this open until production endpoints are actually called.
-  - 2026-05-01 update: Auth, tenant queue URL selection, native route hydration, and contacts/detail API calls are now wired. Keep open for call history, voicemail, usage/billing metadata, profile refresh, and physical-device contract smoke.
+  - 2026-05-01 update: Auth, tenant queue URL selection, native route hydration, contacts/detail, call history, VRI usage, and voicemail inbox API calls are now wired. Keep open for profile refresh, billing invoice metadata depth, reset/JWT refresh behavior, and physical-device contract smoke.
 - [ ] Run iOS simulator smoke for login, profile load, permissions, call join, and logout
   - 2026-04-30: Blocked locally by missing full Xcode simulator setup.
+  - 2026-05-01: Still blocked locally: `xcrun simctl` is unavailable and `xcodebuild` reports Command Line Tools instead of full Xcode.
 - [ ] Run Android emulator smoke for login, profile load, permissions, call join, and logout
   - 2026-04-30: Blocked locally by missing Android SDK/emulator setup.
+  - 2026-05-01: Still blocked locally: `adb` is not installed and Android Gradle cannot run because Java is missing.
 - [ ] Run one physical iPhone smoke: camera/mic permissions, speaker/Bluetooth, background/lock behavior, reconnect
 - [ ] Run one physical Android smoke: camera/mic permissions, speaker/Bluetooth, background/lock behavior, reconnect
 - [ ] Establish TestFlight release lane
@@ -494,7 +504,7 @@
 ### Current Parity Gap Summary
 - [ ] Authentication parity: email/password, role routing, JWT refresh/expiry behavior, tenant routing, password reset
   - 2026-05-01 review: Mobile login and reset-password screens exist, but login is demo/local only and writes `demo-jwt-*` instead of calling `/api/auth/...`; cold-start native session restore also needs async storage hydration before route selection.
-  - 2026-05-01 update: Mobile client/interpreter login now calls `/api/auth/client/login` or `/api/auth/interpreter/login`, stores real JWT metadata, caches tenant config, and waits for native storage hydration before launch routing. JWT refresh and real reset-password backend integration remain open.
+  - 2026-05-01 update: Mobile client/interpreter login now calls `/api/auth/client/login` or `/api/auth/interpreter/login`, stores real JWT metadata, caches tenant config, and waits for native storage hydration before launch routing. JWT refresh, phone/SMS auth, and real reset-password backend integration remain open.
 - [ ] Tenant parity: Maple/Malka branding, app icon/splash, tenant config, host/base URL, feature flags
   - 2026-04-30: Tenant config/app-type scaffolding added for `malka`, `malkavri`, and `maple`; still needs device verification for native icons/splash/base URL behavior.
   - 2026-05-01 update: Native API and queue clients now resolve tenant domains from whitelabel config, `TENANT`/`VRS_TENANT`/`EXPO_PUBLIC_TENANT`, or AsyncStorage fallback instead of localhost. Device verification for icons/splash and runtime tenant selection remains open.
@@ -509,10 +519,12 @@
   - 2026-05-01 update: Contacts list and detail now call `/api/contacts`, selected-contact navigation stores a contact snapshot, favorites/notes sync back to the API, and local cache remains as fallback. Import, block, merge/dedup, and full contact-history linkage remain open.
 - [ ] Call history parity: active calls, completed calls, CDR/usage metadata, missed calls, callback where applicable
   - 2026-05-01 review: Call history screen exists, but it still uses mock/local entries and currently breaks native typecheck due to a missing `mobileLog` import target.
-  - 2026-05-01 update: Native typecheck now passes; call history is still local/mock-backed and needs `/api/client/call-history` sync plus compliant callback flow.
+  - 2026-05-01 update: Native typecheck now passes and call history now syncs `/api/client/call-history` with local cache fallback. Missed-call semantics and compliant callback flow remain open.
 - [ ] Visual voicemail parity: authenticated launcher, unread badge, inbox, playback, recording/upload path, notifications
   - 2026-04-30: Voicemail inbox UI has unread badge/playback controls, but playback is still demonstration state and not wired to real media/API.
+  - 2026-05-01 update: Mobile voicemail now loads inbox/unread count, marks seen, deletes, and opens server playback URLs. Native embedded audio playback, recording/upload path, and push notifications remain open.
 - [ ] Billing parity: VRI usage summary, corporate invoice visibility, interpreter earnings/invoice/payout tab
+  - 2026-05-01 update: VRI usage summary now aggregates `/api/client/call-history` on mobile. Corporate invoice visibility and interpreter earnings/invoice/payout depth remain open.
 - [ ] Admin parity: tenant/service-mode filters, live queue, active calls, account moderation, audit feed
 - [ ] Offline/reconnect parity: WebSocket reconnect, active call rejoin, network loss states, background/foreground transitions
 - [ ] Accessibility parity: VoiceOver/TalkBack labels, Dynamic Type/text scaling, reduced motion, color contrast, keyboard/switch access where feasible
@@ -536,6 +548,7 @@
 - [ ] VRI console exposes billing/usage summary without exposing admin-only billing controls
 - [ ] VRS client supports phone-number profile, dial-via-interpreter, contacts, call history, missed calls
   - 2026-05-01 review: VRS home/dialpad/contacts/history screens exist, but contact/history data is mock/local and dial/callback currently starts generic rooms rather than the verified backend phone-number/interpreter-assisted flow.
+  - 2026-05-01 update: Contacts and call history now use API-backed data with local cache fallback. Phone-number login/profile depth, missed-call semantics, and verified dial-via-interpreter flow remain open.
 - [ ] Client can request interpreter, see pending status, cancel request, and auto-enter after match
   - 2026-04-30: Queue Redux/WebSocket path is shared with native, but real matched-room device smoke is still open.
 - [ ] Client can join active matched room with camera off/mic muted defaults
@@ -599,12 +612,12 @@
 
 ### Mobile May 2026 Delivery Plan
 - [ ] Week 1: audit existing mobile shells, pick release strategy, define MVP by app/role, document known gaps
-- [ ] Week 1: wire mobile auth/profile/session config to production/staging endpoints
+- [x] Week 1: wire mobile auth/session config to production/staging endpoints
 - [ ] Week 2: implement client VRI console parity and VRS client profile parity
 - [ ] Week 2: implement queue request/accept/join path on mobile
 - [ ] Week 3: implement interpreter availability/acceptance path and background notification decision
-- [ ] Week 3: implement contacts/call history essentials or explicitly defer with user-facing fallback
-- [ ] Week 4: implement voicemail/billing summary essentials or explicitly defer with user-facing fallback
+- [x] Week 3: implement contacts/call history essentials or explicitly defer with user-facing fallback
+- [x] Week 4: implement voicemail/billing summary essentials or explicitly defer with user-facing fallback
 - [ ] Week 4: run device QA matrix, fix blockers, prepare TestFlight/Play internal release
 - [ ] End of May: mobile release candidate with documented unsupported features and production rollback plan
 

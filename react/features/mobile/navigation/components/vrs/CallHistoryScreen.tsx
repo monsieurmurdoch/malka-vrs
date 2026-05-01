@@ -5,7 +5,7 @@
  * Backed by the /api/client/call-history endpoint.
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     FlatList,
     SafeAreaView,
@@ -17,6 +17,7 @@ import {
 import { useDispatch } from 'react-redux';
 
 import { appNavigate } from '../../../../app/actions';
+import { apiClient } from '../../../../shared/api-client';
 import { getPersistentJson, setPersistentItem } from '../../../../vrs-auth/storage';
 import { mobileLog } from '../../logging';
 
@@ -30,52 +31,31 @@ interface CallRecord {
     interpreterName?: string;
 }
 
-// Placeholder — will be replaced with API fetch
-const MOCK_HISTORY: CallRecord[] = [
-    {
-        id: '1',
-        contactName: 'Dr. Sarah Chen',
-        phoneNumber: '+12125551234',
-        direction: 'outgoing',
-        duration: 420,
-        timestamp: '2026-04-30T14:30:00Z',
-        interpreterName: 'Maria S.'
-    },
-    {
-        id: '2',
-        contactName: 'Mom',
-        phoneNumber: '+14155559876',
-        direction: 'outgoing',
-        duration: 1800,
-        timestamp: '2026-04-30T10:00:00Z',
-        interpreterName: 'James K.'
-    },
-    {
-        id: '3',
-        contactName: 'Unknown',
-        phoneNumber: '+12125559999',
-        direction: 'missed',
-        duration: 0,
-        timestamp: '2026-04-29T16:45:00Z'
-    },
-    {
-        id: '4',
-        contactName: 'Pizza Palace',
-        phoneNumber: '+12125557777',
-        direction: 'outgoing',
-        duration: 180,
-        timestamp: '2026-04-28T19:00:00Z',
-        interpreterName: 'Lisa T.'
-    },
-    {
-        id: '5',
-        contactName: 'Work — Front Desk',
-        phoneNumber: '+12125553000',
-        direction: 'incoming',
-        duration: 300,
-        timestamp: '2026-04-27T09:15:00Z',
-        interpreterName: 'Maria S.'
-    }
+interface CallHistoryResponse {
+    calls?: Array<Record<string, any>>;
+}
+
+function normalizeCallRecord(raw: Record<string, any>): CallRecord {
+    const durationMinutes = Number(raw.duration_minutes ?? raw.durationMinutes ?? 0);
+
+    return {
+        id: String(raw.id || raw.call_id || raw.room_name || Date.now()),
+        contactName: raw.callee_name || raw.client_name || raw.target_name || raw.room_name || 'Unknown',
+        phoneNumber: raw.callee_phone || raw.target_phone || raw.phoneNumber || '',
+        direction: raw.direction || 'outgoing',
+        duration: Number(raw.duration_seconds ?? raw.durationSeconds ?? durationMinutes * 60),
+        timestamp: raw.started_at || raw.timestamp || raw.created_at || new Date().toISOString(),
+        interpreterName: raw.interpreter_name || raw.interpreterName
+    };
+}
+
+type DirectionFilter = 'all' | 'missed' | 'outgoing' | 'incoming';
+
+const FILTER_TABS: { key: DirectionFilter; label: string }[] = [
+    { key: 'all', label: 'All' },
+    { key: 'missed', label: 'Missed' },
+    { key: 'outgoing', label: 'Outgoing' },
+    { key: 'incoming', label: 'Incoming' }
 ];
 
 const formatDuration = (secs: number) => {
@@ -105,7 +85,65 @@ const CallHistoryScreen = () => {
 
     // Read from local call history storage, fall back to mock data
     const localHistory = getPersistentJson<CallRecord[]>('vrs_call_history');
-    const [ calls ] = useState<CallRecord[]>(localHistory && localHistory.length > 0 ? localHistory : MOCK_HISTORY);
+    const [ calls, setCalls ] = useState<CallRecord[]>(localHistory && localHistory.length > 0 ? localHistory : []);
+    const [ directionFilter, setDirectionFilter ] = useState<DirectionFilter>('all');
+
+    useEffect(() => {
+        let mounted = true;
+
+        apiClient.get<CallHistoryResponse>('/api/client/call-history?limit=50&offset=0').then(response => {
+            if (!mounted) {
+                return;
+            }
+
+            if (response.error) {
+                mobileLog('warn', 'call_history_load_failed', { error: response.error });
+
+                return;
+            }
+
+            const nextCalls = (response.data?.calls || []).map(normalizeCallRecord);
+
+            setCalls(nextCalls);
+            setPersistentItem('vrs_call_history', JSON.stringify(nextCalls));
+        });
+
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
+    const filteredCalls = useMemo(() => {
+        if (directionFilter === 'all') {
+            return calls;
+        }
+
+        return calls.filter(c => c.direction === directionFilter);
+    }, [ calls, directionFilter ]);
+
+    const handleAddContact = useCallback((call: CallRecord) => {
+        const existing = getPersistentJson<{ id: string; name: string; phoneNumber?: string }[]>('vrs_contacts') || [];
+        const alreadyExists = existing.some(
+            c => c.phoneNumber === call.phoneNumber || c.name.toLowerCase() === call.contactName.toLowerCase()
+        );
+
+        if (alreadyExists) {
+            return;
+        }
+
+        const newContact = {
+            id: `contact-${Date.now()}`,
+            name: call.contactName,
+            phoneNumber: call.phoneNumber
+        };
+
+        setPersistentItem('vrs_contacts', JSON.stringify([ newContact, ...existing ]));
+
+        mobileLog('info', 'add_contact_from_history', {
+            callId: call.id,
+            contactName: call.contactName
+        });
+    }, []);
 
     const handleReDial = useCallback((call: CallRecord) => {
         const roomName = `vrs-${ Date.now() }`;
@@ -175,20 +213,51 @@ const CallHistoryScreen = () => {
                     ) }
                 </View>
             </View>
-            <TouchableOpacity
-                accessibilityLabel = { `Callback ${item.contactName}` }
-                onPress = { () => handleReDial(item) }
-                style = { styles.callbackButton }>
-                <Text style = { styles.callbackIcon }>{'\u{1F4DE}'}</Text>
-                <Text style = { styles.callbackLabel }>Callback</Text>
-            </TouchableOpacity>
+            <View style = { styles.actionsColumn }>
+                <TouchableOpacity
+                    accessibilityLabel = { `Callback ${item.contactName}` }
+                    onPress = { () => handleReDial(item) }
+                    style = { styles.callbackButton }>
+                    <Text style = { styles.callbackIcon }>{'\u{1F4DE}'}</Text>
+                    <Text style = { styles.callbackLabel }>Callback</Text>
+                </TouchableOpacity>
+                { item.phoneNumber && (
+                    <TouchableOpacity
+                        accessibilityLabel = { `Add ${item.contactName} to contacts` }
+                        onPress = { () => handleAddContact(item) }
+                        style = { styles.addContactButton }>
+                        <Text style = { styles.addContactIcon }>+</Text>
+                    </TouchableOpacity>
+                ) }
+            </View>
         </View>
-    ), [ handleReDial ]);
+    ), [ handleReDial, handleAddContact ]);
 
     return (
         <SafeAreaView style = { styles.container }>
+            {/* Filter Tabs */}
+            <View style = { styles.filterRow }>
+                { FILTER_TABS.map(tab => (
+                    <TouchableOpacity
+                        accessibilityLabel = { `Filter by ${tab.label}` }
+                        accessibilityRole = 'tab'
+                        key = { tab.key }
+                        onPress = { () => setDirectionFilter(tab.key) }
+                        style = { [
+                            styles.filterTab,
+                            directionFilter === tab.key && styles.filterTabActive
+                        ] }>
+                        <Text style = { [
+                            styles.filterTabText,
+                            directionFilter === tab.key && styles.filterTabTextActive
+                        ] }>
+                            { tab.label }
+                        </Text>
+                    </TouchableOpacity>
+                )) }
+            </View>
             <FlatList
-                data = { calls }
+                data = { filteredCalls }
                 keyExtractor = { item => item.id }
                 renderItem = { renderCall }
                 contentContainerStyle = { styles.listContent }
@@ -200,6 +269,24 @@ const CallHistoryScreen = () => {
 };
 
 const styles = StyleSheet.create({
+    actionsColumn: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        gap: 6
+    },
+    addContactButton: {
+        backgroundColor: '#1a1a2e',
+        borderRadius: 8,
+        height: 32,
+        justifyContent: 'center',
+        width: 32
+    },
+    addContactIcon: {
+        color: '#2979ff',
+        fontSize: 18,
+        fontWeight: '700',
+        textAlign: 'center'
+    },
     callInfo: {
         flex: 1,
         marginLeft: 10
@@ -236,14 +323,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingVertical: 14
     },
-    container: {
-        backgroundColor: '#0f0f23',
-        flex: 1
-    },
-    directionIcon: {
-        fontSize: 20,
-        fontWeight: '700'
-    },
     callbackButton: {
         alignItems: 'center',
         backgroundColor: '#2979ff',
@@ -260,11 +339,44 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         marginTop: 1
     },
+    container: {
+        backgroundColor: '#0f0f23',
+        flex: 1
+    },
+    directionIcon: {
+        fontSize: 20,
+        fontWeight: '700'
+    },
     empty: {
         color: '#666',
         fontSize: 14,
         padding: 40,
         textAlign: 'center'
+    },
+    filterRow: {
+        borderBottomColor: '#1a1a2e',
+        borderBottomWidth: 1,
+        flexDirection: 'row',
+        paddingHorizontal: 12,
+        paddingVertical: 8
+    },
+    filterTab: {
+        backgroundColor: '#1a1a2e',
+        borderRadius: 8,
+        marginRight: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 6
+    },
+    filterTabActive: {
+        backgroundColor: '#2979ff'
+    },
+    filterTabText: {
+        color: '#888',
+        fontSize: 12,
+        fontWeight: '500'
+    },
+    filterTabTextActive: {
+        color: '#fff'
     },
     listContent: {
         paddingBottom: 40

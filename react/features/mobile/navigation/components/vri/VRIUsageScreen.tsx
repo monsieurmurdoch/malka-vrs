@@ -5,7 +5,7 @@
  * Backed by /api/client/call-history aggregated data.
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     SafeAreaView,
     ScrollView,
@@ -15,7 +15,9 @@ import {
     View
 } from 'react-native';
 
-import { getPersistentJson } from '../../../../vrs-auth/storage';
+import { apiClient } from '../../../../shared/api-client';
+import { getPersistentJson, setPersistentItem } from '../../../../vrs-auth/storage';
+import { mobileLog } from '../../logging';
 import { navigateRoot } from '../../rootNavigationContainerRef';
 import { screen } from '../../routes';
 
@@ -30,8 +32,50 @@ interface CallRecord {
     timestamp: string;
 }
 
+interface CallHistoryResponse {
+    calls?: Array<Record<string, any>>;
+}
+
+function normalizeUsageCall(raw: Record<string, any>): CallRecord {
+    const durationMinutes = Number(raw.duration_minutes ?? raw.durationMinutes ?? 0);
+
+    return {
+        duration: Number(raw.duration_seconds ?? raw.durationSeconds ?? durationMinutes * 60),
+        timestamp: raw.started_at || raw.timestamp || raw.created_at || new Date().toISOString()
+    };
+}
+
 const VRIUsageScreen = () => {
-    const localHistory = getPersistentJson<CallRecord[]>('vrs_call_history') || [];
+    const [ localHistory, setLocalHistory ] = useState<CallRecord[]>(
+        getPersistentJson<CallRecord[]>('vri_usage_history')
+            || getPersistentJson<CallRecord[]>('vrs_call_history')
+            || []
+    );
+
+    useEffect(() => {
+        let mounted = true;
+
+        apiClient.get<CallHistoryResponse>('/api/client/call-history?limit=100&offset=0').then(response => {
+            if (!mounted) {
+                return;
+            }
+
+            if (response.error) {
+                mobileLog('warn', 'vri_usage_load_failed', { error: response.error });
+
+                return;
+            }
+
+            const nextHistory = (response.data?.calls || []).map(normalizeUsageCall);
+
+            setLocalHistory(nextHistory);
+            setPersistentItem('vri_usage_history', JSON.stringify(nextHistory));
+        });
+
+        return () => {
+            mounted = false;
+        };
+    }, []);
 
     const now = Date.now();
     const dayMs = 24 * 60 * 60 * 1000;

@@ -5,9 +5,10 @@
  * User dials a hearing party's number, system connects them via interpreter.
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
     SafeAreaView,
+    ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -18,6 +19,16 @@ import { useDispatch } from 'react-redux';
 import { appNavigate } from '../../../../app/actions';
 import { isFeatureEnabled } from '../../../../base/whitelabel/functions';
 import { FEATURES } from '../../../../base/whitelabel/constants';
+import { getPersistentJson } from '../../../../vrs-auth/storage';
+
+interface CallRecord {
+    id: string;
+    contactName: string;
+    phoneNumber: string;
+    direction: 'outgoing' | 'incoming' | 'missed';
+    duration: number;
+    timestamp: string;
+}
 
 const DIGITS = [
     [ '1', '' ], [ '2', 'ABC' ], [ '3', 'DEF' ],
@@ -43,6 +54,19 @@ const DialPadScreen = () => {
     const canDialOut = isFeatureEnabled(FEATURES.PHONE_DIAL_OUT);
     const [ digits, setDigits ] = useState('');
 
+    // Last 3 recent calls for quick redial
+    const recentCalls = useMemo(() => {
+        const history = getPersistentJson<CallRecord[]>('vrs_call_history') || [];
+
+        return history.slice(0, 3);
+    }, []);
+
+    const handleRecentCall = useCallback((call: CallRecord) => {
+        const roomName = `vrs-${Date.now()}`;
+
+        dispatch(appNavigate(roomName, { hidePrejoin: true }));
+    }, [ dispatch ]);
+
     const handleDigit = useCallback((d: string) => {
         setDigits(prev => prev + d);
     }, []);
@@ -64,17 +88,39 @@ const DialPadScreen = () => {
 
     return (
         <SafeAreaView style = { styles.container }>
-            {/* Display */}
-            <View style = { styles.display }>
-                <Text style = { styles.phoneNumber }>
-                    { digits ? formatPhone(digits) : 'Enter number' }
-                </Text>
-                { !canDialOut && (
-                    <Text style = { styles.restricted }>
-                        Phone dial-out not available for this account
+            <ScrollView contentContainerStyle = { styles.scrollContent }>
+                {/* Display */}
+                <View style = { styles.display }>
+                    <Text style = { styles.phoneNumber }>
+                        { digits ? formatPhone(digits) : 'Enter number' }
                     </Text>
+                    { !canDialOut && (
+                        <Text style = { styles.restricted }>
+                            Phone dial-out not available for this account
+                        </Text>
+                    ) }
+                </View>
+
+                {/* Recent Calls */}
+                { recentCalls.length > 0 && (
+                    <View style = { styles.recentSection }>
+                        <Text style = { styles.recentTitle }>Recent</Text>
+                        { recentCalls.map(call => (
+                            <TouchableOpacity
+                                accessibilityLabel = { `Redial ${call.contactName}` }
+                                key = { call.id }
+                                onPress = { () => handleRecentCall(call) }
+                                style = { styles.recentRow }>
+                                <Text style = { styles.recentName }>
+                                    { call.contactName }
+                                </Text>
+                                <Text style = { styles.recentPhone }>
+                                    { call.phoneNumber || 'VRS call' }
+                                </Text>
+                            </TouchableOpacity>
+                        )) }
+                    </View>
                 ) }
-            </View>
 
             {/* Keypad */}
             <View style = { styles.keypad }>
@@ -111,6 +157,7 @@ const DialPadScreen = () => {
                     <Text style = { styles.deleteText }>{'\u{232B}'}</Text>
                 </TouchableOpacity>
             </View>
+            </ScrollView>
         </SafeAreaView>
     );
 };
@@ -194,6 +241,38 @@ const styles = StyleSheet.create({
         color: '#ff9800',
         fontSize: 12,
         marginTop: 8
+    },
+    recentName: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: '500'
+    },
+    recentPhone: {
+        color: '#888',
+        fontSize: 12,
+        marginTop: 2
+    },
+    recentRow: {
+        borderBottomColor: '#1a1a2e',
+        borderBottomWidth: 1,
+        paddingHorizontal: 12,
+        paddingVertical: 10
+    },
+    recentSection: {
+        marginBottom: 8,
+        marginHorizontal: 16
+    },
+    recentTitle: {
+        color: '#888',
+        fontSize: 11,
+        fontWeight: '600',
+        letterSpacing: 0.5,
+        marginBottom: 4,
+        textTransform: 'uppercase'
+    },
+    scrollContent: {
+        flexGrow: 1,
+        paddingBottom: 8
     },
     actionSpacer: {
         width: 64

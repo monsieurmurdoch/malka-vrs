@@ -14,6 +14,7 @@ import { navigateRoot } from '../mobile/navigation/rootNavigationContainerRef';
 import { screen } from '../mobile/navigation/routes';
 import { getPersistentItem, getPersistentJson, setPersistentItem } from '../vrs-auth/storage';
 import { getSecureItem } from '../vrs-auth/secureStorage';
+import { mobileLog } from '../mobile/navigation/logging';
 
 import { queueService } from './InterpreterQueueService';
 import {
@@ -80,6 +81,14 @@ function writeLocalCallHistory() {
     const historyKey = 'vrs_call_history';
     const existing = getPersistentJson<typeof entry[]>(historyKey) || [];
     setPersistentItem(historyKey, JSON.stringify([ entry, ...existing ].slice(0, 100)));
+
+    mobileLog('info', 'call_end_cdr_written', {
+        callId: activeCall.callId,
+        contactName: entry.contactName,
+        duration,
+        interpreterName: entry.interpreterName,
+        roomName: activeCall.roomName
+    });
 
     callStartTimestamp = undefined;
 }

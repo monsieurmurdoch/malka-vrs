@@ -5,7 +5,7 @@
  * Provides dial pad, recent calls, contacts, and request interpreter.
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     SafeAreaView,
     ScrollView,
@@ -20,10 +20,13 @@ import { appNavigate } from '../../../../app/actions';
 import { getAppName } from '../../../../base/whitelabel/functions';
 import { cancelInterpreterRequest, requestInterpreter } from '../../../../interpreter-queue/actions';
 import { QueueState } from '../../../../interpreter-queue/reducer';
+import { apiClient } from '../../../../shared/api-client';
 import { clearPersistentItems, getPersistentJson, setPersistentItem } from '../../../../vrs-auth/storage';
+import { mobileLog } from '../../logging';
 import { navigateRoot } from '../../rootNavigationContainerRef';
 import { screen } from '../../routes';
 import NetworkStatusBar from '../NetworkStatusBar';
+import { useTenantTheme } from '../../hooks/useTenantTheme';
 
 interface UserInfo {
     name?: string;
@@ -40,6 +43,7 @@ const LANGUAGES = [
 
 const VRSHomeScreen = () => {
     const dispatch = useDispatch();
+    const theme = useTenantTheme();
     const queueState = useSelector((state: any) => state['features/interpreter-queue'] as QueueState | undefined);
     const isConnected = Boolean(queueState?.isConnected);
     const isRequestPending = Boolean(queueState?.isRequestPending);
@@ -50,6 +54,33 @@ const VRSHomeScreen = () => {
     const savedCaptions = getPersistentJson<boolean>('vrs_captions_enabled');
     const [ language, setLanguage ] = useState(savedLang || 'ASL');
     const [ captionsOn, setCaptionsOn ] = useState(savedCaptions ?? true);
+    const [ voicemailUnreadCount, setVoicemailUnreadCount ] = useState(() => {
+        const vms = getPersistentJson<{ isRead: boolean }[]>('vrs_voicemails');
+
+        return vms ? vms.filter(v => !v.isRead).length : 0;
+    });
+
+    useEffect(() => {
+        let mounted = true;
+
+        apiClient.get<{ count?: number }>('/api/voicemail/unread-count').then(response => {
+            if (!mounted) {
+                return;
+            }
+
+            if (response.error) {
+                mobileLog('warn', 'voicemail_unread_count_failed', { error: response.error });
+
+                return;
+            }
+
+            setVoicemailUnreadCount(response.data?.count || 0);
+        });
+
+        return () => {
+            mounted = false;
+        };
+    }, []);
 
     const handleRequestInterpreter = useCallback(() => {
         if (isRequestPending) {
@@ -118,6 +149,7 @@ const VRSHomeScreen = () => {
                     onPress = { handleRequestInterpreter }
                     style = { [
                         styles.primaryAction,
+                        { backgroundColor: theme.accent, shadowColor: theme.accent },
                         isRequestPending && styles.primaryActionCancel
                     ] }>
                     <Text style = { styles.primaryActionText }>
@@ -222,16 +254,11 @@ const VRSHomeScreen = () => {
                     style = { styles.voicemailRow }>
                     <Text style = { styles.voicemailIcon }>{'\u{1F4E3}'}</Text>
                     <Text style = { styles.voicemailLabel }>Voicemail</Text>
-                    { (() => {
-                        const vms = getPersistentJson<{ isRead: boolean }[]>('vrs_voicemails');
-                        const count = vms ? vms.filter(v => !v.isRead).length : 0;
-
-                        return count > 0 ? (
-                            <View style = { styles.voicemailBadge }>
-                                <Text style = { styles.voicemailBadgeText }>{ count }</Text>
-                            </View>
-                        ) : null;
-                    })() }
+                    { voicemailUnreadCount > 0 && (
+                        <View style = { styles.voicemailBadge }>
+                            <Text style = { styles.voicemailBadgeText }>{ voicemailUnreadCount }</Text>
+                        </View>
+                    ) }
                 </TouchableOpacity>
 
                 {/* Connection Status */}

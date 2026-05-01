@@ -22,6 +22,7 @@ import { clearPersistentItems, getPersistentJson, setPersistentItem } from '../.
 import { navigateRoot } from '../../rootNavigationContainerRef';
 import { screen } from '../../routes';
 import NetworkStatusBar from '../NetworkStatusBar';
+import { useTenantTheme } from '../../hooks/useTenantTheme';
 
 interface UserInfo {
     name?: string;
@@ -30,8 +31,17 @@ interface UserInfo {
     serviceModes?: string[];
 }
 
+const VRI_LANGUAGES = [
+    { code: 'ASL', label: 'ASL' },
+    { code: 'LSQ', label: 'LSQ' },
+    { code: 'en', label: 'English' },
+    { code: 'fr', label: 'French' },
+    { code: 'es', label: 'Spanish' }
+];
+
 const VRIConsoleScreen = () => {
     const dispatch = useDispatch();
+    const theme = useTenantTheme();
     const queueState = useSelector((state: any) => state['features/interpreter-queue'] as QueueState | undefined);
     const isConnected = Boolean(queueState?.isConnected);
     const isRequestPending = Boolean(queueState?.isRequestPending);
@@ -39,6 +49,8 @@ const VRIConsoleScreen = () => {
     const matchData = queueState?.matchData;
 
     const userInfo = getPersistentJson<UserInfo>('vrs_user_info');
+    const savedLang = getPersistentJson<string>('vrs_request_language');
+    const [ language, setLanguage ] = useState(savedLang || 'ASL');
     const [ elapsedTime, setElapsedTime ] = useState(0);
     const [ previewStream, setPreviewStream ] = useState<MediaStream | null>(null);
     const [ previewError, setPreviewError ] = useState('');
@@ -116,8 +128,8 @@ const VRIConsoleScreen = () => {
 
             return;
         }
-        dispatch(requestInterpreter('ASL'));
-    }, [ dispatch, isRequestPending ]);
+        dispatch(requestInterpreter(language));
+    }, [ dispatch, isRequestPending, language ]);
 
     const handleLogout = useCallback(() => {
         clearPersistentItems([
@@ -206,6 +218,32 @@ const VRIConsoleScreen = () => {
                 ) }
             </View>
 
+            {/* Language Selector */}
+            { !isInSession && (
+                <View style = { styles.languageRow }>
+                    { VRI_LANGUAGES.map(lang => (
+                        <TouchableOpacity
+                            accessibilityLabel = { `Select ${lang.label}` }
+                            key = { lang.code }
+                            onPress = { () => {
+                                setLanguage(lang.code);
+                                setPersistentItem('vrs_request_language', lang.code);
+                            } }
+                            style = { [
+                                styles.langButton,
+                                language === lang.code && styles.langButtonActive
+                            ] }>
+                            <Text style = { [
+                                styles.langText,
+                                language === lang.code && styles.langTextActive
+                            ] }>
+                                { lang.label }
+                            </Text>
+                        </TouchableOpacity>
+                    )) }
+                </View>
+            )}
+
             {/* Primary Action — only request/cancel, never manual room entry */}
             <View style = { styles.actions }>
                 <TouchableOpacity
@@ -213,6 +251,7 @@ const VRIConsoleScreen = () => {
                     onPress = { handleRequestInterpreter }
                     style = { [
                         styles.requestButton,
+                        { backgroundColor: theme.accent, shadowColor: theme.accent },
                         isRequestPending && styles.cancelButton,
                         isInSession && styles.requestButtonDisabled
                     ] }
@@ -306,6 +345,31 @@ const styles = StyleSheet.create({
         color: '#ffffff',
         fontSize: 18,
         fontWeight: '600'
+    },
+    langButton: {
+        backgroundColor: '#1a1a2e',
+        borderRadius: 8,
+        marginRight: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 6
+    },
+    langButtonActive: {
+        backgroundColor: '#2979ff'
+    },
+    languageRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        marginBottom: 12,
+        marginHorizontal: 20
+    },
+    langText: {
+        color: '#888',
+        fontSize: 12,
+        fontWeight: '600'
+    },
+    langTextActive: {
+        color: '#fff'
     },
     logoutButton: {
         paddingHorizontal: 12,
