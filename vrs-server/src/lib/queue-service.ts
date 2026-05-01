@@ -9,6 +9,9 @@
  */
 
 import * as db from '../database';
+import { moduleLogger } from './logger';
+
+const log = moduleLogger('queue');
 
 interface QueueRequest {
     id: string;
@@ -63,7 +66,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries: number = MAX_DB_RETRI
                 throw error;
             }
             const delay = DB_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
-            console.warn(`[Queue] DB operation failed (attempt ${attempt}/${retries}), retrying in ${delay}ms\u2026`, (error as Error).message);
+            log.warn({ attempt, delay, err: error, retries }, 'queue_db_retry');
             await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
@@ -103,7 +106,7 @@ async function initialize(): Promise<InitializeResult> {
 
     reorderQueue();
 
-    console.log(`[Queue] Rehydrated ${queue.size} waiting request${queue.size === 1 ? '' : 's'} from database`);
+    log.info({ count: queue.size }, 'queue_rehydrated');
 
     return {
         success: true,
@@ -167,6 +170,14 @@ async function requestInterpreter({ clientId, clientName, language, roomName, ta
     };
 
     queue.set(id, request);
+    log.info({
+        callType: request.callType,
+        clientId: request.clientId,
+        language: request.language,
+        requestId: id,
+        roomName: request.roomName,
+        targetPhone: Boolean(request.targetPhone)
+    }, 'call_lifecycle.request_created');
 
     if (request.callType === 'vri' && clientId && inviteTokens.length) {
         await withRetry(() => db.attachVriInvitesToQueue({
@@ -179,6 +190,7 @@ async function requestInterpreter({ clientId, clientName, language, roomName, ta
 
     // Notify admins
     notifyAdmins('queue_request_added', request);
+    log.info({ position, queueDepth: queue.size, requestId: id }, 'call_lifecycle.queue_join');
 
     return {
         success: true,
@@ -236,7 +248,7 @@ function interpreterAvailable(interpreterId: string, interpreterName: string, la
         availableAt: new Date()
     });
 
-    console.log(`[Queue] Interpreter ${interpreterName} (${languages.join(', ')}) is now available for ${serviceModes.join(', ')}`);
+    log.info({ interpreterId, interpreterName, languages, serviceModes }, 'queue_interpreter_available');
 
     return { success: true };
 }
@@ -244,7 +256,7 @@ function interpreterAvailable(interpreterId: string, interpreterName: string, la
 function interpreterUnavailable(interpreterId: string): { success: boolean } {
     availableInterpreters.delete(interpreterId);
 
-    console.log(`[Queue] Interpreter ${interpreterId} is now unavailable`);
+    log.info({ interpreterId }, 'queue_interpreter_unavailable');
 
     return { success: true };
 }
@@ -322,7 +334,7 @@ async function tryMatch(): Promise<void> {
     const interpreters = Array.from(availableInterpreters.values());
 
     if (interpreters.length === 0) {
-        console.log('[Queue] No interpreters available,', waitingRequests.length, 'requests waiting');
+        log.info({ waitingRequests: waitingRequests.length }, 'queue_no_interpreters_available');
         return;
     }
 
@@ -347,7 +359,7 @@ async function tryMatch(): Promise<void> {
             try {
                 await completeMatch(request, matched);
             } catch (error) {
-                console.error(`[Queue] Error completing match for request ${request.id}:`, error);
+                log.error({ err: error, requestId: request.id }, 'call_lifecycle.interpreter_match_failed');
                 matchingLocks.delete(request.id);
                 continue;
             }
@@ -430,7 +442,8 @@ async function completeMatch(request: db.QueueRequest | QueueRequest, interprete
 
     totalMatches += 1;
 
-    console.log(`[Queue] Matched: ${clientName} -> ${interpreter.name}`);
+    log.info({ callId, callType, clientId, clientName, interpreterId: interpreter.id, interpreterName: interpreter.name, requestId: request.id, roomName }, 'call_lifecycle.room_created');
+    log.info({ callId, clientName, interpreterId: interpreter.id, interpreterName: interpreter.name, requestId: request.id, roomName }, 'call_lifecycle.interpreter_match');
 
     // Notify admins
     notifyAdmins('queue_match_complete', {
@@ -486,7 +499,7 @@ async function assignInterpreter(requestId: string, interpreterId: string): Prom
 
         return result;
     } catch (error) {
-        console.error(`[Queue] Error assigning interpreter for request ${requestId}:`, error);
+        log.error({ err: error, requestId }, 'queue_assign_interpreter_failed');
 
         return { success: false, message: 'Failed to complete assignment' };
     } finally {

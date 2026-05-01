@@ -8,6 +8,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { moduleLogger } from './logger';
+
+const log = moduleLogger('storage');
 
 // MinIO client — imported dynamically so the module loads even without MinIO
 // in development (tests, local dev without Docker).
@@ -69,13 +72,13 @@ class StorageService {
             const bucketExists = await this.client.bucketExists(this.config.bucket);
             if (!bucketExists) {
                 await this.client.makeBucket(this.config.bucket, this.config.region || 'us-east-1');
-                console.log(`[Storage] Created bucket: ${this.config.bucket}`);
+                log.info({ bucket: this.config.bucket }, 'storage_bucket_created');
             }
 
             this.initialized = true;
-            console.log(`[Storage] Initialized — endpoint: ${endpoint}, bucket: ${this.config.bucket}`);
+            log.info({ bucket: this.config.bucket, endpoint }, 'storage_initialized');
         } catch (err) {
-            console.error('[Storage] Initialization failed:', err);
+            log.error({ err }, 'storage_initialization_failed');
             throw err;
         }
     }

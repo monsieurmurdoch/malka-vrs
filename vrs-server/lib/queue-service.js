@@ -131,6 +131,15 @@ async function requestInterpreter({ clientId, clientName, language, roomName, ta
 
     queue.set(id, request);
 
+    log.info({
+        callType: request.callType,
+        clientId: request.clientId,
+        language: request.language,
+        requestId: id,
+        roomName: request.roomName,
+        targetPhone: Boolean(request.targetPhone)
+    }, 'call_lifecycle.request_created');
+
     if (request.callType === 'vri' && clientId && inviteTokens.length) {
         await withRetry(() => db.attachVriInvitesToQueue({
             clientId,
@@ -145,6 +154,7 @@ async function requestInterpreter({ clientId, clientName, language, roomName, ta
 
     // Notify admins
     notifyAdmins('queue_request_added', request);
+    log.info({ position, requestId: id, queueDepth: queue.size }, 'call_lifecycle.queue_join');
 
     return {
         success: true,
@@ -389,6 +399,17 @@ async function completeMatch(request, interpreter) {
 
     // Notify participants
     // In production: this would trigger WebSocket messages to both parties
+
+    log.info({
+        callId,
+        callType,
+        clientId,
+        clientName,
+        interpreterId: interpreter.id,
+        interpreterName: interpreter.name,
+        requestId: request.id,
+        roomName
+    }, 'call_lifecycle.room_created');
 
     log.info({ clientName, interpreterName: interpreter.name, callId, roomName }, 'Client-interpreter match completed');
 

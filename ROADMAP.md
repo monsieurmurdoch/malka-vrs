@@ -1,6 +1,6 @@
 # Malka VRS - Product & Engineering Roadmap
 
-> **Last updated**: April 30, 2026
+> **Last updated**: May 1, 2026
 > **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. Malka VRS backend/WebSocket smoke now covers in-room-style interpreter request, admin live queue visibility, interpreter match, call end, and CDR creation. The main open risks are remaining real-browser in-room/admin UI verification, TURN/coturn fallback, Redis/state externalization, regulatory/compliance work, live Stripe/accounting configuration, and mobile parity.
 
 ---
@@ -60,6 +60,17 @@
 - [x] Admin account moderation for client/interpreter/captioner permissions
 - [x] Admin audit export for account/permission changes
 - [x] Superadmin dashboard for managing tenants
+
+### Observability & Structured Logging
+- [x] Replaced remaining `console.log`/`console.error` with structured logger across VRS, ops, and Twilio runtime services
+- [x] Standardized `LOG_LEVEL` across services
+- [x] Structured JSON output in production for all services
+- [x] Pretty logs in local/dev only
+- [x] Correlation/request ID propagation across VRS, ops, Twilio, WebSocket, and call lifecycle events
+- [x] Call lifecycle events logged for request created, queue join, interpreter match, room created, call start, call end, and errors
+- [x] DigitalOcean monitoring integration decision documented
+- [x] External APM decision documented as OpenTelemetry-first/vendor-neutral
+- [x] Alert rules documented for service down, queue wait, JVB CPU, DB latency, disk, memory, and error rate
 
 ### PostgreSQL Runtime Alignment
 - [x] VRS server runtime uses PostgreSQL as canonical app database
@@ -262,17 +273,6 @@
 ---
 
 ## Near-Term Feature Work
-
-### Observability Branch (`codex/logging-observability`)
-- [ ] Replace remaining `console.log`/`console.error` with structured logger across VRS, ops, and Twilio
-- [ ] Standardize `LOG_LEVEL` across services
-- [ ] Structured JSON output in production for all services
-- [ ] Pretty logs in local/dev only
-- [ ] Correlation/request ID propagation across VRS, ops, Twilio, WebSocket, and call lifecycle events
-- [ ] Log call lifecycle events: request created, queue join, interpreter match, room created, call start, call end, errors
-- [ ] DigitalOcean monitoring integration decision
-- [ ] External APM decision: Datadog, New Relic, or OpenTelemetry-first vendor-neutral path
-- [ ] Alert rules for service down, queue wait, JVB CPU, DB latency, disk, memory, and error rate
 
 ### Validation & Error Handling
 - [ ] Expand Zod validation to every POST/PUT/PATCH endpoint

@@ -9,10 +9,13 @@
  */
 
 import * as billingDb from '../lib/billing-db';
+import { moduleLogger } from '../lib/logger';
 import { logBillingEvent } from './audit-service';
 import { getCdrsForPeriod, transitionCdrStatus } from './cdr-service';
 import type { MonthlyAggregation, BillingCdr, BillingExportData } from './types';
 import type { BillingFormatter } from './formatters/formatter-interface';
+
+const log = moduleLogger('vrs-billing');
 
 /**
  * Generate monthly aggregation for VRS calls.
@@ -132,7 +135,7 @@ export async function markTrsSubmitted(
                 await transitionCdrStatus(cdr.id, 'submitted', performedBy, `TRS submission ${trsSubmissionId}`);
                 transitioned++;
             } catch (err) {
-                console.error(`[VRS Billing] Failed to transition CDR ${cdr.id}:`, err);
+                log.error({ cdrId: cdr.id, err, trsSubmissionId }, 'vrs_cdr_transition_failed');
             }
         }
     }
@@ -179,7 +182,7 @@ export async function reconcileTrsPayment(
             try {
                 await transitionCdrStatus(cdr.id, 'paid', performedBy, 'TRS payment received');
             } catch (err) {
-                console.error(`[VRS Billing] Failed to transition CDR ${cdr.id}:`, err);
+                log.error({ cdrId: cdr.id, err }, 'vrs_cdr_transition_failed');
             }
         }
     }

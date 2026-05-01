@@ -14,6 +14,9 @@
 import crypto from 'crypto';
 import { WebSocket } from 'ws';
 import * as db from '../database';
+import { moduleLogger } from './logger';
+
+const log = moduleLogger('handoff');
 
 interface Session {
     userId: string;
@@ -86,7 +89,7 @@ async function initialize(): Promise<void> {
 
         await db.deleteExpiredHandoffTokens();
     } catch (error) {
-        console.warn('[Handoff] Could not rehydrate from database, starting fresh:', error instanceof Error ? error.message : error);
+        log.warn({ err: error }, 'handoff_rehydrate_failed');
     }
 }
 
@@ -104,7 +107,7 @@ function registerSession(userId: string, roomName: string, deviceId: string, ws:
     });
     void db.upsertActiveSession({ userId, roomName, interpreterId: null, deviceId });
 
-    console.log(`[Handoff] Session registered: ${userId} on device ${deviceId} in room ${roomName}`);
+    log.info({ deviceId, roomName, userId }, 'handoff_session_registered');
 }
 
 /**
@@ -113,7 +116,7 @@ function registerSession(userId: string, roomName: string, deviceId: string, ws:
 function unregisterSession(userId: string): void {
     const session = activeSessions.get(userId);
     if (session) {
-        console.log(`[Handoff] Session unregistered: ${userId} from device ${session.deviceId}`);
+        log.info({ deviceId: session.deviceId, userId }, 'handoff_session_unregistered');
         activeSessions.delete(userId);
     }
     void db.deleteActiveSession(userId);
@@ -203,7 +206,7 @@ function prepareHandoff(userId: string, targetDeviceId: string): PrepareHandoffR
         expiresAt
     });
 
-    console.log(`[Handoff] Token created for ${userId} → ${targetDeviceId}, room ${session.roomName}`);
+    log.info({ roomName: session.roomName, targetDeviceId, userId }, 'handoff_token_created');
 
     return {
         token,
@@ -251,7 +254,7 @@ function executeHandoff(token: string, newDeviceId: string): ExecuteHandoffResul
         });
     }
 
-    console.log(`[Handoff] Executed: ${data.userId} moved from ${data.fromDeviceId} to ${newDeviceId}, room ${data.roomName}`);
+    log.info({ fromDeviceId: data.fromDeviceId, newDeviceId, roomName: data.roomName, userId: data.userId }, 'handoff_executed');
 
     return {
         roomName: data.roomName,
@@ -301,7 +304,7 @@ function cancelHandoff(userId: string): boolean {
         if (data.userId === userId) {
             handoffTokens.delete(token);
             void db.deleteHandoffTokensByUser(userId);
-            console.log(`[Handoff] Cancelled for ${userId}`);
+            log.info({ userId }, 'handoff_cancelled');
             return true;
         }
     }
@@ -320,7 +323,7 @@ function cleanup(): void {
     for (const [token, data] of handoffTokens) {
         if (now > data.expiresAt) {
             handoffTokens.delete(token);
-            console.log(`[Handoff] Cleaned up expired token for ${data.userId}`);
+            log.info({ userId: data.userId }, 'handoff_expired_token_cleaned');
         }
     }
     void db.deleteExpiredHandoffTokens();
@@ -330,7 +333,7 @@ function cleanup(): void {
         if (session.ws && session.ws.readyState !== 1) { // not OPEN
             activeSessions.delete(userId);
             void db.deleteActiveSession(userId);
-            console.log(`[Handoff] Cleaned up dead session for ${userId}`);
+            log.info({ userId }, 'handoff_dead_session_cleaned');
         }
     }
 }

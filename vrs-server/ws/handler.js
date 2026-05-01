@@ -174,7 +174,9 @@ async function createBillingCdrForCall(callId, fallbackCallType = 'vrs') {
 
 function handleConnection(ws, req) {
     const clientId = uuidv4();
-    log.info({ clientId }, 'WebSocket client connected');
+    const requestId = req?.headers?.['x-request-id'] || uuidv4();
+    ws.requestId = requestId;
+    log.info({ clientId, requestId }, 'WebSocket client connected');
 
     ws.isAlive = true;
     ws.on('pong', () => { ws.isAlive = true; });
@@ -377,23 +379,23 @@ function handleConnection(ws, req) {
                     break;
             }
         } catch (error) {
-            log.error({ err: error, clientId }, 'WebSocket error');
+            log.error({ err: error, clientId, messageType: data?.type, requestId }, 'WebSocket error');
             sendWsError(ws, 'WebSocket request failed.', 'INTERNAL_ERROR');
         }
     });
 
     ws.on('close', () => {
-        log.info({ clientId }, 'WebSocket client disconnected');
+        log.info({ clientId, requestId }, 'WebSocket client disconnected');
         if (ws.clientInfo) {
             handleDisconnect(ws.clientInfo);
         }
     });
 
     ws.on('error', (error) => {
-        log.error({ err: error }, 'WebSocket error');
+        log.error({ err: error, clientId, requestId }, 'WebSocket error');
     });
 
-    ws.send(JSON.stringify({ type: 'connected', clientId, timestamp: Date.now() }));
+    ws.send(JSON.stringify({ type: 'connected', clientId, requestId, timestamp: Date.now() }));
 }
 
 // ============================================
@@ -431,6 +433,7 @@ function handleAuth(ws, data, clientId, req) {
                 name: claims.name || name,
                 email: claims.email,
                 host: req?.headers?.host,
+                requestId: ws.requestId,
                 ws, authenticated: true
             };
         } catch (error) {
@@ -438,7 +441,7 @@ function handleAuth(ws, data, clientId, req) {
             return null;
         }
     } else {
-        clientInfo = { clientId, role, userId, name, host: req?.headers?.host, ws, authenticated: false };
+        clientInfo = { clientId, role, userId, name, host: req?.headers?.host, requestId: ws.requestId, ws, authenticated: false };
     }
 
     if (role === 'interpreter') {
@@ -668,6 +671,7 @@ async function handleInterpreterRequest(ws, data) {
     });
 
     if (!result.success) {
+        log.warn({ callType, clientId: client.userId, reason: result.message, requestId: client.requestId }, 'call_lifecycle.request_create_failed');
         ws.send(JSON.stringify({ type: 'error', data: { message: result.message } }));
         return;
     }
@@ -685,6 +689,7 @@ async function handleInterpreterRequest(ws, data) {
     }));
 
     notifyAvailableInterpreters(result.request);
+    log.info({ callType, clientId: client.userId, language: result.request.language, requestId: result.requestId, roomName: result.request.roomName, traceRequestId: client.requestId }, 'call_lifecycle.request_queued');
     state.broadcastQueueStatus(queueService);
 }
 
@@ -746,6 +751,7 @@ async function handleAcceptRequest(ws, data) {
 
     const result = await queueService.assignInterpreter(requestId, interpreter.userId);
     if (!result.success) {
+        log.warn({ interpreterId: interpreter.userId, reason: result.message, requestId, traceRequestId: interpreter.requestId }, 'call_lifecycle.interpreter_accept_failed');
         ws.send(JSON.stringify({ type: 'error', data: { message: result.message || 'Unable to accept queue request.' } }));
         return;
     }
@@ -772,9 +778,9 @@ async function handleAcceptRequest(ws, data) {
         clientSocket.send(JSON.stringify({ type: 'meeting_initiated', data: meetingData }));
     }
 
-    log.info({ requestId, clientId: result.clientId, interpreterId: interpreter.userId }, 'Interpreter matched to request');
+    log.info({ requestId, clientId: result.clientId, interpreterId: interpreter.userId, traceRequestId: interpreter.requestId }, 'Interpreter matched to request');
 
-    log.info({ callId: result.callId, clientId: result.clientId, interpreterId: interpreter.userId, roomName: result.roomName }, 'Call started');
+    log.info({ callId: result.callId, clientId: result.clientId, interpreterId: interpreter.userId, roomName: result.roomName, traceRequestId: interpreter.requestId }, 'call_lifecycle.call_start');
 
     state.broadcastQueueStatus(queueService);
 }
@@ -1239,9 +1245,9 @@ async function handleCallEnd(ws, data) {
 
         sendWsMessage(ws, 'call_ended', { callId, roomName, durationMinutes });
         activityLogger.log('call_ended', { callId, roomName, endedBy: client.userId, durationMinutes });
-        log.info({ callId, durationMinutes, endedBy: client.userId }, 'Queue call ended');
+        log.info({ callId, durationMinutes, endedBy: client.userId, roomName: call.room_name || roomName, traceRequestId: client.requestId }, 'call_lifecycle.call_end');
     } catch (err) {
-        log.error({ err, callId }, 'Queue call end error');
+        log.error({ err, callId, traceRequestId: client.requestId }, 'call_lifecycle.call_end_failed');
         sendWsError(ws, 'Failed to end call.', 'INTERNAL_ERROR');
     }
 }

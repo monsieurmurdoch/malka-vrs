@@ -5,6 +5,38 @@ This file is the project-level running status log. The current update stays at t
 ## Current Update
 
 - Updated: 2026-05-01
+- Branch: `codex/logging-observability`
+- HEAD: `10a1cc5`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  .env.example`
+  - `M  ROADMAP.md`
+  - `A  docs/observability.md`
+  - `A  twilio-voice-server/logger.js`
+  - `M  twilio-voice-server/server.js`
+  - `M  vrs-ops-server/.env.example`
+  - `M  vrs-ops-server/src/index.ts`
+  - `A  vrs-ops-server/src/logger.ts`
+  - `M  vrs-server/lib/queue-service.js`
+  - `M  vrs-server/routes/contacts.js`
+  - `M  vrs-server/routes/google-contacts.js`
+  - `M  vrs-server/src/billing/audit-service.ts`
+  - `M  vrs-server/src/billing/cdr-service.ts`
+  - `M  vrs-server/src/billing/migration-runner.ts`
+  - `M  vrs-server/src/billing/vri-billing-pipeline.ts`
+  - `M  vrs-server/src/billing/vrs-billing-pipeline.ts`
+  - `M  vrs-server/src/database.ts`
+  - `M  vrs-server/src/lib/billing-db.ts`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-05-01T06:29:58.839Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-05-01
 - Branch: `codex/responsive-accessibility-audit`
 - HEAD: `5f40f91`
 - Note: Pre-push project status sync.
@@ -17,7 +49,7 @@ Local changes at sync time:
   - `M  vrs-admin-dashboard.js`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-05-01T04:11:50.149Z
 
 <!-- status:current:start -->

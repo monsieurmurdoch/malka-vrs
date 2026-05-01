@@ -24,7 +24,7 @@ tracing.initialize();
 try {
     require('dotenv').config();
 } catch (error) {
-    console.warn('[Server] dotenv not installed, continuing with process environment only.');
+    // Logger is initialized below; dotenv is optional in containerized prod.
 }
 
 import express, { Request, Response, NextFunction } from 'express';
@@ -92,8 +92,7 @@ const API_RATE_LIMIT_WINDOW_MS = Number(process.env.API_RATE_LIMIT_WINDOW_MS || 
 const API_RATE_LIMIT_MAX = Number(process.env.API_RATE_LIMIT_MAX || 300);
 
 if (!JWT_SECRET) {
-    console.error('FATAL: VRS_SHARED_JWT_SECRET or JWT_SECRET environment variable is required.');
-    console.error('Set it in your .env file before starting the server.');
+    log.fatal('VRS_SHARED_JWT_SECRET or JWT_SECRET environment variable is required. Set it in your .env file before starting the server.');
     process.exit(1);
 }
 
@@ -531,7 +530,7 @@ db.initialize().then(async () => {
     try {
         await billingDb.initialize();
     } catch (billingErr) {
-        console.warn('[Server] Billing DB initialization failed (non-fatal):', billingErr instanceof Error ? billingErr.message : billingErr);
+        log.warn({ err: billingErr }, 'billing_db_initialization_failed');
     }
 
     if (process.env.MINIO_ENDPOINT) {

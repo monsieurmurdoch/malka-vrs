@@ -8,6 +8,9 @@
 
 import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
 import { loadBillingConfig } from '../billing/config';
+import { moduleLogger } from './logger';
+
+const log = moduleLogger('billing-db');
 
 let pool: Pool | null = null;
 let initialized = false;
@@ -23,7 +26,7 @@ export function isBillingDbReady(): boolean {
 export async function initialize(): Promise<void> {
     const config = loadBillingConfig();
     if (!config.enabled) {
-        console.log('[BillingDB] Billing not configured (BILLING_PG_HOST not set). Skipping.');
+        log.info('billing_db_not_configured');
         return;
     }
 
@@ -38,14 +41,14 @@ export async function initialize(): Promise<void> {
     });
 
     pool.on('error', (err) => {
-        console.error('[BillingDB] Unexpected pool error:', err.message);
+        log.error({ err }, 'billing_db_pool_error');
     });
 
     // Verify connection
     const client = await pool.connect();
     try {
         await client.query('SELECT 1');
-        console.log('[BillingDB] Connected to PostgreSQL billing database.');
+        log.info('billing_db_connected');
     } finally {
         client.release();
     }
@@ -65,7 +68,7 @@ export async function shutdown(): Promise<void> {
         await pool.end();
         pool = null;
         initialized = false;
-        console.log('[BillingDB] Pool closed.');
+        log.info('billing_db_pool_closed');
     }
 }
 

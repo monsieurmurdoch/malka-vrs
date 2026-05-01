@@ -16,6 +16,9 @@
 import { Pool, type QueryResultRow } from 'pg';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import { moduleLogger } from './lib/logger';
+
+const log = moduleLogger('database');
 
 export type Row = QueryResultRow & Record<string, any>;
 export interface QueueRequest extends Row {
@@ -66,13 +69,13 @@ async function initialize() {
     const client = await pgPool.connect();
     try {
         const res = await client.query('SELECT NOW()');
-        console.log('[Database] Connected to PostgreSQL at', res.rows[0].now);
+        log.info({ connectedAt: res.rows[0].now }, 'database_connected');
     } finally {
         client.release();
     }
 
     await createTables();
-    console.log('[Database] Tables initialized');
+    log.info('database_tables_initialized');
 }
 
 async function createTables() {

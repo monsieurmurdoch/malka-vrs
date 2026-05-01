@@ -25,6 +25,7 @@ import { Pool } from 'pg';
 dotenv.config();
 
 import { CallSession, Interpreter, QueueStats, DailyStats, AuthToken, InterpreterStatus, CallStatus } from './types';
+import { logger, requestIdMiddleware, requestLogMiddleware } from './logger';
 
 const app: Express = express();
 const server = createServer(app);
@@ -35,8 +36,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const DEFAULT_SHARED_JWT_SECRET = 'vrs-ops-shared-secret';
 const JWT_SECRET: string = process.env.VRS_SHARED_JWT_SECRET || process.env.JWT_SECRET || '';
 if (!JWT_SECRET) {
-    console.error('FATAL: VRS_SHARED_JWT_SECRET or JWT_SECRET environment variable is required.');
-    console.error('Set it in your .env file before starting the server.');
+    logger.fatal('VRS_SHARED_JWT_SECRET or JWT_SECRET environment variable is required. Set it in your .env file before starting the server.');
     process.exit(1);
 }
 const TENANT_JWT_SECRETS: Record<string, string | undefined> = {
@@ -58,8 +58,7 @@ const BOOTSTRAP_SUPERADMIN_ENABLED = process.env.ENABLE_BOOTSTRAP_SUPERADMIN !==
 const BOOTSTRAP_SUPERADMIN_USERNAME = process.env.VRS_BOOTSTRAP_SUPERADMIN_USERNAME || 'superadmin';
 const BOOTSTRAP_SUPERADMIN_PASSWORD: string = process.env.VRS_BOOTSTRAP_SUPERADMIN_PASSWORD || '';
 if (!BOOTSTRAP_SUPERADMIN_PASSWORD) {
-    console.error('FATAL: VRS_BOOTSTRAP_SUPERADMIN_PASSWORD environment variable is required.');
-    console.error('Set it in your .env file before starting the server.');
+    logger.fatal('VRS_BOOTSTRAP_SUPERADMIN_PASSWORD environment variable is required. Set it in your .env file before starting the server.');
     process.exit(1);
 }
 const BOOTSTRAP_SUPERADMIN_NAME = process.env.VRS_BOOTSTRAP_SUPERADMIN_NAME || 'Malka Superadmin';
@@ -113,7 +112,7 @@ function loadTenantConfigs(): Record<string, any> {
                     providerName: config.brand?.providerName
                 };
             } catch (error) {
-                console.warn(`[Ops] Failed to read tenant config ${file}:`, error instanceof Error ? error.message : error);
+                logger.warn({ err: error, file }, 'tenant_config_read_failed');
             }
             return configs;
         }, {});
@@ -127,6 +126,8 @@ app.use(cors({
     origin: CORS_ORIGIN
 }));
 app.use(express.json());
+app.use(requestIdMiddleware);
+app.use(requestLogMiddleware);
 
 // Validation helper
 function validateRequest(schema: z.ZodSchema) {
@@ -279,7 +280,7 @@ function loadPersistedOpsState(): PersistedOpsState {
             audit: Array.isArray(parsed.audit) ? parsed.audit : []
         };
     } catch (error) {
-        console.error('Failed to load ops state file:', error);
+        logger.error({ err: error }, 'ops_state_file_load_failed');
 
         return {
             accounts: [],
@@ -1130,15 +1131,14 @@ async function assertBootstrapSuperadmin() {
     const bootstrapRecord = createBootstrapSuperadminRecord();
     authDirectory = [ bootstrapRecord, ...authDirectory ];
     await persistOpsState();
-    console.warn(`[Security] Bootstrap superadmin enabled for local ops: ${BOOTSTRAP_SUPERADMIN_USERNAME} / ${BOOTSTRAP_SUPERADMIN_PASSWORD}`);
+    logger.warn({ username: BOOTSTRAP_SUPERADMIN_USERNAME }, 'bootstrap_superadmin_enabled');
 }
 
 function auditAuth(event: string, details: Record<string, unknown>) {
-    console.log(`[AuthAudit] ${event}`, JSON.stringify({
+    logger.info({
         event,
-        timestamp: new Date().toISOString(),
         ...details
-    }));
+    }, 'auth_audit');
     recordOpsAudit(event, details);
 }
 
@@ -1154,7 +1154,7 @@ function loadAuthDirectory(): AuthDirectoryRecord[] {
 
         return Array.isArray(records) ? records.map(normalizeAccountRecord) : [];
     } catch (error) {
-        console.error('Invalid VRS_USER_DIRECTORY_JSON:', error);
+        logger.error({ err: error }, 'invalid_user_directory_json');
 
         return [];
     }
@@ -1168,7 +1168,7 @@ function assertSecureConfig() {
             throw new Error(message);
         }
 
-        console.warn(`[Security] ${message}`);
+        logger.warn({ message }, 'insecure_ops_config');
     }
 
     if (!authDirectory.length && !BOOTSTRAP_SUPERADMIN_ENABLED) {
@@ -1178,7 +1178,7 @@ function assertSecureConfig() {
             throw new Error(message);
         }
 
-        console.warn(`[Security] ${message}`);
+        logger.warn({ message }, 'insecure_ops_config');
     }
 }
 
@@ -1616,6 +1616,14 @@ app.post('/api/calls', authenticateToken, validateRequest(createCallSchema), asy
             requestedAt: new Date()
         });
 
+        logger.info({
+            callId,
+            clientId: call.clientId,
+            language: call.language,
+            requestId: res.locals.requestId,
+            roomId: call.roomId
+        }, 'call_lifecycle.request_created');
+
         broadcastEvent('call_request', call);
 
         res.status(201).json(call);
@@ -1644,6 +1652,13 @@ app.patch('/api/calls/:callId', authenticateToken, validateRequest(updateCallSch
             call.startedAt = new Date();
             call.matchedAt = call.matchedAt || new Date();
             call.waitTime = Math.round((call.matchedAt.getTime() - call.requestedAt.getTime()) / 1000);
+            logger.info({
+                callId,
+                interpreterId: call.interpreterId,
+                requestId: res.locals.requestId,
+                roomId: call.roomId,
+                waitTimeSeconds: call.waitTime
+            }, 'call_lifecycle.call_start');
 
             if (call.interpreterId) {
                 const interpreter = await getOpsInterpreter(call.interpreterId);
@@ -1660,6 +1675,13 @@ app.patch('/api/calls/:callId', authenticateToken, validateRequest(updateCallSch
             if (call.startedAt) {
                 call.duration = Math.round((call.endedAt.getTime() - call.startedAt.getTime()) / 1000);
             }
+            logger.info({
+                callId,
+                durationSeconds: call.duration || 0,
+                outcome: updates.status,
+                requestId: res.locals.requestId,
+                roomId: call.roomId
+            }, 'call_lifecycle.call_end');
 
             if (call.interpreterId) {
                 const interpreter = await getOpsInterpreter(call.interpreterId);
@@ -2212,19 +2234,20 @@ app.get('/api/admin/monitoring/summary', authenticateToken, requireRole('admin',
 
 // ==================== WebSocket ====================
 
-wss.on('connection', (ws: WebSocket) => {
-    console.log('WebSocket client connected');
+wss.on('connection', (ws: WebSocket, req) => {
+    const requestId = req.headers['x-request-id'] || uuidv4();
+    logger.info({ requestId }, 'ops_websocket_connected');
     wsClients.add(ws);
 
     void sendInitialState(ws);
 
     ws.on('close', () => {
         wsClients.delete(ws);
-        console.log('WebSocket client disconnected');
+        logger.info({ requestId }, 'ops_websocket_disconnected');
     });
 
     ws.on('error', (error) => {
-        console.error('WebSocket error:', error);
+        logger.error({ err: error, requestId }, 'ops_websocket_error');
         wsClients.delete(ws);
     });
 });
@@ -2249,7 +2272,7 @@ async function sendInitialState(ws: WebSocket): Promise<void> {
             ws.send(JSON.stringify(state));
         }
     } catch (error) {
-        console.error('[OpsServer] Failed to send initial WebSocket state:', error);
+        logger.error({ err: error }, 'ops_websocket_initial_state_failed');
     }
 }
 
@@ -2314,7 +2337,7 @@ async function updateDailyStats(call: CallSession): Promise<void> {
 // ==================== Start Server ====================
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    console.error('[OpsServer] Error:', err);
+    logger.error({ err, requestId: res.locals.requestId }, 'ops_request_failed');
     res.status(500).json({
         error: 'Internal server error',
         code: 'INTERNAL_ERROR',
@@ -2324,18 +2347,20 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 
 initializeOpsState().then(() => {
     server.listen(PORT, () => {
-        console.log(`VRS Ops Server running on port ${PORT}`);
-        console.log(`Dashboard API: http://localhost:${PORT}/api/dashboard/live`);
-        console.log(`WebSocket: ws://localhost:${PORT}/ws`);
-        console.log(`Readiness: http://localhost:${PORT}/api/readiness`);
+        logger.info({
+            dashboardUrl: `http://localhost:${PORT}/api/dashboard/live`,
+            port: PORT,
+            readinessUrl: `http://localhost:${PORT}/api/readiness`,
+            websocketUrl: `ws://localhost:${PORT}/ws`
+        }, 'ops_server_started');
 
         const warnings = getOpsWarnings();
         if (warnings.length) {
-            console.warn('[Ops] Startup warnings:', warnings.join(', '));
+            logger.warn({ warnings }, 'ops_startup_warnings');
         }
     });
 }).catch(error => {
-    console.error('[Ops] Failed to initialize persistent state:', error);
+    logger.fatal({ err: error }, 'ops_state_initialize_failed');
     process.exit(1);
 });
 
