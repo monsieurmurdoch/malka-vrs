@@ -456,6 +456,7 @@
 - [x] Establish Play Internal Testing release lane
   - 2026-04-30: Android Fastfile updated with tenant-aware deploy lane. TENANT env var selects applicationId. Uploads to Google Play Internal Testing track. Requires Google Play Developer account, service account JSON key, and signing keystore.
 - [ ] Add mobile build/test workflow to CI or a documented local release checklist
+  - 2026-04-30: Added `mobile-typecheck` job to .github/workflows/ci.yml. Runs `npm run tsc:web` and `npm run tsc:native` on every PR. Existing CI already has Android and iOS bundle build jobs. Full native build/test (Xcode build, Gradle assemble) remains local-only until Apple/Google build infrastructure is set up.
 - [x] Create mobile release checklist covering app version, tenant branding, backend base URL, privacy copy, permissions, crash reporting, and rollback plan
   - 2026-04-30: Created docs/mobile-release-checklist.md with pre-build, iOS build, Android build, TestFlight/Play, privacy/permissions, store listing, and rollback sections.
 
@@ -546,14 +547,16 @@
   - 2026-04-30: Documented in docs/mobile-interpreter-mvp.md. Break = availability toggle (go offline). Scheduling = web admin only for MVP. Teaming deferred to post-May. Push notifications, CallKit, ConnectionService deferred (foreground-only for pilot).
 
 ### Captioner Mobile Parity
-- [ ] Decide whether captioner mobile is required for May or web-only for initial production
+- [x] Decide whether captioner mobile is required for May or web-only for initial production
+  - 2026-04-30: Decision: captioner mobile is web-only for May. Caption publishing requires precise keyboard input and a larger viewport. The captioner role is rare enough that a laptop/desktop requirement is acceptable for the initial production period. Captioner mobile will be revisited if/when demand justifies the UX investment.
 - [ ] Captioner login routes to captioner profile
 - [ ] Captioner assignment/hidden participant flow works on mobile if included
 - [ ] Caption publishing UI is usable on tablet/phone if included
 - [ ] Privacy routing for captioners documented and tested
 
 ### Admin Mobile / Tablet Parity
-- [ ] Decide whether admin moderation is responsive web/tablet only for May
+- [x] Decide whether admin moderation is responsive web/tablet only for May
+  - 2026-04-30: Decision: admin is responsive web only for May. The admin portal already works in tablet browsers. No native admin app will be built for the initial release. Admin moderation, billing, and tenant management remain desktop/tablet web experiences. Native admin surfaces may be revisited for specific workflows (e.g., quick queue pause on phone) post-May.
 - [ ] Admin can view tenant-scoped live queue on tablet/mobile
 - [ ] Admin can view active calls and call details
 - [ ] Admin can moderate client/interpreter/captioner permissions
@@ -604,7 +607,8 @@
 ### Mobile Drift Controls
 - [x] Add `ROADMAP.md` mobile parity update requirement to `AGENTS.md`
   - 2026-04-30: Created AGENTS.md with mobile parity rules, PR checklist requirements, architecture constraints, storage key registry, and drift prevention guidelines.
-- [ ] Add PR checklist item: "Does this web/backend change affect mobile?"
+- [x] Add PR checklist item: "Does this web/backend change affect mobile?"
+  - 2026-04-30: AGENTS.md updated with formal "Mobile Impact" PR section requirement. Every PR must include a mobile impact assessment. Added ROADMAP update requirement to the checklist. Updated drift prevention section with references to shared API client, parity table, smoke fixtures, and CI typecheck.
 - [ ] Maintain `docs/mobile-parity.md` with route-by-route API/UI parity table
   - 2026-04-30: Created docs/mobile-parity.md with route-by-route parity table covering auth, client VRS/VRI, interpreter, queue lifecycle, Jitsi/conference, and infrastructure. Marks each feature as Done/Partial/Missing/Web-only.
 - [ ] Add automated contract tests shared by web and mobile clients

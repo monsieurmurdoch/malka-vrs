@@ -34,6 +34,25 @@
         <data android:host="beta.meet.jit.si" android:scheme="https" />
         <data android:host="meet.jit.si" android:scheme="https" />
       </intent-filter>
+      <!-- Tenant-specific deep link schemes. The whitelabel-prebuild script
+           removes irrelevant tenants per build. -->
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:scheme="malkavrs" />
+        <data android:scheme="malkavri" />
+        <data android:scheme="maplevri" />
+      </intent-filter>
+      <!-- Tenant-specific universal links -->
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:host="vrs.malkacomm.com" android:scheme="https" />
+        <data android:host="vri.malkacomm.com" android:scheme="https" />
+        <data android:host="vri.maplecomm.ca" android:scheme="https" />
+      </intent-filter>
       <intent-filter>
         <action android:name="android.intent.action.VIEW" />
         <category android:name="android.intent.category.BROWSABLE" />

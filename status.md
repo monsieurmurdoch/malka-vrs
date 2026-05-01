@@ -6,6 +6,25 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-05-01
 - Branch: `hermes/mobile-parity`
+- HEAD: `533dae4`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  .github/workflows/ci.yml`
+  - `M  AGENTS.md`
+  - `M  ROADMAP.md`
+  - `M  android/app/src/main/AndroidManifest.xml`
+  - `M  ios/app/src/AppDelegate.m`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-05-01T04:12:03.309Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-05-01
+- Branch: `hermes/mobile-parity`
 - HEAD: `63496c6`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -23,7 +42,7 @@ Local changes at sync time:
   - `A  react/features/shared/api-client/index.ts`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-05-01T03:57:43.547Z
 
 <!-- status:current:start -->

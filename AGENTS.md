@@ -10,12 +10,13 @@ This file defines the rules and requirements for maintaining feature parity betw
 
 ## PR Checklist
 
-Every PR that touches web UI, backend API contracts, WebSocket message types, or storage keys must answer:
+**Every PR must include a "Mobile Impact" section in the PR description**, answering:
 
-1. **Does this change affect mobile?** — If yes, add the corresponding mobile screen/hook/middleware change or file a follow-up ticket.
+1. **Does this change affect mobile?** — If yes, add the corresponding mobile screen/hook/middleware change or file a follow-up ticket. If no, state "No mobile impact" with a brief reason (e.g., "admin-only endpoint", "backend-only logging").
 2. **Are shared types updated?** — If new API response shapes or WebSocket payloads are introduced, update `react/features/mobile/types.ts`.
-3. **Are storage keys documented?** — New `setPersistentItem`/`getPersistentItem` keys must be added to the storage key registry in `react/features/vrs-auth/storage.ts` comments.
+3. **Are storage keys documented?** — New `setPersistentItem`/`getPersistentItem` keys must be added to the storage key registry below.
 4. **Does the whitelabel config need updating?** — New tenant-specific features must be reflected in all three tenant configs (`whitelabel/malka.json`, `whitelabel/malkavri.json`, `whitelabel/maple.json`).
+5. **ROADMAP updated?** — If this PR adds, changes, or removes a feature tracked in the Mobile Apps section of `ROADMAP.md`, update the corresponding entry.
 
 ## Architecture Constraints
 
@@ -76,7 +77,9 @@ Run both before committing mobile parity changes.
 
 ## Drift Prevention
 
-- **Contract tests**: Shared API client strategy should be chosen to prevent web/mobile contract drift (still pending).
-- **Parity table**: `docs/mobile-parity.md` should maintain a route-by-route API/UI parity table (still pending).
-- **Smoke fixtures**: Demo accounts for iOS/Android smoke testing (still pending).
+- **Shared API client**: `react/features/shared/api-client/` provides typed HTTP methods for both web and mobile. Use this for all new API calls instead of raw `fetch` to prevent contract drift.
+- **Parity table**: `docs/mobile-parity.md` maintains a route-by-route API/UI parity table. Update when adding or changing features.
+- **Smoke fixtures**: `react/features/mobile/test/demo-fixtures.ts` provides demo accounts and seed data for testing.
+- **CI typecheck**: `tsc:web` and `tsc:native` run on every PR via the `mobile-typecheck` CI job.
 - **Issue tagging**: Mobile blockers should be tagged separately in Linear/GitHub so they don't disappear under web work.
+- **Contract tests**: Automated contract tests shared by web and mobile clients (still pending).
