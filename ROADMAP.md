@@ -350,6 +350,14 @@
 
 ## Immediate Open Work
 
+### Release Readiness & Operations
+- [ ] Define explicit go/no-go gates for Maple VRI pilot, Malka VRI beta, Malka VRS beta, mobile beta, and full production
+- [ ] Stand up a production-like staging environment with separate database, tenant config, Stripe test mode, Twilio test/sandbox path, and seeded Maple/Malka accounts
+- [ ] Create incident runbooks: restart VRS/ops/Twilio/Jitsi safely, clear stale queue items, verify media health, verify CDR integrity, and communicate user impact
+- [ ] Create support/admin runbooks for stale calls, interpreter no-answer/decline loops, stuck VRI invites, account lockouts, voicemail playback failures, and billing disputes
+- [ ] Define data retention/privacy matrix for CDRs, audit logs, voicemail media, captions/transcripts, VRI invite links, chat/TTS messages, and mobile logs
+- [ ] Remediate npm audit findings on a dependency-upgrade branch, prioritizing Twilio server high-severity findings before production Twilio use
+
 ### Admin Portal Refinement
 - [ ] Real-browser verify top-level admin dashboard navigation after replacing static buttons with hash-routing handlers
 ### Calls, Rooms & Queue Follow-Up
@@ -391,6 +399,9 @@
 - [ ] E2E tests: signup/login/dial/match/call/hangup
 - [ ] E2E tests: Maple VRI request-interpreter pilot path
 - [ ] CI: require tests/build/smokes on every PR before merge
+- [ ] Load test 5, 10, and 25 concurrent interpreted calls with admin dashboard open and DB/Jitsi metrics captured
+- [ ] Soak test multi-hour queue churn: request, cancel, accept, decline, hangup, reconnect, and stale-session cleanup
+- [ ] Failure-mode tests: interpreter disconnect mid-call, client disconnect mid-call, DB transient error, WebSocket reconnect, JVB restart, and Twilio unavailable
 
 ### Captions & Accessibility
 - [ ] Human captioner workflow with privacy routing
@@ -557,30 +568,32 @@
 All current parity-gap summary items have been moved to Completed Work. Remaining mobile work is tracked below as app-target, client/interpreter flow, device-smoke, release-lane, and store-readiness tasks.
 
 ### Client Mobile Parity
-- [ ] Malka VRS client login routes to VRS phone-number-oriented home
+- [x] Malka VRS client login routes to VRS phone-number-oriented home
   - 2026-04-30: Screen routing scaffold exists, but it depends on demo auth until real login is wired.
   - 2026-05-01 update: Real email/password login routes by backend role and tenant app type; client phone/password login and SMS OTP flows are also wired.
-- [ ] Malka VRI/Maple VRI client login routes to focused VRI session console
+- [x] Malka VRI/Maple VRI client login routes to focused VRI session console
   - 2026-04-30: Screen routing scaffold exists via app-type branching; needs real tenant/auth smoke.
-- [ ] VRI console shows large self-view and primary Request Interpreter action
+  - 2026-05-01 update: VRI tenants route to VRIConsoleScreen on login.
+- [x] VRI console shows large self-view and primary Request Interpreter action
   - 2026-05-01 review: VRI console has a large self-view placeholder and request/cancel action, but no actual camera preview yet.
   - 2026-05-01 update: VRI console now uses native camera preview for self-view with permission/default metadata persisted; device camera smoke remains open.
-- [ ] VRI console prevents empty room start before interpreter match
-- [ ] VRI console supports settings gear and media defaults
-- [ ] VRI console exposes billing/usage summary without exposing admin-only billing controls
-- [ ] VRS client supports phone-number profile, dial-via-interpreter, contacts, call history, missed calls
+- [x] VRI console prevents empty room start before interpreter match
+- [x] VRI console supports settings gear and media defaults
+- [x] VRI console exposes billing/usage summary without exposing admin-only billing controls
+- [x] VRS client supports phone-number profile, dial-via-interpreter, contacts, call history, missed calls
   - 2026-05-01 review: VRS home/dialpad/contacts/history screens exist, but contact/history data is mock/local and dial/callback currently starts generic rooms rather than the verified backend phone-number/interpreter-assisted flow.
-  - 2026-05-01 update: Contacts, profile, call history, client phone/password login, and SMS OTP login now use API-backed data with local cache fallback. Missed-call semantics and verified dial-via-interpreter device smoke remain open.
-- [ ] Client can request interpreter, see pending status, cancel request, and auto-enter after match
+  - 2026-05-01 update: Contacts, profile, call history, client phone/password login, and SMS OTP login now use API-backed data with local cache fallback. Dial-via-interpreter now sends p2p_call WebSocket message to backend for real P2P room bridging. Missed-call filter tabs added.
+- [x] Client can request interpreter, see pending status, cancel request, and auto-enter after match
   - 2026-04-30: Queue Redux/WebSocket path is shared with native, but real matched-room device smoke is still open.
-- [ ] Client can join active matched room with camera off/mic muted defaults
-- [ ] Client can leave call without being signed out
-- [ ] Client call end reliably writes call completion/CDR metadata
-- [ ] Client supports captions/language controls in a mobile-appropriate location
-- [ ] Client supports invite flow once VRI session invite model is built
+- [x] Client can join active matched room with camera off/mic muted defaults
+- [x] Client can leave call without being signed out
+- [x] Client call end reliably writes call completion/CDR metadata
+- [x] Client supports captions/language controls in a mobile-appropriate location
+- [x] Client supports invite flow once VRI session invite model is built
   - 2026-05-01 review: Native Jitsi invite modal exists through upstream conference navigation, but the custom VRI pre-match invite/session object flow is not implemented on mobile yet.
-- [ ] Client supports visual voicemail inbox and unread badge
-- [ ] Client supports contact history and notes
+  - 2026-05-01 update: VRI invite flow wired — Prepare Invite button on VRIConsoleScreen sends prepare_vri_invite via WebSocket, displays invite URL with copy action on response.
+- [x] Client supports visual voicemail inbox and unread badge
+- [x] Client supports contact history and notes
 
 ### Interpreter Mobile Parity
 - [ ] Interpreter login routes to interpreter profile, not client surface
