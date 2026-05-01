@@ -19,6 +19,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { cancelInterpreterRequest, requestInterpreter } from '../../../../interpreter-queue/actions';
 import { QueueState } from '../../../../interpreter-queue/reducer';
 import { apiClient } from '../../../../shared/api-client';
+import { removeSecureItem } from '../../../../vrs-auth/secureStorage';
 import { clearPersistentItems, getPersistentJson, setPersistentItem } from '../../../../vrs-auth/storage';
 import { mobileLog } from '../../logging';
 import { navigateRoot } from '../../rootNavigationContainerRef';
@@ -172,6 +173,7 @@ const VRIConsoleScreen = () => {
             'vrs_interpreter_auth',
             'vrs_active_call'
         ]);
+        removeSecureItem('vrs_auth_token');
         navigateRoot(screen.auth.login);
     }, []);
 

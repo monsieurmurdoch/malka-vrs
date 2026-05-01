@@ -4,7 +4,7 @@
  * Edit profile, service modes, language pairs.
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     SafeAreaView,
     ScrollView,
@@ -17,6 +17,8 @@ import {
 } from 'react-native';
 
 import { getPersistentJson, setPersistentItem } from '../../../../vrs-auth/storage';
+import { apiClient } from '../../../../shared/api-client';
+import { mobileLog } from '../../logging';
 import { navigateRoot } from '../../rootNavigationContainerRef';
 import { screen } from '../../routes';
 
@@ -34,7 +36,8 @@ const AVAILABLE_LANGUAGES = [
 ];
 
 const InterpreterSettingsScreen = () => {
-    const profile = getPersistentJson<InterpreterProfile>('vrs_user_info') || {};
+    const cachedProfile = getPersistentJson<InterpreterProfile>('vrs_user_info') || {};
+    const [ profile, setProfile ] = useState<InterpreterProfile>(cachedProfile);
     const savedModes = profile.serviceModes || [ 'vrs' ];
 
     const [ name, setName ] = useState(profile.name || '');
@@ -42,6 +45,43 @@ const InterpreterSettingsScreen = () => {
     const [ vrsEnabled, setVrsEnabled ] = useState(savedModes.includes('vrs'));
     const [ vriEnabled, setVriEnabled ] = useState(savedModes.includes('vri'));
     const [ captioningEnabled, setCaptioningEnabled ] = useState(Boolean(profile.captioningEligible));
+    const [ saving, setSaving ] = useState(false);
+
+    useEffect(() => {
+        let active = true;
+
+        const loadProfile = async () => {
+            const response = await apiClient.get<InterpreterProfile>('/api/interpreter/profile');
+
+            if (!active || response.error || !response.data) {
+                if (response.error) {
+                    mobileLog('warn', 'interpreter_settings_load_failed', { error: response.error });
+                }
+
+                return;
+            }
+
+            const nextProfile = {
+                ...cachedProfile,
+                ...response.data,
+                captioningEligible: cachedProfile.captioningEligible
+            };
+            const modes = nextProfile.serviceModes || [ 'vrs' ];
+
+            setProfile(nextProfile);
+            setName(nextProfile.name || '');
+            setLanguages(nextProfile.languages || [ 'ASL', 'English' ]);
+            setVrsEnabled(modes.includes('vrs'));
+            setVriEnabled(modes.includes('vri'));
+            setPersistentItem('vrs_user_info', JSON.stringify(nextProfile));
+        };
+
+        void loadProfile();
+
+        return () => {
+            active = false;
+        };
+    }, []);
 
     const toggleLanguage = useCallback((lang: string) => {
         setLanguages(prev =>
@@ -51,20 +91,32 @@ const InterpreterSettingsScreen = () => {
         );
     }, []);
 
-    const handleSave = useCallback(() => {
+    const handleSave = useCallback(async () => {
         const modes: string[] = [];
         if (vrsEnabled) { modes.push('vrs'); }
         if (vriEnabled) { modes.push('vri'); }
-        if (captioningEnabled) { modes.push('captioning'); }
 
-        const updated = {
-            ...profile,
+        const payload = {
             name: name.trim() || profile.name,
             languages,
-            serviceModes: modes,
+            serviceModes: modes.length ? modes : [ 'vrs' ]
+        };
+
+        setSaving(true);
+
+        const response = await apiClient.put<InterpreterProfile>('/api/interpreter/profile', payload);
+        const updated = {
+            ...profile,
+            ...(response.data || payload),
             captioningEligible: captioningEnabled
         };
+
+        if (response.error) {
+            mobileLog('warn', 'interpreter_settings_save_failed', { error: response.error });
+        }
+
         setPersistentItem('vrs_user_info', JSON.stringify(updated));
+        setSaving(false);
         navigateRoot(screen.interpreter.home);
     }, [ profile, name, languages, vrsEnabled, vriEnabled, captioningEnabled ]);
 
@@ -76,7 +128,7 @@ const InterpreterSettingsScreen = () => {
                 </TouchableOpacity>
                 <Text style = { styles.title }>Interpreter Settings</Text>
                 <TouchableOpacity onPress = { handleSave }>
-                    <Text style = { styles.saveText }>Save</Text>
+                    <Text style = { styles.saveText }>{saving ? 'Saving...' : 'Save'}</Text>
                 </TouchableOpacity>
             </View>
 

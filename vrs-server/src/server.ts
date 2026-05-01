@@ -470,6 +470,28 @@ app.post('/api/vrs/register', validate(registerSchema), async (req: Request, res
     }
 });
 
+const mobileLogsSchema = zodLib.object({
+    logs: zodLib.array(zodLib.object({
+        timestamp: zodLib.string().optional(),
+        level: zodLib.enum([ 'debug', 'info', 'warn', 'error' ]).optional(),
+        event: zodLib.string().max(160).optional(),
+        payload: zodLib.record(zodLib.unknown()).optional(),
+        sessionId: zodLib.string().max(160).optional(),
+        platform: zodLib.string().max(40).optional()
+    })).max(500)
+});
+
+app.post('/api/mobile/logs', validate(mobileLogsSchema), async (req: Request, res: Response) => {
+    const logs = req.body.logs || [];
+    const logger = (req as RequestWithLog).log || log;
+
+    logs.forEach((entry: Record<string, unknown>) => {
+        logger.info({ mobile: entry }, 'mobile_client_log');
+    });
+
+    res.json({ accepted: logs.length });
+});
+
 // ============================================
 // MOUNT ROUTE MODULES
 // ============================================

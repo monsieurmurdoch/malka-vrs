@@ -36,6 +36,17 @@ interface CallHistoryResponse {
     calls?: Array<Record<string, any>>;
 }
 
+interface UserInfo {
+    corporateAccountId?: string;
+    organizationId?: string;
+}
+
+interface BillingSummary {
+    recentInvoices?: Array<{ id?: string; status?: string; totalAmount?: number; total_amount?: number }>;
+    totalCallsThisMonth?: number;
+    totalChargeThisMonth?: number;
+}
+
 function normalizeUsageCall(raw: Record<string, any>): CallRecord {
     const durationMinutes = Number(raw.duration_minutes ?? raw.durationMinutes ?? 0);
 
@@ -51,6 +62,7 @@ const VRIUsageScreen = () => {
             || getPersistentJson<CallRecord[]>('vrs_call_history')
             || []
     );
+    const [ billingSummary, setBillingSummary ] = useState<BillingSummary | null>(null);
 
     useEffect(() => {
         let mounted = true;
@@ -71,6 +83,25 @@ const VRIUsageScreen = () => {
             setLocalHistory(nextHistory);
             setPersistentItem('vri_usage_history', JSON.stringify(nextHistory));
         });
+
+        const userInfo = getPersistentJson<UserInfo>('vrs_user_info');
+        const accountId = userInfo?.corporateAccountId || userInfo?.organizationId;
+
+        if (accountId) {
+            apiClient.get<BillingSummary>(`/api/billing/dashboard/${accountId}`).then(response => {
+                if (!mounted) {
+                    return;
+                }
+
+                if (response.error) {
+                    mobileLog('warn', 'vri_billing_summary_load_failed', { error: response.error });
+
+                    return;
+                }
+
+                setBillingSummary(response.data);
+            });
+        }
 
         return () => {
             mounted = false;
@@ -129,6 +160,18 @@ const VRIUsageScreen = () => {
                         Usage data will appear after your first VRI session.
                     </Text>
                 ) }
+
+                { billingSummary && (
+                    <View style = { styles.periodCard }>
+                        <Text style = { styles.periodLabel }>Billing</Text>
+                        <Text style = { styles.billingLine }>
+                            This month: { billingSummary.totalCallsThisMonth || 0 } calls · ${ Number(billingSummary.totalChargeThisMonth || 0).toFixed(2) }
+                        </Text>
+                        <Text style = { styles.billingLine }>
+                            Recent invoices: { billingSummary.recentInvoices?.length || 0 }
+                        </Text>
+                    </View>
+                ) }
             </ScrollView>
         </SafeAreaView>
     );
@@ -138,6 +181,11 @@ const styles = StyleSheet.create({
     backText: {
         color: '#2979ff',
         fontSize: 15
+    },
+    billingLine: {
+        color: '#ddd',
+        fontSize: 14,
+        marginBottom: 6
     },
     container: {
         backgroundColor: '#0a0a1a',

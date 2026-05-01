@@ -3,11 +3,8 @@
  *
  * Provides a Keychain/Keystore-ready interface for sensitive auth data.
  * On native, sensitive tokens (vrs_auth_token) should be stored via
- * react-native-keychain. Until that native dependency is linked,
- * this falls back to the existing AsyncStorage layer.
- *
- * The API mirrors react-native-keychain's set/get/reset pattern so the
- * swap-in is a one-line change per function when the dep is installed.
+ * react-native-keychain when it is linked. We mirror values into the existing
+ * persistent cache so synchronous call sites can still read during app boot.
  */
 
 import {
@@ -21,6 +18,28 @@ const SECURE_KEYS = new Set([
     'vrs_auth_token',
     'vrs_interpreter_auth'
 ]);
+const KEYCHAIN_SERVICE_PREFIX = 'malka.vrs.';
+
+type KeychainModule = {
+    getGenericPassword?: (options?: { service?: string }) => Promise<false | { password: string }>;
+    setGenericPassword?: (username: string, password: string, options?: { service?: string }) => Promise<unknown>;
+    resetGenericPassword?: (options?: { service?: string }) => Promise<unknown>;
+    getSupportedBiometryType?: () => Promise<string | null>;
+};
+
+function getKeychain(): KeychainModule | null {
+    try {
+        const maybeRequire = typeof require === 'function' ? require : undefined;
+
+        return maybeRequire ? maybeRequire('react-native-keychain') as KeychainModule : null;
+    } catch {
+        return null;
+    }
+}
+
+function serviceFor(key: string): string {
+    return `${KEYCHAIN_SERVICE_PREFIX}${key}`;
+}
 
 /**
  * Read a sensitive value. Sync version checks the in-memory/localStorage
@@ -31,8 +50,6 @@ export function getSecureItem(key: string): string | null {
         return getPersistentItem(key);
     }
 
-    // TODO: Replace with Keychain.getGenericPassword() when
-    // react-native-keychain is linked.
     return getPersistentItem(key);
 }
 
@@ -44,8 +61,18 @@ export async function getSecureItemAsync(key: string): Promise<string | null> {
         return getPersistentItemAsync(key);
     }
 
-    // TODO: Replace with Keychain.getGenericPassword() when
-    // react-native-keychain is linked.
+    const keychain = getKeychain();
+
+    if (keychain?.getGenericPassword) {
+        const credentials = await keychain.getGenericPassword({ service: serviceFor(key) });
+
+        if (credentials && credentials.password) {
+            setPersistentItem(key, credentials.password);
+
+            return credentials.password;
+        }
+    }
+
     return getPersistentItemAsync(key);
 }
 
@@ -59,9 +86,13 @@ export function setSecureItem(key: string, value: string): void {
         return;
     }
 
-    // TODO: Replace with Keychain.setGenericPassword(key, value) when
-    // react-native-keychain is linked.
     setPersistentItem(key, value);
+
+    const keychain = getKeychain();
+
+    if (keychain?.setGenericPassword) {
+        void keychain.setGenericPassword(key, value, { service: serviceFor(key) });
+    }
 }
 
 /**
@@ -74,9 +105,13 @@ export function removeSecureItem(key: string): void {
         return;
     }
 
-    // TODO: Replace with Keychain.resetGenericPassword() when
-    // react-native-keychain is linked.
     removePersistentItem(key);
+
+    const keychain = getKeychain();
+
+    if (keychain?.resetGenericPassword) {
+        void keychain.resetGenericPassword({ service: serviceFor(key) });
+    }
 }
 
 /**
@@ -84,6 +119,11 @@ export function removeSecureItem(key: string): void {
  * Returns true once react-native-keychain is linked and Keychain.isAvailable().
  */
 export async function isSecureStorageAvailable(): Promise<boolean> {
-    // TODO: return Keychain.isAvailable() ?? false;
-    return false;
+    const keychain = getKeychain();
+
+    if (!keychain?.getSupportedBiometryType && !keychain?.setGenericPassword) {
+        return false;
+    }
+
+    return true;
 }

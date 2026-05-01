@@ -10,6 +10,7 @@ import DialInSummary from '../../../invite/components/dial-in-summary/native/Dia
 import Prejoin from '../../../prejoin/components/native/Prejoin';
 import UnsafeRoomWarning from '../../../prejoin/components/native/UnsafeRoomWarning';
 import { isUnsafeRoomWarningEnabled } from '../../../prejoin/functions';
+import { removeSecureItem } from '../../../vrs-auth/secureStorage';
 import { clearPersistentItems, getPersistentItem, getPersistentJson, hydratePersistentItems } from '../../../vrs-auth/storage';
 // eslint-disable-next-line
 // @ts-ignore
@@ -79,6 +80,7 @@ function getInitialRoute(): string {
         if (expiresAt && Date.now() > expiresAt) {
             // Session expired — clear auth state and show login
             clearPersistentItems([ 'vrs_client_auth', 'vrs_auth_token', 'vrs_user_info' ]);
+            removeSecureItem('vrs_auth_token');
 
             return screen.auth.login;
         }
