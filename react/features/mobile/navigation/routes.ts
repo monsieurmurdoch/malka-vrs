@@ -61,7 +61,9 @@ export const screen = {
         usage: 'VRI Usage'
     },
     interpreter: {
-        home: 'Interpreter Home'
+        home: 'Interpreter Home',
+        settings: 'Interpreter Settings',
+        earnings: 'Interpreter Earnings'
     },
     welcome: {
         main: 'Welcome',

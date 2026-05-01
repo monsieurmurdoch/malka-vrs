@@ -23,15 +23,17 @@ import {
 } from '../../../../interpreter-queue/actions';
 import { QueueState } from '../../../../interpreter-queue/reducer';
 import { queueService } from '../../../../interpreter-queue/InterpreterQueueService';
-import { clearPersistentItems, getPersistentJson } from '../../../../vrs-auth/storage';
+import { clearPersistentItems, getPersistentJson, setPersistentItem } from '../../../../vrs-auth/storage';
 import { navigateRoot } from '../../rootNavigationContainerRef';
 import { screen } from '../../routes';
+import NetworkStatusBar from '../NetworkStatusBar';
 
 interface InterpreterInfo {
     id?: string;
     name?: string;
     role?: string;
     languages?: string[];
+    serviceModes?: string[];
 }
 
 interface IncomingRequest {
@@ -103,6 +105,10 @@ const InterpreterHomeScreen = () => {
         navigateRoot(screen.auth.login);
     }, []);
 
+    const handleEndCall = useCallback(() => {
+        queueService.endActiveCall();
+    }, []);
+
     const formatTime = (seconds: number) => {
         const m = Math.floor(seconds / 60);
         const s = seconds % 60;
@@ -114,6 +120,7 @@ const InterpreterHomeScreen = () => {
 
     return (
         <SafeAreaView style = { styles.container }>
+            <NetworkStatusBar isConnected = { isConnected } />
             <View style = { styles.header }>
                 <Text style = { styles.headerTitle }>
                     { userInfo?.name || 'Interpreter' }
@@ -156,6 +163,17 @@ const InterpreterHomeScreen = () => {
                     <View style = { styles.sessionCard }>
                         <Text style = { styles.sessionLabel }>Active Session</Text>
                         <Text style = { styles.sessionTimer }>{ formatTime(activeTime) }</Text>
+                        { matchData?.interpreterName && (
+                            <Text style = { styles.sessionClient }>
+                                with { matchData.interpreterName }
+                            </Text>
+                        ) }
+                        <TouchableOpacity
+                            accessibilityLabel = 'End call'
+                            onPress = { handleEndCall }
+                            style = { styles.endCallButton }>
+                            <Text style = { styles.endCallText }>End Call</Text>
+                        </TouchableOpacity>
                     </View>
                 ) }
 
@@ -168,6 +186,14 @@ const InterpreterHomeScreen = () => {
                         </Text>
                         <Text style = { styles.requestLanguage }>
                             Language: { activeRequest.language || 'ASL' }
+                        </Text>
+                        <Text style = { styles.requestContext }>
+                            Service: { activeRequest.roomName?.startsWith('vri') ? 'VRI' : 'VRS' }
+                        </Text>
+                        <Text style = { styles.requestContext }>
+                            { activeRequest.timestamp
+                                ? `Received ${new Date(activeRequest.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                                : '' }
                         </Text>
                         <View style = { styles.requestActions }>
                             <TouchableOpacity
@@ -195,20 +221,36 @@ const InterpreterHomeScreen = () => {
                     </View>
                 ) }
 
-                {/* Languages */}
-                { (userInfo?.languages?.length ?? 0) > 0 && (
-                    <View style = { styles.languagesCard }>
-                        <Text style = { styles.sectionLabel }>Languages</Text>
-                        <View style = { styles.languageTags }>
-                            { (userInfo?.languages || []).map(lang => (
-                                <View key = { lang } style = { styles.languageTag }>
-                                    <Text style = { styles.languageTagText }>{ lang }</Text>
-                                </View>
-                            )) }
+                {/* Service Modes & Languages */}
+                <View style = { styles.infoRow }>
+                    { (userInfo?.serviceModes || []).map(mode => (
+                        <View key = { mode } style = { styles.modeTag }>
+                            <Text style = { styles.modeTagText }>
+                                { mode.toUpperCase() }
+                            </Text>
                         </View>
-                    </View>
-                ) }
+                    )) }
+                    { (userInfo?.languages || []).map(lang => (
+                        <View key = { lang } style = { styles.languageTag }>
+                            <Text style = { styles.languageTagText }>{ lang }</Text>
+                        </View>
+                    )) }
+                </View>
             </ScrollView>
+
+            {/* Footer links */}
+            <View style = { styles.footer }>
+                <TouchableOpacity
+                    onPress = { () => navigateRoot(screen.interpreter.settings) }
+                    style = { styles.footerLink }>
+                    <Text style = { styles.footerLinkText }>Settings</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    onPress = { () => navigateRoot(screen.interpreter.earnings) }
+                    style = { styles.footerLink }>
+                    <Text style = { styles.footerLinkText }>Earnings</Text>
+                </TouchableOpacity>
+            </View>
 
             {/* Connection Status */}
             <View style = { styles.connectionBar }>
@@ -293,6 +335,19 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         textAlign: 'center'
     },
+    endCallButton: {
+        backgroundColor: '#d32f2f',
+        borderRadius: 10,
+        marginTop: 16,
+        paddingVertical: 12,
+        width: '100%'
+    },
+    endCallText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '600',
+        textAlign: 'center'
+    },
     dotGray: {
         backgroundColor: '#666'
     },
@@ -317,9 +372,27 @@ const styles = StyleSheet.create({
     inSession: {
         backgroundColor: '#1565c0'
     },
-    languagesCard: {
+    infoRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
         marginHorizontal: 16,
         marginTop: 8
+    },
+    footer: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        paddingVertical: 8
+    },
+    footerLink: {
+        backgroundColor: '#1a1a2e',
+        borderRadius: 8,
+        marginHorizontal: 6,
+        paddingHorizontal: 16,
+        paddingVertical: 8
+    },
+    footerLinkText: {
+        color: '#aaa',
+        fontSize: 13
     },
     languageTag: {
         backgroundColor: '#1a1a2e',
@@ -333,10 +406,18 @@ const styles = StyleSheet.create({
         color: '#aaa',
         fontSize: 13
     },
-    languageTags: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        marginTop: 6
+    modeTag: {
+        backgroundColor: '#2979ff',
+        borderRadius: 6,
+        marginRight: 8,
+        marginBottom: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 4
+    },
+    modeTagText: {
+        color: '#fff',
+        fontSize: 11,
+        fontWeight: '700'
     },
     logoutButton: {
         paddingHorizontal: 12,
@@ -366,6 +447,11 @@ const styles = StyleSheet.create({
         fontSize: 20,
         fontWeight: '700',
         marginTop: 4
+    },
+    requestContext: {
+        color: '#666',
+        fontSize: 13,
+        marginTop: 2
     },
     requestLanguage: {
         color: '#888',
@@ -398,6 +484,11 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '600',
         textTransform: 'uppercase'
+    },
+    sessionClient: {
+        color: '#aaa',
+        fontSize: 14,
+        marginTop: 4
     },
     sessionTimer: {
         color: '#4caf50',

@@ -525,17 +525,22 @@
   - 2026-04-30: MobileLoginScreen now has role selector (Client/Interpreter). Interpreter auth sets vrs_user_role=interpreter and routes to InterpreterHomeScreen. getInitialRoute checks role for re-launch routing.
 - [x] Interpreter profile mirrors web structure with self-view, availability, queue state, tabs
   - 2026-04-30: InterpreterHomeScreen with availability toggle, incoming request display, session timer, language tags, connection status.
-- [ ] Interpreter can set service modes: VRS, VRI, captioning eligibility
-- [ ] Interpreter can set language pairs and skills
+- [x] Interpreter can set service modes: VRS, VRI, captioning eligibility
+  - 2026-04-30: InterpreterSettingsScreen with VRS/VRI/captioning eligibility toggles. Persisted to vrs_user_info storage.
+- [x] Interpreter can set language pairs and skills
+  - 2026-04-30: InterpreterSettingsScreen with language pair selector (ASL, LSQ, English, French, Spanish, Mandarin). Toggling adds/removes from active languages.
 - [x] Interpreter can go available/unavailable
   - 2026-04-30: Availability toggle on InterpreterHomeScreen calls queueService.updateInterpreterStatus('active'|'inactive'). Visual state: Available (green), Offline (gray), In Session (blue).
 - [ ] Interpreter receives incoming request notification while app is foregrounded
 - [ ] Interpreter receives push/call-style notification while app is backgrounded or locked
 - [x] Interpreter can accept/decline request and auto-join correct room
   - 2026-04-30: InterpreterHomeScreen shows pending requests from Redux state with Accept/Decline buttons. Accept dispatches acceptInterpreterRequest, which triggers auto-join via middleware. Decline dispatches declineInterpreterRequest.
-- [ ] Interpreter sees client/session context before accepting where permitted
-- [ ] Interpreter can end call and trigger call lifecycle completion
-- [ ] Interpreter billing/earnings tab shows payable minutes, invoice status, payout method placeholders
+- [x] Interpreter sees client/session context before accepting where permitted
+  - 2026-04-30: InterpreterHomeScreen incoming request card now shows client name, language, service type (VRS/VRI from room name prefix), and timestamp. Interpreter can see context before tapping Accept/Decline.
+- [x] Interpreter can end call and trigger call lifecycle completion
+  - 2026-04-30: InterpreterHomeScreen has End Call button during active session. Calls queueService.endActiveCall(). Session timer shows live duration. CONFERENCE_LEFT handler navigates interpreter back to InterpreterHome.
+- [x] Interpreter billing/earnings tab shows payable minutes, invoice status, payout method placeholders
+  - 2026-04-30: InterpreterEarningsScreen shows total payable minutes, day/week/month breakdown, invoice history placeholder, and payout method placeholder. Accessible from InterpreterHomeScreen footer.
 - [ ] Interpreter schedule/break/teaming decisions documented for MVP vs post-May
 
 ### Captioner Mobile Parity
@@ -575,6 +580,7 @@
   - 2026-04-30: NetworkStatusBar component shows orange banner when disconnected (dismissable). Wired into VRSHomeScreen and VRIConsoleScreen. Shows reconnecting state when WebSocket is reconnecting.
 - [ ] Tenant branding parity for Maple/Malka: logos, colors, app name, favicon/app icon/splash, copy
   - 2026-04-30: Mobile bundle IDs and display names added to tenant configs (mobile.iosBundleId, mobile.androidApplicationId, mobile.displayName). Whitelabel prebuild script now patches iOS Info.plist/pbxproj and Android build.gradle/strings.xml per tenant. Fastlane deploy lanes use tenant-specific bundle IDs.
+  - 2026-04-30: Created `useTenantTheme()` hook in react/features/mobile/navigation/hooks/useTenantTheme.ts. Reads theme colors from window.__WHITELABEL__ (web) or AsyncStorage-cached tenant config (native). All mobile screens can consume tenant-specific primary/accent/surface colors via this hook instead of hardcoding hex values.
 - [ ] Mobile QA matrix: iOS/Android, phone/tablet, permissions, orientation, Bluetooth, screen lock
 - [ ] Store readiness: privacy manifests, permission copy, screenshots, TestFlight/Play internal testing, crash reporting
 
@@ -590,7 +596,8 @@
 - [ ] End of May: mobile release candidate with documented unsupported features and production rollback plan
 
 ### Mobile Drift Controls
-- [ ] Add `ROADMAP.md` mobile parity update requirement to `AGENTS.md`
+- [x] Add `ROADMAP.md` mobile parity update requirement to `AGENTS.md`
+  - 2026-04-30: Created AGENTS.md with mobile parity rules, PR checklist requirements, architecture constraints, storage key registry, and drift prevention guidelines.
 - [ ] Add PR checklist item: "Does this web/backend change affect mobile?"
 - [ ] Maintain `docs/mobile-parity.md` with route-by-route API/UI parity table
 - [ ] Add automated contract tests shared by web and mobile clients

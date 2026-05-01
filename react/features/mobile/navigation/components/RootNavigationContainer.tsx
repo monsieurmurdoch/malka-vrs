@@ -41,6 +41,8 @@ import VRSHomeScreen from './vrs/VRSHomeScreen';
 import VoicemailInboxScreen from './vrs/VoicemailInboxScreen';
 import MobileLoginScreen from './auth/MobileLoginScreen';
 import InterpreterHomeScreen from './interpreter/InterpreterHomeScreen';
+import InterpreterSettingsScreen from './interpreter/InterpreterSettingsScreen';
+import InterpreterEarningsScreen from './interpreter/InterpreterEarningsScreen';
 import CallHistoryScreen from './vrs/CallHistoryScreen';
 import ContactsScreen from './vrs/ContactsScreen';
 import ContactDetailScreen from './vrs/ContactDetailScreen';
@@ -196,6 +198,14 @@ const RootNavigationContainer = ({ dispatch, isUnsafeRoomWarningAvailable, isWel
                 <RootStack.Screen // @ts-ignore
                     component = { InterpreterHomeScreen }
                     name = { screen.interpreter.home }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen // @ts-ignore
+                    component = { InterpreterSettingsScreen }
+                    name = { screen.interpreter.settings }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen // @ts-ignore
+                    component = { InterpreterEarningsScreen }
+                    name = { screen.interpreter.earnings }
                     options = { fullScreenOptions } />
             </RootStack.Navigator>
         </NavigationContainer>
