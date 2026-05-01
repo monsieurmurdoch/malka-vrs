@@ -13,11 +13,12 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { MediaStream, mediaDevices, RTCView } from 'react-native-webrtc';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { cancelInterpreterRequest, requestInterpreter } from '../../../../interpreter-queue/actions';
 import { QueueState } from '../../../../interpreter-queue/reducer';
-import { clearPersistentItems, getPersistentJson } from '../../../../vrs-auth/storage';
+import { clearPersistentItems, getPersistentJson, setPersistentItem } from '../../../../vrs-auth/storage';
 import { navigateRoot } from '../../rootNavigationContainerRef';
 import { screen } from '../../routes';
 import NetworkStatusBar from '../NetworkStatusBar';
@@ -39,6 +40,60 @@ const VRIConsoleScreen = () => {
 
     const userInfo = getPersistentJson<UserInfo>('vrs_user_info');
     const [ elapsedTime, setElapsedTime ] = useState(0);
+    const [ previewStream, setPreviewStream ] = useState<MediaStream | null>(null);
+    const [ previewError, setPreviewError ] = useState('');
+
+    useEffect(() => {
+        let mounted = true;
+        let activeStream: MediaStream | null = null;
+
+        async function startPreview() {
+            try {
+                const stream = await mediaDevices.getUserMedia({
+                    audio: false,
+                    video: {
+                        facingMode: 'user'
+                    }
+                }) as MediaStream;
+
+                activeStream = stream;
+
+                if (!mounted) {
+                    stream.getTracks().forEach(track => track.stop());
+
+                    return;
+                }
+
+                setPreviewError('');
+                setPreviewStream(stream);
+                setPersistentItem('vri_media_defaults', JSON.stringify({
+                    cameraPermissionGranted: true,
+                    cameraPreviewEnabled: true,
+                    cameraDefaultOn: true,
+                    microphoneDefaultMuted: true,
+                    updatedAt: new Date().toISOString()
+                }));
+            } catch (err: any) {
+                if (mounted) {
+                    setPreviewError(err?.message || 'Camera preview unavailable');
+                    setPersistentItem('vri_media_defaults', JSON.stringify({
+                        cameraPermissionGranted: false,
+                        cameraPreviewEnabled: false,
+                        cameraDefaultOn: false,
+                        microphoneDefaultMuted: true,
+                        updatedAt: new Date().toISOString()
+                    }));
+                }
+            }
+        }
+
+        void startPreview();
+
+        return () => {
+            mounted = false;
+            activeStream?.getTracks().forEach(track => track.stop());
+        };
+    }, []);
 
     // Track time since match was found
     useEffect(() => {
@@ -104,14 +159,24 @@ const VRIConsoleScreen = () => {
             {/* Self-View Area */}
             <View style = { styles.selfViewArea }>
                 <View style = { styles.selfViewPlaceholder }>
-                    <Text style = { styles.selfViewText }>
-                        { isInSession ? 'In Session' : 'Camera Preview' }
-                    </Text>
-                    <Text style = { styles.selfViewSubtext }>
-                        { isInSession
-                            ? `With ${matchData?.interpreterName || 'interpreter'}`
-                            : 'Self-view will appear here' }
-                    </Text>
+                    { previewStream ? (
+                        <RTCView
+                            mirror
+                            objectFit = 'cover'
+                            streamURL = { previewStream.toURL() }
+                            style = { styles.selfViewVideo } />
+                    ) : (
+                        <>
+                            <Text style = { styles.selfViewText }>
+                                { isInSession ? 'In Session' : 'Camera Preview' }
+                            </Text>
+                            <Text style = { styles.selfViewSubtext }>
+                                { previewError || (isInSession
+                                    ? `With ${matchData?.interpreterName || 'interpreter'}`
+                                    : 'Allow camera access to see yourself here') }
+                            </Text>
+                        </>
+                    ) }
                 </View>
             </View>
 
@@ -297,7 +362,8 @@ const styles = StyleSheet.create({
         backgroundColor: '#1a1a2e',
         borderRadius: 16,
         flex: 1,
-        justifyContent: 'center'
+        justifyContent: 'center',
+        overflow: 'hidden'
     },
     selfViewSubtext: {
         color: '#555',
@@ -308,6 +374,10 @@ const styles = StyleSheet.create({
         color: '#777',
         fontSize: 16,
         fontWeight: '500'
+    },
+    selfViewVideo: {
+        height: '100%',
+        width: '100%'
     },
     sessionDetail: {
         color: '#999',

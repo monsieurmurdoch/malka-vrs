@@ -17,15 +17,15 @@ Route-by-route API/UI parity status between web and mobile surfaces.
 
 | Feature | API Endpoint | Web | Mobile | Status |
 |---------|-------------|-----|--------|--------|
-| Email/password login | `POST /api/auth/login` | Yes | Yes (email + password fields, JWT stored) | Partial |
+| Email/password login | `POST /api/auth/client/login`, `POST /api/auth/interpreter/login` | Yes | Real endpoint auth wired for client/interpreter roles | Done |
 | Phone/SMS OTP login | `POST /api/auth/phone` | Yes | Missing | Missing |
 | Password reset | `POST /api/auth/reset-password` | Yes | Yes (PasswordResetScreen with email validation) | Partial |
 | JWT refresh | `POST /api/auth/refresh` | Yes | Missing | Missing |
-| JWT expiry detection | N/A (client logic) | Yes | Yes (getInitialRoute checks expiresAt) | Done |
+| JWT expiry detection | N/A (client logic) | Yes | Async native hydration before launch routing + expiry clear | Done |
 | Role-based routing | N/A (client logic) | Yes | Yes | Done |
 | Logout/session clear | N/A (client logic) | Yes | Yes | Done |
 | Role selector (Client/Interpreter) | N/A | Yes | Yes | Done |
-| Token expiry auto-redirect | N/A (client logic) | Yes | Yes (clears expired sessions) | Done |
+| Token expiry auto-redirect | N/A (client logic) | Yes | Clears expired sessions after native hydration | Done |
 
 ## Client VRS Screens
 
@@ -33,10 +33,10 @@ Route-by-route API/UI parity status between web and mobile surfaces.
 |--------|-----------|-----|--------|------------|
 | VRS Home | `vrs.home` | Yes | Yes | Local storage |
 | Dial Pad | `vrs.dialPad` | Yes | Yes | Queue WebSocket |
-| Contacts | `vrs.contacts` | Yes | Yes (favorites, search, filter) | Local storage |
-| Contact Detail | `vrs.contactDetail` | Yes | Yes | Local storage |
-| Call History | `vrs.callHistory` | Yes | Yes (callback button, redial logging) | Local storage |
-| Voicemail Inbox | `vrs.voicemail` | Yes | Yes (playback UI, progress bar) | Local storage |
+| Contacts | `vrs.contacts` | Yes | API-backed list/search/favorites with local cache fallback | API + local cache |
+| Contact Detail | `vrs.contactDetail` | Yes | API-backed detail/notes with cached selected contact fallback | API + local cache |
+| Call History | `vrs.callHistory` | Yes | UI scaffold: callback button, redial logging; API/CDR sync pending | Local/mock storage |
+| Voicemail Inbox | `vrs.voicemail` | Yes | UI scaffold: playback controls/progress bar; real media playback/API pending | Local/mock storage |
 | Language selector | (inline on home) | Yes | Yes | Local storage |
 | Captions toggle | (inline on home) | Yes | Yes | Local storage |
 | Request Interpreter | Queue WebSocket | Yes | Yes | WebSocket |
@@ -47,7 +47,7 @@ Route-by-route API/UI parity status between web and mobile surfaces.
 
 | Screen | Route Name | Web | Mobile | API Status |
 |--------|-----------|-----|--------|------------|
-| VRI Console | `vri.console` | Yes | Yes | Queue WebSocket |
+| VRI Console | `vri.console` | Yes | Yes, including native camera self-view preview | Queue WebSocket + media |
 | VRI Settings | `vri.settings` | Yes | Yes | Local storage |
 | VRI Usage | `vri.usage` | Yes | Yes | Local storage |
 
@@ -96,19 +96,19 @@ Route-by-route API/UI parity status between web and mobile surfaces.
 |---------|-----|--------|--------|
 | Shared Redux store | Yes | Yes | Done |
 | Shared queue middleware | Yes | Yes | Done |
-| Cross-platform storage | localStorage | AsyncStorage | Done |
+| Cross-platform storage | localStorage | AsyncStorage with async boot hydration | Done |
 | Secure token storage | Cookie/localStorage | AsyncStorage (Keychain-ready) | Partial |
-| Whitelabel config | window.__WHITELABEL__ | AsyncStorage cache | Partial |
+| Whitelabel config | window.__WHITELABEL__ | Static/env tenant fallback + AsyncStorage cache | Done |
 | Tenant theme hook | CSS variables | useTenantTheme() | Done |
 | Network status bar | N/A | Yes | Done |
 | Shared API client | fetch + relative URLs | apiClient module | Done |
 | Shared types | N/A | mobile/types.ts | Done |
-| Deep linking | Yes | linking.ts (3 schemes + HTTPS) | Done |
+| Deep linking | Yes | linking.ts (3 schemes + HTTPS); device verification pending | Partial |
 | Push notifications | N/A | Missing | Missing |
 | Background/lock reconnect | N/A | Missing | Missing |
-| Structured mobile logging | N/A | mobileLog utility | Done |
+| Structured mobile logging | N/A | mobileLog local buffer utility; backend flush/upload pending | Partial |
 | Demo fixtures | N/A | demo-fixtures.ts | Done |
-| CI mobile typecheck | N/A | GitHub Actions job | Done |
+| CI mobile typecheck | N/A | GitHub Actions job; local `tsc:native` currently passes | Done |
 | Privacy manifest | N/A | PrivacyInfo.xcprivacy | Done |
 | Mobile QA matrix | N/A | docs/mobile-qa-matrix.md | Done |
 
@@ -116,7 +116,7 @@ Route-by-route API/UI parity status between web and mobile surfaces.
 
 | Feature | Web | Mobile | Status |
 |---------|-----|--------|--------|
-| VoiceOver/TalkBack labels | Partial | Yes (7+ screens) | Done |
+| VoiceOver/TalkBack labels | Partial | First pass on 7+ screens; device screen-reader smoke pending | Partial |
 | Dynamic Type/text scaling | Yes | Partial | Partial |
 | Reduced motion | Yes | Missing | Missing |
 | Color contrast (WCAG AA) | Yes | Yes (dark theme) | Done |

@@ -1,7 +1,7 @@
 import { NavigationContainer, Theme } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import React, { useCallback } from 'react';
-import { StatusBar } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { SafeAreaView, StatusBar, StyleSheet, Text } from 'react-native';
 import { connect } from 'react-redux';
 
 import { IReduxState, IStore } from '../../../app/types';
@@ -10,7 +10,7 @@ import DialInSummary from '../../../invite/components/dial-in-summary/native/Dia
 import Prejoin from '../../../prejoin/components/native/Prejoin';
 import UnsafeRoomWarning from '../../../prejoin/components/native/UnsafeRoomWarning';
 import { isUnsafeRoomWarningEnabled } from '../../../prejoin/functions';
-import { clearPersistentItems, getPersistentItem, getPersistentJson } from '../../../vrs-auth/storage';
+import { clearPersistentItems, getPersistentItem, getPersistentJson, hydratePersistentItems } from '../../../vrs-auth/storage';
 // eslint-disable-next-line
 // @ts-ignore
 import WelcomePage from '../../../welcome/components/WelcomePage';
@@ -51,6 +51,14 @@ import ContactDetailScreen from './vrs/ContactDetailScreen';
 import DialPadScreen from './vrs/DialPadScreen';
 
 const RootStack = createStackNavigator();
+const AUTH_STORAGE_KEYS = [
+    'vrs_client_auth',
+    'vrs_interpreter_auth',
+    'vrs_auth_token',
+    'vrs_user_info',
+    'vrs_user_role',
+    'vrs_tenant_config'
+];
 
 /**
  * Determine the initial route based on auth state and tenant app type.
@@ -87,6 +95,16 @@ function getInitialRoute(): string {
     return screen.auth.login;
 }
 
+async function getHydratedInitialRoute(isWelcomePageAvailable: boolean): Promise<string> {
+    if (!isWelcomePageAvailable) {
+        return screen.connecting;
+    }
+
+    await hydratePersistentItems(AUTH_STORAGE_KEYS);
+
+    return getInitialRoute();
+}
+
 
 interface IProps {
 
@@ -108,14 +126,40 @@ interface IProps {
 
 
 const RootNavigationContainer = ({ dispatch, isUnsafeRoomWarningAvailable, isWelcomePageAvailable }: IProps) => {
-    const initialRouteName = isWelcomePageAvailable
-        ? getInitialRoute() : screen.connecting;
+    const [ initialRouteName, setInitialRouteName ] = useState<string | null>(null);
     const onReady = useCallback(() => {
         dispatch({
             type: _ROOT_NAVIGATION_READY,
             ready: true
         });
     }, [ dispatch ]);
+
+    useEffect(() => {
+        let mounted = true;
+
+        getHydratedInitialRoute(isWelcomePageAvailable).then(routeName => {
+            if (mounted) {
+                setInitialRouteName(routeName);
+            }
+        });
+
+        return () => {
+            mounted = false;
+        };
+    }, [ isWelcomePageAvailable ]);
+
+    if (!initialRouteName) {
+        return (
+            <SafeAreaView style = { bootStyles.container }>
+                <StatusBar
+                    animated = { true }
+                    backgroundColor = 'transparent'
+                    barStyle = { 'light-content' }
+                    translucent = { true } />
+                <Text style = { bootStyles.text }>Loading...</Text>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <NavigationContainer
@@ -229,6 +273,19 @@ const RootNavigationContainer = ({ dispatch, isUnsafeRoomWarningAvailable, isWel
         </NavigationContainer>
     );
 };
+
+const bootStyles = StyleSheet.create({
+    container: {
+        alignItems: 'center',
+        backgroundColor: '#0f0f23',
+        flex: 1,
+        justifyContent: 'center'
+    },
+    text: {
+        color: '#ffffff',
+        fontSize: 15
+    }
+});
 
 /**
  * Maps part of the Redux store to the props of this component.

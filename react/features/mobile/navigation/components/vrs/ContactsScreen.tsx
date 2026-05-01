@@ -5,7 +5,7 @@
  * Backed by /api/contacts endpoint.
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     FlatList,
     SafeAreaView,
@@ -18,8 +18,10 @@ import {
 import { useDispatch } from 'react-redux';
 
 import { appNavigate } from '../../../../app/actions';
+import { apiClient } from '../../../../shared/api-client';
 import { getPersistentJson, setPersistentItem } from '../../../../vrs-auth/storage';
 import { navigateRoot } from '../../rootNavigationContainerRef';
+import { mobileLog } from '../../logging';
 import { screen } from '../../routes';
 
 interface Contact {
@@ -32,8 +34,7 @@ interface Contact {
     isFavorite?: boolean;
 }
 
-// Placeholder data — will be replaced with API fetch
-const MOCK_CONTACTS: Contact[] = [
+const DEV_CONTACTS: Contact[] = [
     { id: '1', name: 'Dr. Sarah Chen', phoneNumber: '+12125551234', lastCalled: '2026-04-28', isFavorite: true },
     { id: '2', name: 'Mom', phoneNumber: '+14155559876', lastCalled: '2026-04-27', isFavorite: true },
     { id: '3', name: 'Pizza Palace', phoneNumber: '+12125557777', lastCalled: '2026-04-25' },
@@ -42,6 +43,22 @@ const MOCK_CONTACTS: Contact[] = [
 ];
 
 const FAVORITES_KEY = 'vrs_favorite_contacts';
+
+interface ContactsResponse {
+    contacts?: Array<Record<string, any>>;
+}
+
+function normalizeContact(raw: Record<string, any>): Contact {
+    return {
+        id: String(raw.id),
+        name: raw.name || raw.displayName || raw.email || raw.phoneNumber || raw.phone_number || 'Unnamed contact',
+        phoneNumber: raw.phoneNumber || raw.phone_number,
+        email: raw.email,
+        lastCalled: raw.lastCalled || raw.last_called,
+        notes: raw.notes,
+        isFavorite: Boolean(raw.isFavorite ?? raw.is_favorite)
+    };
+}
 
 const ContactsScreen = () => {
     const dispatch = useDispatch();
@@ -53,13 +70,42 @@ const ContactsScreen = () => {
             return stored;
         }
 
-        return MOCK_CONTACTS;
+        return __DEV__ ? DEV_CONTACTS : [];
     });
 
     // Load favorite IDs from storage
-    const favoriteIds = new Set(
+    const favoriteIds = useMemo(() => new Set(
         getPersistentJson<string[]>(FAVORITES_KEY) || contacts.filter(c => c.isFavorite).map(c => c.id)
-    );
+    ), [ contacts ]);
+
+    useEffect(() => {
+        let mounted = true;
+
+        async function loadContacts() {
+            const response = await apiClient.get<ContactsResponse>('/api/contacts');
+
+            if (!mounted) {
+                return;
+            }
+
+            if (response.error) {
+                mobileLog('warn', 'contacts_load_failed', { error: response.error });
+
+                return;
+            }
+
+            const nextContacts = (response.data?.contacts || []).map(normalizeContact);
+
+            setContacts(nextContacts);
+            setPersistentItem('vrs_contacts', JSON.stringify(nextContacts));
+        }
+
+        void loadContacts();
+
+        return () => {
+            mounted = false;
+        };
+    }, []);
 
     const handleToggleFavorite = useCallback((contactId: string) => {
         const ids = new Set(favoriteIds);
@@ -70,14 +116,30 @@ const ContactsScreen = () => {
             ids.add(contactId);
         }
 
-        setPersistentItem(FAVORITES_KEY, JSON.stringify([ ...ids ]));
-
-        // Force re-render by updating a contact reference
-        setContacts(prev => prev.map(c => ({
+        const updatedContacts = contacts.map(c => ({
             ...c,
             isFavorite: ids.has(c.id)
-        })));
-    }, [ favoriteIds ]);
+        }));
+
+        setPersistentItem(FAVORITES_KEY, JSON.stringify([ ...ids ]));
+        setContacts(updatedContacts);
+        setPersistentItem('vrs_contacts', JSON.stringify(updatedContacts));
+
+        const contact = updatedContacts.find(c => c.id === contactId);
+
+        if (contact) {
+            void apiClient.put(`/api/contacts/${contact.id}`, {
+                isFavorite: contact.isFavorite
+            }).then(response => {
+                if (response.error) {
+                    mobileLog('warn', 'contact_favorite_sync_failed', {
+                        contactId,
+                        error: response.error
+                    });
+                }
+            });
+        }
+    }, [ contacts, favoriteIds ]);
 
     const handleCall = useCallback((contact: Contact) => {
         const roomName = `vrs-${ Date.now() }`;
@@ -86,13 +148,14 @@ const ContactsScreen = () => {
     }, [ dispatch ]);
 
     const handleContactPress = useCallback((contact: Contact) => {
-        setPersistentItem('vrs_selected_contact', contact.id);
+        setPersistentItem('vrs_selected_contact', JSON.stringify(contact));
         navigateRoot(screen.vrs.contactDetail);
     }, []);
 
     const filteredContacts = contacts.filter(c => {
         const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase())
-            || c.phoneNumber?.includes(search);
+            || c.phoneNumber?.includes(search)
+            || c.email?.toLowerCase().includes(search.toLowerCase());
 
         if (showFavoritesOnly) {
             return matchesSearch && (c.isFavorite || favoriteIds.has(c.id));

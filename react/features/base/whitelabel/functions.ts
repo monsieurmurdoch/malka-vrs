@@ -6,12 +6,108 @@
  */
 
 import { APP_TYPE, FEATURES, type AppType, type FeatureKey } from './constants';
+import { getPersistentJson } from '../../vrs-auth/storage';
+import malkaConfig from '../../../../whitelabel/malka.json';
+import malkaVriConfig from '../../../../whitelabel/malkavri.json';
+import mapleConfig from '../../../../whitelabel/maple.json';
+
+type RuntimeWhitelabelConfig = {
+    tenantId?: string;
+    appName?: string;
+    providerName?: string;
+    tagline?: string;
+    description?: string;
+    supportUrl?: string;
+    domains?: Record<string, string | undefined>;
+    theme?: Record<string, string | undefined>;
+    features?: Record<string, any>;
+    assets?: Record<string, any>;
+    operations?: Record<string, any>;
+};
+
+const STATIC_TENANTS: Record<string, any> = {
+    malka: malkaConfig,
+    malkavri: malkaVriConfig,
+    maple: mapleConfig
+};
+
+function getGlobalWhitelabel(): RuntimeWhitelabelConfig | undefined {
+    try {
+        const globalScope = typeof globalThis !== 'undefined' ? globalThis as any : undefined;
+
+        return globalScope?.window?.__WHITELABEL__ || globalScope?.__WHITELABEL__;
+    } catch {
+        return undefined;
+    }
+}
+
+function getBuildTenantId(): string | undefined {
+    try {
+        const env = (globalThis as any)?.process?.env;
+
+        return env?.TENANT || env?.VRS_TENANT || env?.EXPO_PUBLIC_TENANT;
+    } catch {
+        return undefined;
+    }
+}
+
+function flattenFeatures(features: Record<string, any> = {}) {
+    const flattened: Record<string, any> = {};
+
+    for (const [ key, value ] of Object.entries(features)) {
+        if (key === 'languages' && value && typeof value === 'object') {
+            flattened.languages = value.enabled;
+            flattened.defaultLanguage = value.default;
+        } else if (value && typeof value === 'object' && 'enabled' in value) {
+            flattened[key] = value.enabled;
+        } else {
+            flattened[key] = value;
+        }
+    }
+
+    return flattened;
+}
+
+function normalizeConfig(config: any): RuntimeWhitelabelConfig | undefined {
+    if (!config) {
+        return undefined;
+    }
+
+    if (config.appName) {
+        return config;
+    }
+
+    return {
+        tenantId: config.tenantId,
+        appName: config.brand?.appName,
+        providerName: config.brand?.providerName,
+        tagline: config.brand?.tagline,
+        description: config.brand?.description,
+        supportUrl: config.brand?.supportUrl,
+        domains: config.domains || {},
+        theme: config.theme || {},
+        features: flattenFeatures(config.features || {}),
+        assets: config.assets || {},
+        operations: config.operations || {}
+    };
+}
+
+function getStaticTenantConfig(): RuntimeWhitelabelConfig {
+    const tenantId = getPersistentJson<{ tenantId?: string }>('vrs_tenant_config')?.tenantId
+        || getPersistentJson<{ tenantId?: string }>('vrs_user_info')?.tenantId
+        || getBuildTenantId()
+        || 'malka';
+
+    return normalizeConfig(STATIC_TENANTS[tenantId] || STATIC_TENANTS.malka) || {};
+}
 
 /**
  * Get the full whitelabel config object.
  */
 export function getWhitelabelConfig() {
-    return window.__WHITELABEL__;
+    return normalizeConfig(getGlobalWhitelabel())
+        || normalizeConfig(getPersistentJson<RuntimeWhitelabelConfig>('vrs_tenant_config'))
+        || getStaticTenantConfig();
 }
 
 /**
@@ -21,7 +117,7 @@ export function getWhitelabelConfig() {
  * or if the feature key is not defined in the config.
  */
 export function isFeatureEnabled(feature: FeatureKey | string): boolean {
-    const wl = window.__WHITELABEL__;
+    const wl = getWhitelabelConfig();
     if (!wl?.features) {
         return true; // default: all features enabled
     }
@@ -38,7 +134,7 @@ export function isFeatureEnabled(feature: FeatureKey | string): boolean {
  * Falls back to a sensible default if no config is present.
  */
 export function getEnabledLanguages(): string[] {
-    const wl = window.__WHITELABEL__;
+    const wl = getWhitelabelConfig();
     if (wl?.features?.languages && Array.isArray(wl.features.languages)) {
         return wl.features.languages;
     }
@@ -49,7 +145,7 @@ export function getEnabledLanguages(): string[] {
  * Get the default language for the current tenant.
  */
 export function getDefaultLanguage(): string {
-    const wl = window.__WHITELABEL__;
+    const wl = getWhitelabelConfig();
     if (wl?.features?.defaultLanguage) {
         return wl.features.defaultLanguage;
     }
@@ -60,7 +156,7 @@ export function getDefaultLanguage(): string {
  * Get the tenant's app name.
  */
 export function getAppName(): string {
-    const wl = window.__WHITELABEL__;
+    const wl = getWhitelabelConfig();
     if (wl?.appName) {
         return wl.appName;
     }
@@ -71,7 +167,7 @@ export function getAppName(): string {
  * Get the tenant's logo URL (white variant for dark backgrounds).
  */
 export function getLogoWhiteUrl(): string {
-    const wl = window.__WHITELABEL__;
+    const wl = getWhitelabelConfig();
     if (wl?.assets?.logoWhite) {
         return wl.assets.logoWhite;
     }
@@ -82,7 +178,7 @@ export function getLogoWhiteUrl(): string {
  * Get the tenant's primary logo URL.
  */
 export function getLogoUrl(): string {
-    const wl = window.__WHITELABEL__;
+    const wl = getWhitelabelConfig();
     if (wl?.assets?.logo) {
         return wl.assets.logo;
     }
@@ -93,7 +189,7 @@ export function getLogoUrl(): string {
  * Check if the current tenant is not "malka" (i.e., is a whitelabeled tenant).
  */
 export function isWhitelabeled(): boolean {
-    const wl = window.__WHITELABEL__;
+    const wl = getWhitelabelConfig();
     return wl ? wl.tenantId !== 'malka' : false;
 }
 
@@ -101,7 +197,7 @@ export function isWhitelabeled(): boolean {
  * Get the current tenant ID.
  */
 export function getTenantId(): string {
-    return window.__WHITELABEL__?.tenantId ?? 'malka';
+    return getWhitelabelConfig()?.tenantId ?? 'malka';
 }
 
 /**
@@ -111,7 +207,7 @@ export function getTenantId(): string {
  * Falls back to checking `features.vrs` vs `features.vri`.
  */
 export function getAppType(): AppType {
-    const wl = window.__WHITELABEL__;
+    const wl = getWhitelabelConfig();
 
     // Explicit appType from tenant config
     if (wl?.operations?.appType) {

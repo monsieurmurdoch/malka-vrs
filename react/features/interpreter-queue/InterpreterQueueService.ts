@@ -6,6 +6,8 @@
  */
 
 import { getUserRole } from '../base/user-role/functions';
+import { APP_TYPE } from '../base/whitelabel/constants';
+import { getAppType, getWhitelabelConfig } from '../base/whitelabel/functions';
 import { getPersistentJson, removePersistentItem } from '../vrs-auth/storage';
 
 declare var config: any;
@@ -59,6 +61,24 @@ interface StoredActiveCall {
     roomName?: string;
 }
 
+function getTenantQueueDomain(role: string): string | undefined {
+    const domains = getWhitelabelConfig()?.domains;
+
+    if (!domains) {
+        return undefined;
+    }
+
+    if (role === 'interpreter') {
+        return domains.interpreter || domains.clientVri || domains.clientVrs;
+    }
+
+    if (getAppType() === APP_TYPE.VRI) {
+        return domains.clientVri || domains.clientVrs || domains.interpreter;
+    }
+
+    return domains.clientVrs || domains.clientVri || domains.interpreter;
+}
+
 function getDefaultQueueServiceUrl() {
     if (typeof window !== 'undefined') {
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -66,7 +86,13 @@ function getDefaultQueueServiceUrl() {
         return `${wsProtocol}//${window.location.host}/ws`;
     }
 
-    return 'ws://localhost:3001/ws';
+    const domain = getTenantQueueDomain(getUserRole());
+
+    if (domain) {
+        return `wss://${domain}/ws`;
+    }
+
+    return 'wss://vrs.malkacomm.com/ws';
 }
 
 function getVRSConfig() {
@@ -143,6 +169,7 @@ class InterpreterQueueService {
 
     private connect() {
         this.userRole = getUserRole();
+        this.config = getVRSConfig();
 
         if (!hasQueueAuthForRole(this.userRole)) {
             return;
@@ -487,7 +514,7 @@ class InterpreterQueueService {
         this.send({
             type: 'interpreter_status_update',
             data: {
-                status: status === 'active' ? 'available' : 'busy',
+                status,
                 name,
                 languages
             }

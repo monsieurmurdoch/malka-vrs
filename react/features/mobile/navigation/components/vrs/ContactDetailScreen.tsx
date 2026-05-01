@@ -5,7 +5,7 @@
  * Reached from ContactsScreen by tapping a contact.
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     SafeAreaView,
     ScrollView,
@@ -18,8 +18,10 @@ import {
 import { useDispatch } from 'react-redux';
 
 import { appNavigate } from '../../../../app/actions';
-import { getPersistentJson, setPersistentItem } from '../../../../vrs-auth/storage';
+import { apiClient } from '../../../../shared/api-client';
+import { getPersistentItem, getPersistentJson, setPersistentItem } from '../../../../vrs-auth/storage';
 import { navigateRoot } from '../../rootNavigationContainerRef';
+import { mobileLog } from '../../logging';
 import { screen } from '../../routes';
 
 interface Contact {
@@ -28,6 +30,10 @@ interface Contact {
     phoneNumber?: string;
     email?: string;
     notes?: string;
+}
+
+interface ContactResponse {
+    contact?: Record<string, any>;
 }
 
 interface CallRecord {
@@ -39,11 +45,14 @@ interface CallRecord {
     direction: string;
 }
 
-interface RouteParams {
-    contactId: string;
-    contactName: string;
-    phoneNumber?: string;
-    email?: string;
+function normalizeContact(raw: Record<string, any>): Contact {
+    return {
+        id: String(raw.id),
+        name: raw.name || raw.displayName || raw.email || raw.phoneNumber || raw.phone_number || 'Unknown',
+        phoneNumber: raw.phoneNumber || raw.phone_number,
+        email: raw.email,
+        notes: raw.notes
+    };
 }
 
 const formatDuration = (secs: number) => {
@@ -65,15 +74,52 @@ const ContactDetailScreen = () => {
 
     // In a real app these come from route params; using storage for now
     const contacts = getPersistentJson<Contact[]>('vrs_contacts') || [];
-    const contactId = getPersistentJson<string>('vrs_selected_contact') || '';
-    const contact = contacts.find(c => c.id === contactId) || {
-        id: contactId,
+    const selectedContact = getPersistentJson<Contact>('vrs_selected_contact');
+    const legacyContactId = getPersistentItem('vrs_selected_contact') || '';
+    const selectedId = selectedContact?.id || legacyContactId;
+    const initialContact = contacts.find(c => c.id === selectedId) || selectedContact || {
+        id: selectedId,
         name: 'Unknown',
         phoneNumber: '',
         email: ''
     };
 
-    const [ notes, setNotes ] = useState(contact.notes || '');
+    const [ contact, setContact ] = useState<Contact>(initialContact);
+    const [ notes, setNotes ] = useState(initialContact.notes || '');
+
+    useEffect(() => {
+        if (!selectedId) {
+            return;
+        }
+
+        let mounted = true;
+
+        apiClient.get<ContactResponse>(`/api/contacts/${selectedId}`).then(response => {
+            if (!mounted) {
+                return;
+            }
+
+            if (response.error || !response.data?.contact) {
+                if (response.error) {
+                    mobileLog('warn', 'contact_detail_load_failed', {
+                        contactId: selectedId,
+                        error: response.error
+                    });
+                }
+
+                return;
+            }
+
+            const nextContact = normalizeContact(response.data.contact);
+
+            setContact(nextContact);
+            setNotes(nextContact.notes || '');
+        });
+
+        return () => {
+            mounted = false;
+        };
+    }, [ selectedId ]);
 
     // Filter call history to this contact
     const allHistory = getPersistentJson<CallRecord[]>('vrs_call_history') || [];
@@ -88,11 +134,24 @@ const ContactDetailScreen = () => {
     }, [ dispatch ]);
 
     const handleSaveNotes = useCallback(() => {
-        const updated = contacts.map(c =>
-            c.id === contact.id ? { ...c, notes } : c
-        );
+        const hasContact = contacts.some(c => c.id === contact.id);
+        const nextContact = { ...contact, notes };
+        const updated = hasContact
+            ? contacts.map(c => (c.id === contact.id ? nextContact : c))
+            : [ nextContact, ...contacts ];
+
         setPersistentItem('vrs_contacts', JSON.stringify(updated));
-    }, [ contacts, contact.id, notes ]);
+        setContact(nextContact);
+        setPersistentItem('vrs_selected_contact', JSON.stringify(nextContact));
+        void apiClient.put(`/api/contacts/${contact.id}`, { notes }).then(response => {
+            if (response.error) {
+                mobileLog('warn', 'contact_notes_sync_failed', {
+                    contactId: contact.id,
+                    error: response.error
+                });
+            }
+        });
+    }, [ contacts, contact, notes ]);
 
     const handleBack = useCallback(() => {
         navigateRoot(screen.vrs.contacts);

@@ -1,9 +1,7 @@
 /**
  * Mobile Login Screen.
  *
- * Tenant-aware login that routes to the correct home screen after auth.
- * VRS apps (MalkaVRS): quick name entry, no password required for clients.
- * VRI apps (MalkaVRI, MapleVRI): organization code + name entry.
+ * Tenant-aware production login that routes to the correct home screen after auth.
  */
 
 import React, { useCallback, useState } from 'react';
@@ -17,15 +15,53 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { useDispatch } from 'react-redux';
 
-import { getAppName, getAppType, getTenantId, isVriApp } from '../../../../base/whitelabel/functions';
-import { setPersistentItem, getPersistentJson } from '../../../../vrs-auth/storage';
+import { getAppName, getTenantId, getWhitelabelConfig, isVriApp } from '../../../../base/whitelabel/functions';
+import { apiClient } from '../../../../shared/api-client';
+import { setSecureItem } from '../../../../vrs-auth/secureStorage';
+import { setPersistentItem } from '../../../../vrs-auth/storage';
 import { navigateRoot } from '../../rootNavigationContainerRef';
 import { screen } from '../../routes';
 
+interface AuthUser {
+    id: string;
+    name?: string;
+    email?: string;
+    role?: 'client' | 'interpreter';
+    phoneNumber?: string | null;
+    tenantId?: string;
+    serviceModes?: string[];
+    languages?: string[];
+    organization?: string;
+}
+
+interface LoginResponse {
+    success?: boolean;
+    token?: string;
+    user?: AuthUser;
+    error?: string;
+}
+
+function getTokenExpiry(token: string): number {
+    const defaultExpiry = Date.now() + 12 * 60 * 60 * 1000;
+    const payload = token.split('.')[1];
+    const decode = (globalThis as any)?.atob;
+
+    if (!payload || typeof decode !== 'function') {
+        return defaultExpiry;
+    }
+
+    try {
+        const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+        const decoded = JSON.parse(decode(normalized)) as { exp?: number };
+
+        return decoded.exp ? decoded.exp * 1000 : defaultExpiry;
+    } catch {
+        return defaultExpiry;
+    }
+}
+
 const MobileLoginScreen = () => {
-    const dispatch = useDispatch();
     const appName = getAppName();
     const tenantId = getTenantId();
     const isVRI = isVriApp();
@@ -38,12 +74,12 @@ const MobileLoginScreen = () => {
     const [ loading, setLoading ] = useState(false );
     const [ error, setError ] = useState('');
 
-    const handleLogin = useCallback(() => {
-        const trimmedName = name.trim();
+    const handleLogin = useCallback(async () => {
         const trimmedEmail = email.trim();
+        const trimmedPassword = password.trim();
 
-        if (!trimmedName && !trimmedEmail) {
-            setError('Please enter your name or email');
+        if (!trimmedEmail || !trimmedPassword) {
+            setError('Please enter your email and password');
 
             return;
         }
@@ -51,45 +87,63 @@ const MobileLoginScreen = () => {
         setError('');
         setLoading(true);
 
-        const now = Date.now();
-        const serviceMode = isVRI ? 'vri' : 'vrs';
-        const userId = `${role}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        try {
+            const endpoint = role === 'interpreter'
+                ? '/api/auth/interpreter/login'
+                : '/api/auth/client/login';
+            const response = await apiClient.post<LoginResponse>(endpoint, {
+                email: trimmedEmail,
+                password: trimmedPassword,
+                organizationCode: orgCode.trim() || undefined
+            });
 
-        const user = {
-            id: userId,
-            role,
-            name: trimmedName || trimmedEmail.split('@')[0],
-            email: trimmedEmail || undefined,
-            tenantId,
-            serviceModes: [ serviceMode ],
-            languages: role === 'interpreter' ? [ 'ASL', 'English' ] : undefined,
-            isAuthenticated: true,
-            authenticatedAt: now,
-            expiresAt: now + 4 * 60 * 60 * 1000 // 4 hours
-        };
+            if (response.error || !response.data?.token || !response.data?.user) {
+                setError(response.error || response.data?.error || 'Sign in failed');
 
-        setPersistentItem('vrs_user_role', role);
-        setPersistentItem('vrs_client_auth', 'true');
-        setPersistentItem('vrs_user_info', JSON.stringify(user));
+                return;
+            }
 
-        // TODO: Replace with real JWT from POST /api/auth/login
-        // const response = await apiClient.post('/api/auth/login', { email, password });
-        if (trimmedEmail) {
-            setPersistentItem('vrs_auth_token', `demo-jwt-${userId}`);
+            const now = Date.now();
+            const userRole = response.data.user.role || role;
+            const expiresAt = getTokenExpiry(response.data.token);
+            const user = {
+                ...response.data.user,
+                role: userRole,
+                name: response.data.user.name || name.trim() || trimmedEmail.split('@')[0],
+                email: response.data.user.email || trimmedEmail,
+                tenantId: response.data.user.tenantId || tenantId,
+                serviceModes: response.data.user.serviceModes || [ isVRI ? 'vri' : 'vrs' ],
+                isAuthenticated: true,
+                authenticatedAt: now,
+                expiresAt
+            };
+            const authToken = {
+                token: response.data.token,
+                role: userRole,
+                userId: user.id,
+                name: user.name,
+                issuedAt: now,
+                expiresAt
+            };
+
+            setPersistentItem('vrs_user_role', userRole);
+            setPersistentItem('vrs_client_auth', userRole === 'client' ? 'true' : 'false');
+            setPersistentItem('vrs_interpreter_auth', userRole === 'interpreter' ? 'true' : 'false');
+            setPersistentItem('vrs_user_info', JSON.stringify(user));
+            setPersistentItem('vrs_tenant_config', JSON.stringify(getWhitelabelConfig()));
+            setSecureItem('vrs_auth_token', JSON.stringify(authToken));
+
+            if (userRole === 'interpreter') {
+                navigateRoot(screen.interpreter.home);
+            } else {
+                navigateRoot(isVRI ? screen.vri.console : screen.vrs.home);
+            }
+        } catch (err: any) {
+            setError(err?.message || 'Network error');
+        } finally {
+            setLoading(false);
         }
-
-        // Navigate to the correct home screen for this role and tenant
-        let homeScreen;
-
-        if (role === 'interpreter') {
-            homeScreen = screen.interpreter.home;
-        } else {
-            homeScreen = isVRI ? screen.vri.console : screen.vrs.home;
-        }
-
-        navigateRoot(homeScreen);
-        setLoading(false);
-    }, [ name, email, password, orgCode, tenantId, isVRI, role, dispatch ]);
+    }, [ name, email, password, orgCode, tenantId, isVRI, role ]);
 
     return (
         <SafeAreaView style = { styles.container }>
@@ -124,20 +178,20 @@ const MobileLoginScreen = () => {
                         </TouchableOpacity>
                     </View>
 
-                    <Text style = { styles.label }>Your Name</Text>
+                    <Text style = { styles.label }>Display Name</Text>
                     <TextInput
-                        accessibilityLabel = 'Your name'
+                        accessibilityLabel = 'Display name'
                         autoCapitalize = 'words'
                         autoCorrect = { false }
                         editable = { !loading }
                         onChangeText = { setName }
-                        placeholder = 'Enter your name'
+                        placeholder = 'Optional display name'
                         placeholderTextColor = '#666'
                         returnKeyType = 'next'
                         style = { styles.input }
                         value = { name } />
 
-                    <Text style = { styles.label }>Email (optional)</Text>
+                    <Text style = { styles.label }>Email</Text>
                     <TextInput
                         accessibilityLabel = 'Email address'
                         autoCapitalize = 'none'
@@ -150,27 +204,27 @@ const MobileLoginScreen = () => {
                         } }
                         placeholder = 'you@example.com'
                         placeholderTextColor = '#666'
-                        returnKeyType = { password ? 'next' : 'go' }
+                        returnKeyType = 'next'
                         style = { styles.input }
                         value = { email } />
 
-                    { Boolean(email.trim()) && (
-                        <>
-                            <Text style = { styles.label }>Password</Text>
-                            <TextInput
-                                accessibilityLabel = 'Password'
-                                autoCapitalize = 'none'
-                                autoCorrect = { false }
-                                editable = { !loading }
-                                onChangeText = { setPassword }
-                                placeholder = 'Enter password'
-                                placeholderTextColor = '#666'
-                                returnKeyType = 'go'
-                                secureTextEntry
-                                style = { styles.input }
-                                value = { password } />
-                        </>
-                    ) }
+                    <Text style = { styles.label }>Password</Text>
+                    <TextInput
+                        accessibilityLabel = 'Password'
+                        autoCapitalize = 'none'
+                        autoCorrect = { false }
+                        editable = { !loading }
+                        onChangeText = { text => {
+                            setPassword(text);
+                            setError('');
+                        } }
+                        onSubmitEditing = { handleLogin }
+                        placeholder = 'Enter password'
+                        placeholderTextColor = '#666'
+                        returnKeyType = 'go'
+                        secureTextEntry
+                        style = { styles.input }
+                        value = { password } />
 
                     { error ? <Text style = { styles.errorText }>{ error }</Text> : null }
 
@@ -192,14 +246,14 @@ const MobileLoginScreen = () => {
 
                     <TouchableOpacity
                         accessibilityLabel = 'Sign in'
-                        disabled = { loading || (!name.trim() && !email.trim()) }
+                        disabled = { loading || !email.trim() || !password.trim() }
                         onPress = { handleLogin }
                         style = { [
                             styles.loginButton,
-                            ((!name.trim() && !email.trim()) || loading) && styles.loginButtonDisabled
+                            (!email.trim() || !password.trim() || loading) && styles.loginButtonDisabled
                         ] }>
                         <Text style = { styles.loginButtonText }>
-                            { loading ? 'Signing in...' : 'Continue' }
+                            { loading ? 'Signing in...' : 'Sign In' }
                         </Text>
                     </TouchableOpacity>
 

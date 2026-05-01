@@ -26,6 +26,7 @@ interface TenantConfig {
     domains?: {
         clientVrs?: string;
         clientVri?: string;
+        interpreter?: string;
     };
 }
 
@@ -35,9 +36,10 @@ function getBaseUrl(): string {
         return '';
     }
 
-    // Native: read cached tenant config
+    const wl = getWhitelabelConfig() as TenantConfig;
     const cached = getPersistentJson<TenantConfig>('vrs_tenant_config');
-    const domain = cached?.domains?.clientVri || cached?.domains?.clientVrs;
+    const domains = wl?.domains || cached?.domains;
+    const domain = domains?.clientVri || domains?.clientVrs || domains?.interpreter;
 
     if (domain) {
         return `https://${domain}`;
@@ -49,7 +51,19 @@ function getBaseUrl(): string {
 
 function getAuthToken(): string | null {
     // Try secure storage first, then regular storage
-    return getSecureItem('vrs_auth_token') || getPersistentItem('vrs_auth_token');
+    const raw = getSecureItem('vrs_auth_token') || getPersistentItem('vrs_auth_token');
+
+    if (!raw) {
+        return null;
+    }
+
+    try {
+        const parsed = JSON.parse(raw) as { token?: string };
+
+        return parsed.token || raw;
+    } catch {
+        return raw;
+    }
 }
 
 async function request<T>(

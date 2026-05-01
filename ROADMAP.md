@@ -458,7 +458,7 @@
 
 **Target**: mobile parity by **May 31, 2026**, with an internal/TestFlight/Play pilot sooner if the core call flow is stable. The web app is the source of truth until mobile parity is explicitly checked off.
 
-**Current mobile state**: native iOS and Android project shells exist, plus a TWA path, and the mobile parity branch now has first-pass React Native screens for login, VRS home, VRI console, contacts, call history, voicemail, interpreter home/settings/earnings, tenant config, native storage helpers, deep-link scaffolding, QA docs, and CI typecheck wiring. This is still scaffold-level parity: several screens use mock/local data, real auth/API wiring is incomplete, `npm run tsc:native` currently fails, and device-level media/call smoke has not passed.
+**Current mobile state**: native iOS and Android project shells exist, plus a TWA path, and the mobile parity branch now has first-pass React Native screens for login, VRS home, VRI console, contacts, call history, voicemail, interpreter home/settings/earnings, tenant config, native storage helpers, deep-link scaffolding, QA docs, and CI typecheck wiring. Client/interpreter email/password auth now calls the real production endpoints, native cold-start routing hydrates AsyncStorage before choosing a route, the queue client uses tenant domains instead of localhost on native, VRI self-view uses a native camera preview, and contacts/detail now call the contacts API with local cache fallback. Remaining scaffold gaps include call history/voicemail/usage mock data, secure Keychain/Keystore storage, push/background calling, and physical device media/call smoke.
 
 **Policy**: every web feature merged after April 29, 2026 must update this mobile section with one of: implemented on mobile, intentionally web-only, mobile follow-up ticket, or blocked by native platform capability.
 
@@ -469,6 +469,7 @@
   - 2026-04-30: Existing RN shells/shared Redux path selected for the first release; TWA remains a fallback or later packaging option.
 - [ ] Confirm backend API contract parity for auth, profile, calls, queue, contacts, voicemail, tenant, and billing metadata
   - 2026-05-01 review: API client scaffolding exists, but mobile login still creates a demo token locally, and contacts/call history/voicemail/usage still rely on mock or local storage data. Keep this open until production endpoints are actually called.
+  - 2026-05-01 update: Auth, tenant queue URL selection, native route hydration, and contacts/detail API calls are now wired. Keep open for call history, voicemail, usage/billing metadata, profile refresh, and physical-device contract smoke.
 - [ ] Run iOS simulator smoke for login, profile load, permissions, call join, and logout
   - 2026-04-30: Blocked locally by missing full Xcode simulator setup.
 - [ ] Run Android emulator smoke for login, profile load, permissions, call join, and logout
@@ -493,16 +494,22 @@
 ### Current Parity Gap Summary
 - [ ] Authentication parity: email/password, role routing, JWT refresh/expiry behavior, tenant routing, password reset
   - 2026-05-01 review: Mobile login and reset-password screens exist, but login is demo/local only and writes `demo-jwt-*` instead of calling `/api/auth/...`; cold-start native session restore also needs async storage hydration before route selection.
+  - 2026-05-01 update: Mobile client/interpreter login now calls `/api/auth/client/login` or `/api/auth/interpreter/login`, stores real JWT metadata, caches tenant config, and waits for native storage hydration before launch routing. JWT refresh and real reset-password backend integration remain open.
 - [ ] Tenant parity: Maple/Malka branding, app icon/splash, tenant config, host/base URL, feature flags
   - 2026-04-30: Tenant config/app-type scaffolding added for `malka`, `malkavri`, and `maple`; still needs device verification for native icons/splash/base URL behavior.
+  - 2026-05-01 update: Native API and queue clients now resolve tenant domains from whitelabel config, `TENANT`/`VRS_TENANT`/`EXPO_PUBLIC_TENANT`, or AsyncStorage fallback instead of localhost. Device verification for icons/splash and runtime tenant selection remains open.
 - [ ] Profile parity: VRS client profile, focused VRI console, interpreter profile, captioner profile, settings, password change
 - [ ] Media parity: Jitsi join, prejoin/waiting room, self-view, camera/mic defaults, permission memory, Bluetooth/audio route behavior
+  - 2026-05-01 update: VRI console now starts a native camera self-view preview and persists camera permission/default metadata. Jitsi in-room camera switching, Bluetooth/audio route behavior, and physical-device smoke remain open.
 - [ ] Queue parity: request interpreter, queue status, cancel request, interpreter availability, interpreter accept/decline, match transition
+  - 2026-05-01 update: Native queue client no longer points to `localhost`; it resolves `wss://<tenant-domain>/ws` and sends active/inactive interpreter statuses directly. End-to-end request/accept/join smoke remains open.
 - [ ] In-room parity: toolbar actions, request interpreter, invite, captions/language, TTS/VCO where applicable, hangup/end-for-all
 - [ ] Contacts parity: list, search, import, sync, full history, notes, favorites, block/merge/dedup
   - 2026-05-01 review: Contacts screen has list/search/favorites UI, but it is local/mock-backed, contact detail selection is currently broken, and API sync/import/block/merge/dedup remain open.
+  - 2026-05-01 update: Contacts list and detail now call `/api/contacts`, selected-contact navigation stores a contact snapshot, favorites/notes sync back to the API, and local cache remains as fallback. Import, block, merge/dedup, and full contact-history linkage remain open.
 - [ ] Call history parity: active calls, completed calls, CDR/usage metadata, missed calls, callback where applicable
   - 2026-05-01 review: Call history screen exists, but it still uses mock/local entries and currently breaks native typecheck due to a missing `mobileLog` import target.
+  - 2026-05-01 update: Native typecheck now passes; call history is still local/mock-backed and needs `/api/client/call-history` sync plus compliant callback flow.
 - [ ] Visual voicemail parity: authenticated launcher, unread badge, inbox, playback, recording/upload path, notifications
   - 2026-04-30: Voicemail inbox UI has unread badge/playback controls, but playback is still demonstration state and not wired to real media/API.
 - [ ] Billing parity: VRI usage summary, corporate invoice visibility, interpreter earnings/invoice/payout tab
@@ -512,15 +519,18 @@
   - 2026-04-30: First pass added labels to many interactive controls. Keep open until nested-touchable behavior, Dynamic Type, focus order, and device screen-reader smoke are verified.
 - [ ] Security parity: secure storage for tokens, biometric unlock decision, logout/session clearing, no secrets in mobile bundles
   - 2026-05-01 review: Native storage abstraction exists, but sensitive tokens still fall back to AsyncStorage and demo JWTs are generated locally. Keychain/Keystore storage remains required.
+  - 2026-05-01 update: Demo JWT generation has been removed from mobile login; tokens are real JWT metadata. Secure hardware-backed Keychain/Keystore storage is still required before release.
 - [ ] Observability parity: crash reporting, structured mobile logs, request/session IDs, call lifecycle breadcrumbs
 
 ### Client Mobile Parity
 - [ ] Malka VRS client login routes to VRS phone-number-oriented home
   - 2026-04-30: Screen routing scaffold exists, but it depends on demo auth until real login is wired.
+  - 2026-05-01 update: Real email/password login now routes by backend role and tenant app type; phone-number login remains a separate VRS parity item.
 - [ ] Malka VRI/Maple VRI client login routes to focused VRI session console
   - 2026-04-30: Screen routing scaffold exists via app-type branching; needs real tenant/auth smoke.
 - [ ] VRI console shows large self-view and primary Request Interpreter action
   - 2026-05-01 review: VRI console has a large self-view placeholder and request/cancel action, but no actual camera preview yet.
+  - 2026-05-01 update: VRI console now uses native camera preview for self-view with permission/default metadata persisted; device camera smoke remains open.
 - [ ] VRI console prevents empty room start before interpreter match
 - [ ] VRI console supports settings gear and media defaults
 - [ ] VRI console exposes billing/usage summary without exposing admin-only billing controls
@@ -575,6 +585,7 @@
 - [ ] Jitsi Meet React Native SDK integration verified against current Droplet/Jitsi config
 - [ ] Mobile-safe WebSocket queue client with reconnect/backoff/session restore
   - 2026-04-30: Queue service can instantiate outside browser globals and has reconnect/backoff. Still needs native URL configuration, real auth token use, cold-start storage hydration, and device smoke.
+  - 2026-05-01 update: Native queue URL, real JWT metadata, and cold-start storage hydration are wired. Device smoke and background/lock recovery remain open.
 - [ ] Secure token storage: Keychain on iOS, Keystore/EncryptedSharedPreferences on Android
 - [ ] Deep links into active rooms and invite links
 - [ ] Push/background calling: APNs, FCM, CallKit, Android ConnectionService
