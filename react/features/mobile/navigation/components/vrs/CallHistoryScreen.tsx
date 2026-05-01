@@ -20,16 +20,7 @@ import { appNavigate } from '../../../../app/actions';
 import { apiClient } from '../../../../shared/api-client';
 import { getPersistentJson, setPersistentItem } from '../../../../vrs-auth/storage';
 import { mobileLog } from '../../logging';
-
-interface CallRecord {
-    id: string;
-    contactName: string;
-    phoneNumber: string;
-    direction: 'outgoing' | 'incoming' | 'missed';
-    duration: number; // seconds
-    timestamp: string; // ISO
-    interpreterName?: string;
-}
+import { CallRecord } from '../../../types';
 
 interface CallHistoryResponse {
     calls?: Array<Record<string, any>>;

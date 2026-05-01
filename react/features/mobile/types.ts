@@ -10,14 +10,17 @@
 // ---------------------------------------------------------------------------
 
 export interface UserInfo {
-    id: string;
+    id?: string;
     name?: string;
     email?: string;
     role?: string;
     phoneNumber?: string;
+    primaryPhone?: string;
     organization?: string;
     tenantId?: string;
     serviceModes?: string[];
+    corporateAccountId?: string;
+    organizationId?: string;
     isAuthenticated?: boolean;
     authenticatedAt?: number;
     expiresAt?: number;
@@ -56,6 +59,7 @@ export interface Contact {
     email?: string;
     lastCalled?: string;
     notes?: string;
+    isFavorite?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -96,4 +100,19 @@ export interface MediaDefaults {
     micMuted: boolean;
     autoJoinOnMatch: boolean;
     notificationsEnabled: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Voicemail
+// ---------------------------------------------------------------------------
+
+export interface Voicemail {
+    id: string;
+    fromName: string;
+    fromPhone?: string;
+    duration: number;
+    timestamp: string;
+    isRead: boolean;
+    transcript?: string;
+    playbackUrl?: string;
 }

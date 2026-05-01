@@ -23,16 +23,7 @@ import { getPersistentJson, setPersistentItem } from '../../../../vrs-auth/stora
 import { navigateRoot } from '../../rootNavigationContainerRef';
 import { mobileLog } from '../../logging';
 import { screen } from '../../routes';
-
-interface Contact {
-    id: string;
-    name: string;
-    phoneNumber?: string;
-    email?: string;
-    lastCalled?: string;
-    notes?: string;
-    isFavorite?: boolean;
-}
+import { Contact } from '../../../types';
 
 const DEV_CONTACTS: Contact[] = [
     { id: '1', name: 'Dr. Sarah Chen', phoneNumber: '+12125551234', lastCalled: '2026-04-28', isFavorite: true },

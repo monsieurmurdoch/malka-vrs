@@ -26,16 +26,7 @@ import { navigateRoot } from '../../rootNavigationContainerRef';
 import { screen } from '../../routes';
 import NetworkStatusBar from '../NetworkStatusBar';
 import { useTenantTheme } from '../../hooks/useTenantTheme';
-
-interface UserInfo {
-    id?: string;
-    name?: string;
-    email?: string;
-    organization?: string;
-    role?: string;
-    serviceModes?: string[];
-    tenantId?: string;
-}
+import { UserInfo } from '../../../types';
 
 const VRI_LANGUAGES = [
     { code: 'ASL', label: 'ASL' },

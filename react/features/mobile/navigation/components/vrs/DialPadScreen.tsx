@@ -20,15 +20,7 @@ import { appNavigate } from '../../../../app/actions';
 import { isFeatureEnabled } from '../../../../base/whitelabel/functions';
 import { FEATURES } from '../../../../base/whitelabel/constants';
 import { getPersistentJson } from '../../../../vrs-auth/storage';
-
-interface CallRecord {
-    id: string;
-    contactName: string;
-    phoneNumber: string;
-    direction: 'outgoing' | 'incoming' | 'missed';
-    duration: number;
-    timestamp: string;
-}
+import { CallRecord } from '../../../types';
 
 const DIGITS = [
     [ '1', '' ], [ '2', 'ABC' ], [ '3', 'DEF' ],

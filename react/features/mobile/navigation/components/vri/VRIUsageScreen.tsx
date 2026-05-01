@@ -20,6 +20,7 @@ import { getPersistentJson, setPersistentItem } from '../../../../vrs-auth/stora
 import { mobileLog } from '../../logging';
 import { navigateRoot } from '../../rootNavigationContainerRef';
 import { screen } from '../../routes';
+import { CallRecord, UserInfo } from '../../../types';
 
 interface UsagePeriod {
     label: string;
@@ -27,18 +28,8 @@ interface UsagePeriod {
     sessions: number;
 }
 
-interface CallRecord {
-    duration: number;
-    timestamp: string;
-}
-
 interface CallHistoryResponse {
     calls?: Array<Record<string, any>>;
-}
-
-interface UserInfo {
-    corporateAccountId?: string;
-    organizationId?: string;
 }
 
 interface BillingSummary {
@@ -51,8 +42,13 @@ function normalizeUsageCall(raw: Record<string, any>): CallRecord {
     const durationMinutes = Number(raw.duration_minutes ?? raw.durationMinutes ?? 0);
 
     return {
+        id: String(raw.id || raw.call_id || Date.now()),
+        contactName: raw.callee_name || raw.client_name || raw.target_name || 'Unknown',
+        phoneNumber: raw.callee_phone || raw.target_phone || '',
+        direction: raw.direction || 'outgoing',
         duration: Number(raw.duration_seconds ?? raw.durationSeconds ?? durationMinutes * 60),
-        timestamp: raw.started_at || raw.timestamp || raw.created_at || new Date().toISOString()
+        timestamp: raw.started_at || raw.timestamp || raw.created_at || new Date().toISOString(),
+        interpreterName: raw.interpreter_name || raw.interpreterName
     };
 }
 

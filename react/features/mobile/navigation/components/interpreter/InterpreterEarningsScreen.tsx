@@ -20,11 +20,7 @@ import { getPersistentJson, setPersistentItem } from '../../../../vrs-auth/stora
 import { mobileLog } from '../../logging';
 import { navigateRoot } from '../../rootNavigationContainerRef';
 import { screen } from '../../routes';
-
-interface CallRecord {
-    duration: number;
-    timestamp: string;
-}
+import { CallRecord } from '../../../types';
 
 interface EarningsRow {
     total_minutes?: number;

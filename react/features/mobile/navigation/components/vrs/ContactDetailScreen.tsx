@@ -23,26 +23,10 @@ import { getPersistentItem, getPersistentJson, setPersistentItem } from '../../.
 import { navigateRoot } from '../../rootNavigationContainerRef';
 import { mobileLog } from '../../logging';
 import { screen } from '../../routes';
-
-interface Contact {
-    id: string;
-    name: string;
-    phoneNumber?: string;
-    email?: string;
-    notes?: string;
-}
+import { CallRecord, Contact } from '../../../types';
 
 interface ContactResponse {
     contact?: Record<string, any>;
-}
-
-interface CallRecord {
-    id: string;
-    contactName: string;
-    duration: number;
-    timestamp: string;
-    interpreterName?: string;
-    direction: string;
 }
 
 function normalizeContact(raw: Record<string, any>): Contact {

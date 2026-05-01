@@ -21,17 +21,7 @@ import { getPersistentJson, setPersistentItem } from '../../../../vrs-auth/stora
 import { mobileLog } from '../../logging';
 import { navigateRoot } from '../../rootNavigationContainerRef';
 import { screen } from '../../routes';
-
-interface Voicemail {
-    id: string;
-    fromName: string;
-    fromPhone?: string;
-    duration: number;
-    timestamp: string;
-    isRead: boolean;
-    transcript?: string;
-    playbackUrl?: string;
-}
+import { Voicemail } from '../../../types';
 
 interface VoicemailInboxResponse {
     messages?: Array<Record<string, any>>;

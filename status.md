@@ -6,6 +6,38 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-05-01
 - Branch: `hermes/mobile-parity`
+- HEAD: `8b72b40`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  react/features/mobile/navigation/components/interpreter/InterpreterEarningsScreen.tsx`
+  - `M  react/features/mobile/navigation/components/vri/VRIConsoleScreen.tsx`
+  - `M  react/features/mobile/navigation/components/vri/VRIUsageScreen.tsx`
+  - `M  react/features/mobile/navigation/components/vrs/CallHistoryScreen.tsx`
+  - `M  react/features/mobile/navigation/components/vrs/ContactDetailScreen.tsx`
+  - `M  react/features/mobile/navigation/components/vrs/ContactsScreen.tsx`
+  - `M  react/features/mobile/navigation/components/vrs/DialPadScreen.tsx`
+  - `M  react/features/mobile/navigation/components/vrs/VRSHomeScreen.tsx`
+  - `M  react/features/mobile/navigation/components/vrs/VoicemailInboxScreen.tsx`
+  - `M  react/features/mobile/types.ts`
+  - `M twilio-voice-server/server.js`
+  - `M vrs-ops-server/src/index.ts`
+  - `M vrs-server/lib/validation.js`
+  - `M vrs-server/routes/client.js`
+  - `M vrs-server/routes/contacts.js`
+  - `M vrs-server/routes/google-contacts.js`
+  - `M vrs-server/src/server.ts`
+  - `M vrs-server/ws/handler.js`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-05-01T07:03:54.471Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-05-01
+- Branch: `hermes/mobile-parity`
 - HEAD: `3b1a10b`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -24,7 +56,7 @@ Local changes at sync time:
   - `M  vrs-server/src/server.ts`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-05-01T05:56:59.315Z
 
 <!-- status:current:start -->
