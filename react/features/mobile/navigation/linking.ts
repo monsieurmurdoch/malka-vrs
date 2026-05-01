@@ -65,6 +65,7 @@ export const deepLinkConfig: LinkingOptions<RootStackParamList> = {
         screens: {
             // Auth
             [screen.auth.login]: 'login',
+            [screen.auth.resetPassword]: 'reset-password',
 
             // Client VRS
             [screen.vrs.home]: 'home',

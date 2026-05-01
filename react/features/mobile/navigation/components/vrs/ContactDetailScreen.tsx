@@ -101,7 +101,9 @@ const ContactDetailScreen = () => {
     return (
         <SafeAreaView style = { styles.container }>
             <View style = { styles.header }>
-                <TouchableOpacity onPress = { handleBack }>
+                <TouchableOpacity
+                    accessibilityLabel = 'Back to contacts'
+                    onPress = { handleBack }>
                     <Text style = { styles.backText }>{'<'} Contacts</Text>
                 </TouchableOpacity>
             </View>
@@ -123,6 +125,7 @@ const ContactDetailScreen = () => {
                     ) : null }
 
                     <TouchableOpacity
+                        accessibilityLabel = { `Call ${contact.name}` }
                         onPress = { handleCall }
                         style = { styles.callButton }>
                         <Text style = { styles.callButtonText }>Call</Text>

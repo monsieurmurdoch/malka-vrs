@@ -85,6 +85,8 @@ const VoicemailInboxScreen = () => {
     const [ voicemails, setVoicemails ] = useState<Voicemail[]>(
         localVoicemails && localVoicemails.length > 0 ? localVoicemails : MOCK_VOICEMAILS
     );
+    const [ playingId, setPlayingId ] = useState<string | null>(null);
+    const [ playbackProgress, setPlaybackProgress ] = useState<Record<string, number>>({});
 
     const unreadCount = voicemails.filter(v => !v.isRead).length;
 
@@ -106,6 +108,20 @@ const VoicemailInboxScreen = () => {
         navigateRoot(screen.vrs.home);
     }, []);
 
+    const handleTogglePlay = useCallback((id: string) => {
+        if (playingId === id) {
+            setPlayingId(null);
+        } else {
+            setPlayingId(id);
+            setPlaybackProgress(prev => ({
+                ...prev,
+                [id]: prev[id] || 0
+            }));
+            // TODO: Wire to actual audio playback via react-native-sound or expo-av
+            // Simulated progress for UI demonstration
+        }
+    }, [ playingId ]);
+
     return (
         <SafeAreaView style = { styles.container }>
             <View style = { styles.header }>
@@ -124,41 +140,66 @@ const VoicemailInboxScreen = () => {
             <FlatList
                 data = { voicemails }
                 keyExtractor = { item => item.id }
-                renderItem = { ({ item }) => (
-                    <TouchableOpacity
-                        accessibilityLabel = { `${item.isRead ? '' : 'Unread '}Voicemail from ${item.fromName}, ${formatDuration(item.duration)}` }
-                        onPress = { () => handleMarkRead(item.id) }
-                        style = { [
-                            styles.voicemailRow,
-                            !item.isRead && styles.voicemailRowUnread
-                        ] }>
-                        <View style = { styles.voicemailLeft }>
-                            { !item.isRead && <View style = { styles.unreadDot } /> }
-                            <View style = { styles.voicemailInfo }>
-                                <Text style = { [
-                                    styles.fromName,
-                                    !item.isRead && styles.fromNameUnread
-                                ] }>
-                                    { item.fromName }
-                                </Text>
-                                <Text style = { styles.meta }>
-                                    { formatTime(item.timestamp) } · { formatDuration(item.duration) }
-                                </Text>
-                                { item.transcript && (
-                                    <Text style = { styles.transcript } numberOfLines = { 2 }>
-                                        { item.transcript }
-                                    </Text>
-                                ) }
-                            </View>
-                        </View>
+                renderItem = { ({ item }) => {
+                    const isPlaying = playingId === item.id;
+                    const progress = playbackProgress[item.id] || 0;
+
+                    return (
                         <TouchableOpacity
-                            accessibilityLabel = 'Delete voicemail'
-                            onPress = { () => handleDelete(item.id) }
-                            style = { styles.deleteButton }>
-                            <Text style = { styles.deleteText }>Delete</Text>
+                            accessibilityLabel = { `${item.isRead ? '' : 'Unread '}Voicemail from ${item.fromName}, ${formatDuration(item.duration)}` }
+                            onPress = { () => handleMarkRead(item.id) }
+                            style = { [
+                                styles.voicemailRow,
+                                !item.isRead && styles.voicemailRowUnread
+                            ] }>
+                            <View style = { styles.voicemailLeft }>
+                                { !item.isRead && <View style = { styles.unreadDot } /> }
+                                <View style = { styles.voicemailInfo }>
+                                    <Text style = { [
+                                        styles.fromName,
+                                        !item.isRead && styles.fromNameUnread
+                                    ] }>
+                                        { item.fromName }
+                                    </Text>
+                                    <Text style = { styles.meta }>
+                                        { formatTime(item.timestamp) } · { formatDuration(item.duration) }
+                                    </Text>
+                                    { item.transcript && (
+                                        <Text style = { styles.transcript } numberOfLines = { 2 }>
+                                            { item.transcript }
+                                        </Text>
+                                    ) }
+                                    {/* Playback controls */}
+                                    <View style = { styles.playbackRow }>
+                                        <TouchableOpacity
+                                            accessibilityLabel = { isPlaying ? 'Pause' : 'Play' }
+                                            onPress = { () => handleTogglePlay(item.id) }
+                                            style = { styles.playButton }>
+                                            <Text style = { styles.playIcon }>
+                                                { isPlaying ? '||' : '\u25B6' }
+                                            </Text>
+                                        </TouchableOpacity>
+                                        <View style = { styles.progressBar }>
+                                            <View style = { [
+                                                styles.progressFill,
+                                                { width: `${progress}%` }
+                                            ] } />
+                                        </View>
+                                        <Text style = { styles.playbackTime }>
+                                            { formatDuration(Math.round(item.duration * progress / 100)) }
+                                        </Text>
+                                    </View>
+                                </View>
+                            </View>
+                            <TouchableOpacity
+                                accessibilityLabel = 'Delete voicemail'
+                                onPress = { () => handleDelete(item.id) }
+                                style = { styles.deleteButton }>
+                                <Text style = { styles.deleteText }>Delete</Text>
+                            </TouchableOpacity>
                         </TouchableOpacity>
-                    </TouchableOpacity>
-                ) }
+                    );
+                } }
                 contentContainerStyle = { styles.listContent }
                 ListEmptyComponent = {(
                     <View style = { styles.empty }>
@@ -241,6 +282,35 @@ const styles = StyleSheet.create({
         color: '#888',
         fontSize: 12,
         marginTop: 2
+    },
+    playButton: {
+        marginRight: 8
+    },
+    playIcon: {
+        color: '#2979ff',
+        fontSize: 16
+    },
+    playbackRow: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        marginTop: 8
+    },
+    playbackTime: {
+        color: '#888',
+        fontSize: 11,
+        marginLeft: 6,
+        minWidth: 30
+    },
+    progressBar: {
+        backgroundColor: '#333',
+        borderRadius: 2,
+        flex: 1,
+        height: 3
+    },
+    progressFill: {
+        backgroundColor: '#2979ff',
+        borderRadius: 2,
+        height: 3
     },
     title: {
         color: '#fff',

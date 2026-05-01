@@ -131,6 +131,7 @@ const CallHistoryScreen = () => {
 
     const renderCall = useCallback(({ item }: { item: CallRecord }) => (
         <TouchableOpacity
+            accessibilityLabel = { `${item.direction} call with ${item.contactName}, ${formatDuration(item.duration)}` }
             onPress = { () => handleReDial(item) }
             style = { styles.callRow }>
             <View style = { styles.callLeft }>

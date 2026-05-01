@@ -31,17 +31,24 @@ const MobileLoginScreen = () => {
     const isVRI = isVriApp();
 
     const [ name, setName ] = useState('');
+    const [ email, setEmail ] = useState('');
+    const [ password, setPassword ] = useState('');
     const [ orgCode, setOrgCode ] = useState('');
     const [ role, setRole ] = useState<'client' | 'interpreter'>('client');
     const [ loading, setLoading ] = useState(false );
+    const [ error, setError ] = useState('');
 
     const handleLogin = useCallback(() => {
         const trimmedName = name.trim();
+        const trimmedEmail = email.trim();
 
-        if (!trimmedName) {
+        if (!trimmedName && !trimmedEmail) {
+            setError('Please enter your name or email');
+
             return;
         }
 
+        setError('');
         setLoading(true);
 
         const now = Date.now();
@@ -51,7 +58,8 @@ const MobileLoginScreen = () => {
         const user = {
             id: userId,
             role,
-            name: trimmedName,
+            name: trimmedName || trimmedEmail.split('@')[0],
+            email: trimmedEmail || undefined,
             tenantId,
             serviceModes: [ serviceMode ],
             languages: role === 'interpreter' ? [ 'ASL', 'English' ] : undefined,
@@ -64,6 +72,12 @@ const MobileLoginScreen = () => {
         setPersistentItem('vrs_client_auth', 'true');
         setPersistentItem('vrs_user_info', JSON.stringify(user));
 
+        // TODO: Replace with real JWT from POST /api/auth/login
+        // const response = await apiClient.post('/api/auth/login', { email, password });
+        if (trimmedEmail) {
+            setPersistentItem('vrs_auth_token', `demo-jwt-${userId}`);
+        }
+
         // Navigate to the correct home screen for this role and tenant
         let homeScreen;
 
@@ -75,7 +89,7 @@ const MobileLoginScreen = () => {
 
         navigateRoot(homeScreen);
         setLoading(false);
-    }, [ name, orgCode, tenantId, isVRI, role, dispatch ]);
+    }, [ name, email, password, orgCode, tenantId, isVRI, role, dispatch ]);
 
     return (
         <SafeAreaView style = { styles.container }>
@@ -112,15 +126,53 @@ const MobileLoginScreen = () => {
 
                     <Text style = { styles.label }>Your Name</Text>
                     <TextInput
+                        accessibilityLabel = 'Your name'
                         autoCapitalize = 'words'
                         autoCorrect = { false }
                         editable = { !loading }
                         onChangeText = { setName }
                         placeholder = 'Enter your name'
                         placeholderTextColor = '#666'
-                        returnKeyType = { isVRI ? 'next' : 'go' }
+                        returnKeyType = 'next'
                         style = { styles.input }
                         value = { name } />
+
+                    <Text style = { styles.label }>Email (optional)</Text>
+                    <TextInput
+                        accessibilityLabel = 'Email address'
+                        autoCapitalize = 'none'
+                        autoCorrect = { false }
+                        editable = { !loading }
+                        keyboardType = 'email-address'
+                        onChangeText = { text => {
+                            setEmail(text);
+                            setError('');
+                        } }
+                        placeholder = 'you@example.com'
+                        placeholderTextColor = '#666'
+                        returnKeyType = { password ? 'next' : 'go' }
+                        style = { styles.input }
+                        value = { email } />
+
+                    { Boolean(email.trim()) && (
+                        <>
+                            <Text style = { styles.label }>Password</Text>
+                            <TextInput
+                                accessibilityLabel = 'Password'
+                                autoCapitalize = 'none'
+                                autoCorrect = { false }
+                                editable = { !loading }
+                                onChangeText = { setPassword }
+                                placeholder = 'Enter password'
+                                placeholderTextColor = '#666'
+                                returnKeyType = 'go'
+                                secureTextEntry
+                                style = { styles.input }
+                                value = { password } />
+                        </>
+                    ) }
+
+                    { error ? <Text style = { styles.errorText }>{ error }</Text> : null }
 
                     { isVRI && (
                         <>
@@ -139,15 +191,23 @@ const MobileLoginScreen = () => {
                     ) }
 
                     <TouchableOpacity
-                        disabled = { loading || !name.trim() }
+                        accessibilityLabel = 'Sign in'
+                        disabled = { loading || (!name.trim() && !email.trim()) }
                         onPress = { handleLogin }
                         style = { [
                             styles.loginButton,
-                            (!name.trim() || loading) && styles.loginButtonDisabled
+                            ((!name.trim() && !email.trim()) || loading) && styles.loginButtonDisabled
                         ] }>
                         <Text style = { styles.loginButtonText }>
                             { loading ? 'Signing in...' : 'Continue' }
                         </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        accessibilityLabel = 'Reset password'
+                        onPress = { () => navigateRoot(screen.auth.resetPassword) }
+                        style = { styles.forgotPassword }>
+                        <Text style = { styles.forgotPasswordText }>Forgot password?</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -173,6 +233,11 @@ const styles = StyleSheet.create({
         backgroundColor: '#0f0f23',
         flex: 1
     },
+    errorText: {
+        color: '#d32f2f',
+        fontSize: 13,
+        marginBottom: 8
+    },
     footer: {
         alignItems: 'center',
         paddingBottom: 24,
@@ -187,6 +252,14 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         paddingHorizontal: 28
+    },
+    forgotPassword: {
+        alignItems: 'center',
+        marginTop: 16
+    },
+    forgotPasswordText: {
+        color: '#2979ff',
+        fontSize: 14
     },
     header: {
         alignItems: 'center',

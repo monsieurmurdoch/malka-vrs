@@ -53,7 +53,9 @@ const VRIUsageScreen = () => {
     return (
         <SafeAreaView style = { styles.container }>
             <View style = { styles.header }>
-                <TouchableOpacity onPress = { () => navigateRoot(screen.vri.console) }>
+                <TouchableOpacity
+                    accessibilityLabel = 'Back to VRI console'
+                    onPress = { () => navigateRoot(screen.vri.console) }>
                     <Text style = { styles.backText }>{'<'} Back</Text>
                 </TouchableOpacity>
                 <Text style = { styles.title }>Usage</Text>

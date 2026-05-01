@@ -10,7 +10,7 @@ import DialInSummary from '../../../invite/components/dial-in-summary/native/Dia
 import Prejoin from '../../../prejoin/components/native/Prejoin';
 import UnsafeRoomWarning from '../../../prejoin/components/native/UnsafeRoomWarning';
 import { isUnsafeRoomWarningEnabled } from '../../../prejoin/functions';
-import { getPersistentItem } from '../../../vrs-auth/storage';
+import { clearPersistentItems, getPersistentItem, getPersistentJson } from '../../../vrs-auth/storage';
 // eslint-disable-next-line
 // @ts-ignore
 import WelcomePage from '../../../welcome/components/WelcomePage';
@@ -41,6 +41,7 @@ import VRIUsageScreen from './vri/VRIUsageScreen';
 import VRSHomeScreen from './vrs/VRSHomeScreen';
 import VoicemailInboxScreen from './vrs/VoicemailInboxScreen';
 import MobileLoginScreen from './auth/MobileLoginScreen';
+import PasswordResetScreen from './auth/PasswordResetScreen';
 import InterpreterHomeScreen from './interpreter/InterpreterHomeScreen';
 import InterpreterSettingsScreen from './interpreter/InterpreterSettingsScreen';
 import InterpreterEarningsScreen from './interpreter/InterpreterEarningsScreen';
@@ -63,6 +64,17 @@ function getInitialRoute(): string {
         || getPersistentItem('vrs_auth_token');
 
     if (isAuthed) {
+        // Check if session has expired
+        const userInfo = getPersistentJson<{ expiresAt?: number }>('vrs_user_info');
+        const expiresAt = userInfo?.expiresAt;
+
+        if (expiresAt && Date.now() > expiresAt) {
+            // Session expired — clear auth state and show login
+            clearPersistentItems([ 'vrs_client_auth', 'vrs_auth_token', 'vrs_user_info' ]);
+
+            return screen.auth.login;
+        }
+
         const role = getPersistentItem('vrs_user_role');
 
         if (role === 'interpreter') {
@@ -160,6 +172,10 @@ const RootNavigationContainer = ({ dispatch, isUnsafeRoomWarningAvailable, isWel
                 <RootStack.Screen // @ts-ignore
                     component = { MobileLoginScreen }
                     name = { screen.auth.login }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen // @ts-ignore
+                    component = { PasswordResetScreen }
+                    name = { screen.auth.resetPassword }
                     options = { fullScreenOptions } />
                 <RootStack.Screen // @ts-ignore
                     component = { VRSHomeScreen }

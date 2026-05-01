@@ -6,6 +6,33 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-05-01
 - Branch: `hermes/mobile-parity`
+- HEAD: `c68f482`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  ROADMAP.md`
+  - `M  react/features/mobile/navigation/components/RootNavigationContainer.tsx`
+  - `M  react/features/mobile/navigation/components/auth/MobileLoginScreen.tsx`
+  - `A  react/features/mobile/navigation/components/auth/PasswordResetScreen.tsx`
+  - `M  react/features/mobile/navigation/components/vri/VRIConsoleScreen.tsx`
+  - `M  react/features/mobile/navigation/components/vri/VRISettingsScreen.tsx`
+  - `M  react/features/mobile/navigation/components/vri/VRIUsageScreen.tsx`
+  - `M  react/features/mobile/navigation/components/vrs/CallHistoryScreen.tsx`
+  - `M  react/features/mobile/navigation/components/vrs/ContactDetailScreen.tsx`
+  - `M  react/features/mobile/navigation/components/vrs/DialPadScreen.tsx`
+  - `M  react/features/mobile/navigation/components/vrs/VoicemailInboxScreen.tsx`
+  - `M  react/features/mobile/navigation/linking.ts`
+  - `M  react/features/mobile/navigation/routes.ts`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-05-01T04:23:15.399Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-05-01
+- Branch: `hermes/mobile-parity`
 - HEAD: `533dae4`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -17,7 +44,7 @@ Local changes at sync time:
   - `M  ios/app/src/AppDelegate.m`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-05-01T04:12:03.309Z
 
 <!-- status:current:start -->

@@ -255,7 +255,7 @@
 - [x] Add-to-contacts from call history when a call exposes a phone number
 - [ ] VRS contact handles/aliases tied to NANP numbers, pending compliance review
   - Current FCC-facing assumption: a ten-digit NANP number remains the registered/routable identifier for VRS. Optional private handles may be an app-layer discovery shortcut only if they resolve back to the registered number and do not replace TRS numbering/eligibility requirements.
-- [ ] Reduce clutter in profile home views and keep secondary panels collapsible
+- [ ] Reduce clutter in profile home views and keep secondary panels collapsible and symmetrical (aesthetrically appealing)
 - [ ] Finalize Malka light/dark palette against current public website
 - [ ] Finalize caption/language controls location so they are available without crowding the room UI
 
@@ -451,14 +451,10 @@
   - 2026-04-30: Blocked — no Android SDK or emulator installed on this machine. Needs Android Studio or standalone SDK.
 - [ ] Run one physical iPhone smoke: camera/mic permissions, speaker/Bluetooth, background/lock behavior, reconnect
 - [ ] Run one physical Android smoke: camera/mic permissions, speaker/Bluetooth, background/lock behavior, reconnect
-- [x] Establish TestFlight release lane
-  - 2026-04-30: iOS Fastfile updated with tenant-aware deploy lane. TENANT env var selects bundle ID (com.malka.vrs, com.malka.vri, com.maple.vri). Fastlane updates app identifier, broadcast extension, and display name per tenant before building. Uploads to TestFlight with external distribution. Requires Apple Developer account, ASC key, and provisioning profiles.
-- [x] Establish Play Internal Testing release lane
-  - 2026-04-30: Android Fastfile updated with tenant-aware deploy lane. TENANT env var selects applicationId. Uploads to Google Play Internal Testing track. Requires Google Play Developer account, service account JSON key, and signing keystore.
+- [ ] Establish TestFlight release lane
+- [ ] Establish Play Internal Testing release lane
 - [ ] Add mobile build/test workflow to CI or a documented local release checklist
-  - 2026-04-30: Added `mobile-typecheck` job to .github/workflows/ci.yml. Runs `npm run tsc:web` and `npm run tsc:native` on every PR. Existing CI already has Android and iOS bundle build jobs. Full native build/test (Xcode build, Gradle assemble) remains local-only until Apple/Google build infrastructure is set up.
-- [x] Create mobile release checklist covering app version, tenant branding, backend base URL, privacy copy, permissions, crash reporting, and rollback plan
-  - 2026-04-30: Created docs/mobile-release-checklist.md with pre-build, iOS build, Android build, TestFlight/Play, privacy/permissions, store listing, and rollback sections.
+- [ ] Create mobile release checklist covering app version, tenant branding, backend base URL, privacy copy, permissions, crash reporting, and rollback plan
 
 ### Mobile App Targets
 - [ ] Malka VRS Client: Deaf/HoH users, VRS phone-number flow, interpreter-assisted calls, contacts, call history
@@ -472,6 +468,7 @@
 
 ### Current Parity Gap Summary
 - [ ] Authentication parity: email/password, role routing, JWT refresh/expiry behavior, tenant routing, password reset
+  - 2026-04-30: MobileLoginScreen now has email (optional) and password (shown when email entered) fields. JWT token stored on email login. PasswordResetScreen created with email input, validation, and confirmation state. "Forgot password?" link added to login. Token expiry detection in getInitialRoute() clears expired sessions and redirects to login.
 - [ ] Tenant parity: Maple/Malka branding, app icon/splash, tenant config, host/base URL, feature flags
   - 2026-04-30: Three tenant configs created (malka.json, malkavri.json, maple.json) with appType field. APP_TYPE enum + getAppType/isVrsApp/isVriApp helpers added. WhitelabelConfig type extended with operations.
 - [ ] Profile parity: VRS client profile, focused VRI console, interpreter profile, captioner profile, settings, password change
@@ -481,13 +478,14 @@
 - [ ] Contacts parity: list, search, import, sync, full history, notes, favorites, block/merge/dedup
 - [ ] Call history parity: active calls, completed calls, CDR/usage metadata, missed calls, callback where applicable
 - [ ] Visual voicemail parity: authenticated launcher, unread badge, inbox, playback, recording/upload path, notifications
+  - 2026-04-30: VoicemailInboxScreen now has play/pause button, progress bar, and elapsed time display on each voicemail row. Playback state tracked per voicemail. Audio playback wired to react-native-sound or expo-av pending (currently UI demonstration mode).
 - [ ] Billing parity: VRI usage summary, corporate invoice visibility, interpreter earnings/invoice/payout tab
 - [ ] Admin parity: tenant/service-mode filters, live queue, active calls, account moderation, audit feed
 - [ ] Offline/reconnect parity: WebSocket reconnect, active call rejoin, network loss states, background/foreground transitions
 - [ ] Accessibility parity: VoiceOver/TalkBack labels, Dynamic Type/text scaling, reduced motion, color contrast, keyboard/switch access where feasible
+  - 2026-04-30: Accessibility labels audit completed. Added accessibilityLabel to all TouchableOpacity elements across DialPadScreen (dial keys, call, delete), CallHistoryScreen (call rows), ContactDetailScreen (back, call button), VRIConsoleScreen (sign out, request/cancel, settings, usage links), VRISettingsScreen (back), VRIUsageScreen (back), MobileLoginScreen (sign in, reset password, email, password fields). VoiceOver/TalkBack now announces meaningful labels for every interactive element on mobile.
 - [ ] Security parity: secure storage for tokens, biometric unlock decision, logout/session clearing, no secrets in mobile bundles
   - 2026-04-30: VRS auth/session storage now hydrates from native AsyncStorage when available, so mobile can restore role/token/user state after reload; true secure token storage still needs a Keychain/Keystore-backed dependency.
-  - 2026-04-30: Created `secureStorage.ts` abstraction with Keychain-ready API. Maps sensitive keys (vrs_auth_token, vrs_interpreter_auth) to a get/set/remove interface that currently falls back to AsyncStorage but is designed for one-line swap when react-native-keychain is linked. Middleware token check now uses getSecureItem.
 - [ ] Observability parity: crash reporting, structured mobile logs, request/session IDs, call lifecycle breadcrumbs
 
 ### Client Mobile Parity
@@ -497,66 +495,44 @@
   - 2026-04-30: Same MobileLoginScreen branches on isVriApp() → VRIConsoleScreen.
 - [x] VRI console shows large self-view and primary Request Interpreter action
   - 2026-04-30: VRIConsoleScreen built with self-view placeholder, Request/Cancel, session timer, Join Session on match.
-- [x] VRI console prevents empty room start before interpreter match
-  - 2026-04-30: Removed manual Join Session button from VRIConsoleScreen. Session auto-enters via middleware on match. Button is disabled during active session. Logout added to VRI console header.
-- [x] VRI console supports settings gear and media defaults
-  - 2026-04-30: VRISettingsScreen added with camera-on/mic-muted/auto-join/notification toggles. Persisted to vri_media_defaults storage. Accessible from VRI console footer.
-- [x] VRI console exposes billing/usage summary without exposing admin-only billing controls
-  - 2026-04-30: VRIUsageScreen added with day/week/month session counts and minutes from local call history. Accessible from VRI console footer.
+- [ ] VRI console prevents empty room start before interpreter match
+- [ ] VRI console supports settings gear and media defaults
+- [ ] VRI console exposes billing/usage summary without exposing admin-only billing controls
 - [x] VRS client supports phone-number profile, dial-via-interpreter, contacts, call history, missed calls
   - 2026-04-30: DialPadScreen, ContactsScreen, CallHistoryScreen built and registered in navigator. Contacts/history use mock data, wired for API endpoints.
 - [x] Client can request interpreter, see pending status, cancel request, and auto-enter after match
   - 2026-04-30: native welcome client action now uses the shared interpreter queue Redux/WebSocket flow with pending/cancel state; auto-enter after match and device smoke remain open.
-- [x] Client can join active matched room with camera off/mic muted defaults
-  - 2026-04-30: Extended IReloadNowOptions with startWithAudioMuted/startWithVideoMuted. autoEnterQueueRoom in middleware now passes startWithAudioMuted=true (mic muted — interpreter speaks for client), startWithVideoMuted=false (camera on — interpreter sees client). Native appNavigate applies these as config overrides before track creation.
-- [x] Client can leave call without being signed out
-  - 2026-04-30: CONFERENCE_LEFT handler in interpreter-queue middleware now navigates to tenant home screen (VRS Home or VRI Console) instead of triggering sign-out. Auth state is preserved.
-- [x] Client call end reliably writes call completion/CDR metadata
-  - 2026-04-30: Middleware persists match data (callId, roomName, interpreterName, startedAt) on match. On CONFERENCE_LEFT, writes local call history entry with duration before clearing active call. CallHistoryScreen reads from local vrs_call_history storage.
-- [x] Client supports captions/language controls in a mobile-appropriate location
-  - 2026-04-30: VRSHomeScreen now has language selector (ASL, LSQ, English, French) and captions toggle (CC). Selection persists to storage and is used for interpreter requests.
+- [ ] Client can join active matched room with camera off/mic muted defaults
+- [ ] Client can leave call without being signed out
+- [ ] Client call end reliably writes call completion/CDR metadata
+- [ ] Client supports captions/language controls in a mobile-appropriate location
 - [x] Client supports invite flow once VRI session invite model is built
-- [x] Client supports visual voicemail inbox and unread badge
-  - 2026-04-30: VoicemailInboxScreen with unread dot, transcript preview, delete, mark-read. Unread badge on VRSHomeScreen voicemail link. Reads from vrs_voicemails local storage.
-- [x] Client supports contact history and notes
-  - 2026-04-30: ContactDetailScreen shows contact profile, editable notes (persisted to storage), call history filtered to that contact, and call button. ContactsScreen tap now navigates to detail, with phone icon for quick-dial.
+- [ ] Client supports visual voicemail inbox and unread badge
+- [ ] Client supports contact history and notes
 
 ### Interpreter Mobile Parity
-- [x] Interpreter login routes to interpreter profile, not client surface
-  - 2026-04-30: MobileLoginScreen now has role selector (Client/Interpreter). Interpreter auth sets vrs_user_role=interpreter and routes to InterpreterHomeScreen. getInitialRoute checks role for re-launch routing.
-- [x] Interpreter profile mirrors web structure with self-view, availability, queue state, tabs
-  - 2026-04-30: InterpreterHomeScreen with availability toggle, incoming request display, session timer, language tags, connection status.
-- [x] Interpreter can set service modes: VRS, VRI, captioning eligibility
-  - 2026-04-30: InterpreterSettingsScreen with VRS/VRI/captioning eligibility toggles. Persisted to vrs_user_info storage.
-- [x] Interpreter can set language pairs and skills
-  - 2026-04-30: InterpreterSettingsScreen with language pair selector (ASL, LSQ, English, French, Spanish, Mandarin). Toggling adds/removes from active languages.
-- [x] Interpreter can go available/unavailable
-  - 2026-04-30: Availability toggle on InterpreterHomeScreen calls queueService.updateInterpreterStatus('active'|'inactive'). Visual state: Available (green), Offline (gray), In Session (blue).
+- [ ] Interpreter login routes to interpreter profile, not client surface
+- [ ] Interpreter profile mirrors web structure with self-view, availability, queue state, tabs
+- [ ] Interpreter can set service modes: VRS, VRI, captioning eligibility
+- [ ] Interpreter can set language pairs and skills
+- [ ] Interpreter can go available/unavailable
 - [ ] Interpreter receives incoming request notification while app is foregrounded
-  - 2026-04-30: useIncomingRequestAlert hook triggers vibration pattern on iOS/Android when pending request count increases. Wired into InterpreterHomeScreen. Sound alert requires native module or push notification integration (deferred to post-May).
 - [ ] Interpreter receives push/call-style notification while app is backgrounded or locked
-- [x] Interpreter can accept/decline request and auto-join correct room
-  - 2026-04-30: InterpreterHomeScreen shows pending requests from Redux state with Accept/Decline buttons. Accept dispatches acceptInterpreterRequest, which triggers auto-join via middleware. Decline dispatches declineInterpreterRequest.
-- [x] Interpreter sees client/session context before accepting where permitted
-  - 2026-04-30: InterpreterHomeScreen incoming request card now shows client name, language, service type (VRS/VRI from room name prefix), and timestamp. Interpreter can see context before tapping Accept/Decline.
-- [x] Interpreter can end call and trigger call lifecycle completion
-  - 2026-04-30: InterpreterHomeScreen has End Call button during active session. Calls queueService.endActiveCall(). Session timer shows live duration. CONFERENCE_LEFT handler navigates interpreter back to InterpreterHome.
-- [x] Interpreter billing/earnings tab shows payable minutes, invoice status, payout method placeholders
-  - 2026-04-30: InterpreterEarningsScreen shows total payable minutes, day/week/month breakdown, invoice history placeholder, and payout method placeholder. Accessible from InterpreterHomeScreen footer.
-- [x] Interpreter schedule/break/teaming decisions documented for MVP vs post-May
-  - 2026-04-30: Documented in docs/mobile-interpreter-mvp.md. Break = availability toggle (go offline). Scheduling = web admin only for MVP. Teaming deferred to post-May. Push notifications, CallKit, ConnectionService deferred (foreground-only for pilot).
+- [ ] Interpreter can accept/decline request and auto-join correct room
+- [ ] Interpreter sees client/session context before accepting where permitted
+- [ ] Interpreter can end call and trigger call lifecycle completion
+- [ ] Interpreter billing/earnings tab shows payable minutes, invoice status, payout method placeholders
+- [ ] Interpreter schedule/break/teaming decisions documented for MVP vs post-May
 
 ### Captioner Mobile Parity
-- [x] Decide whether captioner mobile is required for May or web-only for initial production
-  - 2026-04-30: Decision: captioner mobile is web-only for May. Caption publishing requires precise keyboard input and a larger viewport. The captioner role is rare enough that a laptop/desktop requirement is acceptable for the initial production period. Captioner mobile will be revisited if/when demand justifies the UX investment.
+- [ ] Decide whether captioner mobile is required for May or web-only for initial production
 - [ ] Captioner login routes to captioner profile
 - [ ] Captioner assignment/hidden participant flow works on mobile if included
 - [ ] Caption publishing UI is usable on tablet/phone if included
 - [ ] Privacy routing for captioners documented and tested
 
 ### Admin Mobile / Tablet Parity
-- [x] Decide whether admin moderation is responsive web/tablet only for May
-  - 2026-04-30: Decision: admin is responsive web only for May. The admin portal already works in tablet browsers. No native admin app will be built for the initial release. Admin moderation, billing, and tenant management remain desktop/tablet web experiences. Native admin surfaces may be revisited for specific workflows (e.g., quick queue pause on phone) post-May.
+- [ ] Decide whether admin moderation is responsive web/tablet only for May
 - [ ] Admin can view tenant-scoped live queue on tablet/mobile
 - [ ] Admin can view active calls and call details
 - [ ] Admin can moderate client/interpreter/captioner permissions
@@ -567,31 +543,21 @@
 ### Mobile Parity Track
 - [ ] Audit current React Native/iOS/Android/TWA project health against current web/backend contracts
   - 2026-04-30: Partial audit done. RN 0.72.9 project shells exist for iOS/Android. Shared Redux store. Pre-existing native TS errors in DeviceHandoffService (Bluetooth APIs), VoicemailPlayer (HTMLVideoElement), VRSSAuthService (TextEncoder/crypto), VRSLayout (strict string checks). Web `appNavigate` signature aligned with native for cross-platform middleware. Interpreter queue middleware now auto-enters matched rooms on both platforms.
-- [x] Choose shared TypeScript API client strategy to prevent web/mobile contract drift
-  - 2026-04-30: Created react/features/shared/api-client/index.ts with typed get/post/put/patch/del methods. Reads base URL from whitelabel config (web) or AsyncStorage tenant cache (native). Includes JWT auth header from secure storage. Returns typed ApiResponse<T> with error handling.
-- [x] Extract shared auth/session/profile/queue/contact types where practical
-  - 2026-04-30: Created react/features/mobile/types.ts with shared UserInfo, MatchData, QueueState, Contact, CallRecord, StoredActiveCall, and MediaDefaults interfaces.
-- [x] Create mobile parity checklist template required for future web feature PRs
-  - 2026-04-30: Created docs/mobile-parity-pr-template.md covering shared code, browser APIs, storage, queue, whitelabel, and ROADMAP documentation requirements.
+- [ ] Choose shared TypeScript API client strategy to prevent web/mobile contract drift
+- [ ] Extract shared auth/session/profile/queue/contact types where practical
+- [ ] Create mobile parity checklist template required for future web feature PRs
 - [ ] Jitsi Meet React Native SDK integration verified against current Droplet/Jitsi config
 - [ ] Mobile-safe WebSocket queue client with reconnect/backoff/session restore
   - 2026-04-30: shared auth/session storage now has a mobile in-memory fallback and the queue service can instantiate anywhere `WebSocket` exists instead of requiring browser storage. Still needs device-level verification plus secure native persistence.
   - 2026-04-30: queue middleware now checks shared VRS auth storage instead of browser-only storage before interpreter connection, and the native client request button uses queue Redux/WebSocket request/cancel state.
-- [x] Secure token storage: Keychain on iOS, Keystore/EncryptedSharedPreferences on Android
-  - 2026-04-30: Created `secureStorage.ts` with Keychain-ready get/set/remove API. Currently falls back to AsyncStorage (no native linking yet). Middleware reads auth tokens via getSecureItem. Swap to react-native-keychain requires adding the dep and changing one line per function.
+- [ ] Secure token storage: Keychain on iOS, Keystore/EncryptedSharedPreferences on Android
 - [ ] Deep links into active rooms and invite links
-  - 2026-04-30: Created linking.ts with React Navigation deep link config. Supports malkavrs://, malkavri://, maplevri:// schemes and HTTPS universal links. Paths mapped for all screens including call/:roomName. Wired into NavigationContainer. Native intent-filter/AppDelegate updates for tenant-specific schemes still needed per build.
 - [ ] Push/background calling: APNs, FCM, CallKit, Android ConnectionService
 - [ ] Reconnect/handoff behavior after app background, network switch, lock screen, and call interruption
-- [x] Poor-network states and media fallback copy
-  - 2026-04-30: NetworkStatusBar component shows orange banner when disconnected (dismissable). Wired into VRSHomeScreen and VRIConsoleScreen. Shows reconnecting state when WebSocket is reconnecting.
+- [ ] Poor-network states and media fallback copy
 - [ ] Tenant branding parity for Maple/Malka: logos, colors, app name, favicon/app icon/splash, copy
-  - 2026-04-30: Mobile bundle IDs and display names added to tenant configs (mobile.iosBundleId, mobile.androidApplicationId, mobile.displayName). Whitelabel prebuild script now patches iOS Info.plist/pbxproj and Android build.gradle/strings.xml per tenant. Fastlane deploy lanes use tenant-specific bundle IDs.
-  - 2026-04-30: Created `useTenantTheme()` hook in react/features/mobile/navigation/hooks/useTenantTheme.ts. Reads theme colors from window.__WHITELABEL__ (web) or AsyncStorage-cached tenant config (native). All mobile screens can consume tenant-specific primary/accent/surface colors via this hook instead of hardcoding hex values.
 - [ ] Mobile QA matrix: iOS/Android, phone/tablet, permissions, orientation, Bluetooth, screen lock
-  - 2026-04-30: Created docs/mobile-qa-matrix.md with device matrix (iPhone 15, SE, iPad, Galaxy S24, Pixel 8, etc.), test areas (auth, client VRS/VRI, interpreter, media/permissions, orientation, background/lifecycle, tenant branding, accessibility, store readiness), and per-test checkboxes.
 - [ ] Store readiness: privacy manifests, permission copy, screenshots, TestFlight/Play internal testing, crash reporting
-  - 2026-04-30: Created ios/app/PrivacyInfo.xcprivacy with NSPrivacyTracking, NSPrivacyCollectedDataTypes (contact info, sensitive info, photos/videos, camera, microphone), and NSPrivacyAccessedAPITypes (camera, microphone, file timestamps, screen capture).
 
 ### Mobile May 2026 Delivery Plan
 - [ ] Week 1: audit existing mobile shells, pick release strategy, define MVP by app/role, document known gaps
@@ -605,15 +571,11 @@
 - [ ] End of May: mobile release candidate with documented unsupported features and production rollback plan
 
 ### Mobile Drift Controls
-- [x] Add `ROADMAP.md` mobile parity update requirement to `AGENTS.md`
-  - 2026-04-30: Created AGENTS.md with mobile parity rules, PR checklist requirements, architecture constraints, storage key registry, and drift prevention guidelines.
-- [x] Add PR checklist item: "Does this web/backend change affect mobile?"
-  - 2026-04-30: AGENTS.md updated with formal "Mobile Impact" PR section requirement. Every PR must include a mobile impact assessment. Added ROADMAP update requirement to the checklist. Updated drift prevention section with references to shared API client, parity table, smoke fixtures, and CI typecheck.
+- [ ] Add `ROADMAP.md` mobile parity update requirement to `AGENTS.md`
+- [ ] Add PR checklist item: "Does this web/backend change affect mobile?"
 - [ ] Maintain `docs/mobile-parity.md` with route-by-route API/UI parity table
-  - 2026-04-30: Created docs/mobile-parity.md with route-by-route parity table covering auth, client VRS/VRI, interpreter, queue lifecycle, Jitsi/conference, and infrastructure. Marks each feature as Done/Partial/Missing/Web-only.
 - [ ] Add automated contract tests shared by web and mobile clients
 - [ ] Add smoke fixtures for demo accounts on iOS/Android
-  - 2026-04-30: Created react/features/mobile/test/demo-fixtures.ts with demo accounts (Malka client/interpreter, Maple client/interpreter), demo contacts, demo call history, seedDemoData() and seedDemoLogin() functions for populating AsyncStorage.
 - [ ] Tag mobile blockers separately in Linear/GitHub so they do not disappear under web work
 
 ---

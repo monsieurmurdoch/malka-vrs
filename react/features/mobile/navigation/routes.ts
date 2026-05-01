@@ -45,7 +45,8 @@ export const screen = {
     },
     unsafeRoomWarning: 'Unsafe Room Warning',
     auth: {
-        login: 'Login'
+        login: 'Login',
+        resetPassword: 'Reset Password'
     },
     vrs: {
         home: 'VRS Home',

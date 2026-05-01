@@ -94,6 +94,7 @@ const VRIConsoleScreen = () => {
                     { userInfo?.organization || 'VRI Console' }
                 </Text>
                 <TouchableOpacity
+                    accessibilityLabel = 'Sign out'
                     onPress = { handleLogout }
                     style = { styles.logoutButton }>
                     <Text style = { styles.logoutText }>Sign Out</Text>
@@ -143,6 +144,7 @@ const VRIConsoleScreen = () => {
             {/* Primary Action — only request/cancel, never manual room entry */}
             <View style = { styles.actions }>
                 <TouchableOpacity
+                    accessibilityLabel = { isRequestPending ? 'Cancel request' : isInSession ? 'Session active' : 'Request interpreter' }
                     onPress = { handleRequestInterpreter }
                     style = { [
                         styles.requestButton,
@@ -164,11 +166,13 @@ const VRIConsoleScreen = () => {
             <View style = { styles.footer }>
                 <View style = { styles.quickLinks }>
                     <TouchableOpacity
+                        accessibilityLabel = 'Open VRI settings'
                         onPress = { () => navigateRoot(screen.vri.settings) }
                         style = { styles.quickLink }>
                         <Text style = { styles.quickLinkText }>Settings</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
+                        accessibilityLabel = 'View usage summary'
                         onPress = { () => navigateRoot(screen.vri.usage) }
                         style = { styles.quickLink }>
                         <Text style = { styles.quickLinkText }>Usage</Text>

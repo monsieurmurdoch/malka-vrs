@@ -80,6 +80,7 @@ const DialPadScreen = () => {
             <View style = { styles.keypad }>
                 { DIGITS.map(([ digit, letters ]) => (
                     <TouchableOpacity
+                        accessibilityLabel = { `Dial ${digit}` }
                         key = { digit }
                         onPress = { () => handleDigit(digit) }
                         style = { styles.key }>
@@ -93,6 +94,7 @@ const DialPadScreen = () => {
             <View style = { styles.actionRow }>
                 <View style = { styles.actionSpacer } />
                 <TouchableOpacity
+                    accessibilityLabel = 'Place call'
                     disabled = { !digits || !canDialOut }
                     onPress = { handleCall }
                     style = { [
@@ -102,6 +104,7 @@ const DialPadScreen = () => {
                     <Text style = { styles.callIcon }>{'\u{1F4DE}'}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
+                    accessibilityLabel = 'Delete digit'
                     disabled = { !digits }
                     onPress = { handleDelete }
                     style = { styles.deleteButton }>
