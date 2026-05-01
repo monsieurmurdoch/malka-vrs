@@ -5,7 +5,7 @@
  * User dials a hearing party's number, system connects them via interpreter.
  */
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     SafeAreaView,
     ScrollView,
@@ -19,7 +19,9 @@ import { useDispatch } from 'react-redux';
 import { appNavigate } from '../../../../app/actions';
 import { isFeatureEnabled } from '../../../../base/whitelabel/functions';
 import { FEATURES } from '../../../../base/whitelabel/constants';
+import { queueService } from '../../../../interpreter-queue/InterpreterQueueService';
 import { getPersistentJson } from '../../../../vrs-auth/storage';
+import { mobileLog } from '../../logging';
 import { CallRecord } from '../../../types';
 
 const DIGITS = [
@@ -45,6 +47,7 @@ const DialPadScreen = () => {
     const dispatch = useDispatch();
     const canDialOut = isFeatureEnabled(FEATURES.PHONE_DIAL_OUT);
     const [ digits, setDigits ] = useState('');
+    const [ callStatus, setCallStatus ] = useState<string | null>(null);
 
     // Last 3 recent calls for quick redial
     const recentCalls = useMemo(() => {
@@ -53,11 +56,44 @@ const DialPadScreen = () => {
         return history.slice(0, 3);
     }, []);
 
-    const handleRecentCall = useCallback((call: CallRecord) => {
-        const roomName = `vrs-${Date.now()}`;
+    // Listen for P2P call status updates from the queue service
+    useEffect(() => {
+        const onRinging = () => setCallStatus('Ringing...');
+        const onFailed = (data: { message?: string }) => {
+            setCallStatus(data.message || 'Call failed');
+            setTimeout(() => setCallStatus(null), 3000);
+        };
+        const onOffline = (data: { calleeName?: string }) => {
+            setCallStatus(`${data.calleeName || 'Contact'} is offline`);
+            setTimeout(() => setCallStatus(null), 3000);
+        };
+        const onDnd = (data: { calleeName?: string }) => {
+            setCallStatus(`${data.calleeName || 'Contact'} has DND on`);
+            setTimeout(() => setCallStatus(null), 3000);
+        };
 
-        dispatch(appNavigate(roomName, { hidePrejoin: true }));
-    }, [ dispatch ]);
+        queueService.on('p2pRinging', onRinging);
+        queueService.on('p2pCallFailed', onFailed);
+        queueService.on('p2pTargetOffline', onOffline);
+        queueService.on('p2pTargetDnd', onDnd);
+
+        return () => {
+            queueService.off('p2pRinging', onRinging);
+            queueService.off('p2pCallFailed', onFailed);
+            queueService.off('p2pTargetOffline', onOffline);
+            queueService.off('p2pTargetDnd', onDnd);
+        };
+    }, []);
+
+    const handleRecentCall = useCallback((call: CallRecord) => {
+        if (!call.phoneNumber) {
+            return;
+        }
+
+        setCallStatus('Calling...');
+        queueService.sendP2PCall(call.phoneNumber);
+        mobileLog('info', 'dial_redial_p2p', { phoneNumber: call.phoneNumber, contactName: call.contactName });
+    }, []);
 
     const handleDigit = useCallback((d: string) => {
         setDigits(prev => prev + d);
@@ -72,11 +108,19 @@ const DialPadScreen = () => {
             return;
         }
 
-        // Navigate to a VRS room — the backend will bridge the hearing party via P2P
-        const roomName = `vrs-${ Date.now() }`;
+        const clean = digits.replace(/[^0-9+]/g, '');
 
-        dispatch(appNavigate(roomName, { hidePrejoin: true }));
-    }, [ digits, canDialOut, dispatch ]);
+        if (!clean) {
+            return;
+        }
+
+        // Initiate P2P call through WebSocket — backend looks up callee by
+        // phone number, creates a room, and notifies the callee.
+        // The middleware auto-enters the room on `p2p_ringing`.
+        setCallStatus('Calling...');
+        queueService.sendP2PCall(clean);
+        mobileLog('info', 'dial_p2p_call', { phoneNumber: clean });
+    }, [ digits, canDialOut ]);
 
     return (
         <SafeAreaView style = { styles.container }>
@@ -89,6 +133,11 @@ const DialPadScreen = () => {
                     { !canDialOut && (
                         <Text style = { styles.restricted }>
                             Phone dial-out not available for this account
+                        </Text>
+                    ) }
+                    { callStatus && (
+                        <Text style = { styles.callStatus }>
+                            { callStatus }
                         </Text>
                     ) }
                 </View>
@@ -179,6 +228,11 @@ const styles = StyleSheet.create({
     container: {
         backgroundColor: '#0f0f23',
         flex: 1
+    },
+    callStatus: {
+        color: '#2979ff',
+        fontSize: 14,
+        marginTop: 8
     },
     deleteButton: {
         alignItems: 'center',

@@ -6,6 +6,38 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-05-01
 - Branch: `hermes/mobile-parity`
+- HEAD: `b808c18`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M ROADMAP.md`
+  - `M  react/features/interpreter-queue/InterpreterQueueService.ts`
+  - `M  react/features/interpreter-queue/middleware.ts`
+  - `M  react/features/mobile/navigation/components/vri/VRIConsoleScreen.tsx`
+  - `M  react/features/mobile/navigation/components/vrs/DialPadScreen.tsx`
+  - `M twilio-voice-server/server.js`
+  - `M vrs-ops-server/dist/index.d.ts.map`
+  - `M vrs-ops-server/dist/index.js`
+  - `M vrs-ops-server/dist/index.js.map`
+  - `M vrs-ops-server/src/index.ts`
+  - `M vrs-server/lib/validation.js`
+  - `M vrs-server/routes/admin.js`
+  - `M vrs-server/routes/auth.js`
+  - `M vrs-server/routes/client.js`
+  - `M vrs-server/routes/contacts.js`
+  - `M vrs-server/routes/google-contacts.js`
+  - `M vrs-server/routes/tts.js`
+  - `M vrs-server/routes/voicemail.js`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-05-01T07:21:20.954Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-05-01
+- Branch: `hermes/mobile-parity`
 - HEAD: `8b72b40`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -30,7 +62,7 @@ Local changes at sync time:
   - `M vrs-server/ws/handler.js`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-05-01T07:03:54.471Z
 
 <!-- status:current:start -->

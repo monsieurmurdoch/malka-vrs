@@ -61,6 +61,15 @@
 - [x] Admin audit export for account/permission changes
 - [x] Superadmin dashboard for managing tenants
 
+### Validation & Error Handling
+- [x] Expanded Zod validation to every POST/PUT/PATCH endpoint
+- [x] Added WebSocket envelope and payload validation
+- [x] Sanitized stored user-generated fields touched by auth, profile, contact, admin, TTS, billing, and queue flows
+- [x] Added centralized Express error normalization with no production stack/message leakage for 500s
+- [x] Standardized error shape across VRS, ops, and Twilio responses: `{ error, code, details? }`
+- [x] Confirmed WebSocket message handling catches unhandled message errors and reports safe `INTERNAL_ERROR` payloads
+- [x] Completed npm audit review and upgrade plan in `docs/npm-audit-review.md`
+
 ### PostgreSQL Runtime Alignment
 - [x] VRS server runtime uses PostgreSQL as canonical app database
 - [x] Local and production Compose include PostgreSQL 16 for app data
@@ -372,15 +381,6 @@
 - [ ] DigitalOcean monitoring integration decision
 - [ ] External APM decision: Datadog, New Relic, or OpenTelemetry-first vendor-neutral path
 - [ ] Alert rules for service down, queue wait, JVB CPU, DB latency, disk, memory, and error rate
-
-### Validation & Error Handling
-- [ ] Expand Zod validation to every POST/PUT/PATCH endpoint
-- [ ] Validate all WebSocket message payloads
-- [ ] Sanitize stored user-generated fields to prevent XSS
-- [ ] Centralized Express error handler with no stack traces in production responses
-- [ ] Consistent error shape across services: `{ error, code, details? }`
-- [ ] WebSocket error boundaries so unhandled message errors cannot crash the process
-- [ ] Full npm audit review and dependency upgrade plan
 
 ### Testing
 - [ ] Unit tests: queue priority, matching, state transitions

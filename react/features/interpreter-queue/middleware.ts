@@ -236,6 +236,37 @@ function initializeInterpreterQueue(store: { dispatch: Function; getState: Funct
         queueService.on('requestCancelled', () => {
             console.log('[InterpreterQueue] Request cancelled');
         });
+
+        // P2P call: ringing → auto-enter the room
+        queueService.on('p2pRinging', (data: Record<string, unknown>) => {
+            console.log('[InterpreterQueue] P2P ringing:', data);
+            persistMatchData({
+                callId: data.callId,
+                roomName: data.roomName,
+                clientName: data.calleeName,
+                language: 'ASL'
+            });
+            const roomName = data.roomName as string;
+
+            if (roomName) {
+                store.dispatch(appNavigate(roomName, {
+                    hidePrejoin: true,
+                    startWithAudioMuted: true,
+                    startWithVideoMuted: false
+                }));
+            }
+        });
+
+        // P2P call: target offline / DND / failed — just log
+        queueService.on('p2pCallFailed', (data: { message?: string }) => {
+            console.warn('[InterpreterQueue] P2P call failed:', data.message);
+        });
+        queueService.on('p2pTargetOffline', (data: { calleeName?: string }) => {
+            console.warn('[InterpreterQueue] P2P target offline:', data.calleeName);
+        });
+        queueService.on('p2pTargetDnd', (data: { calleeName?: string }) => {
+            console.warn('[InterpreterQueue] P2P target DND:', data.calleeName);
+        });
     }
 
     // Interpreter-specific events

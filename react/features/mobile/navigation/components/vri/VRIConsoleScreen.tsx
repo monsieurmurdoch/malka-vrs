@@ -18,6 +18,7 @@ import { useDispatch, useSelector } from 'react-redux';
 
 import { cancelInterpreterRequest, requestInterpreter } from '../../../../interpreter-queue/actions';
 import { QueueState } from '../../../../interpreter-queue/reducer';
+import { queueService } from '../../../../interpreter-queue/InterpreterQueueService';
 import { apiClient } from '../../../../shared/api-client';
 import { removeSecureItem } from '../../../../vrs-auth/secureStorage';
 import { clearPersistentItems, getPersistentJson, setPersistentItem } from '../../../../vrs-auth/storage';
@@ -51,6 +52,23 @@ const VRIConsoleScreen = () => {
     const [ elapsedTime, setElapsedTime ] = useState(0);
     const [ previewStream, setPreviewStream ] = useState<MediaStream | null>(null);
     const [ previewError, setPreviewError ] = useState('');
+    const [ inviteUrl, setInviteUrl ] = useState<string | null>(null);
+
+    // Listen for VRI invite preparation responses
+    useEffect(() => {
+        const onInvitePrepared = (data: { inviteUrl?: string; token?: string }) => {
+            if (data.inviteUrl) {
+                setInviteUrl(data.inviteUrl);
+                mobileLog('info', 'vri_invite_prepared', { token: data.token });
+            }
+        };
+
+        queueService.on('vriInvitePrepared', onInvitePrepared);
+
+        return () => {
+            queueService.off('vriInvitePrepared', onInvitePrepared);
+        };
+    }, []);
 
     useEffect(() => {
         let mounted = true;
@@ -175,6 +193,13 @@ const VRIConsoleScreen = () => {
         return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     };
 
+    const handlePrepareInvite = useCallback(() => {
+        setInviteUrl(null);
+        queueService.prepareVriInvite({
+            roomName: matchData?.roomName || undefined
+        });
+    }, [ matchData ]);
+
     const isInSession = Boolean(matchData?.roomName);
 
     return (
@@ -242,6 +267,37 @@ const VRIConsoleScreen = () => {
                     </>
                 ) }
             </View>
+
+            {/* Invite Panel — available when in session or waiting */}
+            { isInSession && (
+                <View style = { styles.invitePanel }>
+                    { inviteUrl ? (
+                        <>
+                            <Text style = { styles.inviteLabel }>Session Invite Link</Text>
+                            <Text
+                                numberOfLines = { 2 }
+                                style = { styles.inviteUrl }>
+                                { inviteUrl }
+                            </Text>
+                            <TouchableOpacity
+                                accessibilityLabel = 'Copy invite link'
+                                onPress = { () => {
+                                    mobileLog('info', 'vri_invite_copied');
+                                } }
+                                style = { styles.inviteButton }>
+                                <Text style = { styles.inviteButtonText }>Copy Link</Text>
+                            </TouchableOpacity>
+                        </>
+                    ) : (
+                        <TouchableOpacity
+                            accessibilityLabel = 'Prepare session invite'
+                            onPress = { handlePrepareInvite }
+                            style = { styles.inviteButton }>
+                            <Text style = { styles.inviteButtonText }>Prepare Invite</Text>
+                        </TouchableOpacity>
+                    ) }
+                </View>
+            )}
 
             {/* Language Selector */}
             { !isInSession && (
@@ -370,6 +426,37 @@ const styles = StyleSheet.create({
         color: '#ffffff',
         fontSize: 18,
         fontWeight: '600'
+    },
+    inviteButton: {
+        backgroundColor: '#1a1a2e',
+        borderColor: '#2979ff',
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 16,
+        paddingVertical: 8
+    },
+    inviteButtonText: {
+        color: '#2979ff',
+        fontSize: 13,
+        fontWeight: '600'
+    },
+    inviteLabel: {
+        color: '#888',
+        fontSize: 11,
+        fontWeight: '600',
+        letterSpacing: 0.5,
+        marginBottom: 4,
+        textTransform: 'uppercase'
+    },
+    invitePanel: {
+        alignItems: 'center',
+        marginHorizontal: 20,
+        marginBottom: 8
+    },
+    inviteUrl: {
+        color: '#aaa',
+        fontSize: 11,
+        marginBottom: 8
     },
     langButton: {
         backgroundColor: '#1a1a2e',

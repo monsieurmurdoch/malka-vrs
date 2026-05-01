@@ -471,6 +471,22 @@ class InterpreterQueueService {
                 this.emit('p2pTargetDnd', message.data);
                 break;
 
+            case 'p2p_ringing':
+                this.emit('p2pRinging', message.data);
+                break;
+
+            case 'p2p_call_failed':
+                this.emit('p2pCallFailed', message.data);
+                break;
+
+            case 'p2p_target_offline':
+                this.emit('p2pTargetOffline', message.data);
+                break;
+
+            case 'vri_invite_prepared':
+                this.emit('vriInvitePrepared', message.data);
+                break;
+
             case 'contacts_changed':
                 this.emit('contactsChanged', message.data);
                 break;
@@ -557,6 +573,13 @@ class InterpreterQueueService {
         this.send({
             type: 'p2p_call',
             data: { phoneNumber }
+        });
+    }
+
+    public prepareVriInvite(data: { guestName?: string; guestEmail?: string; guestPhone?: string; roomName?: string }) {
+        this.send({
+            type: 'prepare_vri_invite',
+            data
         });
     }
 
@@ -675,6 +698,8 @@ export const queueService = {
     endActiveCall: () => getQueueServiceInstance()?.endActiveCall(),
     sendP2PCall: (...args: Parameters<InterpreterQueueService['sendP2PCall']>) =>
         getQueueServiceInstance()?.sendP2PCall(...args),
+    prepareVriInvite: (...args: Parameters<InterpreterQueueService['prepareVriInvite']>) =>
+        getQueueServiceInstance()?.prepareVriInvite(...args),
     cancelRequest: (...args: Parameters<InterpreterQueueService['cancelRequest']>) =>
         getQueueServiceInstance()?.cancelRequest(...args),
     acceptRequest: (...args: Parameters<InterpreterQueueService['acceptRequest']>) =>
