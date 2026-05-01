@@ -4,7 +4,7 @@
  * Media defaults and session preferences for VRI clients.
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     SafeAreaView,
     ScrollView,
@@ -15,7 +15,9 @@ import {
     View
 } from 'react-native';
 
+import { apiClient } from '../../../../shared/api-client';
 import { setPersistentItem, getPersistentJson } from '../../../../vrs-auth/storage';
+import { mobileLog } from '../../logging';
 import { navigateRoot } from '../../rootNavigationContainerRef';
 import { screen } from '../../routes';
 
@@ -39,9 +41,56 @@ const VRISettingsScreen = () => {
     const [ autoJoin, setAutoJoin ] = useState(defaults.autoJoinOnMatch);
     const [ notifications, setNotifications ] = useState(defaults.notificationsEnabled);
 
+    useEffect(() => {
+        let mounted = true;
+
+        apiClient.get<Record<string, any>>('/api/client/preferences').then(response => {
+            if (!mounted) {
+                return;
+            }
+
+            if (response.error) {
+                mobileLog('warn', 'vri_preferences_load_failed', { error: response.error });
+
+                return;
+            }
+
+            const prefs = response.data;
+
+            if (prefs) {
+                const next = {
+                    cameraOn: !Boolean(prefs.camera_default_off),
+                    micMuted: Boolean(prefs.mic_default_off ?? true),
+                    autoJoinOnMatch: !Boolean(prefs.skip_waiting_room),
+                    notificationsEnabled: Boolean(prefs.notifications_enabled ?? true)
+                };
+
+                setCameraOn(next.cameraOn);
+                setMicMuted(next.micMuted);
+                setAutoJoin(next.autoJoinOnMatch);
+                setNotifications(next.notificationsEnabled);
+                setPersistentItem('vri_media_defaults', JSON.stringify(next));
+            }
+        });
+
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
     const saveDefaults = useCallback((updates: Partial<MediaDefaults>) => {
         const next = { cameraOn, micMuted, autoJoinOnMatch: autoJoin, notificationsEnabled: notifications, ...updates };
         setPersistentItem('vri_media_defaults', JSON.stringify(next));
+        void apiClient.put('/api/client/preferences', {
+            camera_default_off: !next.cameraOn,
+            mic_default_off: next.micMuted,
+            skip_waiting_room: !next.autoJoinOnMatch,
+            notifications_enabled: next.notificationsEnabled
+        }).then(response => {
+            if (response.error) {
+                mobileLog('warn', 'vri_preferences_save_failed', { error: response.error });
+            }
+        });
     }, [ cameraOn, micMuted, autoJoin, notifications ]);
 
     return (

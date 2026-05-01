@@ -14,7 +14,7 @@ import { Platform } from 'react-native';
 
 import { getWhitelabelConfig } from '../../base/whitelabel/functions';
 import { getPersistentItem, getPersistentJson } from '../../vrs-auth/storage';
-import { getSecureItem } from '../../vrs-auth/secureStorage';
+import { getSecureItem, setSecureItem } from '../../vrs-auth/secureStorage';
 
 export interface ApiResponse<T> {
     data: T | null;
@@ -66,10 +66,63 @@ function getAuthToken(): string | null {
     }
 }
 
+function getAuthTokenEnvelope(): { token?: string; role?: string; userId?: string } | null {
+    const raw = getSecureItem('vrs_auth_token') || getPersistentItem('vrs_auth_token');
+
+    if (!raw) {
+        return null;
+    }
+
+    try {
+        return JSON.parse(raw) as { token?: string; role?: string; userId?: string };
+    } catch {
+        return { token: raw };
+    }
+}
+
+async function refreshAuthToken(): Promise<string | null> {
+    const envelope = getAuthTokenEnvelope();
+
+    if (!envelope?.token) {
+        return null;
+    }
+
+    try {
+        const response = await fetch(`${getBaseUrl()}/api/auth/refresh`, {
+            headers: {
+                Authorization: `Bearer ${envelope.token}`,
+                'Content-Type': 'application/json'
+            },
+            method: 'POST'
+        });
+
+        if (!response.ok) {
+            return null;
+        }
+
+        const data = await response.json() as { token?: string };
+
+        if (!data.token) {
+            return null;
+        }
+
+        setSecureItem('vrs_auth_token', JSON.stringify({
+            ...envelope,
+            token: data.token,
+            refreshedAt: Date.now()
+        }));
+
+        return data.token;
+    } catch {
+        return null;
+    }
+}
+
 async function request<T>(
     method: string,
     path: string,
-    body?: unknown
+    body?: unknown,
+    retried = false
 ): Promise<ApiResponse<T>> {
     const baseUrl = getBaseUrl();
     const token = getAuthToken();
@@ -90,6 +143,14 @@ async function request<T>(
         });
 
         const status = response.status;
+
+        if (response.status === 401 && token && !retried) {
+            const refreshedToken = await refreshAuthToken();
+
+            if (refreshedToken) {
+                return request<T>(method, path, body, true);
+            }
+        }
 
         if (!response.ok) {
             let errorMessage = `HTTP ${status}`;

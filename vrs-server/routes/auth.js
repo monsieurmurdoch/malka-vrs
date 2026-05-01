@@ -86,6 +86,24 @@ const adminLoginSchema = z.object({
 
 const captionerLoginSchema = loginSchema;
 
+function getTokenUser(req, res) {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        res.status(401).json({ error: 'Authorization required', code: 'AUTH_REQUIRED' });
+
+        return null;
+    }
+
+    try {
+        return normalizeAuthClaims(verifyJwtToken(authHeader.replace('Bearer ', '')));
+    } catch {
+        res.status(401).json({ error: 'Invalid token', code: 'AUTH_INVALID' });
+
+        return null;
+    }
+}
+
 // --- Client registration ---
 router.post('/client/register', authLimiter, validate(clientRegisterSchema), async (req, res) => {
 
@@ -276,6 +294,30 @@ router.post('/captioner/login', authLimiter, validate(captionerLoginSchema), asy
     } catch (error) {
         req.log.error({ err: error }, 'Captioner login failed');
         res.status(500).json({ error: 'Login failed', code: 'INTERNAL_ERROR' });
+    }
+});
+
+// --- JWT refresh ---
+router.post('/refresh', authLimiter, async (req, res) => {
+    const user = getTokenUser(req, res);
+
+    if (!user) {
+        return;
+    }
+
+    try {
+        const token = signToken({
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            tenantId: user.tenantId || inferTenantId(req)
+        });
+
+        res.json({ success: true, token });
+    } catch (error) {
+        req.log.error({ err: error }, 'Token refresh failed');
+        res.status(500).json({ error: 'Token refresh failed', code: 'INTERNAL_ERROR' });
     }
 });
 
@@ -538,18 +580,10 @@ router.post('/password/reset', authLimiter, validate(resetPasswordSchema), async
 
 // --- Change password (authenticated) ---
 router.post('/password/change', authLimiter, async (req, res) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'Authorization required', code: 'AUTH_REQUIRED' });
-    }
+    const user = getTokenUser(req, res);
 
-    const token = authHeader.replace('Bearer ', '');
-    let user;
-
-    try {
-        user = normalizeAuthClaims(verifyJwtToken(token));
-    } catch {
-        return res.status(401).json({ error: 'Invalid token', code: 'AUTH_INVALID' });
+    if (!user) {
+        return;
     }
 
     const { currentPassword, newPassword } = req.body;

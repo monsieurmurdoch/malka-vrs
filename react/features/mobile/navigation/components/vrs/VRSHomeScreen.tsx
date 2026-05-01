@@ -29,9 +29,15 @@ import NetworkStatusBar from '../NetworkStatusBar';
 import { useTenantTheme } from '../../hooks/useTenantTheme';
 
 interface UserInfo {
+    id?: string;
     name?: string;
+    email?: string;
     phoneNumber?: string;
+    primaryPhone?: string;
+    organization?: string;
     role?: string;
+    serviceModes?: string[];
+    tenantId?: string;
 }
 
 const LANGUAGES = [
@@ -49,7 +55,7 @@ const VRSHomeScreen = () => {
     const isRequestPending = Boolean(queueState?.isRequestPending);
     const queuePosition = queueState?.queuePosition;
 
-    const userInfo = getPersistentJson<UserInfo>('vrs_user_info');
+    const [ userInfo, setUserInfo ] = useState<UserInfo | null>(() => getPersistentJson<UserInfo>('vrs_user_info'));
     const savedLang = getPersistentJson<string>('vrs_request_language');
     const savedCaptions = getPersistentJson<boolean>('vrs_captions_enabled');
     const [ language, setLanguage ] = useState(savedLang || 'ASL');
@@ -62,6 +68,29 @@ const VRSHomeScreen = () => {
 
     useEffect(() => {
         let mounted = true;
+
+        apiClient.get<UserInfo>('/api/client/profile').then(response => {
+            if (!mounted) {
+                return;
+            }
+
+            if (response.error) {
+                mobileLog('warn', 'client_profile_load_failed', { error: response.error });
+
+                return;
+            }
+
+            if (response.data) {
+                const nextUser = {
+                    ...userInfo,
+                    ...response.data,
+                    phoneNumber: response.data.phoneNumber || response.data.primaryPhone || userInfo?.phoneNumber
+                };
+
+                setUserInfo(nextUser);
+                setPersistentItem('vrs_user_info', JSON.stringify(nextUser));
+            }
+        });
 
         apiClient.get<{ count?: number }>('/api/voicemail/unread-count').then(response => {
             if (!mounted) {

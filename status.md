@@ -6,6 +6,60 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-05-01
 - Branch: `hermes/mobile-parity`
+- HEAD: `e317426`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M react/features/mobile/background/middleware.native.ts`
+  - `M react/features/mobile/navigation/components/RootNavigationContainer.tsx`
+  - `M  react/features/mobile/navigation/components/auth/MobileLoginScreen.tsx`
+  - `M  react/features/mobile/navigation/components/auth/PasswordResetScreen.tsx`
+  - `M  react/features/mobile/navigation/components/interpreter/InterpreterEarningsScreen.tsx`
+  - `MM react/features/mobile/navigation/components/interpreter/InterpreterHomeScreen.tsx`
+  - `MM react/features/mobile/navigation/components/vri/VRIConsoleScreen.tsx`
+  - `M  react/features/mobile/navigation/components/vri/VRISettingsScreen.tsx`
+  - `M react/features/mobile/navigation/components/vri/VRIUsageScreen.tsx`
+  - `MM react/features/mobile/navigation/components/vrs/VRSHomeScreen.tsx`
+  - `M  react/features/mobile/navigation/logging.ts`
+  - `M  react/features/shared/api-client/index.ts`
+  - `M react/features/vrs-auth/secureStorage.ts`
+  - `M  status.md`
+  - `M  vrs-server/routes/auth.js`
+  - `M vrs-server/src/server.ts`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-05-01T05:45:43.092Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-05-01
+- Branch: `hermes/mobile-parity`
+- HEAD: `e317426`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M react/features/mobile/navigation/components/auth/MobileLoginScreen.tsx`
+  - `M react/features/mobile/navigation/components/auth/PasswordResetScreen.tsx`
+  - `M react/features/mobile/navigation/components/interpreter/InterpreterEarningsScreen.tsx`
+  - `M react/features/mobile/navigation/components/interpreter/InterpreterHomeScreen.tsx`
+  - `M react/features/mobile/navigation/components/vri/VRIConsoleScreen.tsx`
+  - `M react/features/mobile/navigation/components/vri/VRISettingsScreen.tsx`
+  - `M react/features/mobile/navigation/components/vrs/VRSHomeScreen.tsx`
+  - `M react/features/mobile/navigation/logging.ts`
+  - `M react/features/shared/api-client/index.ts`
+  - `M vrs-server/routes/auth.js`
+
+<!-- status:current:end -->
+
+### Archived Update - 2026-05-01T05:43:05.256Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-05-01
+- Branch: `hermes/mobile-parity`
 - HEAD: `bd12cce`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -13,7 +67,7 @@ Local changes at sync time:
   - `M  ROADMAP.md`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-05-01T05:33:37.955Z
 
 <!-- status:current:start -->

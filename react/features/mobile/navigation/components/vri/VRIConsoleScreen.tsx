@@ -18,17 +18,22 @@ import { useDispatch, useSelector } from 'react-redux';
 
 import { cancelInterpreterRequest, requestInterpreter } from '../../../../interpreter-queue/actions';
 import { QueueState } from '../../../../interpreter-queue/reducer';
+import { apiClient } from '../../../../shared/api-client';
 import { clearPersistentItems, getPersistentJson, setPersistentItem } from '../../../../vrs-auth/storage';
+import { mobileLog } from '../../logging';
 import { navigateRoot } from '../../rootNavigationContainerRef';
 import { screen } from '../../routes';
 import NetworkStatusBar from '../NetworkStatusBar';
 import { useTenantTheme } from '../../hooks/useTenantTheme';
 
 interface UserInfo {
+    id?: string;
     name?: string;
+    email?: string;
     organization?: string;
     role?: string;
     serviceModes?: string[];
+    tenantId?: string;
 }
 
 const VRI_LANGUAGES = [
@@ -48,12 +53,39 @@ const VRIConsoleScreen = () => {
     const queuePosition = queueState?.queuePosition;
     const matchData = queueState?.matchData;
 
-    const userInfo = getPersistentJson<UserInfo>('vrs_user_info');
+    const [ userInfo, setUserInfo ] = useState<UserInfo | null>(() => getPersistentJson<UserInfo>('vrs_user_info'));
     const savedLang = getPersistentJson<string>('vrs_request_language');
     const [ language, setLanguage ] = useState(savedLang || 'ASL');
     const [ elapsedTime, setElapsedTime ] = useState(0);
     const [ previewStream, setPreviewStream ] = useState<MediaStream | null>(null);
     const [ previewError, setPreviewError ] = useState('');
+
+    useEffect(() => {
+        let mounted = true;
+
+        apiClient.get<UserInfo>('/api/client/profile').then(response => {
+            if (!mounted) {
+                return;
+            }
+
+            if (response.error) {
+                mobileLog('warn', 'vri_client_profile_load_failed', { error: response.error });
+
+                return;
+            }
+
+            if (response.data) {
+                const nextUser = { ...userInfo, ...response.data };
+
+                setUserInfo(nextUser);
+                setPersistentItem('vrs_user_info', JSON.stringify(nextUser));
+            }
+        });
+
+        return () => {
+            mounted = false;
+        };
+    }, []);
 
     useEffect(() => {
         let mounted = true;

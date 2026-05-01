@@ -18,6 +18,8 @@ import {
     View
 } from 'react-native';
 
+import { apiClient } from '../../../../shared/api-client';
+import { mobileLog } from '../../logging';
 import { navigateRoot } from '../../rootNavigationContainerRef';
 import { screen } from '../../routes';
 
@@ -27,7 +29,7 @@ const PasswordResetScreen = () => {
     const [ loading, setLoading ] = useState(false);
     const [ error, setError ] = useState('');
 
-    const handleReset = useCallback(() => {
+    const handleReset = useCallback(async () => {
         const trimmed = email.trim();
 
         if (!trimmed) {
@@ -46,13 +48,22 @@ const PasswordResetScreen = () => {
         setLoading(true);
         setError('');
 
-        // TODO: Call POST /api/auth/reset-password with { email }
-        // const response = await apiClient.post('/api/auth/reset-password', { email });
-        // For now, simulate success after a brief delay
-        setTimeout(() => {
+        try {
+            const response = await apiClient.post<{ success?: boolean }>('/api/auth/password/forgot', { email: trimmed });
+
+            if (response.error) {
+                mobileLog('warn', 'password_reset_request_failed', { error: response.error });
+                setError(response.error);
+
+                return;
+            }
+
             setSent(true);
+        } catch (err: any) {
+            setError(err?.message || 'Unable to request password reset');
+        } finally {
             setLoading(false);
-        }, 800);
+        }
     }, [ email ]);
 
     return (

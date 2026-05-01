@@ -11,6 +11,7 @@
 
 import { Platform } from 'react-native';
 
+import { apiClient } from '../../shared/api-client';
 import { getPersistentJson, setPersistentItem } from '../../vrs-auth/storage';
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -138,6 +139,24 @@ export const flushLogs = (): LogEntry[] => {
     clearMobileLogs();
 
     return logs;
+};
+
+export const flushMobileLogsToBackend = async (): Promise<{ sent: number; error?: string }> => {
+    const logs = getStoredLogs();
+
+    if (logs.length === 0) {
+        return { sent: 0 };
+    }
+
+    const response = await apiClient.post<{ accepted?: number }>('/api/mobile/logs', { logs });
+
+    if (response.error) {
+        return { sent: 0, error: response.error };
+    }
+
+    clearMobileLogs();
+
+    return { sent: response.data?.accepted || logs.length };
 };
 
 export { mobileLog };

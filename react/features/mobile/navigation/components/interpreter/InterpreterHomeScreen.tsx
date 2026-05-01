@@ -23,7 +23,9 @@ import {
 } from '../../../../interpreter-queue/actions';
 import { QueueState } from '../../../../interpreter-queue/reducer';
 import { queueService } from '../../../../interpreter-queue/InterpreterQueueService';
+import { apiClient } from '../../../../shared/api-client';
 import { clearPersistentItems, getPersistentJson, setPersistentItem } from '../../../../vrs-auth/storage';
+import { mobileLog } from '../../logging';
 import { navigateRoot } from '../../rootNavigationContainerRef';
 import { screen } from '../../routes';
 import NetworkStatusBar from '../NetworkStatusBar';
@@ -53,6 +55,7 @@ const InterpreterHomeScreen = () => {
     const pendingRequests = (queueState as any)?.pendingRequests as IncomingRequest[] | undefined;
 
     const userInfo = getPersistentJson<InterpreterInfo>('vrs_user_info');
+    const [ profile, setProfile ] = useState<InterpreterInfo | null>(userInfo || null);
     const [ isAvailable, setIsAvailable ] = useState(false);
     const [ activeTime, setActiveTime ] = useState(0);
 
@@ -60,6 +63,31 @@ const InterpreterHomeScreen = () => {
     useIncomingRequestAlert();
 
     const isInSession = Boolean(matchData?.roomName);
+
+    useEffect(() => {
+        let mounted = true;
+
+        apiClient.get<InterpreterInfo>('/api/interpreter/profile').then(response => {
+            if (!mounted) {
+                return;
+            }
+
+            if (response.error) {
+                mobileLog('warn', 'interpreter_profile_load_failed', { error: response.error });
+
+                return;
+            }
+
+            if (response.data) {
+                setProfile(response.data);
+                setPersistentItem('vrs_user_info', JSON.stringify(response.data));
+            }
+        });
+
+        return () => {
+            mounted = false;
+        };
+    }, []);
 
     // Track session time
     useEffect(() => {
@@ -81,13 +109,13 @@ const InterpreterHomeScreen = () => {
         if (next) {
             queueService.updateInterpreterStatus(
                 'active',
-                userInfo?.name,
-                userInfo?.languages || [ 'ASL', 'English' ]
+                profile?.name,
+                profile?.languages || [ 'ASL', 'English' ]
             );
         } else {
-            queueService.updateInterpreterStatus('inactive', userInfo?.name, []);
+            queueService.updateInterpreterStatus('inactive', profile?.name, []);
         }
-    }, [ isAvailable, userInfo ]);
+    }, [ isAvailable, profile ]);
 
     const handleAccept = useCallback((request: IncomingRequest) => {
         dispatch(acceptInterpreterRequest(request.id));
@@ -127,7 +155,7 @@ const InterpreterHomeScreen = () => {
             <NetworkStatusBar isConnected = { isConnected } />
             <View style = { styles.header }>
                 <Text style = { styles.headerTitle }>
-                    { userInfo?.name || 'Interpreter' }
+                    { profile?.name || 'Interpreter' }
                 </Text>
                 <TouchableOpacity
                     accessibilityLabel = 'Sign out'
@@ -227,14 +255,14 @@ const InterpreterHomeScreen = () => {
 
                 {/* Service Modes & Languages */}
                 <View style = { styles.infoRow }>
-                    { (userInfo?.serviceModes || []).map(mode => (
+                    { (profile?.serviceModes || []).map(mode => (
                         <View key = { mode } style = { styles.modeTag }>
                             <Text style = { styles.modeTagText }>
                                 { mode.toUpperCase() }
                             </Text>
                         </View>
                     )) }
-                    { (userInfo?.languages || []).map(lang => (
+                    { (profile?.languages || []).map(lang => (
                         <View key = { lang } style = { styles.languageTag }>
                             <Text style = { styles.languageTagText }>{ lang }</Text>
                         </View>

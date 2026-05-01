@@ -42,6 +42,8 @@ interface LoginResponse {
     error?: string;
 }
 
+type AuthMethod = 'email' | 'phone' | 'sms';
+
 function getTokenExpiry(token: string): number {
     const defaultExpiry = Date.now() + 12 * 60 * 60 * 1000;
     const payload = token.split('.')[1];
@@ -69,17 +71,73 @@ const MobileLoginScreen = () => {
     const [ name, setName ] = useState('');
     const [ email, setEmail ] = useState('');
     const [ password, setPassword ] = useState('');
+    const [ phoneNumber, setPhoneNumber ] = useState('');
+    const [ otpCode, setOtpCode ] = useState('');
     const [ orgCode, setOrgCode ] = useState('');
     const [ role, setRole ] = useState<'client' | 'interpreter'>('client');
+    const [ authMethod, setAuthMethod ] = useState<AuthMethod>('email');
     const [ loading, setLoading ] = useState(false );
     const [ error, setError ] = useState('');
+    const [ otpSent, setOtpSent ] = useState(false);
+    const [ showPassword, setShowPassword ] = useState(false);
+
+    const finishLogin = useCallback((token: string, rawUser: AuthUser, fallbackEmail?: string) => {
+        const now = Date.now();
+        const userRole = rawUser.role || role;
+        const expiresAt = getTokenExpiry(token);
+        const user = {
+            ...rawUser,
+            role: userRole,
+            name: rawUser.name || name.trim() || fallbackEmail?.split('@')[0] || phoneNumber.trim(),
+            email: rawUser.email || fallbackEmail,
+            tenantId: rawUser.tenantId || tenantId,
+            serviceModes: rawUser.serviceModes || [ isVRI ? 'vri' : 'vrs' ],
+            isAuthenticated: true,
+            authenticatedAt: now,
+            expiresAt
+        };
+        const authToken = {
+            token,
+            role: userRole,
+            userId: user.id,
+            name: user.name,
+            issuedAt: now,
+            expiresAt
+        };
+
+        setPersistentItem('vrs_user_role', userRole);
+        setPersistentItem('vrs_client_auth', userRole === 'client' ? 'true' : 'false');
+        setPersistentItem('vrs_interpreter_auth', userRole === 'interpreter' ? 'true' : 'false');
+        setPersistentItem('vrs_user_info', JSON.stringify(user));
+        setPersistentItem('vrs_tenant_config', JSON.stringify(getWhitelabelConfig()));
+        setSecureItem('vrs_auth_token', JSON.stringify(authToken));
+
+        if (userRole === 'interpreter') {
+            navigateRoot(screen.interpreter.home);
+        } else {
+            navigateRoot(isVRI ? screen.vri.console : screen.vrs.home);
+        }
+    }, [ isVRI, name, phoneNumber, role, tenantId ]);
 
     const handleLogin = useCallback(async () => {
         const trimmedEmail = email.trim();
         const trimmedPassword = password.trim();
+        const trimmedPhone = phoneNumber.trim();
+        const trimmedCode = otpCode.trim();
 
-        if (!trimmedEmail || !trimmedPassword) {
+        if (authMethod === 'email' && (!trimmedEmail || !trimmedPassword)) {
             setError('Please enter your email and password');
+
+            return;
+        }
+
+        if (authMethod === 'phone' && (!trimmedPhone || !trimmedPassword)) {
+            setError('Please enter your phone number and password');
+            return;
+        }
+
+        if (authMethod === 'sms' && (!trimmedPhone || !trimmedCode)) {
+            setError('Please enter your phone number and verification code');
 
             return;
         }
@@ -88,14 +146,23 @@ const MobileLoginScreen = () => {
         setLoading(true);
 
         try {
-            const endpoint = role === 'interpreter'
-                ? '/api/auth/interpreter/login'
-                : '/api/auth/client/login';
-            const response = await apiClient.post<LoginResponse>(endpoint, {
-                email: trimmedEmail,
-                password: trimmedPassword,
-                organizationCode: orgCode.trim() || undefined
-            });
+            const endpoint = authMethod === 'phone'
+                ? '/api/auth/client/phone-login'
+                : authMethod === 'sms'
+                    ? '/api/auth/otp/verify'
+                    : role === 'interpreter'
+                        ? '/api/auth/interpreter/login'
+                        : '/api/auth/client/login';
+            const payload = authMethod === 'phone'
+                ? { phoneNumber: trimmedPhone, password: trimmedPassword }
+                : authMethod === 'sms'
+                    ? { phoneNumber: trimmedPhone, code: trimmedCode, purpose: 'login' }
+                    : {
+                        email: trimmedEmail,
+                        password: trimmedPassword,
+                        organizationCode: orgCode.trim() || undefined
+                    };
+            const response = await apiClient.post<LoginResponse>(endpoint, payload);
 
             if (response.error || !response.data?.token || !response.data?.user) {
                 setError(response.error || response.data?.error || 'Sign in failed');
@@ -103,47 +170,45 @@ const MobileLoginScreen = () => {
                 return;
             }
 
-            const now = Date.now();
-            const userRole = response.data.user.role || role;
-            const expiresAt = getTokenExpiry(response.data.token);
-            const user = {
-                ...response.data.user,
-                role: userRole,
-                name: response.data.user.name || name.trim() || trimmedEmail.split('@')[0],
-                email: response.data.user.email || trimmedEmail,
-                tenantId: response.data.user.tenantId || tenantId,
-                serviceModes: response.data.user.serviceModes || [ isVRI ? 'vri' : 'vrs' ],
-                isAuthenticated: true,
-                authenticatedAt: now,
-                expiresAt
-            };
-            const authToken = {
-                token: response.data.token,
-                role: userRole,
-                userId: user.id,
-                name: user.name,
-                issuedAt: now,
-                expiresAt
-            };
-
-            setPersistentItem('vrs_user_role', userRole);
-            setPersistentItem('vrs_client_auth', userRole === 'client' ? 'true' : 'false');
-            setPersistentItem('vrs_interpreter_auth', userRole === 'interpreter' ? 'true' : 'false');
-            setPersistentItem('vrs_user_info', JSON.stringify(user));
-            setPersistentItem('vrs_tenant_config', JSON.stringify(getWhitelabelConfig()));
-            setSecureItem('vrs_auth_token', JSON.stringify(authToken));
-
-            if (userRole === 'interpreter') {
-                navigateRoot(screen.interpreter.home);
-            } else {
-                navigateRoot(isVRI ? screen.vri.console : screen.vrs.home);
-            }
+            finishLogin(response.data.token, response.data.user, trimmedEmail);
         } catch (err: any) {
             setError(err?.message || 'Network error');
         } finally {
             setLoading(false);
         }
-    }, [ name, email, password, orgCode, tenantId, isVRI, role ]);
+    }, [ authMethod, email, password, phoneNumber, otpCode, orgCode, role, finishLogin ]);
+
+    const handleRequestOtp = useCallback(async () => {
+        const trimmedPhone = phoneNumber.trim();
+
+        if (!trimmedPhone) {
+            setError('Please enter your phone number');
+
+            return;
+        }
+
+        setLoading(true);
+        setError('');
+
+        try {
+            const response = await apiClient.post<{ success?: boolean; expiresIn?: number }>('/api/auth/otp/request', {
+                phoneNumber: trimmedPhone,
+                purpose: 'login'
+            });
+
+            if (response.error) {
+                setError(response.error);
+
+                return;
+            }
+
+            setOtpSent(true);
+        } catch (err: any) {
+            setError(err?.message || 'Unable to send verification code');
+        } finally {
+            setLoading(false);
+        }
+    }, [ phoneNumber ]);
 
     return (
         <SafeAreaView style = { styles.container }>
@@ -163,6 +228,37 @@ const MobileLoginScreen = () => {
                     {/* Role Selector */}
                     <View style = { styles.roleRow }>
                         <TouchableOpacity
+                            onPress = { () => setAuthMethod('email') }
+                            style = { [ styles.roleButton, authMethod === 'email' && styles.roleButtonActive ] }>
+                            <Text style = { [ styles.roleText, authMethod === 'email' && styles.roleTextActive ] }>
+                                Email
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress = { () => {
+                                setAuthMethod('phone');
+                                setRole('client');
+                            } }
+                            style = { [ styles.roleButton, authMethod === 'phone' && styles.roleButtonActive ] }>
+                            <Text style = { [ styles.roleText, authMethod === 'phone' && styles.roleTextActive ] }>
+                                Phone
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress = { () => {
+                                setAuthMethod('sms');
+                                setRole('client');
+                            } }
+                            style = { [ styles.roleButton, authMethod === 'sms' && styles.roleButtonActive ] }>
+                            <Text style = { [ styles.roleText, authMethod === 'sms' && styles.roleTextActive ] }>
+                                SMS
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    { authMethod === 'email' && (
+                        <View style = { styles.roleRow }>
+                        <TouchableOpacity
                             onPress = { () => setRole('client') }
                             style = { [ styles.roleButton, role === 'client' && styles.roleButtonActive ] }>
                             <Text style = { [ styles.roleText, role === 'client' && styles.roleTextActive ] }>
@@ -176,7 +272,8 @@ const MobileLoginScreen = () => {
                                 Interpreter
                             </Text>
                         </TouchableOpacity>
-                    </View>
+                        </View>
+                    ) }
 
                     <Text style = { styles.label }>Display Name</Text>
                     <TextInput
@@ -191,40 +288,103 @@ const MobileLoginScreen = () => {
                         style = { styles.input }
                         value = { name } />
 
-                    <Text style = { styles.label }>Email</Text>
-                    <TextInput
-                        accessibilityLabel = 'Email address'
-                        autoCapitalize = 'none'
-                        autoCorrect = { false }
-                        editable = { !loading }
-                        keyboardType = 'email-address'
-                        onChangeText = { text => {
-                            setEmail(text);
-                            setError('');
-                        } }
-                        placeholder = 'you@example.com'
-                        placeholderTextColor = '#666'
-                        returnKeyType = 'next'
-                        style = { styles.input }
-                        value = { email } />
+                    { authMethod === 'email' ? (
+                        <>
+                            <Text style = { styles.label }>Email</Text>
+                            <TextInput
+                                accessibilityLabel = 'Email address'
+                                autoCapitalize = 'none'
+                                autoCorrect = { false }
+                                editable = { !loading }
+                                keyboardType = 'email-address'
+                                onChangeText = { text => {
+                                    setEmail(text);
+                                    setError('');
+                                } }
+                                placeholder = 'you@example.com'
+                                placeholderTextColor = '#666'
+                                returnKeyType = 'next'
+                                style = { styles.input }
+                                value = { email } />
+                        </>
+                    ) : (
+                        <>
+                            <Text style = { styles.label }>Phone Number</Text>
+                            <TextInput
+                                accessibilityLabel = 'Phone number'
+                                autoCapitalize = 'none'
+                                autoCorrect = { false }
+                                editable = { !loading }
+                                keyboardType = 'phone-pad'
+                                onChangeText = { text => {
+                                    setPhoneNumber(text);
+                                    setError('');
+                                } }
+                                placeholder = '+1 555 123 4567'
+                                placeholderTextColor = '#666'
+                                returnKeyType = 'next'
+                                style = { styles.input }
+                                value = { phoneNumber } />
+                        </>
+                    ) }
 
-                    <Text style = { styles.label }>Password</Text>
-                    <TextInput
-                        accessibilityLabel = 'Password'
-                        autoCapitalize = 'none'
-                        autoCorrect = { false }
-                        editable = { !loading }
-                        onChangeText = { text => {
-                            setPassword(text);
-                            setError('');
-                        } }
-                        onSubmitEditing = { handleLogin }
-                        placeholder = 'Enter password'
-                        placeholderTextColor = '#666'
-                        returnKeyType = 'go'
-                        secureTextEntry
-                        style = { styles.input }
-                        value = { password } />
+                    { authMethod === 'sms' ? (
+                        <>
+                            <TouchableOpacity
+                                accessibilityLabel = 'Send verification code'
+                                disabled = { loading || !phoneNumber.trim() }
+                                onPress = { handleRequestOtp }
+                                style = { [ styles.secondaryButton, (loading || !phoneNumber.trim()) && styles.loginButtonDisabled ] }>
+                                <Text style = { styles.secondaryButtonText }>
+                                    { otpSent ? 'Send Code Again' : 'Send Verification Code' }
+                                </Text>
+                            </TouchableOpacity>
+                            <Text style = { styles.label }>Verification Code</Text>
+                            <TextInput
+                                accessibilityLabel = 'SMS verification code'
+                                editable = { !loading }
+                                keyboardType = 'number-pad'
+                                maxLength = { 6 }
+                                onChangeText = { text => {
+                                    setOtpCode(text);
+                                    setError('');
+                                } }
+                                placeholder = '6-digit code'
+                                placeholderTextColor = '#666'
+                                returnKeyType = 'go'
+                                style = { styles.input }
+                                value = { otpCode } />
+                        </>
+                    ) : (
+                        <>
+                            <View style = { styles.passwordLabelRow }>
+                                <Text style = { styles.label }>Password</Text>
+                                <TouchableOpacity
+                                    accessibilityLabel = { showPassword ? 'Hide password' : 'Show password' }
+                                    onPress = { () => setShowPassword(!showPassword) }>
+                                    <Text style = { styles.showPasswordText }>
+                                        { showPassword ? 'Hide' : 'Show' }
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                            <TextInput
+                                accessibilityLabel = 'Password'
+                                autoCapitalize = 'none'
+                                autoCorrect = { false }
+                                editable = { !loading }
+                                onChangeText = { text => {
+                                    setPassword(text);
+                                    setError('');
+                                } }
+                                onSubmitEditing = { handleLogin }
+                                placeholder = 'Enter password'
+                                placeholderTextColor = '#666'
+                                returnKeyType = 'go'
+                                secureTextEntry = { !showPassword }
+                                style = { styles.input }
+                                value = { password } />
+                        </>
+                    ) }
 
                     { error ? <Text style = { styles.errorText }>{ error }</Text> : null }
 
@@ -246,11 +406,17 @@ const MobileLoginScreen = () => {
 
                     <TouchableOpacity
                         accessibilityLabel = 'Sign in'
-                        disabled = { loading || !email.trim() || !password.trim() }
+                        disabled = { loading
+                            || (authMethod === 'email' && (!email.trim() || !password.trim()))
+                            || (authMethod === 'phone' && (!phoneNumber.trim() || !password.trim()))
+                            || (authMethod === 'sms' && (!phoneNumber.trim() || !otpCode.trim())) }
                         onPress = { handleLogin }
                         style = { [
                             styles.loginButton,
-                            (!email.trim() || !password.trim() || loading) && styles.loginButtonDisabled
+                            (loading
+                                || (authMethod === 'email' && (!email.trim() || !password.trim()))
+                                || (authMethod === 'phone' && (!phoneNumber.trim() || !password.trim()))
+                                || (authMethod === 'sms' && (!phoneNumber.trim() || !otpCode.trim()))) && styles.loginButtonDisabled
                         ] }>
                         <Text style = { styles.loginButtonText }>
                             { loading ? 'Signing in...' : 'Sign In' }
@@ -353,6 +519,11 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600'
     },
+    passwordLabelRow: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        justifyContent: 'space-between'
+    },
     tagline: {
         color: '#888',
         fontSize: 14,
@@ -380,6 +551,26 @@ const styles = StyleSheet.create({
     },
     roleTextActive: {
         color: '#fff'
+    },
+    secondaryButton: {
+        alignItems: 'center',
+        backgroundColor: '#1a1a2e',
+        borderColor: '#2979ff',
+        borderRadius: 10,
+        borderWidth: 1,
+        marginBottom: 16,
+        padding: 12
+    },
+    secondaryButtonText: {
+        color: '#8ab4ff',
+        fontSize: 14,
+        fontWeight: '600'
+    },
+    showPasswordText: {
+        color: '#8ab4ff',
+        fontSize: 13,
+        fontWeight: '600',
+        marginBottom: 6
     }
 });
 
