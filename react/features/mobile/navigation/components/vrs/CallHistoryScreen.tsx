@@ -17,7 +17,8 @@ import {
 import { useDispatch } from 'react-redux';
 
 import { appNavigate } from '../../../../app/actions';
-import { getPersistentJson } from '../../../../vrs-auth/storage';
+import { getPersistentJson, setPersistentItem } from '../../../../vrs-auth/storage';
+import { mobileLog } from '../../logging';
 
 interface CallRecord {
     id: string;
@@ -109,6 +110,27 @@ const CallHistoryScreen = () => {
     const handleReDial = useCallback((call: CallRecord) => {
         const roomName = `vrs-${ Date.now() }`;
 
+        // Persist callback metadata for the new call
+        const redialRecord: CallRecord = {
+            id: `redial-${ Date.now() }`,
+            contactName: call.contactName,
+            phoneNumber: call.phoneNumber,
+            direction: 'outgoing',
+            duration: 0,
+            timestamp: new Date().toISOString(),
+            interpreterName: undefined
+        };
+        const existing = getPersistentJson<CallRecord[]>('vrs_call_history') || [];
+        const updated = [ redialRecord, ...existing ].slice(0, 100);
+
+        setPersistentItem('vrs_call_history', JSON.stringify(updated));
+
+        mobileLog('info', 'call_history_redial', {
+            fromCallId: call.id,
+            toContact: call.contactName,
+            roomName
+        });
+
         dispatch(appNavigate(roomName, { hidePrejoin: true }));
     }, [ dispatch ]);
 
@@ -130,10 +152,7 @@ const CallHistoryScreen = () => {
     };
 
     const renderCall = useCallback(({ item }: { item: CallRecord }) => (
-        <TouchableOpacity
-            accessibilityLabel = { `${item.direction} call with ${item.contactName}, ${formatDuration(item.duration)}` }
-            onPress = { () => handleReDial(item) }
-            style = { styles.callRow }>
+        <View style = { styles.callRow }>
             <View style = { styles.callLeft }>
                 <Text style = { [ styles.directionIcon, { color: directionColor(item.direction) } ] }>
                     { directionIcon(item.direction) }
@@ -156,8 +175,14 @@ const CallHistoryScreen = () => {
                     ) }
                 </View>
             </View>
-            <Text style = { styles.redialIcon }>{'\u{1F4DE}'}</Text>
-        </TouchableOpacity>
+            <TouchableOpacity
+                accessibilityLabel = { `Callback ${item.contactName}` }
+                onPress = { () => handleReDial(item) }
+                style = { styles.callbackButton }>
+                <Text style = { styles.callbackIcon }>{'\u{1F4DE}'}</Text>
+                <Text style = { styles.callbackLabel }>Callback</Text>
+            </TouchableOpacity>
+        </View>
     ), [ handleReDial ]);
 
     return (
@@ -219,6 +244,22 @@ const styles = StyleSheet.create({
         fontSize: 20,
         fontWeight: '700'
     },
+    callbackButton: {
+        alignItems: 'center',
+        backgroundColor: '#2979ff',
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 6
+    },
+    callbackIcon: {
+        fontSize: 16
+    },
+    callbackLabel: {
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: '600',
+        marginTop: 1
+    },
     empty: {
         color: '#666',
         fontSize: 14,
@@ -227,9 +268,6 @@ const styles = StyleSheet.create({
     },
     listContent: {
         paddingBottom: 40
-    },
-    redialIcon: {
-        fontSize: 20
     }
 });
 

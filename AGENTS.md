@@ -25,6 +25,7 @@ This file defines the rules and requirements for maintaining feature parity betw
 - `react/features/vrs-auth/storage.ts` — Cross-platform storage abstraction (localStorage on web, AsyncStorage on native).
 - `react/features/base/whitelabel/` — Tenant config functions. On native, config is cached in AsyncStorage under `vrs_tenant_config`.
 - `react/features/mobile/types.ts` — Shared TypeScript interfaces for auth, queue, contacts, calls, media.
+- `react/features/mobile/navigation/logging.ts` — Structured mobile logging utility (`mobileLog`, `getMobileLogs`, `flushLogs`).
 
 ### Platform-Specific Code
 - Mobile screens live in `react/features/mobile/navigation/components/`.
@@ -43,6 +44,9 @@ All persistent storage keys used by the app:
 - `vrs_contacts` — JSON: Contact[]
 - `vrs_selected_contact` — JSON: Contact (currently selected)
 - `vrs_voicemails` — JSON: Voicemail[]
+- `vrs_favorite_contacts` — JSON: string[] (favorite contact IDs)
+- `vrs_mobile_logs` — JSON: LogEntry[] (structured mobile log buffer, max 500)
+- `vrs_session` — JSON: { sessionId, createdAt } (mobile log session)
 - `vrs_language` — string: selected language code
 - `vrs_captions_enabled` — string: `'true'`|`'false'`
 - `vri_media_defaults` — JSON: MediaDefaults

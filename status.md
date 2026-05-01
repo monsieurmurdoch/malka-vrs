@@ -6,6 +6,26 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-05-01
 - Branch: `hermes/mobile-parity`
+- HEAD: `b2c6001`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `MM AGENTS.md`
+  - `M  ROADMAP.md`
+  - `MM docs/mobile-parity.md`
+  - `M  react/features/mobile/navigation/components/vrs/CallHistoryScreen.tsx`
+  - `M  react/features/mobile/navigation/components/vrs/ContactsScreen.tsx`
+  - `A  react/features/mobile/navigation/logging.ts`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-05-01T04:39:06.187Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-05-01
+- Branch: `hermes/mobile-parity`
 - HEAD: `c68f482`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -25,7 +45,7 @@ Local changes at sync time:
   - `M  react/features/mobile/navigation/routes.ts`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-05-01T04:23:15.399Z
 
 <!-- status:current:start -->
