@@ -27,6 +27,7 @@ import { clearPersistentItems, getPersistentJson, setPersistentItem } from '../.
 import { navigateRoot } from '../../rootNavigationContainerRef';
 import { screen } from '../../routes';
 import NetworkStatusBar from '../NetworkStatusBar';
+import { useIncomingRequestAlert } from '../../hooks/useIncomingRequestAlert';
 
 interface InterpreterInfo {
     id?: string;
@@ -54,6 +55,9 @@ const InterpreterHomeScreen = () => {
     const userInfo = getPersistentJson<InterpreterInfo>('vrs_user_info');
     const [ isAvailable, setIsAvailable ] = useState(false);
     const [ activeTime, setActiveTime ] = useState(0);
+
+    // Vibrate on incoming request
+    useIncomingRequestAlert();
 
     const isInSession = Boolean(matchData?.roomName);
 

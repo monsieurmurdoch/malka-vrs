@@ -532,6 +532,7 @@
 - [x] Interpreter can go available/unavailable
   - 2026-04-30: Availability toggle on InterpreterHomeScreen calls queueService.updateInterpreterStatus('active'|'inactive'). Visual state: Available (green), Offline (gray), In Session (blue).
 - [ ] Interpreter receives incoming request notification while app is foregrounded
+  - 2026-04-30: useIncomingRequestAlert hook triggers vibration pattern on iOS/Android when pending request count increases. Wired into InterpreterHomeScreen. Sound alert requires native module or push notification integration (deferred to post-May).
 - [ ] Interpreter receives push/call-style notification while app is backgrounded or locked
 - [x] Interpreter can accept/decline request and auto-join correct room
   - 2026-04-30: InterpreterHomeScreen shows pending requests from Redux state with Accept/Decline buttons. Accept dispatches acceptInterpreterRequest, which triggers auto-join via middleware. Decline dispatches declineInterpreterRequest.
@@ -541,7 +542,8 @@
   - 2026-04-30: InterpreterHomeScreen has End Call button during active session. Calls queueService.endActiveCall(). Session timer shows live duration. CONFERENCE_LEFT handler navigates interpreter back to InterpreterHome.
 - [x] Interpreter billing/earnings tab shows payable minutes, invoice status, payout method placeholders
   - 2026-04-30: InterpreterEarningsScreen shows total payable minutes, day/week/month breakdown, invoice history placeholder, and payout method placeholder. Accessible from InterpreterHomeScreen footer.
-- [ ] Interpreter schedule/break/teaming decisions documented for MVP vs post-May
+- [x] Interpreter schedule/break/teaming decisions documented for MVP vs post-May
+  - 2026-04-30: Documented in docs/mobile-interpreter-mvp.md. Break = availability toggle (go offline). Scheduling = web admin only for MVP. Teaming deferred to post-May. Push notifications, CallKit, ConnectionService deferred (foreground-only for pilot).
 
 ### Captioner Mobile Parity
 - [ ] Decide whether captioner mobile is required for May or web-only for initial production
@@ -562,7 +564,8 @@
 ### Mobile Parity Track
 - [ ] Audit current React Native/iOS/Android/TWA project health against current web/backend contracts
   - 2026-04-30: Partial audit done. RN 0.72.9 project shells exist for iOS/Android. Shared Redux store. Pre-existing native TS errors in DeviceHandoffService (Bluetooth APIs), VoicemailPlayer (HTMLVideoElement), VRSSAuthService (TextEncoder/crypto), VRSLayout (strict string checks). Web `appNavigate` signature aligned with native for cross-platform middleware. Interpreter queue middleware now auto-enters matched rooms on both platforms.
-- [ ] Choose shared TypeScript API client strategy to prevent web/mobile contract drift
+- [x] Choose shared TypeScript API client strategy to prevent web/mobile contract drift
+  - 2026-04-30: Created react/features/shared/api-client/index.ts with typed get/post/put/patch/del methods. Reads base URL from whitelabel config (web) or AsyncStorage tenant cache (native). Includes JWT auth header from secure storage. Returns typed ApiResponse<T> with error handling.
 - [x] Extract shared auth/session/profile/queue/contact types where practical
   - 2026-04-30: Created react/features/mobile/types.ts with shared UserInfo, MatchData, QueueState, Contact, CallRecord, StoredActiveCall, and MediaDefaults interfaces.
 - [x] Create mobile parity checklist template required for future web feature PRs
@@ -574,6 +577,7 @@
 - [x] Secure token storage: Keychain on iOS, Keystore/EncryptedSharedPreferences on Android
   - 2026-04-30: Created `secureStorage.ts` with Keychain-ready get/set/remove API. Currently falls back to AsyncStorage (no native linking yet). Middleware reads auth tokens via getSecureItem. Swap to react-native-keychain requires adding the dep and changing one line per function.
 - [ ] Deep links into active rooms and invite links
+  - 2026-04-30: Created linking.ts with React Navigation deep link config. Supports malkavrs://, malkavri://, maplevri:// schemes and HTTPS universal links. Paths mapped for all screens including call/:roomName. Wired into NavigationContainer. Native intent-filter/AppDelegate updates for tenant-specific schemes still needed per build.
 - [ ] Push/background calling: APNs, FCM, CallKit, Android ConnectionService
 - [ ] Reconnect/handoff behavior after app background, network switch, lock screen, and call interruption
 - [x] Poor-network states and media fallback copy
@@ -582,7 +586,9 @@
   - 2026-04-30: Mobile bundle IDs and display names added to tenant configs (mobile.iosBundleId, mobile.androidApplicationId, mobile.displayName). Whitelabel prebuild script now patches iOS Info.plist/pbxproj and Android build.gradle/strings.xml per tenant. Fastlane deploy lanes use tenant-specific bundle IDs.
   - 2026-04-30: Created `useTenantTheme()` hook in react/features/mobile/navigation/hooks/useTenantTheme.ts. Reads theme colors from window.__WHITELABEL__ (web) or AsyncStorage-cached tenant config (native). All mobile screens can consume tenant-specific primary/accent/surface colors via this hook instead of hardcoding hex values.
 - [ ] Mobile QA matrix: iOS/Android, phone/tablet, permissions, orientation, Bluetooth, screen lock
+  - 2026-04-30: Created docs/mobile-qa-matrix.md with device matrix (iPhone 15, SE, iPad, Galaxy S24, Pixel 8, etc.), test areas (auth, client VRS/VRI, interpreter, media/permissions, orientation, background/lifecycle, tenant branding, accessibility, store readiness), and per-test checkboxes.
 - [ ] Store readiness: privacy manifests, permission copy, screenshots, TestFlight/Play internal testing, crash reporting
+  - 2026-04-30: Created ios/app/PrivacyInfo.xcprivacy with NSPrivacyTracking, NSPrivacyCollectedDataTypes (contact info, sensitive info, photos/videos, camera, microphone), and NSPrivacyAccessedAPITypes (camera, microphone, file timestamps, screen capture).
 
 ### Mobile May 2026 Delivery Plan
 - [ ] Week 1: audit existing mobile shells, pick release strategy, define MVP by app/role, document known gaps
@@ -600,8 +606,10 @@
   - 2026-04-30: Created AGENTS.md with mobile parity rules, PR checklist requirements, architecture constraints, storage key registry, and drift prevention guidelines.
 - [ ] Add PR checklist item: "Does this web/backend change affect mobile?"
 - [ ] Maintain `docs/mobile-parity.md` with route-by-route API/UI parity table
+  - 2026-04-30: Created docs/mobile-parity.md with route-by-route parity table covering auth, client VRS/VRI, interpreter, queue lifecycle, Jitsi/conference, and infrastructure. Marks each feature as Done/Partial/Missing/Web-only.
 - [ ] Add automated contract tests shared by web and mobile clients
 - [ ] Add smoke fixtures for demo accounts on iOS/Android
+  - 2026-04-30: Created react/features/mobile/test/demo-fixtures.ts with demo accounts (Malka client/interpreter, Maple client/interpreter), demo contacts, demo call history, seedDemoData() and seedDemoLogin() functions for populating AsyncStorage.
 - [ ] Tag mobile blockers separately in Linear/GitHub so they do not disappear under web work
 
 ---

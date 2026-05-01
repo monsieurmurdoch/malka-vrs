@@ -17,6 +17,7 @@ import WelcomePage from '../../../welcome/components/WelcomePage';
 import { isWelcomePageEnabled } from '../../../welcome/functions';
 import Whiteboard from '../../../whiteboard/components/native/Whiteboard';
 import { _ROOT_NAVIGATION_READY } from '../actionTypes';
+import { deepLinkConfig } from '../linking';
 import { rootNavigationRef } from '../rootNavigationContainerRef';
 import { screen } from '../routes';
 import {
@@ -107,6 +108,7 @@ const RootNavigationContainer = ({ dispatch, isUnsafeRoomWarningAvailable, isWel
     return (
         <NavigationContainer
             independent = { true }
+            linking = { deepLinkConfig }
             onReady = { onReady }
             ref = { rootNavigationRef }
             theme = { navigationContainerTheme as Theme }>
