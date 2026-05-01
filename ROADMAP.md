@@ -249,8 +249,8 @@
 - [ ] Implement PostgreSQL RLS policies for all tenant-owned tables
 
 ### UX Polish (Deferred Until Billing Backend Complete)
-- [ ] Responsive layout audit for desktop, tablet, and small mobile screens
-- [ ] Accessibility audit against WCAG 2.1 AA, especially keyboard access and visible focus
+- [x] Responsive layout audit for desktop, tablet, and small mobile screens
+- [x] Accessibility audit against WCAG 2.1 AA, especially keyboard access and visible focus
 - [x] Notification preferences UI wired to backend preferences
 - [x] Add-to-contacts from call history when a call exposes a phone number
 - [ ] VRS contact handles/aliases tied to NANP numbers, pending compliance review

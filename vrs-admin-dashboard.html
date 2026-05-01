@@ -34,6 +34,11 @@
             min-height: 100vh;
         }
 
+        :focus-visible {
+            outline: 3px solid var(--accent-yellow);
+            outline-offset: 3px;
+        }
+
         /* Header */
         .header {
             background: var(--bg-secondary);
@@ -42,6 +47,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 16px;
             position: sticky;
             top: 0;
             z-index: 100;
@@ -50,7 +56,9 @@
         .header-left {
             display: flex;
             align-items: center;
+            flex-wrap: wrap;
             gap: 24px;
+            min-width: 0;
         }
 
         .logo {
@@ -75,7 +83,9 @@
 
         .nav-tabs {
             display: flex;
+            flex-wrap: wrap;
             gap: 8px;
+            min-width: 0;
         }
 
         .nav-tab {
@@ -103,7 +113,9 @@
         .header-right {
             display: flex;
             align-items: center;
+            flex-wrap: wrap;
             gap: 16px;
+            justify-content: flex-end;
         }
 
         .refresh-btn {
@@ -247,6 +259,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 16px;
             padding: 20px 24px;
             border-bottom: 1px solid var(--border-color);
         }
@@ -261,6 +274,7 @@
 
         .section-actions {
             display: flex;
+            flex-wrap: wrap;
             gap: 12px;
         }
 
@@ -302,6 +316,7 @@
         /* Table Styles */
         .table-container {
             overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         table {
@@ -582,6 +597,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
+            flex-wrap: wrap;
             gap: 16px;
             padding: 20px 24px;
             border-bottom: 1px solid var(--border-color);
@@ -770,6 +786,34 @@
             }
         }
 
+        @media (max-width: 900px) {
+            .header {
+                align-items: flex-start;
+                flex-wrap: wrap;
+            }
+
+            .header-left,
+            .header-right {
+                width: 100%;
+            }
+
+            .header-right {
+                justify-content: flex-start;
+            }
+
+            .nav-tabs {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                padding-bottom: 4px;
+                width: 100%;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .nav-tab {
+                flex: 0 0 auto;
+            }
+        }
+
         /* Filter Bar */
         .filter-bar {
             display: flex;
@@ -810,9 +854,58 @@
             font-size: 13px;
         }
 
+        @media (max-width: 640px) {
+            .main-content {
+                padding: 12px;
+            }
+
+            .section-header {
+                align-items: stretch;
+                flex-direction: column;
+                padding: 16px;
+            }
+
+            .section-actions,
+            .section-actions .btn {
+                width: 100%;
+            }
+
+            .filter-bar {
+                padding: 12px;
+            }
+
+            .filter-label,
+            .filter-select,
+            .search-input {
+                flex: 1 1 100%;
+                width: 100%;
+            }
+
+            th,
+            td {
+                padding: 12px;
+            }
+
+            .modal-backdrop {
+                align-items: flex-start;
+                padding: 12px;
+            }
+
+            .modal-header,
+            .modal-footer,
+            .modal-body {
+                padding: 16px;
+            }
+        }
+
         .search-input:focus {
             outline: none;
             border-color: var(--accent-blue);
+        }
+
+        .search-input:focus-visible {
+            outline: 3px solid var(--accent-yellow);
+            outline-offset: 3px;
         }
 
         /* Mini Charts */
@@ -878,15 +971,15 @@
                 <h1>MalkaVRS</h1>
                 <span class="logo-badge">ADMIN</span>
             </div>
-            <nav class="nav-tabs">
-                <button class="nav-tab active" data-tab="dashboard">Dashboard</button>
-                <button class="nav-tab" data-tab="interpreters">Interpreters</button>
-                <button class="nav-tab" data-tab="captioners">Captioners</button>
-                <button class="nav-tab" data-tab="accounts">Accounts</button>
-                <button class="nav-tab" data-tab="clients">Clients</button>
-                <button class="nav-tab" data-tab="queue">Live Queue</button>
-                <button class="nav-tab" data-tab="activity">Activity</button>
-                <button class="nav-tab" data-tab="tenants">Tenants</button>
+            <nav class="nav-tabs" aria-label="Admin sections">
+                <button class="nav-tab active" type="button" data-tab="dashboard" aria-controls="dashboard-tab" aria-current="page">Dashboard</button>
+                <button class="nav-tab" type="button" data-tab="interpreters" aria-controls="interpreters-tab">Interpreters</button>
+                <button class="nav-tab" type="button" data-tab="captioners" aria-controls="captioners-tab">Captioners</button>
+                <button class="nav-tab" type="button" data-tab="accounts" aria-controls="accounts-tab">Accounts</button>
+                <button class="nav-tab" type="button" data-tab="clients" aria-controls="clients-tab">Clients</button>
+                <button class="nav-tab" type="button" data-tab="queue" aria-controls="queue-tab">Live Queue</button>
+                <button class="nav-tab" type="button" data-tab="activity" aria-controls="activity-tab">Activity</button>
+                <button class="nav-tab" type="button" data-tab="tenants" aria-controls="tenants-tab">Tenants</button>
             </nav>
         </div>
         <div class="header-right">
@@ -1513,7 +1606,7 @@
     </main>
 
     <div class="modal-backdrop" id="adminModal" aria-hidden="true">
-        <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="adminModalTitle">
+        <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="adminModalTitle" tabindex="-1">
             <div class="modal-header">
                 <div>
                     <h2 id="adminModalTitle">Admin</h2>

@@ -66,6 +66,7 @@ let currentAdminRole = localStorage.getItem('vrs_admin_role') || 'admin';
 const scheduledRefreshes = new Map();
 let operationsRows = [];
 let activeOperationsView = 'live';
+let lastFocusedBeforeModal = null;
 
 function scheduleRefresh(key, callback, delay = 250) {
     if (scheduledRefreshes.has(key)) {
@@ -108,12 +109,20 @@ function setupNavigation() {
 
         // Update nav tabs
         document.querySelectorAll('.nav-tab').forEach(tab => {
-            tab.classList.toggle('active', tab.dataset.tab === hash);
+            const isActive = tab.dataset.tab === hash;
+            tab.classList.toggle('active', isActive);
+            if (isActive) {
+                tab.setAttribute('aria-current', 'page');
+            } else {
+                tab.removeAttribute('aria-current');
+            }
         });
 
         // Update tab content
         document.querySelectorAll('.tab-content').forEach(content => {
-            content.classList.toggle('active', content.id === `${hash}-tab`);
+            const isActive = content.id === `${hash}-tab`;
+            content.classList.toggle('active', isActive);
+            content.toggleAttribute('hidden', !isActive);
         });
 
         // Load data for the active tab
@@ -149,6 +158,7 @@ function setupEventListeners() {
     document.getElementById('exportAccountsBtn')?.addEventListener('click', () => exportTableCsv('accounts', getVisibleAccounts()));
     document.getElementById('exportClientsBtn')?.addEventListener('click', () => exportTableCsv('clients', getVisibleClients()));
     document.querySelectorAll('[data-modal-close]').forEach(button => button.addEventListener('click', closeAdminModal));
+    document.addEventListener('keydown', handleAdminModalKeydown);
     document.querySelectorAll('[data-ops-view]').forEach(button => {
         button.addEventListener('click', () => {
             activeOperationsView = button.dataset.opsView || 'live';
@@ -383,8 +393,12 @@ function openAdminModal({ title, subtitle = '', body = '', footer = '' }) {
     bodyEl.innerHTML = body;
     footerEl.innerHTML = footer;
     modal.querySelectorAll('[data-modal-close]').forEach(button => button.addEventListener('click', closeAdminModal));
+    lastFocusedBeforeModal = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     modal.classList.add('active');
     modal.setAttribute('aria-hidden', 'false');
+    const initialFocus = modal.querySelector('input, select, textarea, button, [href], [tabindex]:not([tabindex="-1"])')
+        || modal.querySelector('.modal-panel');
+    initialFocus?.focus();
 }
 
 function closeAdminModal() {
@@ -392,6 +406,48 @@ function closeAdminModal() {
     if (!modal) return;
     modal.classList.remove('active');
     modal.setAttribute('aria-hidden', 'true');
+    lastFocusedBeforeModal?.focus?.();
+    lastFocusedBeforeModal = null;
+}
+
+function getModalFocusableElements(modal) {
+    return Array.from(modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+        .filter(element => !element.disabled && element.offsetParent !== null);
+}
+
+function handleAdminModalKeydown(event) {
+    const modal = document.getElementById('adminModal');
+    if (!modal || !modal.classList.contains('active')) {
+        return;
+    }
+
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        closeAdminModal();
+        return;
+    }
+
+    if (event.key !== 'Tab') {
+        return;
+    }
+
+    const focusable = getModalFocusableElements(modal);
+    if (!focusable.length) {
+        event.preventDefault();
+        modal.querySelector('.modal-panel')?.focus();
+        return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+    }
 }
 
 function parseCsvList(value) {
