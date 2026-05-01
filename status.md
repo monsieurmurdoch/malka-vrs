@@ -5,6 +5,21 @@ This file is the project-level running status log. The current update stays at t
 ## Current Update
 
 - Updated: 2026-05-01
+- Branch: `codex/structured-observability-logging`
+- HEAD: `69eaa3a`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  ROADMAP.md`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-05-01T06:41:12.088Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-05-01
 - Branch: `codex/logging-observability`
 - HEAD: `10a1cc5`
 - Note: Pre-push project status sync.
@@ -30,7 +45,7 @@ Local changes at sync time:
   - `M  vrs-server/src/lib/billing-db.ts`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-05-01T06:29:58.839Z
 
 <!-- status:current:start -->
