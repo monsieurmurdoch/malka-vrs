@@ -186,6 +186,16 @@
 - [x] Voicemail unread badge and live in-app updates
 - [x] Configurable message expiry foundation
 - [x] S3-compatible object storage path for voicemail media
+- [x] Real object-storage write/read path verification for voicemail media
+  - 2026-05-03: Added admin-only voicemail storage probe that writes, stats, presigns, and deletes a temporary object through the configured S3-compatible backend.
+- [x] Server-side voicemail thumbnail generation
+  - 2026-05-03: Jibri finalize now generates a JPEG thumbnail with ffmpeg and reports `thumbnailKey` to the voicemail callback.
+- [x] Voicemail media transcoding/compression for stored messages
+  - 2026-05-03: Jibri finalize now prefers compressed MP4 output with ffmpeg and falls back to original media with the correct content type when transcoding is unavailable.
+- [x] Voicemail notification delivery beyond in-app badge where needed
+  - 2026-05-03: Voicemail completion now supports an optional `VOICEMAIL_NOTIFICATION_WEBHOOK_URL` for external delivery in addition to the in-app unread badge/WebSocket event.
+- [x] Voicemail retention/expiry job verification path
+  - 2026-05-03: Added admin-only expiry status and run-now endpoints so production can verify the retention job and last expiry result.
 
 ### Security & Hardening
 - [x] SQL injection fix in daily usage stats
@@ -322,6 +332,18 @@
 - [x] Utilization metrics backend foundation: scheduled, signed-on, available, in-call, break, idle minutes, and utilization rate
 - [x] Admin scheduling and coverage UI first pass: roster cards/table filtered by tenant, service mode, and language with active coverage gap visibility
 - [x] Utilization/audit foundation: manager notes, schedule changes, payout batch approvals/payments, credit notes, webhook replay counts, and billing audit events
+- [x] Interpreter self-scheduling UI: interpreters can view required/target weekly hours, signed-on hours so far, scheduled hours remaining, and add/adjust availability/time-off blocks to fill gaps
+  - 2026-05-03: Interpreter Schedule tab now saves availability/time-off windows through authenticated shift endpoints and shows target, scheduled, signed-on, and remaining weekly hours.
+- [x] Admin scheduling UI first pass: weekly roster and coverage scan by tenant, service mode, language, interpreter, and current coverage gaps
+  - 2026-05-03: Admin interpreter view now includes a Scheduling & Coverage panel with tenant/service/language filters, active coverage cards, roster status, and coverage notes.
+- [x] Admin scheduling advanced controls: hourly coverage grid, overstaffing/gap detection, manager overrides, and pending interpreter schedule change approval workflow
+  - 2026-05-03: Admin Scheduling & Coverage now loads schedule windows from backend APIs, supports manager override creation, pending approval/rejection, and hour-by-hour coverage cells that flag gaps and overstaffing.
+- [x] Utilization metrics expansion: queue acceptance rate, decline/no-answer rate, after-call/admin time, and SLA impact
+  - 2026-05-03: Added interpreter queue event ledger, accepted/declined event writes, interpreter/admin utilization summaries, after-call/admin idle minutes, queue acceptance/decline/no-answer rates, and 120s SLA breach reporting.
+- [x] Weekly utilization dashboard for interpreters: scheduled hours, signed-on hours, hands-up hours, in-call hours, breaks, remaining target hours, and earnings/payables preview
+  - 2026-05-03: Interpreter Analytics tab now includes a weekly utilization dashboard with scheduled/hands-up/in-call/admin-idle/break/remaining/earnings plus queue and SLA metrics.
+- [x] Weekly utilization dashboard for admin: coverage by hour, fill-rate, interpreter adherence, break patterns, productivity, queue SLA impact, and exportable payroll/accounting summary
+  - 2026-05-03: Admin Scheduling & Coverage now loads utilization summaries, shows fill/productivity/acceptance/SLA cards, interpreter adherence/break/SLA columns, and exports utilization CSV for payroll/accounting review.
 
 
 ##### Mobile Apps / Mobile Release Gates Completed
@@ -389,6 +411,26 @@
 - [x] Maple VRI Client: same VRI client app as MalkaVRI with Maple tenant skin/config
 - [x] Keep interpreter/captioner native apps out of current mobile scope; interpreter and captioner workflows remain web/admin operational surfaces for this stage
 - [x] Do not expose an interpreter, captioner, or terp portal app in the current mobile stage
+
+### Future Product Tracks Completed
+
+#### Product Surface & Domain Split Completed
+- [x] `ai.malkacomm.com`: distinct Malka ASL-to-English AI lab portal stub, not integrated into production VRS/VRI until validated
+  - 2026-05-03: Added `asl-ai.html` as a visually distinct Mars/robot lab login stub with consent/legal boundaries, plus app-server host routing so `ai.malkacomm.com/` resolves to the lab page once DNS/nginx TLS are configured.
+
+#### Interpreter Tools Completed
+- [x] Interpreter tools backend foundation: tables and interpreter-authenticated endpoints for analytics, breaks, continuity notes, teaming requests, and post-call surveys
+  - 2026-05-02: Added interpreter operations tables and `/api/interpreter/*` endpoints for analytics, break start/end/list, continuity notes, post-call survey submission, and teaming request/list.
+- [x] Real-time interpreter analytics UI
+  - Show calls, minutes, VRS/VRI split, break minutes, signed-on minutes, utilization rate, and near-real-time queue/event changes.
+- [x] Interpreter scheduling and shift management UI
+  - Interpreter self-scheduling: target hours, scheduled hours, signed-on hours, remaining hours, availability windows, time-off/unavailable blocks.
+  - Admin scheduling: weekly roster, coverage gaps, service mode/language filters, manager overrides, pending schedule changes.
+  - 2026-05-03: First-pass UI is live in interpreter profile and admin dashboard. Admin manager overrides, pending approvals, hourly gap detection, and overstaffing detection are now implemented in the deeper Scheduling & Coverage workflow.
+
+#### AI & Accessibility Completed
+- [x] Create a distinct Malka-side **ASL to English** portal for experimental automated ASL-to-English and English-to-ASL interpretation testing
+- [x] Keep ASL-to-English AI portal visually and operationally distinct from MalkaVRS/MalkaVRI until it is accurate, safe, consented, and legally cleared for integration
 
 ## Immediate Open Work
 
@@ -463,20 +505,6 @@
 - [ ] Post-call transcript workflow where legally allowed
 - [ ] Consent management and ephemeral-only mode for VRS where required
 - [ ] STS mode for speech disabilities
-
-### Visual Voicemail Follow-Through
-- [x] Confirm real object-storage write/read path in production
-  - 2026-05-03: Added admin-only voicemail storage probe that writes, stats, presigns, and deletes a temporary object through the configured S3-compatible backend.
-- [x] Generate voicemail thumbnails server-side
-  - 2026-05-03: Jibri finalize now generates a JPEG thumbnail with ffmpeg and reports `thumbnailKey` to the voicemail callback.
-- [x] Media transcoding/compression for stored messages
-  - 2026-05-03: Jibri finalize now prefers compressed MP4 output with ffmpeg and falls back to original media with the correct content type when transcoding is unavailable.
-- [x] Notification delivery beyond in-app badge where needed
-  - 2026-05-03: Voicemail completion now supports an optional `VOICEMAIL_NOTIFICATION_WEBHOOK_URL` for external delivery in addition to the in-app unread badge/WebSocket event.
-- [x] Retention/expiry job verification in production
-  - 2026-05-03: Added admin-only expiry status and run-now endpoints so production can verify the retention job and last expiry result.
-
----
 
 ## Scale Preparation
 
@@ -570,19 +598,7 @@
 - [ ] Interpreter profile billing tab for earnings, invoices, payout method, tax/vendor documents, and payout history
 
 ### Interpreter Scheduling & Utilization
-- [x] Interpreter self-scheduling UI: interpreters can view required/target weekly hours, signed-on hours so far, scheduled hours remaining, and add/adjust availability/time-off blocks to fill gaps
-  - 2026-05-03: Interpreter Schedule tab now saves availability/time-off windows through authenticated shift endpoints and shows target, scheduled, signed-on, and remaining weekly hours.
-- [x] Admin scheduling UI first pass: weekly roster and coverage scan by tenant, service mode, language, interpreter, and current coverage gaps
-  - 2026-05-03: Admin interpreter view now includes a Scheduling & Coverage panel with tenant/service/language filters, active coverage cards, roster status, and coverage notes.
-- [x] Admin scheduling advanced controls: hourly coverage grid, overstaffing/gap detection, manager overrides, and pending interpreter schedule change approval workflow
-  - 2026-05-03: Admin Scheduling & Coverage now loads schedule windows from backend APIs, supports manager override creation, pending approval/rejection, and hour-by-hour coverage cells that flag gaps and overstaffing.
 - [ ] Admin scheduling next depth: recurring schedule rules, interpreter self-request workflow into pending windows, payroll/export approval lock, and coverage heatmap by 15/30-minute intervals
-- [x] Utilization metrics expansion: queue acceptance rate, decline/no-answer rate, after-call/admin time, and SLA impact
-  - 2026-05-03: Added interpreter queue event ledger, accepted/declined event writes, interpreter/admin utilization summaries, after-call/admin idle minutes, queue acceptance/decline/no-answer rates, and 120s SLA breach reporting.
-- [x] Weekly utilization dashboard for interpreters: scheduled hours, signed-on hours, hands-up hours, in-call hours, breaks, remaining target hours, and earnings/payables preview
-  - 2026-05-03: Interpreter Analytics tab now includes a weekly utilization dashboard with scheduled/hands-up/in-call/admin-idle/break/remaining/earnings plus queue and SLA metrics.
-- [x] Weekly utilization dashboard for admin: coverage by hour, fill-rate, interpreter adherence, break patterns, productivity, queue SLA impact, and exportable payroll/accounting summary
-  - 2026-05-03: Admin Scheduling & Coverage now loads utilization summaries, shows fill/productivity/acceptance/SLA cards, interpreter adherence/break/SLA columns, and exports utilization CSV for payroll/accounting review.
 - [ ] Utilization next depth: explicit no-answer timeout event, after-call task state, payroll approval lock, and 15/30-minute heatmap export
 - [ ] Service-mode utilization split: VRS vs VRI vs captioning availability and in-call minutes, with tenant/language filters
 
@@ -676,22 +692,12 @@ All completed client mobile parity items have been moved to Completed Work. Rema
 - [ ] Split Malka role/product surfaces into distinct domains when traffic and operations justify it
 - [ ] `vrs.malkacomm.com`: MalkaVRS client-facing VRS experience
 - [ ] `vri.malkacomm.com`: MalkaVRI client-facing VRI/corporate experience
-- [x] `ai.malkacomm.com`: distinct Malka ASL-to-English AI lab portal stub, not integrated into production VRS/VRI until validated
-  - 2026-05-03: Added `asl-ai.html` as a visually distinct Mars/robot lab login stub with consent/legal boundaries, plus app-server host routing so `ai.malkacomm.com/` resolves to the lab page once DNS/nginx TLS are configured.
 - [ ] `terp.malkacomm.com`: interpreter and captioner portal
 - [ ] `admin.malkacomm.com`: admin/superadmin portal
 - [ ] Define redirect and session rules between domains so auth remains smooth without mixing product identities
 - [ ] Keep Maple whitelabel routing aesthetically and operationally isolated from Malka product domains
 
 ### Interpreter Tools
-- [x] Interpreter tools backend foundation: tables and interpreter-authenticated endpoints for analytics, breaks, continuity notes, teaming requests, and post-call surveys
-  - 2026-05-02: Added interpreter operations tables and `/api/interpreter/*` endpoints for analytics, break start/end/list, continuity notes, post-call survey submission, and teaming request/list. UI and admin workflows remain open below.
-- [x] Real-time interpreter analytics UI
-  - Show calls, minutes, VRS/VRI split, break minutes, signed-on minutes, utilization rate, and near-real-time queue/event changes.
-- [x] Interpreter scheduling and shift management UI
-  - Interpreter self-scheduling: target hours, scheduled hours, signed-on hours, remaining hours, availability windows, time-off/unavailable blocks.
-  - Admin scheduling: weekly roster, coverage gaps, service mode/language filters, manager overrides, pending schedule changes.
-  - 2026-05-03: First-pass UI is live in interpreter profile and admin dashboard. Admin manager overrides, pending approvals, hourly gap detection, and overstaffing detection are now implemented in the deeper Scheduling & Coverage workflow.
 - [ ] Interpreter teaming workflow
   - Request second interpreter, accept/decline teaming request, join active room, track primary/secondary interpreter roles, and close team assignment when the call ends.
 - [ ] Interpreter notes/preferences for continuity
@@ -704,8 +710,6 @@ All completed client mobile parity items have been moved to Completed Work. Rema
   - Acceptance rate, decline/no-answer rate, wait-time impact, in-call minutes, utilization, survey trends, teaming participation, notes/admin follow-up, and payout context.
 
 ### AI & Accessibility
-- [x] Create a distinct Malka-side **ASL to English** portal for experimental automated ASL-to-English and English-to-ASL interpretation testing
-- [x] Keep ASL-to-English AI portal visually and operationally distinct from MalkaVRS/MalkaVRI until it is accurate, safe, consented, and legally cleared for integration
 - [ ] Configure public `ai.malkacomm.com` DNS, TLS certificate, and production nginx HTTPS server block
 - [ ] ASL recognition research/prototype with video dataset strategy, consent model, evaluation set, and human review loop
 - [ ] ASL data flywheel architecture: turn consented video calls into training examples while discarding raw recordings
