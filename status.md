@@ -6,6 +6,36 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-05-03
 - Branch: `codex/release-runbooks-audit`
+- HEAD: `ef77ddd`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  ROADMAP.md`
+  - `M  contracts/queue.ts`
+  - `M  package.json`
+  - `M  react/features/interpreter-queue/InterpreterQueueService.ts`
+  - `M  react/features/interpreter-queue/middleware.ts`
+  - `M  react/features/mobile/navigation/components/chat/components/ChatAndPollsNavigator.tsx`
+  - `M  react/features/mobile/navigation/components/conference/components/ConferenceNavigationContainer.tsx`
+  - `M  react/features/mobile/navigation/components/lobby/components/LobbyNavigationContainer.tsx`
+  - `A  scripts/verify-local.mjs`
+  - `M  vrs-admin-dashboard.html`
+  - `M  vrs-admin-dashboard.js`
+  - `M vrs-ops-server/dist/index.d.ts.map`
+  - `M vrs-ops-server/dist/index.js`
+  - `M vrs-ops-server/dist/index.js.map`
+  - `M  vrs-server/__tests__/contracts/shared-contracts.test.ts`
+  - `M  vrs-server/ws/handler.js`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-05-03T23:30:20.235Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-05-03
+- Branch: `codex/release-runbooks-audit`
 - HEAD: `92f2e40`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -21,7 +51,7 @@ Local changes at sync time:
   - `M vrs-ops-server/dist/index.js.map`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-05-03T22:01:02.219Z
 
 <!-- status:current:start -->

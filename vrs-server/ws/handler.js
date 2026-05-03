@@ -1275,7 +1275,34 @@ async function handleCallEnd(ws, data) {
             log.warn({ err: cdrErr, callId }, 'Billing CDR creation failed (non-fatal)');
         }
 
-        sendWsMessage(ws, 'call_ended', { callId, roomName, durationMinutes });
+        const endedMessage = {
+            callId,
+            callType: call.call_type || 'vrs',
+            clientId: call.client_id,
+            durationMinutes,
+            endedBy: client.userId,
+            interpreterId: call.interpreter_id,
+            roomName: call.room_name || roomName
+        };
+
+        sendWsMessage(ws, 'call_ended', endedMessage);
+
+        // Interpreted calls are a linked client/interpreter session: once either
+        // side ends, the other side should leave too. Non-interpreted P2P/instant
+        // rooms have no interpreter_id and intentionally keep independent hangup.
+        if (call.client_id && call.interpreter_id) {
+            const participantSockets = [
+                state.findClientSocketByUserId(call.client_id),
+                state.findInterpreterSocketByUserId(call.interpreter_id)
+            ];
+
+            for (const participantWs of participantSockets) {
+                if (participantWs && participantWs !== ws && participantWs.readyState === WebSocket.OPEN) {
+                    sendWsMessage(participantWs, 'call_ended', endedMessage);
+                }
+            }
+        }
+
         activityLogger.log('call_ended', { callId, roomName, endedBy: client.userId, durationMinutes });
         log.info({ callId, durationMinutes, endedBy: client.userId }, 'Queue call ended');
     } catch (err) {

@@ -404,8 +404,11 @@ class InterpreterQueueService {
 
         return {
             callId: stringValue(source.callId),
+            callType: source.callType === 'vri' || source.callType === 'vrs' ? source.callType : undefined,
             clientId: stringValue(source.clientId),
             clientName: stringValue(source.clientName),
+            durationMinutes: numberValue(source.durationMinutes),
+            endedBy: stringValue(source.endedBy),
             interpreterId: stringValue(source.interpreterId),
             interpreterName: stringValue(source.interpreterName),
             language: stringValue(source.language),
@@ -509,6 +512,10 @@ class InterpreterQueueService {
 
             case 'meeting_initiated':
                 this.emit('meetingInitiated', this.normalizeMatchPayload(message.data));
+                break;
+
+            case 'call_ended':
+                this.emit('callEnded', this.normalizeMatchPayload(message.data));
                 break;
 
             case 'ping':

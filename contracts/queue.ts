@@ -30,8 +30,11 @@ export const requestInfoSchema = z.object({
 
 export const queueMatchPayloadSchema = z.object({
     callId: z.string().optional(),
+    callType: z.enum([ 'vrs', 'vri' ]).optional(),
     clientId: z.string().optional(),
     clientName: z.string().optional(),
+    durationMinutes: z.number().optional(),
+    endedBy: z.string().optional(),
     interpreterId: z.string().optional(),
     interpreterName: z.string().optional(),
     language: z.string().optional(),
@@ -100,6 +103,7 @@ export const queueEventSchemas = {
     chatHistory: looseEventSchema,
     chatMessage: looseEventSchema,
     chatMessageSent: looseEventSchema,
+    callEnded: queueMatchPayloadSchema,
     conferenceAddOffline: looseEventSchema,
     conferenceAddRinging: looseEventSchema,
     conferenceInvite: looseEventSchema,

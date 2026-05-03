@@ -100,6 +100,16 @@ describe('shared API and queue contracts', () => {
             requestId: 'req-1',
             roomName: 'vrs-test-room'
         })).toMatchObject({ callId: 'call-1' });
+
+        expect(queueEventSchemas.callEnded.parse({
+            callId: 'call-1',
+            callType: 'vri',
+            clientId: 'client-1',
+            durationMinutes: 5,
+            endedBy: 'interp-1',
+            interpreterId: 'interp-1',
+            roomName: 'vri-test-room'
+        })).toMatchObject({ callId: 'call-1', callType: 'vri' });
     });
 
     it('keeps queue sequence contracts pointed at declared event schemas', () => {

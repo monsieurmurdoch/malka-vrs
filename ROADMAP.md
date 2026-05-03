@@ -62,6 +62,8 @@
 - [x] Admin account moderation for client/interpreter/captioner permissions
 - [x] Admin audit export for account/permission changes
 - [x] Superadmin dashboard for managing tenants
+- [x] Top-level admin dashboard navigation verified in a real browser after replacing static buttons with hash-routing handlers
+  - 2026-05-03: Added local-only `?navSmoke=1` admin browser-smoke mode, verified Dashboard, Interpreters, Captioners, Accounts, Clients, Live Queue, Activity, and Tenants tabs route to the correct panels, and clarified the Live Queue empty state as waiting client requests rather than interpreter availability.
 
 ### Validation & Error Handling
 - [x] Expanded Zod validation to every POST/PUT/PATCH endpoint
@@ -93,6 +95,9 @@
 - [x] Strict mode enabled for new TypeScript files
 - [x] Remaining JS/TS migration boundary documented for VRS routes, WebSocket handlers, queue service, validation, and checked-in compatibility output (`docs/vrs-server-ts-boundary.md`)
 - [x] High-risk mobile navigation, queue middleware, queue client event, and shared tenant/config helper `any`/`@ts-ignore` usage replaced with typed route params, typed event payloads, and typed config normalization
+- [x] Remaining legacy React Native nested-navigation `@ts-ignore` compatibility shims retired for conference, lobby, and chat navigators after typing the nested screen wrappers
+- [x] Fast local verification target for common app work
+  - 2026-05-03: Added `npm run verify:local`, covering web/native TypeScript, focused syntax checks, changed VRS Jest tests, shared contract tests, and checked-in VRS dist sync when relevant.
 - [x] Single typed contract source for API responses and WebSocket events consumed from web, native, server tests, and smoke scripts
   - 2026-05-03: Added `contracts/` with Zod API response schemas, queue/WebSocket event schemas, sequence manifests, and a smoke endpoint manifest used by `scripts/validate-vrs-stack.mjs`.
 - [x] Runtime contract tests for shared API client methods and queue WebSocket sequences
@@ -154,6 +159,10 @@
 - [x] Duplicate request-interpreter control suppressed on Jitsi prejoin/waiting-room screens
 - [x] Maple VRI queue-created calls persist `call_type = vri`
 - [x] Call-end WebSocket path marks calls completed and writes immutable billing CDRs
+- [x] Linked hangup for interpreted calls
+  - 2026-05-03: Server-side `call_end` now emits `call_ended` to both matched client and interpreter sockets for interpreted VRI/VRS calls; web/native queue middleware consumes it, clears active call state, writes history, and exits the room.
+- [x] Independent hangup behavior preserved for non-interpreted rooms
+  - 2026-05-03: Linked hangup is gated on calls with both `client_id` and `interpreter_id`, so P2P instant rooms and deaf-to-deaf/direct calls keep independent participant departure behavior.
 - [x] Real Maple VRI media smoke passed: client and interpreter joined, audio/video worked, and UDP 10000 media was observed
 - [x] Instant-room fast join
 - [x] Instant-room default camera and mic off
@@ -458,14 +467,13 @@
 - [ ] Run a real Twilio webhook/call smoke against the patched Twilio dependency set before production Twilio use
 
 ### Codebase Maintainability & Contract Hardening
-- [ ] Add a fast local verification target for common app work that runs the smallest useful subset before full CI (`tsc` slice, changed tests, smoke syntax checks)
-- [ ] Retire remaining legacy React Native nested-navigation `@ts-ignore` compatibility shims once the conference/lobby/chat navigator types are migrated end-to-end
+No immediate open items.
 
 ### Admin Portal Refinement
-- [ ] Real-browser verify top-level admin dashboard navigation after replacing static buttons with hash-routing handlers
+No immediate open items.
+
 ### Calls, Rooms & Queue Follow-Up
-- [ ] Linked hangup for interpreted calls: if the client or interpreter ends an interpreted VRI/VRS session, the other party exits too
-- [ ] Preserve independent hangup behavior for non-interpreted rooms: P2P instant rooms and deaf-to-deaf/direct calls should not force-close all participants
+No immediate open items.
 
 ### Maple VRI Pilot Readiness & White-Label Hardening (cont.)
 - [ ] Add optional SMS/email send to VRI session invites after Resend/Twilio policy is finalized

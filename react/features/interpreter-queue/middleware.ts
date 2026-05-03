@@ -6,6 +6,7 @@
  */
 
 import { appNavigate } from '../app/actions';
+import { hangup } from '../base/connection/actions';
 import { CONFERENCE_LEFT } from '../base/conference/actionTypes';
 import MiddlewareRegistry from '../base/redux/MiddlewareRegistry';
 import { getUserRole } from '../base/user-role/functions';
@@ -97,6 +98,25 @@ function writeLocalCallHistory() {
     });
 
     callStartTimestamp = undefined;
+}
+
+function handleLinkedInterpretedCallEnded(store: { dispatch: Function; }, data: QueueMatchPayload) {
+    const activeCall = getPersistentJson<{
+        callId?: string;
+        roomName?: string;
+    }>('vrs_active_call');
+
+    if (!activeCall?.callId || activeCall.callId !== data.callId) {
+        return;
+    }
+
+    writeLocalCallHistory();
+    removePersistentItem('vrs_active_call');
+    removePersistentItem('vri_pending_invite_tokens');
+    removePersistentItem('vri_pending_invite_url');
+    lastAutoEnteredQueueRoom = undefined;
+
+    store.dispatch(hangup(false));
 }
 
 /**
@@ -335,6 +355,11 @@ function initializeInterpreterQueue(store: { dispatch: Function; getState: Funct
 
     queueService.on('requestDeclined', (data: QueueMatchPayload) => {
         console.log('[InterpreterQueue] Request declined:', data);
+    });
+
+    queueService.on('callEnded', (data: QueueMatchPayload) => {
+        console.log('[InterpreterQueue] Interpreted call ended:', data);
+        handleLinkedInterpretedCallEnded(store, data);
     });
 
     // Error handling

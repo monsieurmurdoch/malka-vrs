@@ -10,7 +10,6 @@ import {
     getClientWidth
 } from '../../../../../base/modal/components/functions';
 import { setIsPollsTabFocused } from '../../../../../chat/actions.native';
-// @ts-ignore
 import Chat from '../../../../../chat/components/native/Chat';
 import { resetNbUnreadPollsMessages } from '../../../../../polls/actions';
 import PollsPane from '../../../../../polls/components/native/PollsPane';
@@ -29,7 +28,6 @@ const ChatAndPolls = () => {
         : screen.conference.chatandpolls.tab.chat;
 
     return (
-        // @ts-ignore
         <ChatTab.Navigator
             backBehavior = 'none'
             initialLayout = {{

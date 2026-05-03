@@ -8,6 +8,7 @@ const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hos
 const HTTP_PROTOCOL = window.location.protocol === 'https:' ? 'https:' : 'http:';
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 const CONFIG_VRS = typeof config !== 'undefined' ? config.vrs : null;
+const NAV_SMOKE_MODE = IS_LOCAL && new URLSearchParams(window.location.search).get('navSmoke') === '1';
 
 function isLoopbackUrl(value) {
     if (!value) {
@@ -59,10 +60,10 @@ const WS_URL = preferConfiguredUrl(
 );
 
 // State
-let authToken = localStorage.getItem('vrs_admin_token');
+let authToken = NAV_SMOKE_MODE ? 'local-nav-smoke' : localStorage.getItem('vrs_admin_token');
 let ws = null;
 let refreshInterval = null;
-let currentAdminRole = localStorage.getItem('vrs_admin_role') || 'admin';
+let currentAdminRole = NAV_SMOKE_MODE ? 'superadmin' : localStorage.getItem('vrs_admin_role') || 'admin';
 const scheduledRefreshes = new Map();
 let operationsRows = [];
 let activeOperationsView = 'live';
@@ -241,6 +242,11 @@ function setupEventListeners() {
 
 function loadInitialData() {
     updateCurrentUserDisplay();
+
+    if (NAV_SMOKE_MODE) {
+        return;
+    }
+
     validateOpsSession();
     loadDashboardStats();
     loadMonitoringSummary();
@@ -251,7 +257,7 @@ function loadInitialData() {
 }
 
 async function validateOpsSession() {
-    if (!authToken) {
+    if (!authToken || NAV_SMOKE_MODE) {
         return;
     }
 
@@ -279,6 +285,13 @@ async function validateOpsSession() {
 }
 
 function loadTabData(tab) {
+    if (NAV_SMOKE_MODE) {
+        if (tab === 'queue') {
+            renderLiveQueue([]);
+        }
+        return;
+    }
+
     switch (tab) {
         case 'dashboard':
             loadDashboardStats();
@@ -564,8 +577,8 @@ function logout() {
 }
 
 function updateCurrentUserDisplay() {
-    const name = localStorage.getItem('vrs_admin_name') || 'Admin';
-    const role = localStorage.getItem('vrs_admin_role') || currentAdminRole || 'admin';
+    const name = NAV_SMOKE_MODE ? 'Browser Smoke Admin' : localStorage.getItem('vrs_admin_name') || 'Admin';
+    const role = NAV_SMOKE_MODE ? 'superadmin' : localStorage.getItem('vrs_admin_role') || currentAdminRole || 'admin';
     currentAdminRole = role;
 
     const nameEl = document.querySelector('.user-name');
@@ -2857,6 +2870,16 @@ function formatDate(dateStr) {
 // ============================================
 
 async function loadLiveQueue() {
+    const container = document.getElementById('liveQueueList');
+    if (container) {
+        container.innerHTML = `
+            <div class="loading-state">
+                <div class="spinner"></div>
+                <p>Loading waiting client requests...</p>
+            </div>
+        `;
+    }
+
     try {
         const [ queue, queueService ] = await Promise.all([
             apiCall(`/admin/queue${buildQueryString({
@@ -2871,9 +2894,10 @@ async function loadLiveQueue() {
             syncQueuePauseButton(Boolean(queueService.queue?.paused));
         }
 
-        renderLiveQueue(queue);
+        renderLiveQueue(Array.isArray(queue) ? queue : []);
     } catch (error) {
         console.error('[Queue] Error:', error);
+        renderLiveQueueError(error);
     }
 }
 
@@ -2918,6 +2942,20 @@ function renderLiveQueue(queue) {
         </div>
         `;
     }).join('');
+}
+
+function renderLiveQueueError(error) {
+    const container = document.getElementById('liveQueueList');
+    if (!container) return;
+
+    container.innerHTML = `
+        <div class="empty-state">
+            <div class="empty-state-icon">⚠️</div>
+            <p>Live Queue could not load.</p>
+            <p class="help-text">${escapeHtml(error.message || 'Check the queue service and try refreshing this tab.')}</p>
+            <button class="btn btn-secondary" onclick="loadLiveQueue()">Retry</button>
+        </div>
+    `;
 }
 
 async function toggleQueue() {
