@@ -11,6 +11,7 @@ New business logic should live in TypeScript when it touches:
 - `vrs-server/src/lib/queue-service.ts` for authoritative WebSocket queue behavior and call lifecycle events.
 - `vrs-server/src/lib/voicemail-service.ts`, `storage-service.ts`, `handoff-service.ts`, and `activity-logger.ts` for shared backend services.
 - `react/features/interpreter-queue/InterpreterQueueService.ts` for the typed web/native queue client event contract.
+- `contracts/` for shared API response schemas, queue/WebSocket event schemas, and smoke endpoint manifests consumed by web, native, server tests, and smoke scripts.
 
 ## Legacy JavaScript Compatibility Surfaces
 
@@ -24,19 +25,19 @@ When adding a new route or changing a high-risk payload shape, prefer a TypeScri
 
 ## Validation Boundary
 
-Runtime validation remains shared through the existing validation bridge while route migration is in progress. New POST/PUT/PATCH payloads should add or reuse explicit schemas, then expose typed request/response shapes to web and native callers.
+Runtime validation remains shared through the existing validation bridge while route migration is in progress. New POST/PUT/PATCH payloads should add or reuse explicit schemas, then expose typed request/response shapes through `contracts/` to web and native callers.
 
 ## WebSocket Boundary
 
-Server-side queue state and matching rules belong in `vrs-server/src/lib/queue-service.ts`. Client-side normalization and event typing belong in `react/features/interpreter-queue/InterpreterQueueService.ts`; middleware and screens should consume typed event payloads instead of casting raw WebSocket data.
+Server-side queue state and matching rules belong in `vrs-server/src/lib/queue-service.ts`. Shared queue event names and payload contracts belong in `contracts/queue.ts`. Client-side normalization belongs in `react/features/interpreter-queue/InterpreterQueueService.ts`; middleware and screens should consume typed event payloads instead of casting raw WebSocket data.
 
 ## Compiled Output Boundary
 
-Checked-in `vrs-server/dist/*` remains part of the deployment compatibility contract for now. If source changes compile into `dist`, commit both together. The next hardening step is a CI check that proves source and generated output are in sync, or a deployment change that removes checked-in `dist` from the contract.
+Checked-in `vrs-server/dist/*` remains part of the deployment compatibility contract for now. If source changes compile into `dist`, commit both together. CI enforces this with `npm run check:vrs-dist-sync`, which rebuilds `vrs-server` and fails if `vrs-server/dist`, `vrs-server/server.js`, or `vrs-server/database.js` differ from source-controlled output.
 
 ## Remaining Migration Order
 
 1. Move route groups from `vrs-server/routes/*.js` to TypeScript as each route receives feature work.
 2. Replace `vrs-server/lib/validation.js` with exported typed schemas once most route payloads are stable.
-3. Centralize API/WebSocket contracts so server, web, native, and smoke scripts import the same types.
-4. Decide whether checked-in `dist` stays long-term; enforce whichever policy we choose in CI.
+3. Continue moving legacy route response shapes into `contracts/api.ts` as route groups migrate.
+4. Revisit checked-in `dist` after deployment can reliably build from source on the target.

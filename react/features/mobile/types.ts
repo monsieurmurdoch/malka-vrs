@@ -5,40 +5,26 @@
  * interpreter-queue, vrs-auth, and whitelabel subsystems.
  */
 
-// ---------------------------------------------------------------------------
-// Auth & User
-// ---------------------------------------------------------------------------
+import type {
+    CallRecord,
+    Contact,
+    UserInfo,
+    Voicemail
+} from '../../../contracts/types';
+import type { QueueMatchPayload } from '../../../contracts/queue';
 
-export interface UserInfo {
-    id?: string;
-    name?: string;
-    email?: string;
-    role?: string;
-    phoneNumber?: string;
-    primaryPhone?: string;
-    organization?: string;
-    tenantId?: string;
-    serviceModes?: string[];
-    corporateAccountId?: string;
-    organizationId?: string;
-    isAuthenticated?: boolean;
-    authenticatedAt?: number;
-    expiresAt?: number;
-}
+export type {
+    CallRecord,
+    Contact,
+    UserInfo,
+    Voicemail
+} from '../../../contracts/types';
 
 // ---------------------------------------------------------------------------
 // Queue
 // ---------------------------------------------------------------------------
 
-export interface MatchData {
-    callId?: string;
-    roomName?: string;
-    requestId?: string;
-    interpreterName?: string;
-    interpreterId?: string;
-    clientName?: string;
-    language?: string;
-}
+export type MatchData = QueueMatchPayload;
 
 export interface QueueState {
     isConnected?: boolean;
@@ -46,34 +32,6 @@ export interface QueueState {
     queuePosition?: number | null;
     matchData?: MatchData | null;
     error?: string | null;
-}
-
-// ---------------------------------------------------------------------------
-// Contacts
-// ---------------------------------------------------------------------------
-
-export interface Contact {
-    id: string;
-    name: string;
-    phoneNumber?: string;
-    email?: string;
-    lastCalled?: string;
-    notes?: string;
-    isFavorite?: boolean;
-}
-
-// ---------------------------------------------------------------------------
-// Call History
-// ---------------------------------------------------------------------------
-
-export interface CallRecord {
-    id: string;
-    contactName: string;
-    phoneNumber: string;
-    direction: 'outgoing' | 'incoming' | 'missed';
-    duration: number;
-    timestamp: string;
-    interpreterName?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -100,19 +58,4 @@ export interface MediaDefaults {
     micMuted: boolean;
     autoJoinOnMatch: boolean;
     notificationsEnabled: boolean;
-}
-
-// ---------------------------------------------------------------------------
-// Voicemail
-// ---------------------------------------------------------------------------
-
-export interface Voicemail {
-    id: string;
-    fromName: string;
-    fromPhone?: string;
-    duration: number;
-    timestamp: string;
-    isRead: boolean;
-    transcript?: string;
-    playbackUrl?: string;
 }

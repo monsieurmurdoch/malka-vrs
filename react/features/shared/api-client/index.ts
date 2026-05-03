@@ -12,15 +12,10 @@
 
 import { Platform } from 'react-native';
 
+import type { ApiResponse } from '../../../../contracts/types';
 import { getWhitelabelConfig } from '../../base/whitelabel/functions';
 import { getPersistentItem, getPersistentJson } from '../../vrs-auth/storage';
 import { getSecureItem, setSecureItem } from '../../vrs-auth/secureStorage';
-
-export interface ApiResponse<T> {
-    data: T | null;
-    error: string | null;
-    status: number;
-}
 
 interface TenantConfig {
     domains?: {
@@ -180,10 +175,12 @@ async function request<T>(
         const data = await response.json() as T;
 
         return { data, error: null, status };
-    } catch (err: any) {
+    } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Network error';
+
         return {
             data: null,
-            error: err.message || 'Network error',
+            error: errorMessage,
             status: 0
         };
     }

@@ -1,0 +1,33 @@
+{
+  "liveChecks": [
+    { "label": "Queue health", "base": "queue", "path": "/api/health" },
+    { "label": "Queue readiness", "base": "queue", "path": "/api/readiness" },
+    { "label": "Ops health", "base": "ops", "path": "/api/health" },
+    { "label": "Ops readiness", "base": "ops", "path": "/api/readiness" },
+    { "label": "Twilio health", "base": "twilio", "path": "/health" },
+    { "label": "Twilio readiness", "base": "twilio", "path": "/api/readiness" }
+  ],
+  "adminChecks": [
+    { "label": "Admin monitoring summary", "base": "ops", "path": "/api/admin/monitoring/summary" },
+    { "label": "Queue admin stats", "base": "queue", "path": "/api/admin/stats" },
+    { "label": "Active calls", "base": "queue", "path": "/api/admin/calls/active" },
+    { "label": "Daily usage", "base": "queue", "path": "/api/admin/usage/daily?days=7" },
+    { "label": "Live queue", "base": "queue", "path": "/api/admin/queue" },
+    { "label": "Interpreter roster", "base": "queue", "path": "/api/admin/interpreters" },
+    { "label": "Client roster", "base": "queue", "path": "/api/admin/clients" },
+    { "label": "Queue activity feed", "base": "queue", "path": "/api/admin/activity?limit=10" },
+    { "label": "Managed accounts", "base": "ops", "path": "/api/admin/accounts" },
+    { "label": "Ops audit feed", "base": "ops", "path": "/api/admin/audit?limit=10" }
+  ],
+  "apiContracts": [
+    { "method": "POST", "path": "/api/auth/client/login", "schema": "authLoginResponse" },
+    { "method": "POST", "path": "/api/auth/interpreter/login", "schema": "authLoginResponse" },
+    { "method": "POST", "path": "/api/auth/refresh", "schema": "authRefreshResponse" },
+    { "method": "GET", "path": "/api/client/profile", "schema": "userInfo" },
+    { "method": "GET", "path": "/api/contacts", "schema": "contactsListResponse" },
+    { "method": "GET", "path": "/api/client/call-history", "schema": "callHistoryResponse" },
+    { "method": "GET", "path": "/api/voicemail/inbox", "schema": "voicemailInboxResponse" },
+    { "method": "GET", "path": "/api/voicemail/unread-count", "schema": "voicemailUnreadCountResponse" },
+    { "method": "GET", "path": "/api/billing/usage", "schema": "billingUsageSummary" }
+  ]
+}

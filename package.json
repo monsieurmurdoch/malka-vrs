@@ -226,6 +226,7 @@
     "migrate:vrs": "npm --prefix vrs-server run migrate",
     "migrate:ops": "npm --prefix vrs-ops-server run migrate",
     "migrate:all": "npm run migrate:vrs && npm run migrate:ops",
+    "check:vrs-dist-sync": "node scripts/check-vrs-dist-sync.mjs",
     "validate:vrs-stack": "node scripts/validate-vrs-stack.mjs",
     "mobile:check-android-16kb": "node scripts/mobile/check-android-elf-alignment.mjs",
     "smoke:prod-backend": "VRS_VALIDATE_RESOLVE=vrs.malkacomm.com:443:138.197.121.127 VRS_QUEUE_BASE_URL=https://vrs.malkacomm.com VRS_OPS_BASE_URL=https://vrs.malkacomm.com/ops VRS_TWILIO_BASE_URL=https://vrs.malkacomm.com/twilio node scripts/validate-vrs-stack.mjs",

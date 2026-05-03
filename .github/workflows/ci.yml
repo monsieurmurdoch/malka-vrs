@@ -126,6 +126,7 @@ jobs:
       working-directory: vrs-server
     - run: npm run build
       working-directory: vrs-server
+    - run: npm run check:vrs-dist-sync
     - run: npm test -- --runInBand --forceExit
       working-directory: vrs-server
   ops-server:

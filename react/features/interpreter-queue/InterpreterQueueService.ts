@@ -10,88 +10,34 @@ import { APP_TYPE } from '../base/whitelabel/constants';
 import { getAppType, getWhitelabelConfig } from '../base/whitelabel/functions';
 import { mobileLog } from '../mobile/navigation/logging';
 import { getPersistentJson, removePersistentItem } from '../vrs-auth/storage';
+import {
+    queueMessageSchema,
+    type InterpreterInfo,
+    type InterpreterRequestPayload,
+    type QueueErrorPayload,
+    type QueueEventMap,
+    type QueueMatchPayload,
+    type QueueMessage,
+    type QueueStatus,
+    type VriInvitePreparedPayload,
+    type VoicemailEventPayload
+} from '../../../contracts';
+
+export type {
+    InterpreterInfo,
+    InterpreterRequestPayload,
+    QueueErrorPayload,
+    QueueEventMap,
+    QueueMatchPayload,
+    QueueMessage,
+    QueueStatus,
+    VriInvitePreparedPayload,
+    VoicemailEventPayload
+} from '../../../contracts';
 
 declare const config: {
     vrs?: Partial<VRSQueueConfig>;
 } | undefined;
-
-export interface QueueMessage {
-    type: string;
-    data?: unknown;
-    clientId?: string;
-    role?: string;
-    userId?: string;
-    name?: string;
-    token?: string;
-}
-
-export interface InterpreterInfo {
-    id: string;
-    name: string;
-    status: 'active' | 'busy' | 'inactive';
-    languages: string[];
-}
-
-export interface RequestInfo {
-    id: string;
-    clientName: string;
-    language: string;
-    timestamp?: number;
-    roomName?: string;
-    position?: number;
-}
-
-export interface QueueMatchPayload {
-    callId?: string;
-    requestId?: string;
-    roomName?: string;
-    clientId?: string;
-    clientName?: string;
-    interpreterId?: string;
-    interpreterName?: string;
-    language?: string;
-}
-
-export interface InterpreterRequestPayload {
-    id: string;
-    clientName: string;
-    language: string;
-    timestamp?: number;
-    roomName?: string;
-}
-
-export interface QueueErrorPayload {
-    code?: string;
-    message?: string;
-    retrying?: boolean;
-    [key: string]: unknown;
-}
-
-export interface VriInvitePreparedPayload {
-    inviteUrl?: string;
-    token?: string;
-}
-
-export interface VoicemailEventPayload {
-    calleeId?: string;
-    calleeName?: string;
-    calleePhone?: string;
-    count?: number;
-    durationSeconds?: number;
-    maxDurationSeconds?: number;
-    message?: string;
-    messageId?: string;
-    roomName?: string;
-    voicemailAvailable?: boolean;
-    [key: string]: unknown;
-}
-
-export interface QueueStatus {
-    activeInterpreters: InterpreterInfo[];
-    pendingRequests: RequestInfo[];
-    totalMatches: number;
-    paused?: boolean;
-}
 
 interface VRSQueueConfig {
     queueServiceUrl: string;
@@ -99,61 +45,6 @@ interface VRSQueueConfig {
         maxWaitTime: number;
         estimatedWaitPerPerson: number;
     };
-}
-
-export interface QueueEventMap {
-    authenticated: { role?: string; clientId?: string };
-    callHoldUpdated: unknown;
-    callOffHold: unknown;
-    callOnHold: unknown;
-    callTransferAccepted: unknown;
-    callTransferCancelled: unknown;
-    callTransferInitiated: unknown;
-    callTransferPending: unknown;
-    callWaitingIncoming: unknown;
-    callWaitingResponded: unknown;
-    chatHistory: unknown;
-    chatMessage: unknown;
-    chatMessageSent: unknown;
-    conferenceAddOffline: unknown;
-    conferenceAddRinging: unknown;
-    conferenceInvite: unknown;
-    conferenceParticipantRemoved: unknown;
-    conferenceRemoved: unknown;
-    connection: { connected: boolean; maxAttemptsReached?: boolean; message?: string };
-    contactsChanged: unknown;
-    error: QueueErrorPayload;
-    handoff_complete: unknown;
-    handoff_consumed: unknown;
-    handoff_error: unknown;
-    handoff_executed: unknown;
-    handoff_in_progress: unknown;
-    handoff_prepared: unknown;
-    interpreterRequest: InterpreterRequestPayload;
-    matchFound: QueueMatchPayload;
-    meetingInitiated: QueueMatchPayload;
-    p2pCallFailed: { message?: string; [key: string]: unknown };
-    p2pRinging: QueueMatchPayload & { calleeName?: string };
-    p2pTargetDnd: { calleeName?: string; [key: string]: unknown };
-    p2pTargetOffline: { calleeName?: string; [key: string]: unknown };
-    p2p_target_offline: { calleeName?: string; [key: string]: unknown };
-    preferencesUpdated: unknown;
-    queueStatus: QueueStatus;
-    requestAccepted: QueueMatchPayload;
-    requestAssigned: QueueMatchPayload;
-    requestCancelled: { requestId?: string };
-    requestDeclined: QueueMatchPayload;
-    requestQueued: { position?: number; requestId?: string };
-    session_registered: unknown;
-    session_unregistered: unknown;
-    voicemail_error: VoicemailEventPayload;
-    voicemail_message_deleted: VoicemailEventPayload;
-    voicemail_new_message: VoicemailEventPayload;
-    voicemail_recording_cancelled: VoicemailEventPayload;
-    voicemail_recording_complete: VoicemailEventPayload;
-    voicemail_recording_started: VoicemailEventPayload;
-    voicemail_unread_count: VoicemailEventPayload;
-    vriInvitePrepared: VriInvitePreparedPayload;
 }
 
 interface StoredAuthToken {
@@ -354,8 +245,15 @@ class InterpreterQueueService {
 
             this.ws.onmessage = event => {
                 try {
-                    const message = JSON.parse(event.data) as QueueMessage;
-                    this.handleMessage(message);
+                    const parsed = queueMessageSchema.safeParse(JSON.parse(event.data));
+
+                    if (parsed.success) {
+                        this.handleMessage(parsed.data);
+                    } else {
+                        mobileLog('warn', 'queue_ws_contract_parse_failed', {
+                            issueCount: parsed.error.issues.length
+                        }, { console: false });
+                    }
                 } catch (error) {
                     console.error('Error parsing queue message:', error);
                 }

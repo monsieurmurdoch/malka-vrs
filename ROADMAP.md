@@ -1,7 +1,7 @@
 # Malka VRS - Product & Engineering Roadmap
 
 > **Last updated**: May 3, 2026
-> **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. Malka VRS backend/WebSocket smoke now covers in-room-style interpreter request, admin live queue visibility, interpreter match, call end, and CDR creation. Native mobile now has working Android/iOS client-app build lanes for MalkaVRS, MalkaVRI, and MapleVRI, production-backed auth/API/queue wiring, tenant-specific app IDs, iOS simulator install flow, Android 16 KB-compatible debug/release artifacts, and tenant visual polish. The JS/TS migration boundary is now documented and the highest-risk mobile navigation, queue event, and tenant-config casts have typed replacements. The main open risks are remaining real-browser in-room/admin UI verification, TURN/coturn fallback, Redis/state externalization, regulatory/compliance work, live Stripe/accounting configuration, physical-device mobile media/call smoke, TestFlight/Play release lanes, push/background calling, crash reporting, final secure-storage linkage, and shared contract hardening across web, native, backend, and smoke tooling.
+> **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. Malka VRS backend/WebSocket smoke now covers in-room-style interpreter request, admin live queue visibility, interpreter match, call end, and CDR creation. Native mobile now has working Android/iOS client-app build lanes for MalkaVRS, MalkaVRI, and MapleVRI, production-backed auth/API/queue wiring, tenant-specific app IDs, iOS simulator install flow, Android 16 KB-compatible debug/release artifacts, and tenant visual polish. The JS/TS migration boundary is documented, the highest-risk mobile navigation/queue/config casts have typed replacements, and shared API/WebSocket contracts now feed web, native, server tests, and smoke endpoint manifests. The main open risks are remaining real-browser in-room/admin UI verification, TURN/coturn fallback, Redis/state externalization, regulatory/compliance work, live Stripe/accounting configuration, physical-device mobile media/call smoke, TestFlight/Play release lanes, push/background calling, crash reporting, and final secure-storage linkage.
 
 ---
 
@@ -91,6 +91,12 @@
 - [x] Strict mode enabled for new TypeScript files
 - [x] Remaining JS/TS migration boundary documented for VRS routes, WebSocket handlers, queue service, validation, and checked-in compatibility output (`docs/vrs-server-ts-boundary.md`)
 - [x] High-risk mobile navigation, queue middleware, queue client event, and shared tenant/config helper `any`/`@ts-ignore` usage replaced with typed route params, typed event payloads, and typed config normalization
+- [x] Single typed contract source for API responses and WebSocket events consumed from web, native, server tests, and smoke scripts
+  - 2026-05-03: Added `contracts/` with Zod API response schemas, queue/WebSocket event schemas, sequence manifests, and a smoke endpoint manifest used by `scripts/validate-vrs-stack.mjs`.
+- [x] Runtime contract tests for shared API client methods and queue WebSocket sequences
+  - 2026-05-03: Added server-side contract tests that parse representative auth, contacts, call-history, voicemail, queue status, interpreter request, and meeting-initiation payloads.
+- [x] Checked-in `dist` deployment contract decision and CI sync check
+  - 2026-05-03: Kept checked-in `vrs-server/dist/*` as the deployment compatibility contract for now and added `npm run check:vrs-dist-sync` plus CI enforcement.
 
 ### Authentication & Accounts
 - [x] Email/password login with JWT
@@ -444,9 +450,6 @@
 - [ ] Remediate npm audit findings on a dependency-upgrade branch, prioritizing Twilio server high-severity findings before production Twilio use
 
 ### Codebase Maintainability & Contract Hardening
-- [ ] Create a single typed contract source for API responses and WebSocket events, then consume it from web, native, server tests, and smoke scripts
-- [ ] Add runtime contract tests for shared API client methods and queue WebSocket sequences so mobile/web drift is caught before manual QA
-- [ ] Decide whether checked-in `dist` files remain part of the deployment contract; if yes, add a CI check that source and generated output are in sync
 - [ ] Add a fast local verification target for common app work that runs the smallest useful subset before full CI (`tsc` slice, changed tests, smoke syntax checks)
 - [ ] Retire remaining legacy React Native nested-navigation `@ts-ignore` compatibility shims once the conference/lobby/chat navigator types are migrated end-to-end
 
