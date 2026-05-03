@@ -397,6 +397,29 @@ router.get('/scheduling/windows', authenticateAdmin, validate(scheduleWindowQuer
     }
 });
 
+router.get('/scheduling/utilization', authenticateAdmin, validate(scheduleWindowQuerySchema, 'query'), async (req, res) => {
+    try {
+        const today = new Date();
+        const monday = new Date(today);
+        monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        const periodStart = req.query.startDate || monday.toISOString().split('T')[0];
+        const periodEnd = req.query.endDate || sunday.toISOString().split('T')[0];
+        const utilization = await db.getAdminUtilizationSummary({
+            periodStart,
+            periodEnd,
+            tenantId: req.query.tenantId,
+            serviceMode: req.query.serviceMode,
+            language: req.query.language
+        });
+        res.json({ utilization });
+    } catch (error) {
+        req.log.error({ err: error }, 'Scheduling utilization error');
+        res.status(500).json({ error: 'Failed to fetch scheduling utilization', code: 'INTERNAL_ERROR' });
+    }
+});
+
 router.post('/scheduling/windows', authenticateAdmin, validate(scheduleWindowSchema), async (req, res) => {
     try {
         const window = await db.createInterpreterScheduleWindow({

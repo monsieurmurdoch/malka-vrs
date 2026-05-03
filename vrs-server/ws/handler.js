@@ -33,6 +33,18 @@ function generateFriendlyRoomName() {
     return `vrs-${adj}-${noun}-${num}`;
 }
 
+function queueWaitSeconds(request) {
+    const createdAt = request?.createdAt || request?.created_at;
+    if (!createdAt) {
+        return 0;
+    }
+    const started = new Date(createdAt);
+    if (Number.isNaN(started.getTime())) {
+        return 0;
+    }
+    return Math.max(0, Math.floor((Date.now() - started.getTime()) / 1000));
+}
+
 function sanitizePhoneNumber(raw) {
     if (typeof raw !== 'string') return null;
     const cleaned = raw.replace(/[^\d+]/g, '');
@@ -771,6 +783,15 @@ async function handleAcceptRequest(ws, data) {
         callType: request.callType || (request.targetPhone ? 'vrs' : 'vri')
     };
 
+    db.logInterpreterQueueEvent({
+        interpreterId: interpreter.userId,
+        requestId,
+        eventType: 'accepted',
+        serviceMode: meetingData.callType,
+        language: request.language,
+        waitSeconds: queueWaitSeconds(request)
+    }).catch(err => log.warn({ err, requestId, interpreterId: interpreter.userId }, 'Failed to record interpreter queue accept event'));
+
     ws.send(JSON.stringify({ type: 'request_accepted', data: meetingData }));
     ws.send(JSON.stringify({ type: 'meeting_initiated', data: meetingData }));
 
@@ -792,6 +813,15 @@ function handleDeclineRequest(ws, data) {
     if (!interpreter) return;
 
     const payload = data.data || {};
+    const request = queueService.getRequest(payload.requestId);
+    db.logInterpreterQueueEvent({
+        interpreterId: interpreter.userId,
+        requestId: payload.requestId,
+        eventType: 'declined',
+        serviceMode: request ? getRequestCallType(request) : null,
+        language: request?.language || null,
+        waitSeconds: queueWaitSeconds(request)
+    }).catch(err => log.warn({ err, requestId: payload.requestId, interpreterId: interpreter.userId }, 'Failed to record interpreter queue decline event'));
     ws.send(JSON.stringify({
         type: 'request_declined',
         data: { requestId: payload.requestId, declinedBy: interpreter.userId }

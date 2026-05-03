@@ -18,9 +18,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.assignClientPhoneNumber = exports.getClientPhoneNumbers = exports.incrementSpeedDialUsage = exports.deleteSpeedDialEntry = exports.updateSpeedDialEntry = exports.addSpeedDialEntry = exports.getSpeedDialEntries = exports.getDailyUsageStats = exports.getDashboardStats = exports.getActivityLog = exports.logActivity = exports.getVriSessionInvite = exports.endVriInvitesForRoom = exports.expireVriInvitesForQueue = exports.activateVriInvitesForQueue = exports.attachVriInvitesToQueue = exports.createVriSessionInvite = exports.reorderQueue = exports.removeFromQueue = exports.completeRequest = exports.assignInterpreter = exports.getQueueRequests = exports.addToQueue = exports.getActiveCalls = exports.getCall = exports.setServerState = exports.getServerState = exports.endCall = exports.createCall = exports.updateClient = exports.createClient = exports.getClientByEmail = exports.getClient = exports.getAllClients = exports.deleteCaptioner = exports.updateCaptioner = exports.createCaptioner = exports.getCaptionerByEmail = exports.getCaptioner = exports.getAllCaptioners = exports.getInterpreterStats = exports.deleteInterpreter = exports.updateInterpreter = exports.createInterpreter = exports.getInterpreterByEmail = exports.getInterpreter = exports.getAllInterpreters = exports.createAdmin = exports.getAdminByUsername = exports.initialize = void 0;
-exports.logContactChange = exports.getContactTimeline = exports.deleteContactNote = exports.updateContactNote = exports.createContactNote = exports.getContactNotes = exports.getContactCallHistory = exports.ensureDefaultGroups = exports.migrateSpeedDialToContacts = exports.importContacts = exports.mergeContacts = exports.findDuplicateContacts = exports.isContactBlocked = exports.unblockContact = exports.blockContact = exports.getBlockedContacts = exports.setContactGroups = exports.deleteContactGroup = exports.updateContactGroup = exports.createContactGroup = exports.getContactGroups = exports.deleteContact = exports.updateContact = exports.createContact = exports.getContact = exports.getContacts = exports.getActiveP2PRoomsForClient = exports.markMissedCallsSeen = exports.getMissedCalls = exports.createMissedCall = exports.createP2PCall = exports.getClientByPhoneNumber = exports.getInterpreterCallHistory = exports.getClientCallHistory = exports.requestInterpreterTeamAssignment = exports.getInterpreterTeamAssignments = exports.createPostCallSurvey = exports.createInterpreterContinuityNote = exports.getInterpreterContinuityNotes = exports.endInterpreterBreak = exports.startInterpreterBreak = exports.getInterpreterBreaks = exports.getInterpreterAnalytics = exports.getInterpreterEarnings = exports.updateInterpreterScheduleWindow = exports.createInterpreterScheduleWindow = exports.getInterpreterScheduleWindows = exports.updateInterpreterShift = exports.createInterpreterShift = exports.getInterpreterShifts = void 0;
-exports.getVoicemailMessageCount = exports.getVoicemailStorageUsage = exports.markVoicemailSeen = exports.getVoicemailUnreadCount = exports.getVoicemailInboxCount = exports.getVoicemailInbox = exports.deleteVoicemailMessage = exports.updateVoicemailMessage = exports.getVoicemailMessageByRoomName = exports.getVoicemailMessage = exports.createVoicemailMessage = exports.updateInterpreterPassword = exports.updateClientPassword = exports.consumePasswordReset = exports.createPasswordReset = exports.verifyOtpCode = exports.createOtpCode = exports.createVCOCall = exports.deleteQuickPhrase = exports.updateQuickPhrase = exports.addQuickPhrase = exports.getQuickPhrases = exports.updateTtsSettings = exports.getTtsSettings = exports.getActiveCallForClient = exports.setCallOnHold = exports.getChatMessages = exports.addChatMessage = exports.getConferenceParticipants = exports.removeConferenceParticipant = exports.addConferenceParticipant = exports.getPendingTransferForCall = exports.getCallTransfers = exports.updateCallTransferStatus = exports.createCallTransfer = exports.deleteExpiredHandoffTokens = exports.deleteHandoffTokensByUser = exports.deleteHandoffToken = exports.storeHandoffToken = exports.getAllActiveHandoffTokens = exports.deleteActiveSession = exports.upsertActiveSession = exports.getAllActiveSessions = exports.isClientDND = exports.updateClientPreferences = exports.getClientPreferences = exports.deleteGoogleOAuthToken = exports.upsertGoogleOAuthToken = exports.getGoogleOAuthToken = exports.getContactChangesSince = void 0;
-exports.assignInterpreterToRequest = exports.pool = exports.getVoicemailStorageStats = exports.getAllVoicemailMessages = exports.seedVoicemailSettings = exports.setVoicemailSetting = exports.getAllVoicemailSettings = exports.getVoicemailSetting = exports.getActiveVoicemailRecordings = exports.getExpiredVoicemailMessages = void 0;
+exports.updateContactNote = exports.createContactNote = exports.getContactNotes = exports.getContactCallHistory = exports.ensureDefaultGroups = exports.migrateSpeedDialToContacts = exports.importContacts = exports.mergeContacts = exports.findDuplicateContacts = exports.isContactBlocked = exports.unblockContact = exports.blockContact = exports.getBlockedContacts = exports.setContactGroups = exports.deleteContactGroup = exports.updateContactGroup = exports.createContactGroup = exports.getContactGroups = exports.deleteContact = exports.updateContact = exports.createContact = exports.getContact = exports.getContacts = exports.getActiveP2PRoomsForClient = exports.markMissedCallsSeen = exports.getMissedCalls = exports.createMissedCall = exports.createP2PCall = exports.getClientByPhoneNumber = exports.getInterpreterCallHistory = exports.getClientCallHistory = exports.requestInterpreterTeamAssignment = exports.getInterpreterTeamAssignments = exports.createPostCallSurvey = exports.createInterpreterContinuityNote = exports.getInterpreterContinuityNotes = exports.endInterpreterBreak = exports.startInterpreterBreak = exports.getInterpreterBreaks = exports.getAdminUtilizationSummary = exports.getInterpreterUtilizationSummary = exports.logInterpreterQueueEvent = exports.getInterpreterAnalytics = exports.getInterpreterEarnings = exports.updateInterpreterScheduleWindow = exports.createInterpreterScheduleWindow = exports.getInterpreterScheduleWindows = exports.updateInterpreterShift = exports.createInterpreterShift = exports.getInterpreterShifts = void 0;
+exports.getVoicemailUnreadCount = exports.getVoicemailInboxCount = exports.getVoicemailInbox = exports.deleteVoicemailMessage = exports.updateVoicemailMessage = exports.getVoicemailMessageByRoomName = exports.getVoicemailMessage = exports.createVoicemailMessage = exports.updateInterpreterPassword = exports.updateClientPassword = exports.consumePasswordReset = exports.createPasswordReset = exports.verifyOtpCode = exports.createOtpCode = exports.createVCOCall = exports.deleteQuickPhrase = exports.updateQuickPhrase = exports.addQuickPhrase = exports.getQuickPhrases = exports.updateTtsSettings = exports.getTtsSettings = exports.getActiveCallForClient = exports.setCallOnHold = exports.getChatMessages = exports.addChatMessage = exports.getConferenceParticipants = exports.removeConferenceParticipant = exports.addConferenceParticipant = exports.getPendingTransferForCall = exports.getCallTransfers = exports.updateCallTransferStatus = exports.createCallTransfer = exports.deleteExpiredHandoffTokens = exports.deleteHandoffTokensByUser = exports.deleteHandoffToken = exports.storeHandoffToken = exports.getAllActiveHandoffTokens = exports.deleteActiveSession = exports.upsertActiveSession = exports.getAllActiveSessions = exports.isClientDND = exports.updateClientPreferences = exports.getClientPreferences = exports.deleteGoogleOAuthToken = exports.upsertGoogleOAuthToken = exports.getGoogleOAuthToken = exports.getContactChangesSince = exports.logContactChange = exports.getContactTimeline = exports.deleteContactNote = void 0;
+exports.assignInterpreterToRequest = exports.pool = exports.getVoicemailStorageStats = exports.getAllVoicemailMessages = exports.seedVoicemailSettings = exports.setVoicemailSetting = exports.getAllVoicemailSettings = exports.getVoicemailSetting = exports.getActiveVoicemailRecordings = exports.getExpiredVoicemailMessages = exports.getVoicemailMessageCount = exports.getVoicemailStorageUsage = exports.markVoicemailSeen = void 0;
 const pg_1 = require("pg");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const uuid_1 = require("uuid");
@@ -284,6 +284,17 @@ async function createTables() {
             created_at TIMESTAMPTZ DEFAULT NOW()
         );
 
+        CREATE TABLE IF NOT EXISTS interpreter_queue_events (
+            id TEXT PRIMARY KEY,
+            interpreter_id TEXT NOT NULL REFERENCES interpreters(id) ON DELETE CASCADE,
+            request_id TEXT,
+            event_type TEXT NOT NULL,
+            service_mode TEXT,
+            language TEXT,
+            wait_seconds INTEGER DEFAULT 0,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
         CREATE TABLE IF NOT EXISTS interpreter_continuity_notes (
             id TEXT PRIMARY KEY,
             interpreter_id TEXT NOT NULL REFERENCES interpreters(id) ON DELETE CASCADE,
@@ -425,6 +436,7 @@ async function createTables() {
         CREATE INDEX IF NOT EXISTS idx_schedule_windows_interpreter ON interpreter_schedule_windows(interpreter_id, starts_at);
         CREATE INDEX IF NOT EXISTS idx_availability_sessions_interpreter ON interpreter_availability_sessions(interpreter_id, started_at DESC);
         CREATE INDEX IF NOT EXISTS idx_break_sessions_interpreter ON interpreter_break_sessions(interpreter_id, started_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_queue_events_interpreter ON interpreter_queue_events(interpreter_id, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_continuity_notes_interpreter_client ON interpreter_continuity_notes(interpreter_id, client_id, updated_at DESC);
         CREATE INDEX IF NOT EXISTS idx_team_assignments_primary ON interpreter_team_assignments(primary_interpreter_id, requested_at DESC);
         CREATE INDEX IF NOT EXISTS idx_team_assignments_teammate ON interpreter_team_assignments(teammate_interpreter_id, requested_at DESC);
@@ -1643,6 +1655,194 @@ async function getInterpreterAnalytics(interpreterId, periodStart, periodEnd) {
     };
 }
 exports.getInterpreterAnalytics = getInterpreterAnalytics;
+async function logInterpreterQueueEvent({ interpreterId, requestId, eventType, serviceMode, language, waitSeconds = 0 }) {
+    const id = (0, uuid_1.v4)();
+    const rows = await runQuery(`INSERT INTO interpreter_queue_events
+            (id, interpreter_id, request_id, event_type, service_mode, language, wait_seconds)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING *`, [id, interpreterId, requestId || null, eventType, serviceMode || null, language || null, Math.max(0, Number(waitSeconds) || 0)]);
+    return rows[0];
+}
+exports.logInterpreterQueueEvent = logInterpreterQueueEvent;
+async function getInterpreterUtilizationSummary(interpreterId, periodStart, periodEnd) {
+    const calls = await runQuery(`SELECT
+            COUNT(*) AS total_calls,
+            COALESCE(SUM(duration_minutes), 0) AS in_call_minutes,
+            COALESCE(SUM(duration_minutes) FILTER (WHERE call_type = 'vrs'), 0) AS vrs_minutes,
+            COALESCE(SUM(duration_minutes) FILTER (WHERE call_type = 'vri'), 0) AS vri_minutes
+         FROM calls
+         WHERE interpreter_id = $1
+           AND started_at::date >= $2
+           AND started_at::date <= $3
+           AND status IN ('completed', 'ended')`, [interpreterId, periodStart, periodEnd]);
+    const availability = await runQuery(`SELECT
+            COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(ended_at, NOW()) - started_at)) / 60), 0) AS hands_up_minutes
+         FROM interpreter_availability_sessions
+         WHERE interpreter_id = $1
+           AND status IN ('available', 'active')
+           AND started_at::date >= $2
+           AND started_at::date <= $3`, [interpreterId, periodStart, periodEnd]);
+    const breaks = await runQuery(`SELECT
+            COUNT(*) AS break_count,
+            COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(ended_at, NOW()) - started_at)) / 60), 0) AS break_minutes
+         FROM interpreter_break_sessions
+         WHERE interpreter_id = $1
+           AND started_at::date >= $2
+           AND started_at::date <= $3`, [interpreterId, periodStart, periodEnd]);
+    const scheduled = await runQuery(`SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (ends_at - starts_at)) / 60), 0) AS scheduled_minutes
+         FROM interpreter_schedule_windows
+         WHERE interpreter_id = $1
+           AND starts_at::date >= $2
+           AND starts_at::date <= $3
+           AND status IN ('scheduled', 'confirmed', 'pending')`, [interpreterId, periodStart, periodEnd]);
+    const events = await runQuery(`SELECT
+            COUNT(*) FILTER (WHERE event_type = 'accepted') AS accepted,
+            COUNT(*) FILTER (WHERE event_type = 'declined') AS declined,
+            COUNT(*) FILTER (WHERE event_type = 'no_answer') AS no_answer,
+            COALESCE(AVG(wait_seconds) FILTER (WHERE event_type = 'accepted'), 0) AS avg_wait_seconds,
+            COUNT(*) FILTER (WHERE event_type = 'accepted' AND wait_seconds > 120) AS sla_breaches
+         FROM interpreter_queue_events
+         WHERE interpreter_id = $1
+           AND created_at::date >= $2
+           AND created_at::date <= $3`, [interpreterId, periodStart, periodEnd]);
+    const earnings = await runQuery(`SELECT COALESCE(SUM(net_earnings), SUM(total_earnings), 0) AS earnings_preview
+         FROM interpreter_earnings
+         WHERE interpreter_id = $1
+           AND period_start >= $2
+           AND period_end <= $3`, [interpreterId, periodStart, periodEnd]);
+    const callRow = calls[0] || {};
+    const availabilityRow = availability[0] || {};
+    const breakRow = breaks[0] || {};
+    const scheduleRow = scheduled[0] || {};
+    const eventRow = events[0] || {};
+    const earningsRow = earnings[0] || {};
+    const targetMinutes = 40 * 60;
+    const scheduledMinutes = Math.round(Number(scheduleRow.scheduled_minutes) || 0);
+    const handsUpMinutes = Math.round(Number(availabilityRow.hands_up_minutes) || 0);
+    const inCallMinutes = Math.round(Number(callRow.in_call_minutes) || 0);
+    const breakMinutes = Math.round(Number(breakRow.break_minutes) || 0);
+    const accepted = Number(eventRow.accepted) || 0;
+    const declined = Number(eventRow.declined) || 0;
+    const noAnswer = Number(eventRow.no_answer) || 0;
+    const offered = accepted + declined + noAnswer;
+    return {
+        periodStart,
+        periodEnd,
+        targetMinutes,
+        scheduledMinutes,
+        signedOnMinutes: handsUpMinutes + breakMinutes,
+        handsUpMinutes,
+        inCallMinutes,
+        breakMinutes,
+        afterCallAdminMinutes: Math.max(0, handsUpMinutes - inCallMinutes),
+        remainingTargetMinutes: Math.max(0, targetMinutes - scheduledMinutes),
+        earningsPreview: Number(earningsRow.earnings_preview) || 0,
+        calls: {
+            total: Number(callRow.total_calls) || 0,
+            vrsMinutes: Math.round(Number(callRow.vrs_minutes) || 0),
+            vriMinutes: Math.round(Number(callRow.vri_minutes) || 0)
+        },
+        queue: {
+            accepted,
+            declined,
+            noAnswer,
+            offered,
+            acceptanceRate: offered > 0 ? Math.round((accepted / offered) * 1000) / 10 : 0,
+            declineRate: offered > 0 ? Math.round((declined / offered) * 1000) / 10 : 0,
+            noAnswerRate: offered > 0 ? Math.round((noAnswer / offered) * 1000) / 10 : 0
+        },
+        sla: {
+            avgWaitSeconds: Math.round(Number(eventRow.avg_wait_seconds) || 0),
+            breachCount: Number(eventRow.sla_breaches) || 0,
+            breachRate: accepted > 0 ? Math.round((Number(eventRow.sla_breaches || 0) / accepted) * 1000) / 10 : 0
+        },
+        utilizationRate: handsUpMinutes > 0 ? Math.round((inCallMinutes / handsUpMinutes) * 1000) / 10 : 0,
+        adherenceRate: scheduledMinutes > 0 ? Math.round((handsUpMinutes / scheduledMinutes) * 1000) / 10 : 0
+    };
+}
+exports.getInterpreterUtilizationSummary = getInterpreterUtilizationSummary;
+async function getAdminUtilizationSummary({ periodStart, periodEnd, tenantId, serviceMode, language }) {
+    const interpreters = await getAllInterpreters();
+    const arrayValue = (value) => {
+        if (Array.isArray(value))
+            return value;
+        if (typeof value === 'string') {
+            try {
+                const parsed = JSON.parse(value);
+                return Array.isArray(parsed) ? parsed : [];
+            }
+            catch {
+                return value.split(',').map(item => item.trim()).filter(Boolean);
+            }
+        }
+        return [];
+    };
+    const filtered = interpreters.filter((interpreter) => {
+        const modes = arrayValue(interpreter.service_modes);
+        const languages = arrayValue(interpreter.languages);
+        if (tenantId && interpreter.tenant_id && interpreter.tenant_id !== tenantId)
+            return false;
+        if (serviceMode && !modes.includes(serviceMode))
+            return false;
+        if (language && !languages.includes(language))
+            return false;
+        return true;
+    });
+    const rows = [];
+    for (const interpreter of filtered) {
+        const summary = await getInterpreterUtilizationSummary(interpreter.id, periodStart, periodEnd);
+        rows.push({
+            interpreterId: interpreter.id,
+            name: interpreter.name,
+            email: interpreter.email,
+            tenantId: interpreter.tenant_id || 'malka',
+            serviceModes: arrayValue(interpreter.service_modes),
+            languages: arrayValue(interpreter.languages),
+            ...summary
+        });
+    }
+    const totals = rows.reduce((acc, row) => {
+        acc.scheduledMinutes += row.scheduledMinutes;
+        acc.handsUpMinutes += row.handsUpMinutes;
+        acc.inCallMinutes += row.inCallMinutes;
+        acc.breakMinutes += row.breakMinutes;
+        acc.afterCallAdminMinutes += row.afterCallAdminMinutes;
+        acc.accepted += row.queue.accepted;
+        acc.declined += row.queue.declined;
+        acc.noAnswer += row.queue.noAnswer;
+        acc.slaBreaches += row.sla.breachCount;
+        acc.earningsPreview += row.earningsPreview;
+        return acc;
+    }, {
+        scheduledMinutes: 0,
+        handsUpMinutes: 0,
+        inCallMinutes: 0,
+        breakMinutes: 0,
+        afterCallAdminMinutes: 0,
+        accepted: 0,
+        declined: 0,
+        noAnswer: 0,
+        slaBreaches: 0,
+        earningsPreview: 0
+    });
+    const offered = totals.accepted + totals.declined + totals.noAnswer;
+    return {
+        periodStart,
+        periodEnd,
+        totals: {
+            ...totals,
+            offered,
+            fillRate: totals.scheduledMinutes > 0 ? Math.round((totals.handsUpMinutes / totals.scheduledMinutes) * 1000) / 10 : 0,
+            productivityRate: totals.handsUpMinutes > 0 ? Math.round((totals.inCallMinutes / totals.handsUpMinutes) * 1000) / 10 : 0,
+            acceptanceRate: offered > 0 ? Math.round((totals.accepted / offered) * 1000) / 10 : 0,
+            declineRate: offered > 0 ? Math.round((totals.declined / offered) * 1000) / 10 : 0,
+            noAnswerRate: offered > 0 ? Math.round((totals.noAnswer / offered) * 1000) / 10 : 0,
+            slaBreachRate: totals.accepted > 0 ? Math.round((totals.slaBreaches / totals.accepted) * 1000) / 10 : 0
+        },
+        interpreters: rows
+    };
+}
+exports.getAdminUtilizationSummary = getAdminUtilizationSummary;
 async function getInterpreterBreaks(interpreterId, limit = 20) {
     return await runQuery(`SELECT *
          FROM interpreter_break_sessions

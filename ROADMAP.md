@@ -571,9 +571,13 @@
 - [x] Admin scheduling advanced controls: hourly coverage grid, overstaffing/gap detection, manager overrides, and pending interpreter schedule change approval workflow
   - 2026-05-03: Admin Scheduling & Coverage now loads schedule windows from backend APIs, supports manager override creation, pending approval/rejection, and hour-by-hour coverage cells that flag gaps and overstaffing.
 - [ ] Admin scheduling next depth: recurring schedule rules, interpreter self-request workflow into pending windows, payroll/export approval lock, and coverage heatmap by 15/30-minute intervals
-- [ ] Utilization metrics expansion: queue acceptance rate, decline/no-answer rate, after-call/admin time, and SLA impact
-- [ ] Weekly utilization dashboard for interpreters: scheduled hours, signed-on hours, hands-up hours, in-call hours, breaks, remaining target hours, and earnings/payables preview
-- [ ] Weekly utilization dashboard for admin: coverage by hour, fill-rate, interpreter adherence, break patterns, productivity, queue SLA impact, and exportable payroll/accounting summary
+- [x] Utilization metrics expansion: queue acceptance rate, decline/no-answer rate, after-call/admin time, and SLA impact
+  - 2026-05-03: Added interpreter queue event ledger, accepted/declined event writes, interpreter/admin utilization summaries, after-call/admin idle minutes, queue acceptance/decline/no-answer rates, and 120s SLA breach reporting.
+- [x] Weekly utilization dashboard for interpreters: scheduled hours, signed-on hours, hands-up hours, in-call hours, breaks, remaining target hours, and earnings/payables preview
+  - 2026-05-03: Interpreter Analytics tab now includes a weekly utilization dashboard with scheduled/hands-up/in-call/admin-idle/break/remaining/earnings plus queue and SLA metrics.
+- [x] Weekly utilization dashboard for admin: coverage by hour, fill-rate, interpreter adherence, break patterns, productivity, queue SLA impact, and exportable payroll/accounting summary
+  - 2026-05-03: Admin Scheduling & Coverage now loads utilization summaries, shows fill/productivity/acceptance/SLA cards, interpreter adherence/break/SLA columns, and exports utilization CSV for payroll/accounting review.
+- [ ] Utilization next depth: explicit no-answer timeout event, after-call task state, payroll approval lock, and 15/30-minute heatmap export
 - [ ] Service-mode utilization split: VRS vs VRI vs captioning availability and in-call minutes, with tenant/language filters
 
 ### Billing Safeguards

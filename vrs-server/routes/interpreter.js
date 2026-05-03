@@ -101,6 +101,18 @@ function defaultDateWindow() {
     return { periodStart, periodEnd };
 }
 
+function defaultWeekWindow() {
+    const now = new Date();
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return {
+        periodStart: monday.toISOString().split('T')[0],
+        periodEnd: sunday.toISOString().split('T')[0]
+    };
+}
+
 function requireInterpreter(req, res) {
     if (req.user.role !== 'interpreter') {
         res.status(403).json({ error: 'Interpreter access required', code: 'FORBIDDEN' });
@@ -315,6 +327,22 @@ router.get('/analytics', authenticateUser, validate(analyticsQuerySchema, 'query
     } catch (error) {
         req.log.error({ err: error }, 'Interpreter analytics error');
         res.status(500).json({ error: 'Failed to fetch analytics', code: 'INTERNAL_ERROR' });
+    }
+});
+
+router.get('/utilization', authenticateUser, validate(analyticsQuerySchema, 'query'), async (req, res) => {
+    if (!requireInterpreter(req, res)) return;
+
+    const defaults = defaultWeekWindow();
+    const periodStart = req.query.periodStart || defaults.periodStart;
+    const periodEnd = req.query.periodEnd || defaults.periodEnd;
+
+    try {
+        const utilization = await db.getInterpreterUtilizationSummary(req.user.id, periodStart, periodEnd);
+        res.json({ utilization });
+    } catch (error) {
+        req.log.error({ err: error }, 'Interpreter utilization error');
+        res.status(500).json({ error: 'Failed to fetch utilization', code: 'INTERNAL_ERROR' });
     }
 });
 

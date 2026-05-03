@@ -39,6 +39,17 @@ exports.up = pgm => {
             created_at TIMESTAMPTZ DEFAULT NOW()
         );
 
+        CREATE TABLE IF NOT EXISTS interpreter_queue_events (
+            id TEXT PRIMARY KEY,
+            interpreter_id TEXT NOT NULL REFERENCES interpreters(id) ON DELETE CASCADE,
+            request_id TEXT,
+            event_type TEXT NOT NULL,
+            service_mode TEXT,
+            language TEXT,
+            wait_seconds INTEGER DEFAULT 0,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
         CREATE TABLE IF NOT EXISTS interpreter_continuity_notes (
             id TEXT PRIMARY KEY,
             interpreter_id TEXT NOT NULL REFERENCES interpreters(id) ON DELETE CASCADE,
@@ -79,6 +90,7 @@ exports.up = pgm => {
         CREATE INDEX IF NOT EXISTS idx_schedule_windows_interpreter ON interpreter_schedule_windows(interpreter_id, starts_at);
         CREATE INDEX IF NOT EXISTS idx_availability_sessions_interpreter ON interpreter_availability_sessions(interpreter_id, started_at DESC);
         CREATE INDEX IF NOT EXISTS idx_break_sessions_interpreter ON interpreter_break_sessions(interpreter_id, started_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_queue_events_interpreter ON interpreter_queue_events(interpreter_id, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_continuity_notes_interpreter_client ON interpreter_continuity_notes(interpreter_id, client_id, updated_at DESC);
         CREATE INDEX IF NOT EXISTS idx_team_assignments_primary ON interpreter_team_assignments(primary_interpreter_id, requested_at DESC);
         CREATE INDEX IF NOT EXISTS idx_team_assignments_teammate ON interpreter_team_assignments(teammate_interpreter_id, requested_at DESC);
@@ -91,6 +103,7 @@ exports.down = pgm => {
         DROP TABLE IF EXISTS post_call_surveys;
         DROP TABLE IF EXISTS interpreter_team_assignments;
         DROP TABLE IF EXISTS interpreter_continuity_notes;
+        DROP TABLE IF EXISTS interpreter_queue_events;
         DROP TABLE IF EXISTS interpreter_break_sessions;
         DROP TABLE IF EXISTS interpreter_availability_sessions;
         DROP TABLE IF EXISTS interpreter_schedule_windows;

@@ -1415,6 +1415,7 @@
             profile: null,
             stats: null,
             analytics: null,
+            utilization: null,
             breaks: [],
             shifts: [],
             earnings: [],
@@ -2099,6 +2100,7 @@
 
             const stats = state.stats || { totalCalls: 0, totalMinutes: 0, avgDuration: 0, totalEarnings: 0 };
             const analytics = state.analytics?.analytics || state.analytics || {};
+            const utilization = state.utilization?.utilization || state.utilization || {};
             const totals = analytics.totals || {};
             const modeSplit = analytics.serviceModeSplit || {};
             const analyticsCalls = Number(totals.calls ?? analytics.calls?.total ?? stats.totalCalls ?? 0);
@@ -2230,6 +2232,45 @@
                     <div class="metric-card">
                         <div class="metric-value">${formatHoursFromMinutes(signedOnMinutes)}h</div>
                         <div class="metric-label">Signed On</div>
+                    </div>
+                </div>
+                <div class="card-title">Weekly Utilization</div>
+                <div class="metric-grid">
+                    <div class="metric-card">
+                        <div class="metric-value">${formatHoursFromMinutes(utilization.scheduledMinutes)}h</div>
+                        <div class="metric-label">Scheduled</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${formatHoursFromMinutes(utilization.handsUpMinutes)}h</div>
+                        <div class="metric-label">Hands Up</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${formatHoursFromMinutes(utilization.inCallMinutes)}h</div>
+                        <div class="metric-label">In Call</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${formatHoursFromMinutes(utilization.afterCallAdminMinutes)}h</div>
+                        <div class="metric-label">Admin / Idle</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${formatHoursFromMinutes(utilization.remainingTargetMinutes)}h</div>
+                        <div class="metric-label">Remaining Target</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${formatCurrency(utilization.earningsPreview || 0)}</div>
+                        <div class="metric-label">Earnings Preview</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${formatPercent(utilization.queue?.acceptanceRate || 0)}</div>
+                        <div class="metric-label">Acceptance</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${formatPercent(utilization.queue?.declineRate || 0)} / ${formatPercent(utilization.queue?.noAnswerRate || 0)}</div>
+                        <div class="metric-label">Decline / No Answer</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${utilization.sla?.avgWaitSeconds || 0}s</div>
+                        <div class="metric-label">Avg Queue Wait</div>
                     </div>
                 </div>
                 <div class="tab-grid">
@@ -2629,6 +2670,7 @@
                 await submitJson('/api/interpreter/breaks/start', 'POST', { breakType: 'general', paid: false });
                 await loadBreaks();
                 await loadAnalytics();
+                await loadUtilization();
                 state.breakStatus = { type: 'success', message: 'Break started.' };
             } catch (error) {
                 state.breakStatus = { type: 'error', message: error.message };
@@ -2648,6 +2690,7 @@
                 await submitJson(`/api/interpreter/breaks/${encodeURIComponent(activeBreak.id)}/end`, 'POST', {});
                 await loadBreaks();
                 await loadAnalytics();
+                await loadUtilization();
                 state.breakStatus = { type: 'success', message: 'Break ended.' };
             } catch (error) {
                 state.breakStatus = { type: 'error', message: error.message };
@@ -2702,6 +2745,11 @@
             if (data) state.analytics = data.analytics || data;
         }
 
+        async function loadUtilization() {
+            const data = await apiFetch('/api/interpreter/utilization');
+            if (data) state.utilization = data.utilization || data;
+        }
+
         async function loadBreaks() {
             const data = await apiFetch('/api/interpreter/breaks?limit=10');
             if (data && data.breaks) state.breaks = data.breaks;
@@ -2736,7 +2784,7 @@
             connectWS();
             await refreshMediaDevices();
             render();
-            await Promise.all([loadProfile(), loadStats(), loadAnalytics(), loadBreaks(), loadShifts(), loadEarnings(), loadCallHistory()]);
+            await Promise.all([loadProfile(), loadStats(), loadAnalytics(), loadUtilization(), loadBreaks(), loadShifts(), loadEarnings(), loadCallHistory()]);
             render();
             if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
                 navigator.mediaDevices.addEventListener('devicechange', async () => {

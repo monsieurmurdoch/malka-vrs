@@ -67,6 +67,7 @@ const scheduledRefreshes = new Map();
 let operationsRows = [];
 let activeOperationsView = 'live';
 let adminScheduleWindows = [];
+let adminUtilization = null;
 
 function scheduleRefresh(key, callback, delay = 250) {
     if (scheduledRefreshes.has(key)) {
@@ -191,6 +192,7 @@ function setupEventListeners() {
     document.getElementById('scheduleEndHour')?.addEventListener('input', debounce(renderAdminScheduling, 150));
     document.getElementById('scheduleTargetCount')?.addEventListener('input', debounce(renderAdminScheduling, 150));
     document.getElementById('addScheduleWindowBtn')?.addEventListener('click', showScheduleWindowModal);
+    document.getElementById('exportUtilizationBtn')?.addEventListener('click', exportUtilizationCsv);
 
     // Queue pause button
     document.getElementById('pauseQueueBtn')?.addEventListener('click', toggleQueue);
@@ -494,6 +496,30 @@ function exportTableCsv(type, rows) {
         lastCall: client.last_call || 'Never',
         registered: client.created_at || ''
     })));
+}
+
+function exportUtilizationCsv() {
+    const rows = (adminUtilization?.interpreters || []).map(row => ({
+        name: row.name,
+        email: row.email,
+        tenant: row.tenantId || 'malka',
+        serviceModes: row.serviceModes || [],
+        languages: row.languages || [],
+        scheduledHours: Math.round((row.scheduledMinutes || 0) / 60 * 10) / 10,
+        signedOnHours: Math.round((row.signedOnMinutes || 0) / 60 * 10) / 10,
+        handsUpHours: Math.round((row.handsUpMinutes || 0) / 60 * 10) / 10,
+        inCallHours: Math.round((row.inCallMinutes || 0) / 60 * 10) / 10,
+        breakHours: Math.round((row.breakMinutes || 0) / 60 * 10) / 10,
+        adminIdleHours: Math.round((row.afterCallAdminMinutes || 0) / 60 * 10) / 10,
+        adherenceRate: row.adherenceRate || 0,
+        utilizationRate: row.utilizationRate || 0,
+        acceptanceRate: row.queue?.acceptanceRate || 0,
+        declineRate: row.queue?.declineRate || 0,
+        noAnswerRate: row.queue?.noAnswerRate || 0,
+        slaBreachRate: row.sla?.breachRate || 0,
+        earningsPreview: row.earningsPreview || 0
+    }));
+    downloadCsv('interpreter-utilization', rows);
 }
 
 async function login(username, password) {
@@ -1535,11 +1561,16 @@ async function loadAdminScheduleWindows() {
         if (tenant) params.set('tenantId', tenant);
         if (service) params.set('serviceMode', service);
         if (language) params.set('language', language);
-        const data = await apiCall(`/admin/scheduling/windows?${params.toString()}`);
-        adminScheduleWindows = data.windows || [];
+        const [windowsData, utilizationData] = await Promise.all([
+            apiCall(`/admin/scheduling/windows?${params.toString()}`),
+            apiCall(`/admin/scheduling/utilization?${params.toString()}`)
+        ]);
+        adminScheduleWindows = windowsData.windows || [];
+        adminUtilization = utilizationData.utilization || null;
     } catch (error) {
         console.error('[Scheduling] Error:', error);
         adminScheduleWindows = [];
+        adminUtilization = null;
     }
     renderAdminScheduling();
 }
@@ -1580,6 +1611,8 @@ function renderAdminScheduling() {
         return ['available', 'assigned', 'in-call'].includes(status);
     }).length;
     const gapLabel = selectedCoverage > 0 ? 'Covered' : 'Gap';
+    const utilizationTotals = adminUtilization?.totals || {};
+    const utilizationByInterpreter = new Map((adminUtilization?.interpreters || []).map(row => [String(row.interpreterId), row]));
 
     cards.innerHTML = `
         <div class="coverage-card">
@@ -1598,9 +1631,24 @@ function renderAdminScheduling() {
             <div class="coverage-note">Interpreter signed-on/call minutes currently reported by roster.</div>
         </div>
         <div class="coverage-card">
-            <div class="coverage-value">${gapLabel}</div>
-            <div class="coverage-label">Coverage</div>
-            <div class="coverage-note">${serviceFilter || languageFilter ? 'For the selected service/language filters.' : 'Select service and language to inspect gaps.'}</div>
+            <div class="coverage-value">${Math.round(utilizationTotals.fillRate || 0)}%</div>
+            <div class="coverage-label">Fill Rate</div>
+            <div class="coverage-note">${gapLabel}. Scheduled coverage filled by hands-up time.</div>
+        </div>
+        <div class="coverage-card">
+            <div class="coverage-value">${Math.round(utilizationTotals.productivityRate || 0)}%</div>
+            <div class="coverage-label">Productivity</div>
+            <div class="coverage-note">In-call minutes as a share of hands-up minutes.</div>
+        </div>
+        <div class="coverage-card">
+            <div class="coverage-value">${Math.round(utilizationTotals.acceptanceRate || 0)}%</div>
+            <div class="coverage-label">Acceptance</div>
+            <div class="coverage-note">Accepted requests vs accepted/declined/no-answer events.</div>
+        </div>
+        <div class="coverage-card">
+            <div class="coverage-value">${Math.round(utilizationTotals.slaBreachRate || 0)}%</div>
+            <div class="coverage-label">SLA Impact</div>
+            <div class="coverage-note">Accepted requests above the current 120s queue wait threshold.</div>
         </div>
     `;
 
@@ -1610,7 +1658,7 @@ function renderAdminScheduling() {
     if (!roster.length) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 24px;">
                     No interpreters match the scheduling filters.
                 </td>
             </tr>
@@ -1622,6 +1670,7 @@ function renderAdminScheduling() {
         const status = deriveInterpreterStatus(interp, new Map());
         const services = formatServiceModes(interp.service_modes);
         const languages = Array.isArray(interp.languages) ? interp.languages.join(', ') : (interp.languages || 'ASL');
+        const utilization = utilizationByInterpreter.get(String(interp.id)) || {};
         const note = status === 'available'
             ? 'Ready for assignment'
             : status === 'offline'
@@ -1643,6 +1692,9 @@ function renderAdminScheduling() {
                 </td>
                 <td>${interp.calls_today || 0}</td>
                 <td>${interp.minutes_week || 0}</td>
+                <td>${Math.round(utilization.adherenceRate || 0)}%</td>
+                <td>${Math.round((utilization.breakMinutes || 0) / 60 * 10) / 10}h</td>
+                <td>${Math.round(utilization.sla?.breachRate || 0)}%</td>
                 <td class="ops-info">${note}</td>
             </tr>
         `;
