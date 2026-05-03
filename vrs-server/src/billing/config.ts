@@ -10,7 +10,7 @@ export type CallType = 'vrs' | 'vri';
 export type BillingStatus = 'pending' | 'submitted' | 'paid' | 'disputed' | 'write_off';
 export type InvoiceStatus = 'draft' | 'issued' | 'paid' | 'overdue' | 'cancelled';
 export type ReconciliationStatus = 'matched' | 'unmatched' | 'disputed';
-export type StripeMode = 'live' | 'mock';
+export type StripeMode = 'live' | 'mock' | 'test';
 
 export interface PostgresConfig {
     host: string;

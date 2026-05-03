@@ -1,0 +1,81 @@
+{
+  "tenantId": "maple",
+  "brand": {
+    "appName": "MapleVRI Staging",
+    "providerName": "Maple Communications Group",
+    "tagline": "Video Remote Interpreting - Staging",
+    "description": "Staging build for Maple Communications Group VRI testing",
+    "supportUrl": "https://maplecommunications.ca/support",
+    "inviteDomain": "staging-vri.maplecomm.ca"
+  },
+  "domains": {
+    "api": "staging-vri.maplecomm.ca",
+    "queue": "staging-vri.maplecomm.ca",
+    "clientVri": "staging-vri.maplecomm.ca",
+    "interpreter": "staging-vri.maplecomm.ca",
+    "admin": "staging-vri.maplecomm.ca"
+  },
+  "theme": {
+    "primary": "#E00000",
+    "primaryLight": "#FF3B30",
+    "primaryDark": "#A90000",
+    "accent": "#000000",
+    "success": "#2E7D32",
+    "warning": "#F9A825",
+    "error": "#C62828",
+    "errorDark": "#8E0000",
+    "surfaceDark": "#000000",
+    "surfaceMid": "#666666",
+    "surfaceLight": "#FFFFFF",
+    "textPrimary": "#FFFFFF",
+    "textSecondary": "#666666",
+    "toolbarBg": "#E00000",
+    "chatBg": "#E00000",
+    "mobileBackground": "#5A0000"
+  },
+  "assets": {
+    "logo": "maple-logo-original.png",
+    "logoWhite": "maple-logo-original.png",
+    "favicon": "favicon.svg",
+    "faviconSvg": "favicon.svg",
+    "favicon16": "",
+    "favicon32": "",
+    "appleTouchIcon": "",
+    "socialImage": "maple-social-card.png",
+    "welcomeBackground": "",
+    "mobile": {
+      "appIcon": "maple-social-card.png",
+      "maskableIcon": "favicon.svg",
+      "splash": "maple-social-card.png",
+      "notificationIcon": "favicon.svg"
+    }
+  },
+  "operations": {
+    "defaultServiceModes": ["vri"],
+    "appType": "vri",
+    "billing": {
+      "currency": "CAD",
+      "vriAslEnglishPerMinute": 1.25,
+      "invoicePrefix": "STG-MAPLE",
+      "billingAccountMode": "corporate"
+    },
+    "interpreterPools": {
+      "vri": { "id": "staging-maple-vri-default", "languages": ["ASL", "LSQ", "English", "French"] },
+      "vrs": { "id": "staging-maple-vrs-test", "languages": ["ASL", "English"], "testOnly": true },
+      "captioning": { "id": "staging-maple-captioning-default", "languages": ["English", "French"] }
+    }
+  },
+  "mobile": {
+    "iosBundleId": "com.maplecomm.vri.staging",
+    "androidApplicationId": "com.maplecomm.vri.staging",
+    "displayName": "MapleVRI Staging"
+  },
+  "features": {
+    "vrs": { "enabled": true },
+    "vri": { "enabled": true },
+    "voicemail": { "enabled": true },
+    "recording": { "enabled": true },
+    "phoneDialOut": { "enabled": true },
+    "languages": { "enabled": ["en", "fr", "asl", "lsq"], "default": "en" }
+  }
+}

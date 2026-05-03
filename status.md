@@ -6,6 +6,37 @@ This file is the project-level running status log. The current update stays at t
 
 - Updated: 2026-05-03
 - Branch: `codex/interpreter-tools-workflow`
+- HEAD: `97bed6a`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  .env.example`
+  - `A  .env.staging.example`
+  - `M  ROADMAP.md`
+  - `A  docker-compose.staging.yml`
+  - `A  docs/environment-policy.md`
+  - `A  docs/release-gates.md`
+  - `A  docs/staging-environment.md`
+  - `M  package.json`
+  - `M  react/features/base/whitelabel/functions.ts`
+  - `M vrs-ops-server/dist/index.d.ts.map`
+  - `M vrs-ops-server/dist/index.js`
+  - `M vrs-ops-server/dist/index.js.map`
+  - `M  vrs-server/src/billing/config.ts`
+  - `M  vrs-server/src/billing/stripe/stripe-factory.ts`
+  - `A  whitelabel/malka-staging.json`
+  - `A  whitelabel/malkavri-staging.json`
+  - `A  whitelabel/maple-staging.json`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-05-03T21:45:42.828Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-05-03
+- Branch: `codex/interpreter-tools-workflow`
 - HEAD: `69597b3`
 - Note: Pre-push project status sync.
 - Snapshot:
@@ -30,7 +61,7 @@ Local changes at sync time:
   - `M vrs-ops-server/dist/index.js`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-05-03T17:34:45.045Z
 
 <!-- status:current:start -->

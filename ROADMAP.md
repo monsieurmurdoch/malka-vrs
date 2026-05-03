@@ -1,7 +1,7 @@
 # Malka VRS - Product & Engineering Roadmap
 
 > **Last updated**: May 3, 2026
-> **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. Malka VRS backend/WebSocket smoke now covers in-room-style interpreter request, admin live queue visibility, interpreter match, call end, and CDR creation. Native mobile now has working Android/iOS client-app build lanes for MalkaVRS, MalkaVRI, and MapleVRI, production-backed auth/API/queue wiring, tenant-specific app IDs, iOS simulator install flow, Android 16 KB-compatible debug/release artifacts, and tenant visual polish. The JS/TS migration boundary is documented, the highest-risk mobile navigation/queue/config casts have typed replacements, and shared API/WebSocket contracts now feed web, native, server tests, and smoke endpoint manifests. The main open risks are remaining real-browser in-room/admin UI verification, TURN/coturn fallback, Redis/state externalization, regulatory/compliance work, live Stripe/accounting configuration, physical-device mobile media/call smoke, TestFlight/Play release lanes, push/background calling, crash reporting, and final secure-storage linkage.
+> **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. Malka VRS backend/WebSocket smoke now covers in-room-style interpreter request, admin live queue visibility, interpreter match, call end, and CDR creation. Native mobile now has working Android/iOS client-app build lanes for MalkaVRS, MalkaVRI, and MapleVRI, production-backed auth/API/queue wiring, tenant-specific app IDs, iOS simulator install flow, Android 16 KB-compatible debug/release artifacts, and tenant visual polish. The JS/TS migration boundary is documented, shared API/WebSocket contracts now feed web/native/tests/smoke tooling, and release gates plus staging/base-URL policy are documented. The main open risks are remaining real-browser in-room/admin UI verification, TURN/coturn fallback, Redis/state externalization, regulatory/compliance work, live Stripe/accounting configuration, physical-device mobile media/call smoke, TestFlight/Play release lanes, push/background calling, crash reporting, and final secure-storage linkage.
 
 ---
 
@@ -40,6 +40,8 @@
 - [x] Maple and Malka backend smokes pass for queue, ops, and Twilio readiness
 - [x] Twilio reverse proxy smoke fixed: `/twilio/health` and `/twilio/api/readiness` return 200 through production routes
 - [x] Production ops health/readiness return `ok` after disabling bootstrap superadmin in the prod compose path
+- [x] Production-like staging environment definition with isolated DB, staging tenant configs, Stripe test mode, Twilio sandbox/test path, and seed procedure
+  - 2026-05-03: Added `.env.staging.example`, `docker-compose.staging.yml`, staging tenant configs, staging smoke scripts, and `docs/staging-environment.md`.
 
 ### Production Verification & Smoke Tests
 - [x] Real media smoke on Droplet: client joins, interpreter joins, video/audio works, room survives normal browser flow
@@ -230,6 +232,10 @@
 - [x] Obsidian mirror to `Documents/Obsidian Vault/Coding/Malka-App`
 - [x] Roadmap mirrored to Obsidian
 - [x] Dedicated `codex/logging-observability` branch created for observability/logging work
+- [x] Explicit go/no-go release gates for Maple VRI pilot, Malka VRI beta, Malka VRS beta, mobile beta, and full production
+  - 2026-05-03: Added `docs/release-gates.md` with go/no-go criteria, evidence requirements, and lane-specific blockers.
+- [x] Environment/base-URL policy for web, native, API, queue, ops, Twilio, and billing modes
+  - 2026-05-03: Added `docs/environment-policy.md` and staging tenant IDs so local/staging builds have explicit non-production targets.
 
 ### Maple VRI Pilot Readiness
 - [x] Admin moderation filters by tenant and service mode (`malka`/`maple`, `vrs`/`vri`)
@@ -441,9 +447,6 @@
 ## Immediate Open Work
 
 ### Release Readiness & Operations
-- [ ] Define explicit go/no-go gates for Maple VRI pilot, Malka VRI beta, Malka VRS beta, mobile beta, and full production
-- [ ] Stand up a production-like staging environment with separate database, tenant config, Stripe test mode, Twilio test/sandbox path, and seeded Maple/Malka accounts
-- [ ] Document environment/base-URL policy for web, native, API, queue, ops, and Twilio so local/staging builds cannot silently fall back to production domains
 - [ ] Create incident runbooks: restart VRS/ops/Twilio/Jitsi safely, clear stale queue items, verify media health, verify CDR integrity, and communicate user impact
 - [ ] Create support/admin runbooks for stale calls, interpreter no-answer/decline loops, stuck VRI invites, account lockouts, voicemail playback failures, and billing disputes
 - [ ] Define data retention/privacy matrix for CDRs, audit logs, voicemail media, captions/transcripts, VRI invite links, chat/TTS messages, and mobile logs

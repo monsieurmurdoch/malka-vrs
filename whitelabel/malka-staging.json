@@ -1,0 +1,81 @@
+{
+  "tenantId": "malka",
+  "brand": {
+    "appName": "MalkaVRS Staging",
+    "providerName": "Malka Communications",
+    "tagline": "Video Relay Service - Staging",
+    "description": "Staging build for Malka Communications VRS/VRI testing",
+    "supportUrl": "https://community.jitsi.org/",
+    "inviteDomain": "staging-vrs.malkacomm.com"
+  },
+  "domains": {
+    "api": "staging-vrs.malkacomm.com",
+    "queue": "staging-vrs.malkacomm.com",
+    "clientVrs": "staging-vrs.malkacomm.com",
+    "clientVri": "staging-vri.malkacomm.com",
+    "interpreter": "staging-terp.malkacomm.com",
+    "admin": "staging-admin.malkacomm.com",
+    "aiLab": "staging-ai.malkacomm.com"
+  },
+  "theme": {
+    "primary": "#0D1A38",
+    "primaryLight": "#16164C",
+    "primaryDark": "#00003C",
+    "accent": "#F47D22",
+    "success": "#89BD0E",
+    "warning": "#F47D22",
+    "error": "#CE0F13",
+    "errorDark": "#84151E",
+    "surfaceDark": "#040404",
+    "surfaceMid": "#252525",
+    "surfaceLight": "#FFFFFF",
+    "textPrimary": "#FFFFFF",
+    "textSecondary": "#B0B0B0",
+    "toolbarBg": "#0D1A38",
+    "chatBg": "#0D1A38"
+  },
+  "assets": {
+    "logo": "malka-logo.png",
+    "logoWhite": "malka-logo-white.png",
+    "favicon": "favicon.ico",
+    "faviconSvg": "favicon.svg",
+    "favicon16": "favicon-16x16.png",
+    "favicon32": "favicon-32x32.png",
+    "appleTouchIcon": "apple-touch-icon.png",
+    "welcomeBackground": "welcome-background.png",
+    "mobile": {
+      "appIcon": "apple-touch-icon.png",
+      "maskableIcon": "static/pwa/icons/iconMask.png",
+      "splash": "logo-deep-linking-mobile.png",
+      "notificationIcon": "favicon-32x32.png"
+    }
+  },
+  "operations": {
+    "defaultServiceModes": ["vrs"],
+    "appType": "vrs",
+    "billing": {
+      "currency": "USD",
+      "vriAslEnglishPerMinute": 1,
+      "invoicePrefix": "STG-MALKA",
+      "billingAccountMode": "tenant-default"
+    },
+    "interpreterPools": {
+      "vrs": { "id": "staging-malka-vrs-default", "languages": ["ASL", "English"] },
+      "vri": { "id": "staging-malka-vri-corporate", "languages": ["ASL", "English"] },
+      "captioning": { "id": "staging-malka-captioning-default", "languages": ["English"] }
+    }
+  },
+  "mobile": {
+    "iosBundleId": "com.malkacomm.vrs.staging",
+    "androidApplicationId": "com.malkacomm.vrs.staging",
+    "displayName": "MalkaVRS Staging"
+  },
+  "features": {
+    "vrs": { "enabled": true },
+    "vri": { "enabled": true },
+    "voicemail": { "enabled": true },
+    "recording": { "enabled": true },
+    "phoneDialOut": { "enabled": true },
+    "languages": { "enabled": ["en", "asl"], "default": "en" }
+  }
+}

@@ -1,0 +1,71 @@
+version: "3.8"
+
+# Production-like staging overlay.
+# Usage:
+#   cp .env.staging.example .env.staging
+#   docker compose --env-file .env.staging \
+#     -f docker-compose.prod.yml -f docker-compose.staging.yml up --build -d
+
+name: malka-vrs-staging
+
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - pg-staging-data:/var/lib/postgresql/data
+      - pg-staging-wal-archive:/var/lib/postgresql/wal_archive
+
+  pgbouncer:
+    ports:
+      - "127.0.0.1:56432:6432"
+
+  vrs:
+    build:
+      args:
+        TENANT: malka-staging
+    env_file: ${STAGING_ENV_FILE:-.env.staging}
+    environment:
+      - NODE_ENV=staging
+      - DATABASE_URL=postgresql://${PGUSER:-malka_staging}:${PGPASSWORD}@pgbouncer:6432/${PGDATABASE:-malka_vrs_staging}
+      - MIGRATION_DATABASE_URL=postgresql://${PGUSER:-malka_staging}:${PGPASSWORD}@postgres:5432/${PGDATABASE:-malka_vrs_staging}
+      - BILLING_PG_HOST=postgres
+      - BILLING_PG_PORT=5432
+      - BILLING_PG_DATABASE=${PGDATABASE:-malka_vrs_staging}
+      - BILLING_PG_USER=${PGUSER:-malka_staging}
+      - BILLING_PG_PASSWORD=${PGPASSWORD}
+      - BILLING_STRIPE_MODE=${BILLING_STRIPE_MODE:-test}
+
+  vrs-maple:
+    build:
+      args:
+        TENANT: maple-staging
+    env_file: ${STAGING_ENV_FILE:-.env.staging}
+    environment:
+      - NODE_ENV=staging
+      - DATABASE_URL=postgresql://${PGUSER:-malka_staging}:${PGPASSWORD}@pgbouncer:6432/${PGDATABASE:-malka_vrs_staging}
+      - MIGRATION_DATABASE_URL=postgresql://${PGUSER:-malka_staging}:${PGPASSWORD}@postgres:5432/${PGDATABASE:-malka_vrs_staging}
+      - BILLING_PG_HOST=postgres
+      - BILLING_PG_PORT=5432
+      - BILLING_PG_DATABASE=${PGDATABASE:-malka_vrs_staging}
+      - BILLING_PG_USER=${PGUSER:-malka_staging}
+      - BILLING_PG_PASSWORD=${PGPASSWORD}
+      - BILLING_STRIPE_MODE=${BILLING_STRIPE_MODE:-test}
+
+  ops:
+    env_file: ${STAGING_ENV_FILE:-.env.staging}
+    environment:
+      - NODE_ENV=staging
+      - ENABLE_BOOTSTRAP_SUPERADMIN=${ENABLE_BOOTSTRAP_SUPERADMIN:-true}
+      - OPS_DATABASE_URL=postgresql://${PGUSER:-malka_staging}:${PGPASSWORD}@pgbouncer:6432/${PGDATABASE:-malka_vrs_staging}
+      - OPS_MIGRATION_DATABASE_URL=postgresql://${PGUSER:-malka_staging}:${PGPASSWORD}@postgres:5432/${PGDATABASE:-malka_vrs_staging}
+
+  twilio:
+    env_file: ${STAGING_ENV_FILE:-.env.staging}
+    environment:
+      - NODE_ENV=staging
+      - TWILIO_PORT=3002
+
+volumes:
+  pg-staging-data:
+  pg-staging-wal-archive:

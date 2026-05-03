@@ -9,8 +9,11 @@ import { APP_TYPE, FEATURES, type AppType, type FeatureKey } from './constants';
 import { getPersistentJson } from '../../vrs-auth/storage';
 import { NativeModules, Platform } from 'react-native';
 import malkaConfig from '../../../../whitelabel/malka.json';
+import malkaStagingConfig from '../../../../whitelabel/malka-staging.json';
 import malkaVriConfig from '../../../../whitelabel/malkavri.json';
+import malkaVriStagingConfig from '../../../../whitelabel/malkavri-staging.json';
 import mapleConfig from '../../../../whitelabel/maple.json';
+import mapleStagingConfig from '../../../../whitelabel/maple-staging.json';
 
 type UnknownRecord = Record<string, unknown>;
 type GlobalTenantScope = typeof globalThis & {
@@ -39,8 +42,11 @@ type RuntimeWhitelabelConfig = {
 
 const STATIC_TENANTS: Record<string, unknown> = {
     malka: malkaConfig,
+    'malka-staging': malkaStagingConfig,
     malkavri: malkaVriConfig,
-    maple: mapleConfig
+    'malkavri-staging': malkaVriStagingConfig,
+    maple: mapleConfig,
+    'maple-staging': mapleStagingConfig
 };
 
 function isRecord(value: unknown): value is UnknownRecord {
