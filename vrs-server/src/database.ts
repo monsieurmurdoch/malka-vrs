@@ -258,6 +258,81 @@ async function createTables() {
             UNIQUE(interpreter_id, period_start, period_end)
         );
 
+        -- Interpreter operations tools
+        CREATE TABLE IF NOT EXISTS interpreter_schedule_windows (
+            id TEXT PRIMARY KEY,
+            interpreter_id TEXT NOT NULL REFERENCES interpreters(id) ON DELETE CASCADE,
+            starts_at TIMESTAMPTZ NOT NULL,
+            ends_at TIMESTAMPTZ NOT NULL,
+            tenant_id TEXT DEFAULT 'malka',
+            service_modes JSONB DEFAULT '["vrs"]',
+            languages JSONB DEFAULT '["ASL"]',
+            status TEXT DEFAULT 'scheduled',
+            manager_note TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS interpreter_availability_sessions (
+            id TEXT PRIMARY KEY,
+            interpreter_id TEXT NOT NULL REFERENCES interpreters(id) ON DELETE CASCADE,
+            status TEXT NOT NULL,
+            started_at TIMESTAMPTZ DEFAULT NOW(),
+            ended_at TIMESTAMPTZ,
+            source TEXT DEFAULT 'interpreter',
+            reason TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS interpreter_break_sessions (
+            id TEXT PRIMARY KEY,
+            interpreter_id TEXT NOT NULL REFERENCES interpreters(id) ON DELETE CASCADE,
+            started_at TIMESTAMPTZ DEFAULT NOW(),
+            ended_at TIMESTAMPTZ,
+            break_type TEXT DEFAULT 'general',
+            paid BOOLEAN DEFAULT false,
+            reason TEXT,
+            source TEXT DEFAULT 'interpreter',
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS interpreter_continuity_notes (
+            id TEXT PRIMARY KEY,
+            interpreter_id TEXT NOT NULL REFERENCES interpreters(id) ON DELETE CASCADE,
+            client_id TEXT REFERENCES clients(id) ON DELETE SET NULL,
+            call_id TEXT REFERENCES calls(id) ON DELETE SET NULL,
+            note TEXT NOT NULL,
+            visibility TEXT DEFAULT 'self',
+            preference_tags JSONB DEFAULT '[]',
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS interpreter_team_assignments (
+            id TEXT PRIMARY KEY,
+            primary_interpreter_id TEXT NOT NULL REFERENCES interpreters(id) ON DELETE CASCADE,
+            teammate_interpreter_id TEXT REFERENCES interpreters(id) ON DELETE SET NULL,
+            call_id TEXT REFERENCES calls(id) ON DELETE SET NULL,
+            room_name TEXT,
+            status TEXT DEFAULT 'requested',
+            requested_by TEXT,
+            requested_at TIMESTAMPTZ DEFAULT NOW(),
+            accepted_at TIMESTAMPTZ,
+            ended_at TIMESTAMPTZ,
+            notes TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS post_call_surveys (
+            id TEXT PRIMARY KEY,
+            call_id TEXT REFERENCES calls(id) ON DELETE SET NULL,
+            respondent_id TEXT NOT NULL,
+            respondent_role TEXT NOT NULL,
+            rating INTEGER CHECK (rating >= 1 AND rating <= 5),
+            tags JSONB DEFAULT '[]',
+            comments TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
         -- Missed calls (P2P — stored when target is offline)
         CREATE TABLE IF NOT EXISTS missed_calls (
             id TEXT PRIMARY KEY,
@@ -359,6 +434,13 @@ async function createTables() {
         CREATE INDEX IF NOT EXISTS idx_shifts_interpreter ON interpreter_shifts(interpreter_id);
         CREATE INDEX IF NOT EXISTS idx_shifts_date ON interpreter_shifts(date);
         CREATE INDEX IF NOT EXISTS idx_earnings_interpreter ON interpreter_earnings(interpreter_id);
+        CREATE INDEX IF NOT EXISTS idx_schedule_windows_interpreter ON interpreter_schedule_windows(interpreter_id, starts_at);
+        CREATE INDEX IF NOT EXISTS idx_availability_sessions_interpreter ON interpreter_availability_sessions(interpreter_id, started_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_break_sessions_interpreter ON interpreter_break_sessions(interpreter_id, started_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_continuity_notes_interpreter_client ON interpreter_continuity_notes(interpreter_id, client_id, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_team_assignments_primary ON interpreter_team_assignments(primary_interpreter_id, requested_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_team_assignments_teammate ON interpreter_team_assignments(teammate_interpreter_id, requested_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_post_call_surveys_call ON post_call_surveys(call_id);
         CREATE INDEX IF NOT EXISTS idx_missed_calls_callee ON missed_calls(callee_client_id, seen);
         CREATE INDEX IF NOT EXISTS idx_missed_calls_caller ON missed_calls(caller_id);
         CREATE INDEX IF NOT EXISTS idx_captioners_email ON captioners(email);
@@ -1565,19 +1647,24 @@ async function getInterpreterShifts(interpreterId: any, startDate: any, endDate:
     return await runQuery(sql, params);
 }
 
-async function createInterpreterShift({ interpreterId, date, startTime }: any) {
+async function createInterpreterShift({ interpreterId, date, startTime, endTime, totalMinutes, status }: any) {
     const id = uuidv4();
-    await runInsert(
-        `INSERT INTO interpreter_shifts (id, interpreter_id, date, start_time)
-         VALUES ($1, $2, $3, $4)
+    const rows = await runQuery(
+        `INSERT INTO interpreter_shifts (id, interpreter_id, date, start_time, end_time, total_minutes, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (interpreter_id, date)
-         DO UPDATE SET start_time = EXCLUDED.start_time, id = EXCLUDED.id`,
-        [id, interpreterId, date, startTime]
+         DO UPDATE SET
+            start_time = EXCLUDED.start_time,
+            end_time = EXCLUDED.end_time,
+            total_minutes = EXCLUDED.total_minutes,
+            status = EXCLUDED.status
+         RETURNING *`,
+        [id, interpreterId, date, startTime, endTime || null, totalMinutes || 0, status || 'scheduled']
     );
-    return { id, date };
+    return rows[0];
 }
 
-async function updateInterpreterShift(id: any, { endTime, totalMinutes, status }: any) {
+async function updateInterpreterShift(id: any, { interpreterId, endTime, totalMinutes, status }: any) {
     const updates = [];
     const params = [];
     let paramIdx = 1;
@@ -1588,8 +1675,20 @@ async function updateInterpreterShift(id: any, { endTime, totalMinutes, status }
 
     if (updates.length > 0) {
         params.push(id);
-        await runUpdate(`UPDATE interpreter_shifts SET ${updates.join(', ')} WHERE id = $${paramIdx}`, params);
+        const idParam = paramIdx++;
+        let where = `id = $${idParam}`;
+        if (interpreterId) {
+            params.push(interpreterId);
+            where += ` AND interpreter_id = $${paramIdx++}`;
+        }
+        const rows = await runQuery(`UPDATE interpreter_shifts SET ${updates.join(', ')} WHERE ${where} RETURNING *`, params);
+        return rows[0];
     }
+
+    const rows = interpreterId
+        ? await runQuery('SELECT * FROM interpreter_shifts WHERE id = $1 AND interpreter_id = $2', [id, interpreterId])
+        : await runQuery('SELECT * FROM interpreter_shifts WHERE id = $1', [id]);
+    return rows[0] || null;
 }
 
 // ============================================
@@ -1602,6 +1701,169 @@ async function getInterpreterEarnings(interpreterId: any, periodStart: any, peri
          WHERE interpreter_id = $1 AND period_start >= $2 AND period_end <= $3
          ORDER BY period_start DESC`,
         [interpreterId, periodStart, periodEnd]
+    );
+}
+
+async function getInterpreterAnalytics(interpreterId: any, periodStart: any, periodEnd: any) {
+    const calls = await runQuery(
+        `SELECT
+            COUNT(*) AS total_calls,
+            COALESCE(SUM(duration_minutes), 0) AS total_minutes,
+            COALESCE(AVG(duration_minutes), 0) AS avg_duration,
+            COUNT(*) FILTER (WHERE call_type = 'vrs') AS vrs_calls,
+            COUNT(*) FILTER (WHERE call_type = 'vri') AS vri_calls
+         FROM calls
+         WHERE interpreter_id = $1
+           AND started_at::date >= $2
+           AND started_at::date <= $3
+           AND status IN ('completed', 'ended')`,
+        [interpreterId, periodStart, periodEnd]
+    );
+
+    const breaks = await runQuery(
+        `SELECT
+            COUNT(*) AS break_count,
+            COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(ended_at, NOW()) - started_at)) / 60), 0) AS break_minutes
+         FROM interpreter_break_sessions
+         WHERE interpreter_id = $1
+           AND started_at::date >= $2
+           AND started_at::date <= $3`,
+        [interpreterId, periodStart, periodEnd]
+    );
+
+    const availability = await runQuery(
+        `SELECT
+            COUNT(*) AS session_count,
+            COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(ended_at, NOW()) - started_at)) / 60), 0) AS signed_on_minutes
+         FROM interpreter_availability_sessions
+         WHERE interpreter_id = $1
+           AND status IN ('available', 'active')
+           AND started_at::date >= $2
+           AND started_at::date <= $3`,
+        [interpreterId, periodStart, periodEnd]
+    );
+
+    const callRow = calls[0] || {};
+    const breakRow = breaks[0] || {};
+    const availabilityRow = availability[0] || {};
+    const totalMinutes = Number(callRow.total_minutes) || 0;
+    const signedOnMinutes = Number(availabilityRow.signed_on_minutes) || 0;
+
+    return {
+        periodStart,
+        periodEnd,
+        calls: {
+            total: Number(callRow.total_calls) || 0,
+            vrs: Number(callRow.vrs_calls) || 0,
+            vri: Number(callRow.vri_calls) || 0,
+            minutes: totalMinutes,
+            averageMinutes: Math.round(Number(callRow.avg_duration) || 0)
+        },
+        availability: {
+            sessions: Number(availabilityRow.session_count) || 0,
+            signedOnMinutes,
+            utilizationRate: signedOnMinutes > 0 ? Math.round((totalMinutes / signedOnMinutes) * 1000) / 10 : 0
+        },
+        breaks: {
+            count: Number(breakRow.break_count) || 0,
+            minutes: Math.round(Number(breakRow.break_minutes) || 0)
+        }
+    };
+}
+
+async function getInterpreterBreaks(interpreterId: any, limit: any = 20) {
+    return await runQuery(
+        `SELECT *
+         FROM interpreter_break_sessions
+         WHERE interpreter_id = $1
+         ORDER BY started_at DESC
+         LIMIT $2`,
+        [interpreterId, limit]
+    );
+}
+
+async function startInterpreterBreak({ interpreterId, breakType, reason, paid = false }: any) {
+    const id = uuidv4();
+    return await runInsert(
+        `INSERT INTO interpreter_break_sessions (id, interpreter_id, break_type, reason, paid)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING *`,
+        [id, interpreterId, breakType || 'general', reason || null, !!paid]
+    );
+}
+
+async function endInterpreterBreak({ interpreterId, breakId }: any) {
+    const rows = await runQuery(
+        `UPDATE interpreter_break_sessions
+         SET ended_at = NOW()
+         WHERE id = $1 AND interpreter_id = $2 AND ended_at IS NULL
+         RETURNING *`,
+        [breakId, interpreterId]
+    );
+    return rows[0] || null;
+}
+
+async function getInterpreterContinuityNotes(interpreterId: any, clientId: any, limit: any = 20) {
+    const params = [interpreterId];
+    let sql = `
+        SELECT n.*, c.name AS client_name
+        FROM interpreter_continuity_notes n
+        LEFT JOIN clients c ON c.id = n.client_id
+        WHERE n.interpreter_id = $1`;
+
+    if (clientId) {
+        params.push(clientId);
+        sql += ` AND n.client_id = $${params.length}`;
+    }
+
+    params.push(limit);
+    sql += ` ORDER BY n.updated_at DESC LIMIT $${params.length}`;
+
+    return await runQuery(sql, params);
+}
+
+async function createInterpreterContinuityNote({ interpreterId, clientId, callId, note, visibility, preferenceTags }: any) {
+    const id = uuidv4();
+    return await runInsert(
+        `INSERT INTO interpreter_continuity_notes
+            (id, interpreter_id, client_id, call_id, note, visibility, preference_tags)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING *`,
+        [id, interpreterId, clientId || null, callId || null, note, visibility || 'self', JSON.stringify(preferenceTags || [])]
+    );
+}
+
+async function createPostCallSurvey({ callId, respondentId, respondentRole, rating, tags, comments }: any) {
+    const id = uuidv4();
+    return await runInsert(
+        `INSERT INTO post_call_surveys (id, call_id, respondent_id, respondent_role, rating, tags, comments)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING *`,
+        [id, callId || null, respondentId, respondentRole, rating, JSON.stringify(tags || []), comments || null]
+    );
+}
+
+async function getInterpreterTeamAssignments(interpreterId: any, limit: any = 20) {
+    return await runQuery(
+        `SELECT t.*, teammate.name AS teammate_name, primary_interp.name AS primary_interpreter_name
+         FROM interpreter_team_assignments t
+         LEFT JOIN interpreters teammate ON teammate.id = t.teammate_interpreter_id
+         LEFT JOIN interpreters primary_interp ON primary_interp.id = t.primary_interpreter_id
+         WHERE t.primary_interpreter_id = $1 OR t.teammate_interpreter_id = $1
+         ORDER BY t.requested_at DESC
+         LIMIT $2`,
+        [interpreterId, limit]
+    );
+}
+
+async function requestInterpreterTeamAssignment({ interpreterId, teammateInterpreterId, callId, roomName, notes }: any) {
+    const id = uuidv4();
+    return await runInsert(
+        `INSERT INTO interpreter_team_assignments
+            (id, primary_interpreter_id, teammate_interpreter_id, call_id, room_name, requested_by, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING *`,
+        [id, interpreterId, teammateInterpreterId || null, callId || null, roomName || null, interpreterId, notes || null]
     );
 }
 
@@ -3001,6 +3263,15 @@ export {
     createInterpreterShift,
     updateInterpreterShift,
     getInterpreterEarnings,
+    getInterpreterAnalytics,
+    getInterpreterBreaks,
+    startInterpreterBreak,
+    endInterpreterBreak,
+    getInterpreterContinuityNotes,
+    createInterpreterContinuityNote,
+    createPostCallSurvey,
+    getInterpreterTeamAssignments,
+    requestInterpreterTeamAssignment,
     getClientCallHistory,
     getInterpreterCallHistory,
     getClientByPhoneNumber,

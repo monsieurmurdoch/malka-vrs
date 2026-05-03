@@ -416,6 +416,42 @@
         .status-completed .status-dot { background: var(--accent-green); }
         .status-attention .status-dot { background: var(--accent-red); }
 
+        .coverage-grid {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            padding: 20px 24px 0;
+        }
+
+        .coverage-card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 16px;
+        }
+
+        .coverage-value {
+            font-size: 28px;
+            font-weight: 800;
+            line-height: 1.1;
+        }
+
+        .coverage-label {
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            margin-top: 7px;
+            text-transform: uppercase;
+        }
+
+        .coverage-note {
+            color: var(--text-muted);
+            font-size: 12px;
+            line-height: 1.45;
+            margin-top: 8px;
+        }
+
         .ops-view-toggle {
             display: inline-flex;
             gap: 4px;
@@ -1222,6 +1258,52 @@
                         </thead>
                         <tbody id="interpretersTableBody">
                             <!-- Filled by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-header">
+                    <h2 class="section-title">📅 Scheduling & Coverage</h2>
+                    <div class="section-actions">
+                        <select class="filter-select" id="scheduleTenantFilter">
+                            <option value="">All Tenants</option>
+                            <option value="malka">Malka</option>
+                            <option value="maple">Maple</option>
+                        </select>
+                        <select class="filter-select" id="scheduleServiceFilter">
+                            <option value="">All Services</option>
+                            <option value="vrs">VRS</option>
+                            <option value="vri">VRI</option>
+                        </select>
+                        <select class="filter-select" id="scheduleLanguageFilter">
+                            <option value="">All Languages</option>
+                            <option value="ASL">ASL</option>
+                            <option value="LSQ">LSQ</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="coverage-grid" id="scheduleCoverageCards"></div>
+                <div class="table-container" style="padding-top: 20px;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Interpreter</th>
+                                <th>Service</th>
+                                <th>Languages</th>
+                                <th>Status</th>
+                                <th>Calls Today</th>
+                                <th>Minutes Week</th>
+                                <th>Coverage Note</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scheduleRosterBody">
+                            <tr>
+                                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                                    Loading scheduling view...
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>

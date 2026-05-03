@@ -130,6 +130,8 @@
 - [x] Interpreter profile page with name, email, languages, queue status, stats, and backend profile connection
 - [x] Interpreter availability toggle
 - [x] Interpreter profile structure aligned more closely with client profile, with room for role-specific tabs
+- [x] Interpreter analytics tab with calls, minutes, VRS/VRI split, break minutes, signed-on minutes, utilization rate, and live queue/event feed
+- [x] Interpreter schedule tab with target/scheduled/signed-on/remaining hours and availability/time-off save flow
 
 ### Calls, Rooms & Queue
 - [x] WebSocket-based interpreter queue
@@ -316,6 +318,7 @@
 - [x] Availability session tracking foundation: when an interpreter goes available, unavailable, on break, busy/in-call, or offline, record start/end timestamps with source and reason
 - [x] Break tracking foundation: paid/unpaid break classification, break reason, break duration, break frequency, and compliance/manager review flags
 - [x] Utilization metrics backend foundation: scheduled, signed-on, available, in-call, break, idle minutes, and utilization rate
+- [x] Admin scheduling and coverage UI first pass: roster cards/table filtered by tenant, service mode, and language with active coverage gap visibility
 - [x] Utilization/audit foundation: manager notes, schedule changes, payout batch approvals/payments, credit notes, webhook replay counts, and billing audit events
 
 
@@ -561,8 +564,11 @@
 - [ ] Interpreter profile billing tab for earnings, invoices, payout method, tax/vendor documents, and payout history
 
 ### Interpreter Scheduling & Utilization
-- [ ] Interpreter self-scheduling UI: interpreters can view required/target weekly hours, signed-on hours so far, scheduled hours remaining, and add/adjust availability to fill gaps
-- [ ] Admin scheduling UI: weekly roster by tenant, service mode, language, interpreter, coverage gaps, overstaffing, and pending interpreter schedule changes
+- [x] Interpreter self-scheduling UI: interpreters can view required/target weekly hours, signed-on hours so far, scheduled hours remaining, and add/adjust availability/time-off blocks to fill gaps
+  - 2026-05-03: Interpreter Schedule tab now saves availability/time-off windows through authenticated shift endpoints and shows target, scheduled, signed-on, and remaining weekly hours.
+- [x] Admin scheduling UI first pass: weekly roster and coverage scan by tenant, service mode, language, interpreter, and current coverage gaps
+  - 2026-05-03: Admin interpreter view now includes a Scheduling & Coverage panel with tenant/service/language filters, active coverage cards, roster status, and coverage notes.
+- [ ] Admin scheduling advanced controls: overstaffing detection by hour, manager overrides, and pending interpreter schedule change approval workflow
 - [ ] Utilization metrics expansion: queue acceptance rate, decline/no-answer rate, after-call/admin time, and SLA impact
 - [ ] Weekly utilization dashboard for interpreters: scheduled hours, signed-on hours, hands-up hours, in-call hours, breaks, remaining target hours, and earnings/payables preview
 - [ ] Weekly utilization dashboard for admin: coverage by hour, fill-rate, interpreter adherence, break patterns, productivity, queue SLA impact, and exportable payroll/accounting summary
@@ -579,7 +585,7 @@
 
 ## Mobile Apps
 
-**Target**: mobile parity by **May 31, 2026**, with an internal/TestFlight/Play pilot sooner if the core call flow is stable. The web app is the source of truth until mobile parity is explicitly checked off.
+### **Target**: mobile parity by **May 31, 2026**, with an internal/TestFlight/Play pilot sooner if the core call flow is stable. The web app is the source of truth until mobile parity is explicitly checked off.
 
 **Current mobile state**: native iOS and Android project shells exist for the current three client apps: MalkaVRS, MalkaVRI, and MapleVRI. MalkaVRI and MapleVRI share the same VRI client experience with tenant-specific branding/config. The mobile parity branch now has production-backed React Native screens for client login, VRS home, VRI console, contacts, call history, voicemail, tenant config, native storage helpers, deep-link scaffolding, QA docs, and CI typecheck wiring. Client email-password auth, client phone-password auth, SMS OTP request/verify, backend password-reset request, JWT refresh-on-401, and native cold-start route hydration are wired. Native API and queue clients resolve tenant domains instead of localhost. VRI self-view uses a native camera preview. Contacts/detail/call-history/VRI-usage/voicemail/profile/settings paths call production APIs with local cache fallback where appropriate. Android flavors and iOS simulator variants are configured for MalkaVRS, MalkaVRI, and MapleVRI; Android debug/release artifacts are 16 KB-compatible for arm64 devices; iOS simulator variants install successfully; and tenant branding now covers app ID/name, core colors, MapleVRI mobile background, share glyph, and MalkaVRI launcher artwork. Remaining release gates are physical iOS/Android media/call smoke, TestFlight/Play release lanes, crash-reporting vendor setup, push/background call-style notifications, final store privacy checks, and native hardware-backed secure-storage dependency linkage if final release requires it.
 
@@ -665,18 +671,39 @@ All completed client mobile parity items have been moved to Completed Work. Rema
 - [ ] Keep Maple whitelabel routing aesthetically and operationally isolated from Malka product domains
 
 ### Interpreter Tools
-- [ ] Real-time interpreter analytics
-- [ ] Interpreter scheduling and shift management
-- [ ] Interpreter teaming
+- [x] Interpreter tools backend foundation: tables and interpreter-authenticated endpoints for analytics, breaks, continuity notes, teaming requests, and post-call surveys
+  - 2026-05-02: Added interpreter operations tables and `/api/interpreter/*` endpoints for analytics, break start/end/list, continuity notes, post-call survey submission, and teaming request/list. UI and admin workflows remain open below.
+- [x] Real-time interpreter analytics UI
+  - Show calls, minutes, VRS/VRI split, break minutes, signed-on minutes, utilization rate, and near-real-time queue/event changes.
+- [x] Interpreter scheduling and shift management UI
+  - Interpreter self-scheduling: target hours, scheduled hours, signed-on hours, remaining hours, availability windows, time-off/unavailable blocks.
+  - Admin scheduling: weekly roster, coverage gaps, service mode/language filters, manager overrides, pending schedule changes.
+  - 2026-05-03: First-pass UI is live in interpreter profile and admin dashboard. Manager overrides and pending schedule-change approvals remain tracked in Interpreter Scheduling & Utilization.
+- [ ] Interpreter teaming workflow
+  - Request second interpreter, accept/decline teaming request, join active room, track primary/secondary interpreter roles, and close team assignment when the call ends.
 - [ ] Interpreter notes/preferences for continuity
-- [ ] Interpreter break management
-- [ ] Post-call survey
+  - Continuity notes scoped by client/call with visibility levels (`self`, `team`, `admin`), preference tags, audit trail, and privacy policy.
+- [ ] Interpreter break management UI
+  - Start/end break, paid/unpaid classification, break reason, admin visibility, queue exclusion while on break, and utilization/payroll impact.
+- [ ] Post-call survey UI
+  - Interpreter and client survey prompts after supported calls, lightweight rating/tags/comments, and admin review/export.
 - [ ] Interpreter performance dashboard
+  - Acceptance rate, decline/no-answer rate, wait-time impact, in-call minutes, utilization, survey trends, teaming participation, notes/admin follow-up, and payout context.
 
 ### AI & Accessibility
 - [ ] Create a distinct Malka-side **ASL to English** portal for experimental automated ASL-to-English and English-to-ASL interpretation testing
 - [ ] Keep ASL-to-English AI portal visually and operationally distinct from MalkaVRS/MalkaVRI until it is accurate, safe, consented, and legally cleared for integration
 - [ ] ASL recognition research/prototype with video dataset strategy, consent model, evaluation set, and human review loop
+- [ ] ASL data flywheel architecture: turn consented video calls into training examples while discarding raw recordings
+  - Consent gate: explicit opt-in by eligible participants, tenant/client policy controls, interpreter visibility, and per-call revocation path.
+  - Capture boundary: only approved calls enter a temporary secure processing queue; ordinary production VRS/VRI calls are not retained by default.
+  - Ephemeral processing: extract derived data such as pose/keypoints, signer/camera metadata, aligned gloss/English text, timing, quality labels, and anonymized evaluation features.
+  - Human review: certified/human reviewers validate or correct derived labels/translations before anything becomes training data.
+  - Retention rule: raw call media is deleted after successful feature extraction/review window or immediately on opt-out/delete request.
+  - Dataset registry: immutable metadata for consent, provenance, reviewer, deletion proof, model-training eligibility, and dataset version.
+  - Training pipeline: versioned train/validation/test splits, signer-diversity controls, domain vocabulary tagging, bias/robustness checks, and model-card output.
+  - Security boundary: encryption in transit/at rest, strict access logs, no public buckets, no raw-video export to model vendors unless separately consented and contracted.
+  - Product gate: no production routing, billing, or compliance dependency until legal, privacy, quality, and fallback-to-human thresholds are met.
 - [ ] English-to-ASL generation/reconstruction prototype with clear labeling that output is experimental and not certified interpretation
 - [ ] AI interpretation evaluation framework: accuracy, latency, hallucination/error taxonomy, signer diversity, lighting/camera robustness, domain vocabulary, and fallback-to-human thresholds
 - [ ] Privacy/security plan for AI video experiments: explicit consent, non-production data boundary, retention rules, redaction/de-identification, and opt-out/delete workflows

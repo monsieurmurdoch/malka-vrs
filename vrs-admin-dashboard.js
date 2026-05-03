@@ -182,6 +182,9 @@ function setupEventListeners() {
     document.getElementById('activityServiceFilter')?.addEventListener('change', loadActivityFeed);
     document.getElementById('activityRoleFilter')?.addEventListener('change', loadActivityFeed);
     document.getElementById('exportAuditBtn')?.addEventListener('click', exportAuditCsv);
+    document.getElementById('scheduleTenantFilter')?.addEventListener('change', renderAdminScheduling);
+    document.getElementById('scheduleServiceFilter')?.addEventListener('change', renderAdminScheduling);
+    document.getElementById('scheduleLanguageFilter')?.addEventListener('change', renderAdminScheduling);
 
     // Queue pause button
     document.getElementById('pauseQueueBtn')?.addEventListener('click', toggleQueue);
@@ -1415,6 +1418,7 @@ async function loadInterpreters() {
     try {
         allInterpreters = await apiCall('/admin/interpreters');
         renderInterpretersTable(allInterpreters);
+        renderAdminScheduling();
     } catch (error) {
         console.error('[Interpreters] Error:', error);
     }
@@ -1484,6 +1488,107 @@ function formatLastActive(interp) {
 
 async function filterInterpreters() {
     renderInterpretersTable(getVisibleInterpreters());
+    renderAdminScheduling();
+}
+
+function getScheduleFilteredInterpreters() {
+    const tenantFilter = document.getElementById('scheduleTenantFilter')?.value || '';
+    const serviceFilter = document.getElementById('scheduleServiceFilter')?.value || '';
+    const languageFilter = document.getElementById('scheduleLanguageFilter')?.value || '';
+
+    return allInterpreters.filter(interp => {
+        const tenant = String(interp.tenant_id || interp.tenant || '').toLowerCase();
+        const services = parseServiceModes(interp.service_modes);
+        const languages = Array.isArray(interp.languages) ? interp.languages : String(interp.languages || '').split(',').map(value => value.trim());
+
+        if (tenantFilter && tenant && tenant !== tenantFilter) return false;
+        if (serviceFilter && !services.includes(serviceFilter)) return false;
+        if (languageFilter && !languages.map(String).map(value => value.toUpperCase()).includes(languageFilter.toUpperCase())) return false;
+        return true;
+    });
+}
+
+function renderAdminScheduling() {
+    const roster = getScheduleFilteredInterpreters();
+    const cards = document.getElementById('scheduleCoverageCards');
+    const tbody = document.getElementById('scheduleRosterBody');
+    if (!cards || !tbody) return;
+
+    const activeCount = roster.filter(interp => ['available', 'assigned', 'in-call'].includes(deriveInterpreterStatus(interp, new Map()))).length;
+    const vrsCount = roster.filter(interp => parseServiceModes(interp.service_modes).includes('vrs')).length;
+    const vriCount = roster.filter(interp => parseServiceModes(interp.service_modes).includes('vri')).length;
+    const totalMinutes = roster.reduce((sum, interp) => sum + Number(interp.minutes_week || 0), 0);
+    const serviceFilter = document.getElementById('scheduleServiceFilter')?.value || '';
+    const languageFilter = document.getElementById('scheduleLanguageFilter')?.value || '';
+    const selectedCoverage = roster.filter(interp => {
+        const status = deriveInterpreterStatus(interp, new Map());
+        return ['available', 'assigned', 'in-call'].includes(status);
+    }).length;
+    const gapLabel = selectedCoverage > 0 ? 'Covered' : 'Gap';
+
+    cards.innerHTML = `
+        <div class="coverage-card">
+            <div class="coverage-value">${activeCount}</div>
+            <div class="coverage-label">Active Now</div>
+            <div class="coverage-note">Available, assigned, or in-call interpreters matching these filters.</div>
+        </div>
+        <div class="coverage-card">
+            <div class="coverage-value">${vrsCount} / ${vriCount}</div>
+            <div class="coverage-label">VRS / VRI Pool</div>
+            <div class="coverage-note">Eligible roster count by service mode.</div>
+        </div>
+        <div class="coverage-card">
+            <div class="coverage-value">${Math.round(totalMinutes)}</div>
+            <div class="coverage-label">Minutes Week</div>
+            <div class="coverage-note">Interpreter signed-on/call minutes currently reported by roster.</div>
+        </div>
+        <div class="coverage-card">
+            <div class="coverage-value">${gapLabel}</div>
+            <div class="coverage-label">Coverage</div>
+            <div class="coverage-note">${serviceFilter || languageFilter ? 'For the selected service/language filters.' : 'Select service and language to inspect gaps.'}</div>
+        </div>
+    `;
+
+    if (!roster.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    No interpreters match the scheduling filters.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = roster.map(interp => {
+        const status = deriveInterpreterStatus(interp, new Map());
+        const services = formatServiceModes(interp.service_modes);
+        const languages = Array.isArray(interp.languages) ? interp.languages.join(', ') : (interp.languages || 'ASL');
+        const note = status === 'available'
+            ? 'Ready for assignment'
+            : status === 'offline'
+                ? 'Not available for coverage'
+                : status === 'break'
+                    ? 'On break, excluded from queue'
+                    : 'System-driven active state';
+
+        return `
+            <tr>
+                <td><div style="font-weight: 500;">${interp.name || 'Interpreter'}</div><div style="color: var(--text-muted); font-size: 12px;">${interp.email || ''}</div></td>
+                <td>${services}</td>
+                <td>${languages}</td>
+                <td>
+                    <span class="status-badge ${getStatusClass(status)}">
+                        <span class="status-dot"></span>
+                        ${formatStatusLabel(status)}
+                    </span>
+                </td>
+                <td>${interp.calls_today || 0}</td>
+                <td>${interp.minutes_week || 0}</td>
+                <td class="ops-info">${note}</td>
+            </tr>
+        `;
+    }).join('');
 }
 
 function showAddInterpreterModal() {

@@ -329,7 +329,7 @@
             border: 1px solid rgba(255,255,255,0.08);
             border-radius: 10px;
             display: grid;
-            grid-template-columns: repeat(5, minmax(0, 1fr));
+            grid-template-columns: repeat(6, minmax(0, 1fr));
             overflow: hidden;
         }
 
@@ -470,6 +470,110 @@
         .shift-status {
             font-size: 12px;
             opacity: 0.5;
+        }
+
+        .metric-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            margin-bottom: 18px;
+        }
+
+        .metric-card {
+            background: rgba(255,255,255,0.045);
+            border: 1px solid rgba(255,255,255,0.075);
+            border-radius: 10px;
+            padding: 14px;
+        }
+
+        .metric-value {
+            color: #7eb8da;
+            font-size: 24px;
+            font-weight: 800;
+            line-height: 1.15;
+        }
+
+        .metric-label {
+            color: rgba(255,255,255,0.56);
+            font-size: 11px;
+            font-weight: 750;
+            letter-spacing: 0.05em;
+            margin-top: 5px;
+            text-transform: uppercase;
+        }
+
+        .analytics-feed {
+            display: grid;
+            gap: 9px;
+            max-height: 280px;
+            overflow: auto;
+        }
+
+        .analytics-event {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 9px;
+            display: flex;
+            gap: 10px;
+            justify-content: space-between;
+            padding: 10px 12px;
+        }
+
+        .analytics-event-title {
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.3;
+        }
+
+        .analytics-event-meta {
+            color: rgba(255,255,255,0.52);
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .schedule-form {
+            display: grid;
+            gap: 12px;
+        }
+
+        .schedule-form-grid {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .schedule-field {
+            display: grid;
+            gap: 6px;
+        }
+
+        .schedule-field label {
+            color: rgba(255,255,255,0.62);
+            font-size: 12px;
+            font-weight: 750;
+            text-transform: uppercase;
+        }
+
+        .schedule-input {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.16);
+            border-radius: 8px;
+            color: inherit;
+            font: inherit;
+            min-height: 40px;
+            padding: 9px 10px;
+        }
+
+        .schedule-input option {
+            background: #fff;
+            color: #111827;
+        }
+
+        .schedule-summary {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            margin-bottom: 18px;
         }
 
         /* Earnings */
@@ -1109,6 +1213,11 @@
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
 
+            .metric-grid,
+            .schedule-summary {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
             .profile-tabs {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
@@ -1156,6 +1265,12 @@
             .call-item {
                 align-items: stretch;
                 flex-direction: column;
+            }
+
+            .metric-grid,
+            .schedule-form-grid,
+            .schedule-summary {
+                grid-template-columns: 1fr;
             }
 
             .service-chip-row {
@@ -1299,9 +1414,12 @@
         let state = {
             profile: null,
             stats: null,
+            analytics: null,
+            breaks: [],
             shifts: [],
             earnings: [],
             calls: [],
+            queueEvents: [],
             activeTab: getPersistentItem('vrs_interpreter_active_tab') || 'assignments',
             mediaPreview: {
                 enabled: getPersistentItem('vrs_interpreter_self_preview_enabled') === 'true',
@@ -1316,6 +1434,8 @@
             },
             settingsStatus: null,
             passwordStatus: null,
+            scheduleStatus: null,
+            breakStatus: null,
             // Queue state
             available: false,
             wsConnected: false,
@@ -1632,10 +1752,19 @@
             }
         }
 
+        function pushQueueEvent(title, detail) {
+            state.queueEvents = [{
+                title,
+                detail: detail || '',
+                at: new Date().toISOString()
+            }].concat(state.queueEvents || []).slice(0, 12);
+        }
+
         function handleWsMessage(msg) {
             console.log('[WS] Received:', msg.type, msg);
             switch (msg.type) {
                 case 'auth_success':
+                    pushQueueEvent('Queue connection ready', 'Authenticated to interpreter queue.');
                     // If we were already available before reconnect, re-announce.
                     if (state.available) {
                         wsSend({ type: 'interpreter_status', data: { status: 'available' } });
@@ -1645,6 +1774,7 @@
                 case 'status_updated': {
                     const status = (msg.status || msg.data?.status || '').toLowerCase();
                     state.available = ['online', 'available', 'active'].includes(status);
+                    pushQueueEvent(state.available ? 'Available for matching' : 'Unavailable', `Queue status changed to ${status || 'unknown'}.`);
                     render();
                     break;
                 }
@@ -1655,6 +1785,7 @@
                         state.pendingRequest = msg.data;
                         state.requestActionPending = null;
                         state.queueNotice = null;
+                        pushQueueEvent('Incoming request', `${msg.data?.clientName || 'Client'} requested ${msg.data?.callType || 'VRS/VRI'} support.`);
                         renderAcceptOverlay();
                     }
                     break;
@@ -1663,6 +1794,7 @@
                 case 'meeting_initiated':
                     // Server confirmed; navigate to the shared room.
                     if (msg.data && msg.data.roomName) {
+                        pushQueueEvent('Match accepted', `Room ${msg.data.roomName} is opening.`);
                         clearTimeout(wsReconnectTimer);
                         persistActiveCall(msg.data);
                         setPersistentItem('vrs_user_role', 'interpreter');
@@ -1786,6 +1918,9 @@
                 case 'select-camera-device': return selectCameraDevice(element.value);
                 case 'select-mic-device': return selectMicDevice(element.value);
                 case 'preview-theme': return window.__previewInterpreterTheme(element.value);
+                case 'save-shift': return window.__saveInterpreterShift();
+                case 'start-break': return window.__startInterpreterBreak();
+                case 'end-break': return window.__endInterpreterBreak();
                 default:
                     return;
             }
@@ -1900,6 +2035,7 @@
         function renderTabs() {
             const tabs = [
                 ['assignments', 'Assignments'],
+                ['analytics', 'Analytics'],
                 ['schedule', 'Schedule'],
                 ['billing', 'Billing'],
                 ['history', 'History'],
@@ -1929,6 +2065,30 @@
             `).join('');
         }
 
+        function formatHoursFromMinutes(minutes) {
+            return (Number(minutes || 0) / 60).toFixed(1);
+        }
+
+        function formatPercent(value) {
+            return `${Math.round(Number(value || 0))}%`;
+        }
+
+        function minutesBetweenTimes(start, end) {
+            if (!start || !end) return 0;
+            const [startHour, startMinute] = String(start).split(':').map(Number);
+            const [endHour, endMinute] = String(end).split(':').map(Number);
+            if ([startHour, startMinute, endHour, endMinute].some(Number.isNaN)) return 0;
+            return Math.max(0, (endHour * 60 + endMinute) - (startHour * 60 + startMinute));
+        }
+
+        function minutesBetweenDates(start, end) {
+            if (!start || !end) return 0;
+            const startDate = new Date(start);
+            const endDate = new Date(end);
+            if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return 0;
+            return Math.max(0, Math.round((endDate - startDate) / 60000));
+        }
+
         function render() {
             const user = getUser();
             if (!user || user.role !== 'interpreter') {
@@ -1938,6 +2098,14 @@
             }
 
             const stats = state.stats || { totalCalls: 0, totalMinutes: 0, avgDuration: 0, totalEarnings: 0 };
+            const analytics = state.analytics?.analytics || state.analytics || {};
+            const totals = analytics.totals || {};
+            const modeSplit = analytics.serviceModeSplit || {};
+            const analyticsCalls = Number(totals.calls ?? analytics.calls?.total ?? stats.totalCalls ?? 0);
+            const analyticsMinutes = Number(totals.minutes ?? analytics.calls?.minutes ?? stats.totalMinutes ?? 0);
+            const breakMinutes = Number(totals.breakMinutes ?? analytics.breaks?.minutes ?? 0);
+            const signedOnMinutes = Number(totals.signedOnMinutes ?? analytics.availability?.signedOnMinutes ?? analyticsMinutes + breakMinutes);
+            const utilizationRate = Number(totals.utilizationRate ?? analytics.availability?.utilizationRate ?? (signedOnMinutes > 0 ? (analyticsMinutes / signedOnMinutes) * 100 : 0));
             const profile = state.profile || user;
             const selectedTheme = getPersistentItem('vrs_interpreter_theme') || 'system';
             const preferences = getInterpreterPreferences();
@@ -1985,6 +2153,16 @@
                 </div>
             `).join('');
 
+            const scheduledWeekMinutes = (state.shifts || []).reduce((sum, shift) => {
+                const status = String(shift.status || '').toLowerCase();
+                if (status === 'unavailable' || status === 'time-off' || status === 'cancelled') return sum;
+                return sum + Number(shift.total_minutes || minutesBetweenTimes(shift.start_time, shift.end_time));
+            }, 0);
+            const targetWeekMinutes = 40 * 60;
+            const remainingWeekMinutes = Math.max(0, targetWeekMinutes - scheduledWeekMinutes);
+            const todayStr = today.toISOString().split('T')[0];
+            const feedEvents = (state.queueEvents || []).slice(0, 8);
+
             const earningsHTML = earnings.map(e => `
                 <div class="earnings-item">
                     <span class="earnings-range">${escapeHtml(e.period_start)} to ${escapeHtml(e.period_end)}</span>
@@ -2027,11 +2205,118 @@
                 </div>
             `;
 
+            const analyticsPanel = `
+                <div class="metric-grid">
+                    <div class="metric-card">
+                        <div class="metric-value">${analyticsCalls}</div>
+                        <div class="metric-label">Calls</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${formatHoursFromMinutes(analyticsMinutes)}h</div>
+                        <div class="metric-label">Call Minutes</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${formatPercent(utilizationRate)}</div>
+                        <div class="metric-label">Utilization</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${Number(modeSplit.vrs?.calls ?? analytics.calls?.vrs ?? 0)} / ${Number(modeSplit.vri?.calls ?? analytics.calls?.vri ?? 0)}</div>
+                        <div class="metric-label">VRS / VRI Split</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${formatHoursFromMinutes(breakMinutes)}h</div>
+                        <div class="metric-label">Break Time</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${formatHoursFromMinutes(signedOnMinutes)}h</div>
+                        <div class="metric-label">Signed On</div>
+                    </div>
+                </div>
+                <div class="tab-grid">
+                    <div>
+                        <div class="card-title">Queue & Call Events</div>
+                        <div class="analytics-feed">
+                            ${feedEvents.length ? feedEvents.map(event => `
+                                <div class="analytics-event">
+                                    <div>
+                                        <div class="analytics-event-title">${escapeHtml(event.title)}</div>
+                                        <div class="call-meta">${escapeHtml(event.detail || '')}</div>
+                                    </div>
+                                    <div class="analytics-event-meta">${formatDateTime(event.at)}</div>
+                                </div>
+                            `).join('') : '<div class="empty-state">Queue events will appear here as they happen.</div>'}
+                        </div>
+                    </div>
+                    <div>
+                        <div class="card-title">Break Management</div>
+                        <div class="assignment-copy">Use breaks when you are signed in but not available for calls. Break time is tracked separately from active interpreting minutes.</div>
+                        <div class="settings-actions">
+                            <button class="settings-btn secondary" data-action="start-break">Start Break</button>
+                            <button class="settings-btn secondary" data-action="end-break">End Latest Break</button>
+                        </div>
+                        ${state.breakStatus ? `<div class="settings-status ${state.breakStatus.type}">${escapeHtml(state.breakStatus.message)}</div>` : ''}
+                        <div style="height:12px"></div>
+                        ${(state.breaks || []).slice(0, 4).map(item => `
+                            <div class="shift-item">
+                                <span class="shift-date">${formatDateTime(item.started_at)}</span>
+                                <span class="shift-hours">${item.ended_at ? formatHoursFromMinutes(item.duration_minutes ?? minutesBetweenDates(item.started_at, item.ended_at)) + 'h' : 'active'}</span>
+                                <span class="shift-status">${escapeHtml(item.break_type || 'break')}</span>
+                            </div>
+                        `).join('') || '<div class="empty-state">No recent breaks</div>'}
+                    </div>
+                </div>
+            `;
+
             const schedulePanel = `
+                <div class="schedule-summary">
+                    <div class="metric-card">
+                        <div class="metric-value">40.0h</div>
+                        <div class="metric-label">Target</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${formatHoursFromMinutes(scheduledWeekMinutes)}h</div>
+                        <div class="metric-label">Scheduled</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${formatHoursFromMinutes(signedOnMinutes)}h</div>
+                        <div class="metric-label">Signed On</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">${formatHoursFromMinutes(remainingWeekMinutes)}h</div>
+                        <div class="metric-label">Remaining</div>
+                    </div>
+                </div>
                 <div class="tab-grid">
                     <div>
                         <div class="card-title">Week</div>
                         ${scheduleHTML}
+                        <div class="schedule-form">
+                            <div class="card-title">Add Availability</div>
+                            <div class="schedule-form-grid">
+                                <div class="schedule-field">
+                                    <label for="shift-date">Date</label>
+                                    <input class="schedule-input" id="shift-date" type="date" value="${todayStr}">
+                                </div>
+                                <div class="schedule-field">
+                                    <label for="shift-status">Status</label>
+                                    <select class="schedule-input" id="shift-status">
+                                        <option value="scheduled">Available</option>
+                                        <option value="unavailable">Unavailable</option>
+                                        <option value="time-off">Time off</option>
+                                    </select>
+                                </div>
+                                <div class="schedule-field">
+                                    <label for="shift-start">Start</label>
+                                    <input class="schedule-input" id="shift-start" type="time" value="09:00">
+                                </div>
+                                <div class="schedule-field">
+                                    <label for="shift-end">End</label>
+                                    <input class="schedule-input" id="shift-end" type="time" value="17:00">
+                                </div>
+                            </div>
+                            <button class="settings-btn" data-action="save-shift">Save Availability</button>
+                            ${state.scheduleStatus ? `<div class="settings-status ${state.scheduleStatus.type}">${escapeHtml(state.scheduleStatus.message)}</div>` : ''}
+                        </div>
                     </div>
                     <div>
                         <div class="card-title">Recent Shifts</div>
@@ -2130,6 +2415,7 @@
 
             const panelByTab = {
                 assignments: assignmentsPanel,
+                analytics: analyticsPanel,
                 schedule: schedulePanel,
                 billing: billingPanel,
                 history: historyPanel,
@@ -2242,7 +2528,7 @@
         };
 
         window.__setInterpreterTab = function(tab) {
-            const allowed = ['assignments', 'schedule', 'billing', 'history', 'settings'];
+            const allowed = ['assignments', 'analytics', 'schedule', 'billing', 'history', 'settings'];
             state.activeTab = allowed.includes(tab) ? tab : 'assignments';
             setPersistentItem('vrs_interpreter_active_tab', state.activeTab);
             render();
@@ -2314,6 +2600,61 @@
             render();
         };
 
+        window.__saveInterpreterShift = async function() {
+            state.scheduleStatus = null;
+            try {
+                const date = document.getElementById('shift-date')?.value || '';
+                const startTime = document.getElementById('shift-start')?.value || '';
+                const endTime = document.getElementById('shift-end')?.value || '';
+                const status = document.getElementById('shift-status')?.value || 'scheduled';
+                const totalMinutes = minutesBetweenTimes(startTime, endTime);
+                await submitJson('/api/interpreter/shifts', 'POST', {
+                    date,
+                    startTime,
+                    endTime,
+                    status,
+                    totalMinutes
+                });
+                await loadShifts();
+                state.scheduleStatus = { type: 'success', message: 'Availability saved.' };
+            } catch (error) {
+                state.scheduleStatus = { type: 'error', message: error.message };
+            }
+            render();
+        };
+
+        window.__startInterpreterBreak = async function() {
+            state.breakStatus = null;
+            try {
+                await submitJson('/api/interpreter/breaks/start', 'POST', { breakType: 'general', paid: false });
+                await loadBreaks();
+                await loadAnalytics();
+                state.breakStatus = { type: 'success', message: 'Break started.' };
+            } catch (error) {
+                state.breakStatus = { type: 'error', message: error.message };
+            }
+            render();
+        };
+
+        window.__endInterpreterBreak = async function() {
+            state.breakStatus = null;
+            const activeBreak = (state.breaks || []).find(item => !item.ended_at);
+            if (!activeBreak) {
+                state.breakStatus = { type: 'error', message: 'No active break found.' };
+                render();
+                return;
+            }
+            try {
+                await submitJson(`/api/interpreter/breaks/${encodeURIComponent(activeBreak.id)}/end`, 'POST', {});
+                await loadBreaks();
+                await loadAnalytics();
+                state.breakStatus = { type: 'success', message: 'Break ended.' };
+            } catch (error) {
+                state.breakStatus = { type: 'error', message: error.message };
+            }
+            render();
+        };
+
         /** Accept the pending client request and navigate to the assigned room. */
         window.__acceptRequest = function() {
             if (!state.pendingRequest || state.requestActionPending) return;
@@ -2356,6 +2697,16 @@
             if (data) state.stats = data;
         }
 
+        async function loadAnalytics() {
+            const data = await apiFetch('/api/interpreter/analytics');
+            if (data) state.analytics = data.analytics || data;
+        }
+
+        async function loadBreaks() {
+            const data = await apiFetch('/api/interpreter/breaks?limit=10');
+            if (data && data.breaks) state.breaks = data.breaks;
+        }
+
         async function loadShifts() {
             const data = await apiFetch('/api/interpreter/shifts');
             if (data && data.shifts) state.shifts = data.shifts;
@@ -2385,7 +2736,7 @@
             connectWS();
             await refreshMediaDevices();
             render();
-            await Promise.all([loadProfile(), loadStats(), loadShifts(), loadEarnings(), loadCallHistory()]);
+            await Promise.all([loadProfile(), loadStats(), loadAnalytics(), loadBreaks(), loadShifts(), loadEarnings(), loadCallHistory()]);
             render();
             if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
                 navigator.mediaDevices.addEventListener('devicechange', async () => {
