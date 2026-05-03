@@ -171,6 +171,11 @@ type State = {
  */
 class Conference extends AbstractConference<IProps, State> {
     /**
+     * Subscription for Android hardware back handling.
+     */
+    _backHandlerSubscription?: { remove: Function; };
+
+    /**
      * Timeout ref.
      */
     _expandedLabelTimeout: any;
@@ -211,7 +216,7 @@ class Conference extends AbstractConference<IProps, State> {
             navigation
         } = this.props;
 
-        BackHandler.addEventListener('hardwareBackPress', this._onHardwareBackPress);
+        this._backHandlerSubscription = BackHandler.addEventListener('hardwareBackPress', this._onHardwareBackPress);
 
         if (_audioOnlyEnabled && _startCarMode) {
             navigation.navigate(screen.conference.carmode);
@@ -253,7 +258,7 @@ class Conference extends AbstractConference<IProps, State> {
      */
     componentWillUnmount() {
         // Tear handling any hardware button presses for back navigation down.
-        BackHandler.removeEventListener('hardwareBackPress', this._onHardwareBackPress);
+        this._backHandlerSubscription?.remove();
 
         clearTimeout(this._expandedLabelTimeout.current ?? 0);
     }

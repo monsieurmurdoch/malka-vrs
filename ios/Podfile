@@ -5,7 +5,9 @@ require Pod::Executable.execute_command('node', ['-p',
     {paths: [process.argv[1]]},
   )', __dir__]).strip
 
-platform :ios, '13.4'
+ENV['RCT_NEW_ARCH_ENABLED'] = '0'
+
+platform :ios, '15.1'
 workspace 'jitsi-meet'
 
 install! 'cocoapods', :deterministic_uuids => false
@@ -30,6 +32,7 @@ target 'JitsiMeetSDK' do
     :path => config[:reactNativePath],
     :hermes_enabled => false,
     :fabric_enabled => false,
+    :new_arch_enabled => false,
     # An absolute path to your application root.
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
@@ -63,6 +66,7 @@ target 'JitsiMeetSDKLite' do
       :path => config[:reactNativePath],
       :hermes_enabled => false,
       :fabric_enabled => false,
+      :new_arch_enabled => false,
       # An absolute path to your application root.
       :app_path => "#{Pod::Config.instance.installation_root}/.."
     )
@@ -79,7 +83,7 @@ post_install do |installer|
     use_native_modules![:reactNativePath],
     :mac_catalyst_enabled => false
   )
-  __apply_Xcode_12_5_M1_post_install_workaround(installer)
+  __apply_Xcode_12_5_M1_post_install_workaround(installer) if defined?(__apply_Xcode_12_5_M1_post_install_workaround)
   installer.pods_project.targets.each do |target|
     # https://github.com/CocoaPods/CocoaPods/issues/11402
     if target.respond_to?(:product_type) and target.product_type == "com.apple.product-type.bundle"
@@ -89,8 +93,24 @@ post_install do |installer|
     end
     target.build_configurations.each do |config|
       config.build_settings['SUPPORTS_MACCATALYST'] = 'NO'
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.4'
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'
       config.build_settings['OTHER_SWIFT_FLAGS'] = '$(inherited) -no-verify-emitted-module-interface'
+
+      if target.name == 'fmt'
+        config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
+        definitions = config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] || ['$(inherited)']
+        definitions = definitions.split(' ') if definitions.is_a?(String)
+        definitions << 'FMT_USE_CONSTEVAL=0' unless definitions.include?('FMT_USE_CONSTEVAL=0')
+        definitions << 'FMT_USE_NONTYPE_TEMPLATE_ARGS=0' unless definitions.include?('FMT_USE_NONTYPE_TEMPLATE_ARGS=0')
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] = definitions
+      end
+
+      if target.name == 'RCT-Folly'
+        definitions = config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] || ['$(inherited)']
+        definitions = definitions.split(' ') if definitions.is_a?(String)
+        definitions << 'FOLLY_CFG_NO_COROUTINES=1' unless definitions.include?('FOLLY_CFG_NO_COROUTINES=1')
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] = definitions
+      end
     end
   end
 end

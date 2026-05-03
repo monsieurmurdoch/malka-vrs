@@ -181,7 +181,7 @@ export class App extends AbstractApp<IProps> {
      */
     _createMainElement(component: ComponentType<any>, props: Object) {
         return (
-            <SafeAreaProvider>
+            <SafeAreaProvider style = { styles.appRoot }>
                 <DimensionsDetector
                     onDimensionsChanged = { this._onDimensionsChanged }
                     onSafeAreaInsetsChanged = { this._onSafeAreaInsetsChanged }>
@@ -279,6 +279,12 @@ export class App extends AbstractApp<IProps> {
         );
     }
 }
+
+const styles = StyleSheet.create({
+    appRoot: {
+        flex: 1
+    }
+});
 
 /**
  * Handles a (possibly unhandled) JavaScript error by preventing React Native

@@ -123,8 +123,14 @@ static NSURL *serverRootWithHost(NSString *host) {
     }
 #endif
 
-    return [[NSBundle bundleForClass:self.class] URLForResource:@"main"
-                                                  withExtension:@"jsbundle"];
+    NSURL *frameworkBundleURL = [[NSBundle bundleForClass:self.class] URLForResource:@"main"
+                                                                       withExtension:@"jsbundle"];
+    if (frameworkBundleURL != nil) {
+        return frameworkBundleURL;
+    }
+
+    return [[NSBundle mainBundle] URLForResource:@"main"
+                                   withExtension:@"jsbundle"];
 }
 
 @end
