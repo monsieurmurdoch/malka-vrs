@@ -17,7 +17,7 @@ Route-by-route API/UI parity status between web and mobile surfaces.
 
 | Feature | API Endpoint | Web | Mobile | Status |
 |---------|-------------|-----|--------|--------|
-| Email/password login | `POST /api/auth/client/login`, `POST /api/auth/interpreter/login` | Yes | Real endpoint auth wired for client/interpreter roles | Done |
+| Email/password login | `POST /api/auth/client/login` | Yes | Real client endpoint auth wired for MalkaVRS, MalkaVRI, and MapleVRI | Done |
 | Phone password login | `POST /api/auth/client/phone-login` | Yes | Yes | Done |
 | SMS OTP login | `POST /api/auth/otp/request`, `POST /api/auth/otp/verify` | Yes | Yes | Done |
 | Password reset request | `POST /api/auth/password/forgot` | Yes | Yes | Done |
@@ -25,7 +25,6 @@ Route-by-route API/UI parity status between web and mobile surfaces.
 | JWT expiry detection | N/A (client logic) | Yes | Async native hydration before launch routing + expiry clear | Done |
 | Role-based routing | N/A (client logic) | Yes | Yes | Done |
 | Logout/session clear | N/A (client logic) | Yes | Yes | Done |
-| Role selector (Client/Interpreter) | N/A | Yes | Yes | Done |
 | Token expiry auto-redirect | N/A (client logic) | Yes | Clears expired sessions after native hydration | Done |
 
 ## Client VRS Screens
@@ -48,34 +47,27 @@ Route-by-route API/UI parity status between web and mobile surfaces.
 
 | Screen | Route Name | Web | Mobile | API Status |
 |--------|-----------|-----|--------|------------|
-| VRI Console | `vri.console` | Yes | Yes, including native camera self-view preview | Queue WebSocket + media |
+| VRI Console | `vri.console` | Yes | Yes, including native camera self-view preview, pre-match invite preparation/share, and tenant accent theming | Queue WebSocket + media |
 | VRI Settings | `vri.settings` | Yes | Yes | API preferences + local cache |
 | VRI Usage | `vri.usage` | Yes | Yes | API usage + corporate billing summary hook + local cache |
 
-## Interpreter Screens
+## Interpreter / Captioner Native Scope
 
-| Screen | Route Name | Web | Mobile | API Status |
-|--------|-----------|-----|--------|------------|
-| Interpreter Home | `interpreter.home` | Yes | Yes | Profile API + Queue WebSocket |
-| Interpreter Settings | `interpreter.settings` | Yes | Yes | Profile API + local captioning cache |
-| Interpreter Earnings | `interpreter.earnings` | Partial | Yes | API earnings/stats + local cache |
-| Availability toggle | Queue WebSocket | Yes | Yes | WebSocket |
-| Accept/Decline request | Queue WebSocket | Yes | Yes | WebSocket |
-| Incoming request vibration | N/A | N/A | Yes | N/A |
-| End call | Queue WebSocket | Yes | Yes | WebSocket |
+Interpreter and captioner native apps are intentionally out of scope for the current mobile stage. The active app targets are MalkaVRS, MalkaVRI, and MapleVRI. Interpreter/captioner workflows remain web/admin operational surfaces until the three client apps are production-stable.
 
 ## Queue & Call Lifecycle
 
 | Event | WebSocket Message | Web | Mobile | Notes |
 |-------|-------------------|-----|--------|-------|
 | Request interpreter | `requestInterpreter` | Yes | Yes | Client-initiated |
+| Prepare VRI invite | `prepare_vri_invite` | Yes | Yes | Mobile persists invite tokens and attaches them to the VRI queue request |
 | Queue position update | `requestQueued` | Yes | Yes | Server push |
 | Interpreter match | `matchFound` | Yes | Yes | Auto-enters room |
 | Meeting initiated | `meetingInitiated` | Yes | Yes | Fallback match event |
 | Cancel request | `cancelRequest` | Yes | Yes | Client-initiated |
-| Interpreter request received | `interpreterRequest` | Yes | Yes | Interpreter-side |
-| Accept request | `acceptRequest` | Yes | Yes | Interpreter-initiated |
-| Decline request | `declineRequest` | Yes | Yes | Interpreter-initiated |
+| Interpreter request received | `interpreterRequest` | Yes | Deferred | Interpreter-side native app is out of current scope |
+| Accept request | `acceptRequest` | Yes | Deferred | Interpreter-side native app is out of current scope |
+| Decline request | `declineRequest` | Yes | Deferred | Interpreter-side native app is out of current scope |
 | End call / CONFERENCE_LEFT | Jitsi event | Yes | Yes | Writes local CDR |
 | Connection status | `connection` | Yes | Yes | WebSocket state |
 

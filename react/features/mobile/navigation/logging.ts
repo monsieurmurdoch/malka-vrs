@@ -63,7 +63,11 @@ const persistLogs = (logs: LogEntry[]) => {
     setPersistentItem(LOG_STORAGE_KEY, JSON.stringify(trimmed));
 };
 
-const mobileLog = (level: LogLevel, event: string, payload?: Record<string, unknown>) => {
+const mobileLog = (
+        level: LogLevel,
+        event: string,
+        payload?: Record<string, unknown>,
+        options?: { console?: boolean; }) => {
     if (LOG_LEVEL_PRIORITY[level] < LOG_LEVEL_PRIORITY[minLogLevel]) {
         return;
     }
@@ -78,13 +82,17 @@ const mobileLog = (level: LogLevel, event: string, payload?: Record<string, unkn
     };
 
     // Console output for development
-    if (__DEV__) {
+    if (__DEV__ && options?.console !== false) {
         const prefix = `[mobile:${level}]`;
         const tag = event;
 
         switch (level) {
         case 'error':
-            console.error(prefix, tag, payload);
+            if (Platform.OS === 'web') {
+                console.error(prefix, tag, payload);
+            } else {
+                console.warn(prefix, tag, payload);
+            }
             break;
         case 'warn':
             console.warn(prefix, tag, payload);

@@ -121,14 +121,60 @@ function loadTenantConfigs(): Record<string, any> {
 
 const TENANT_CONFIGS = loadTenantConfigs();
 
+function sanitizeText(value: string): string {
+    return value
+        .replace(/<[^>]*>/g, '')
+        .replace(/&[#\w]+;/g, '')
+        .replace(/javascript:/gi, '')
+        .replace(/on\w+\s*=/gi, '')
+        .trim();
+}
+
 // Middleware
 app.use(helmet());
 app.use(cors({
     origin: CORS_ORIGIN
 }));
 app.use(express.json());
+app.use(standardizeErrorResponses);
 
 // Validation helper
+function inferErrorCode(statusCode: number): string {
+    if (statusCode === 400) return 'BAD_REQUEST';
+    if (statusCode === 401) return 'AUTH_REQUIRED';
+    if (statusCode === 403) return 'FORBIDDEN';
+    if (statusCode === 404) return 'NOT_FOUND';
+    if (statusCode === 409) return 'CONFLICT';
+    if (statusCode === 429) return 'RATE_LIMITED';
+    if (statusCode === 503) return 'SERVICE_UNAVAILABLE';
+    if (statusCode >= 500) return 'INTERNAL_ERROR';
+    return 'ERROR';
+}
+
+function standardizeErrorResponses(_req: Request, res: Response, next: NextFunction): void {
+    const originalJson = res.json.bind(res);
+    res.json = (body?: unknown): Response => {
+        if (res.statusCode >= 400) {
+            const source = body && typeof body === 'object' && !Array.isArray(body)
+                ? body as Record<string, unknown>
+                : {};
+            const payload: Record<string, unknown> = {
+                ...source,
+                error: typeof source.error === 'string' ? source.error : 'Request failed',
+                code: typeof source.code === 'string' ? source.code : inferErrorCode(res.statusCode)
+            };
+            if (IS_PRODUCTION && res.statusCode >= 500) {
+                delete payload.details;
+                payload.error = 'Internal server error';
+                payload.code = 'INTERNAL_ERROR';
+            }
+            return originalJson(payload);
+        }
+        return originalJson(body);
+    };
+    next();
+}
+
 function validateRequest(schema: z.ZodSchema) {
     return (req: Request, res: Response, next: NextFunction): void => {
         const result = schema.safeParse(req.body);
@@ -160,15 +206,15 @@ const loginSchema = z.object({
 
 const createCallSchema = z.object({
     clientId: z.string().max(100).optional(),
-    clientName: z.string().max(100).optional(),
-    language: z.string().max(20).optional(),
+    clientName: z.string().max(100).transform(sanitizeText).optional(),
+    language: z.string().max(20).transform(sanitizeText).optional(),
     roomId: z.string().max(100).optional()
 });
 
 const updateCallSchema = z.object({
     status: z.enum(['waiting', 'active', 'ended', 'abandoned']).optional(),
     interpreterId: z.string().max(100).optional(),
-    interpreterName: z.string().max(100).optional()
+    interpreterName: z.string().max(100).transform(sanitizeText).optional()
 }).refine(data => Object.keys(data).length > 0, {
     message: 'At least one field must be provided'
 });
@@ -178,13 +224,13 @@ const updateInterpreterStatusSchema = z.object({
 });
 
 const createAccountSchema = z.object({
-    name: z.string().min(1).max(100),
+    name: z.string().min(1).max(100).transform(sanitizeText),
     email: z.string().max(254).optional(),
     username: z.string().max(100).optional(),
     password: z.string().min(8).max(128),
     role: z.enum(['admin', 'captioner', 'interpreter', 'superadmin']),
-    languages: z.array(z.string().max(20)).min(1).optional().default(['ASL']),
-    organization: z.string().max(120).optional(),
+    languages: z.array(z.string().max(20).transform(sanitizeText)).min(1).optional().default(['ASL']),
+    organization: z.string().max(120).transform(sanitizeText).optional(),
     permissions: z.array(z.string().max(80)).optional().default([]),
     profile: z.record(z.unknown()).optional().default({}),
     serviceModes: z.array(z.enum(['vrs', 'vri'])).min(1).optional().default(['vrs']),
@@ -194,9 +240,9 @@ const createAccountSchema = z.object({
 const updateAccountSchema = z.object({
     active: z.boolean().optional(),
     email: z.string().max(254).optional(),
-    languages: z.array(z.string().max(20)).min(1).optional(),
-    name: z.string().min(1).max(100).optional(),
-    organization: z.string().max(120).optional(),
+    languages: z.array(z.string().max(20).transform(sanitizeText)).min(1).optional(),
+    name: z.string().min(1).max(100).transform(sanitizeText).optional(),
+    organization: z.string().max(120).transform(sanitizeText).optional(),
     password: z.string().min(8).max(128).optional(),
     permissions: z.array(z.string().max(80)).optional(),
     profile: z.record(z.unknown()).optional(),

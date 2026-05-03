@@ -28,13 +28,11 @@ type KeychainModule = {
 };
 
 function getKeychain(): KeychainModule | null {
-    try {
-        const maybeRequire = typeof require === 'function' ? require : undefined;
-
-        return maybeRequire ? maybeRequire('react-native-keychain') as KeychainModule : null;
-    } catch {
-        return null;
-    }
+    // Do not require('react-native-keychain') unless the dependency is actually
+    // installed and bundled. Metro treats missing native modules as fatal in
+    // release bundles even inside try/catch, so we fall back to persistent
+    // storage until the Keychain package is linked for the native app.
+    return null;
 }
 
 function serviceFor(key: string): string {

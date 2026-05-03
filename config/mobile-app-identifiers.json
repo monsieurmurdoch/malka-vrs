@@ -1,0 +1,32 @@
+{
+  "malkaVrs": {
+    "displayName": "MalkaVRS",
+    "tenant": "malka",
+    "appType": "vrs",
+    "iosBundleId": "com.malkacomm.vrs",
+    "iosUrlScheme": "malkavrs",
+    "iosAppGroup": "group.com.malkacomm.vrs.appgroup",
+    "androidApplicationId": "com.malkacomm.vrs",
+    "androidFlavor": "malkaVrs"
+  },
+  "malkaVri": {
+    "displayName": "MalkaVRI",
+    "tenant": "malkavri",
+    "appType": "vri",
+    "iosBundleId": "com.malkacomm.vri",
+    "iosUrlScheme": "malkavri",
+    "iosAppGroup": "group.com.malkacomm.vri.appgroup",
+    "androidApplicationId": "com.malkacomm.vri",
+    "androidFlavor": "malkaVri"
+  },
+  "mapleVri": {
+    "displayName": "MapleVRI",
+    "tenant": "maple",
+    "appType": "vri",
+    "iosBundleId": "com.maplecomm.vri",
+    "iosUrlScheme": "maplevri",
+    "iosAppGroup": "group.com.maplecomm.vri.appgroup",
+    "androidApplicationId": "com.maplecomm.vri",
+    "androidFlavor": "mapleVri"
+  }
+}

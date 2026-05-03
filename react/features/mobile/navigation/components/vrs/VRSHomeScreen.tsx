@@ -5,7 +5,7 @@
  * Provides dial pad, recent calls, contacts, and request interpreter.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     SafeAreaView,
     ScrollView,
@@ -14,42 +14,67 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { MediaStream, RTCView } from 'react-native-webrtc';
 import { useDispatch, useSelector } from 'react-redux';
 
-import { appNavigate } from '../../../../app/actions';
-import { getAppName } from '../../../../base/whitelabel/functions';
+import { FEATURES } from '../../../../base/whitelabel/constants';
+import { isFeatureEnabled } from '../../../../base/whitelabel/functions';
 import { cancelInterpreterRequest, requestInterpreter } from '../../../../interpreter-queue/actions';
+import { queueService } from '../../../../interpreter-queue/InterpreterQueueService';
 import { QueueState } from '../../../../interpreter-queue/reducer';
 import { apiClient } from '../../../../shared/api-client';
 import { removeSecureItem } from '../../../../vrs-auth/secureStorage';
 import { clearPersistentItems, getPersistentJson, setPersistentItem } from '../../../../vrs-auth/storage';
 import { mobileLog } from '../../logging';
+import { shouldAutoStartMobileCameraPreview, startMobileCameraPreview } from '../../mediaPreview';
 import { navigateRoot } from '../../rootNavigationContainerRef';
 import { screen } from '../../routes';
 import NetworkStatusBar from '../NetworkStatusBar';
 import { useTenantTheme } from '../../hooks/useTenantTheme';
 import { UserInfo } from '../../../types';
 
-const LANGUAGES = [
-    { code: 'ASL', label: 'ASL' },
-    { code: 'LSQ', label: 'LSQ' },
-    { code: 'en', label: 'English' },
-    { code: 'fr', label: 'French' }
+const REQUEST_LANGUAGE = 'ASL';
+
+const DIGITS = [
+    [ '1', '' ], [ '2', 'ABC' ], [ '3', 'DEF' ],
+    [ '4', 'GHI' ], [ '5', 'JKL' ], [ '6', 'MNO' ],
+    [ '7', 'PQRS' ], [ '8', 'TUV' ], [ '9', 'WXYZ' ],
+    [ '*', '' ], [ '0', '+' ], [ '#', '' ]
 ];
+
+function formatPhone(digits: string) {
+    const clean = digits.replace(/[^0-9*#]/g, '');
+
+    if (clean.length <= 3) {
+        return clean;
+    }
+
+    if (clean.length <= 6) {
+        return `(${clean.slice(0, 3)}) ${clean.slice(3)}`;
+    }
+
+    return `(${clean.slice(0, 3)}) ${clean.slice(3, 6)}-${clean.slice(6, 10)}`;
+}
 
 const VRSHomeScreen = () => {
     const dispatch = useDispatch();
     const theme = useTenantTheme();
+    const canDialOut = isFeatureEnabled(FEATURES.PHONE_DIAL_OUT);
     const queueState = useSelector((state: any) => state['features/interpreter-queue'] as QueueState | undefined);
     const isConnected = Boolean(queueState?.isConnected);
     const isRequestPending = Boolean(queueState?.isRequestPending);
     const queuePosition = queueState?.queuePosition;
+    const canStartCameraPreview = shouldAutoStartMobileCameraPreview();
 
     const [ userInfo, setUserInfo ] = useState<UserInfo | null>(() => getPersistentJson<UserInfo>('vrs_user_info'));
-    const savedLang = getPersistentJson<string>('vrs_request_language');
     const savedCaptions = getPersistentJson<boolean>('vrs_captions_enabled');
-    const [ language, setLanguage ] = useState(savedLang || 'ASL');
     const [ captionsOn, setCaptionsOn ] = useState(savedCaptions ?? true);
+    const [ previewStream, setPreviewStream ] = useState<MediaStream | null>(null);
+    const [ previewError, setPreviewError ] = useState('');
+    const previewStreamRef = useRef<MediaStream | null>(null);
+    const [ showDialer, setShowDialer ] = useState(false);
+    const [ digits, setDigits ] = useState('');
+    const [ callStatus, setCallStatus ] = useState<string | null>(null);
     const [ voicemailUnreadCount, setVoicemailUnreadCount ] = useState(() => {
         const vms = getPersistentJson<{ isRead: boolean }[]>('vrs_voicemails');
 
@@ -101,17 +126,76 @@ const VRSHomeScreen = () => {
         };
     }, []);
 
+    const startPreview = useCallback(async () => {
+        setPreviewError('');
+        previewStreamRef.current?.getTracks().forEach(track => track.stop());
+        previewStreamRef.current = null;
+        setPreviewStream(null);
+
+        try {
+            const { stream } = await startMobileCameraPreview('vrs-home');
+
+            previewStreamRef.current = stream;
+            setPreviewStream(stream);
+        } catch (err: any) {
+            setPreviewError(err?.message || 'Camera preview unavailable');
+        }
+    }, []);
+
+    useEffect(() => {
+        setPersistentItem('vrs_request_language', REQUEST_LANGUAGE);
+
+        if (canStartCameraPreview) {
+            void startPreview();
+        } else {
+            setPreviewError('Camera preview is paused in the Android emulator. Use a physical device for live self-view.');
+        }
+
+        return () => {
+            previewStreamRef.current?.getTracks().forEach(track => track.stop());
+            previewStreamRef.current = null;
+        };
+    }, [ canStartCameraPreview, startPreview ]);
+
+    useEffect(() => {
+        const onRinging = () => setCallStatus('Ringing...');
+        const onFailed = (data: { message?: string }) => {
+            setCallStatus(data.message || 'Call failed');
+            setTimeout(() => setCallStatus(null), 3000);
+        };
+        const onOffline = (data: { calleeName?: string }) => {
+            setCallStatus(`${data.calleeName || 'Contact'} is offline`);
+            setTimeout(() => setCallStatus(null), 3000);
+        };
+        const onDnd = (data: { calleeName?: string }) => {
+            setCallStatus(`${data.calleeName || 'Contact'} has DND on`);
+            setTimeout(() => setCallStatus(null), 3000);
+        };
+
+        queueService.on('p2pRinging', onRinging);
+        queueService.on('p2pCallFailed', onFailed);
+        queueService.on('p2pTargetOffline', onOffline);
+        queueService.on('p2pTargetDnd', onDnd);
+
+        return () => {
+            queueService.off('p2pRinging', onRinging);
+            queueService.off('p2pCallFailed', onFailed);
+            queueService.off('p2pTargetOffline', onOffline);
+            queueService.off('p2pTargetDnd', onDnd);
+        };
+    }, []);
+
     const handleRequestInterpreter = useCallback(() => {
         if (isRequestPending) {
             dispatch(cancelInterpreterRequest());
 
             return;
         }
-        dispatch(requestInterpreter(language));
-    }, [ dispatch, isRequestPending, language ]);
+        dispatch(requestInterpreter(REQUEST_LANGUAGE));
+    }, [ dispatch, isRequestPending ]);
 
-    const handleDialPad = useCallback(() => {
-        navigateRoot(screen.vrs.dialPad);
+    const handleDialerToggle = useCallback(() => {
+        setShowDialer(value => !value);
     }, []);
 
     const handleContacts = useCallback(() => {
@@ -122,9 +206,25 @@ const VRSHomeScreen = () => {
         navigateRoot(screen.vrs.callHistory);
     }, []);
 
-    const handleJoinRoom = useCallback((roomName: string) => {
-        dispatch(appNavigate(roomName, { hidePrejoin: true }));
-    }, [ dispatch ]);
+    const handleDigit = useCallback((digit: string) => {
+        setDigits(previous => previous + digit);
+    }, []);
+
+    const handleDeleteDigit = useCallback(() => {
+        setDigits(previous => previous.slice(0, -1));
+    }, []);
+
+    const handleDialCall = useCallback(() => {
+        const clean = digits.replace(/[^0-9+]/g, '');
+
+        if (!clean || !canDialOut) {
+            return;
+        }
+
+        setCallStatus('Calling...');
+        queueService.sendP2PCall(clean);
+        mobileLog('info', 'vrs_home_dial_p2p_call', { phoneNumber: clean });
+    }, [ canDialOut, digits ]);
 
     const handleLogout = useCallback(() => {
         clearPersistentItems([
@@ -162,6 +262,42 @@ const VRSHomeScreen = () => {
                     </TouchableOpacity>
                 </View>
 
+                {/* Self View */}
+                <View style = { styles.selfViewCard }>
+                    { previewStream ? (
+                        <RTCView
+                            mirror
+                            objectFit = 'cover'
+                            streamURL = { previewStream.toURL() }
+                            style = { styles.selfViewVideo } />
+                    ) : (
+                        <View style = { styles.selfViewFallback }>
+                            <Text style = { styles.selfViewTitle }>Camera Preview</Text>
+                            <Text style = { styles.selfViewHelp }>
+                                { previewError || 'Allow camera access to see yourself here' }
+                            </Text>
+                            { canStartCameraPreview && (
+                                <TouchableOpacity
+                                    accessibilityLabel = 'Retry camera preview'
+                                    accessibilityRole = 'button'
+                                    onPress = { startPreview }
+                                    style = { styles.retryCameraButton }>
+                                    <Text style = { styles.retryCameraText }>Retry Camera</Text>
+                                </TouchableOpacity>
+                            ) }
+                        </View>
+                    ) }
+                    { previewStream && (
+                        <TouchableOpacity
+                            accessibilityLabel = 'Retry camera preview'
+                            accessibilityRole = 'button'
+                            onPress = { startPreview }
+                            style = { styles.cameraOverlayButton }>
+                            <Text style = { styles.cameraOverlayText }>Retry</Text>
+                        </TouchableOpacity>
+                    ) }
+                </View>
+
                 {/* Primary Action */}
                 <TouchableOpacity
                     accessibilityLabel = { isRequestPending ? 'Cancel interpreter request' : 'Request interpreter' }
@@ -175,38 +311,10 @@ const VRSHomeScreen = () => {
                     <Text style = { styles.primaryActionText }>
                         { isRequestPending ? 'Cancel Request' : 'Request Interpreter' }
                     </Text>
-                    { !isRequestPending && (
-                        <Text style = { styles.primaryActionSubtext }>
-                            {language} interpreter available now
-                        </Text>
-                    ) }
                 </TouchableOpacity>
 
-                {/* Language & Captions */}
+                {/* Captions */}
                 <View style = { styles.controlsRow }>
-                    <View style = { styles.languageSelector }>
-                        { LANGUAGES.map(lang => (
-                            <TouchableOpacity
-                                accessibilityLabel = { `Select ${lang.label}` }
-                                accessibilityRole = 'button'
-                                key = { lang.code }
-                                onPress = { () => {
-                                    setLanguage(lang.code);
-                                    setPersistentItem('vrs_request_language', lang.code);
-                                } }
-                                style = { [
-                                    styles.langButton,
-                                    language === lang.code && styles.langButtonActive
-                                ] }>
-                                <Text style = { [
-                                    styles.langText,
-                                    language === lang.code && styles.langTextActive
-                                ] }>
-                                    { lang.label }
-                                </Text>
-                            </TouchableOpacity>
-                        )) }
-                    </View>
                     <TouchableOpacity
                         accessibilityLabel = { captionsOn ? 'Disable captions' : 'Enable captions' }
                         accessibilityRole = 'switch'
@@ -227,59 +335,53 @@ const VRSHomeScreen = () => {
                     </TouchableOpacity>
                 </View>
 
-                {/* Quick Actions Grid */}
-                <View style = { styles.actionsGrid }>
-                    <TouchableOpacity
-                        accessibilityLabel = 'Open dial pad'
-                        accessibilityRole = 'button'
-                        onPress = { handleDialPad }
-                        style = { styles.actionCard }>
-                        <Text style = { styles.actionIcon }>{'\u{1F4DE}'}</Text>
-                        <Text style = { styles.actionLabel }>Dial</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        accessibilityLabel = 'Open contacts'
-                        accessibilityRole = 'button'
-                        onPress = { handleContacts }
-                        style = { styles.actionCard }>
-                        <Text style = { styles.actionIcon }>{'\u{1F4D2}'}</Text>
-                        <Text style = { styles.actionLabel }>Contacts</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        accessibilityLabel = 'View call history'
-                        accessibilityRole = 'button'
-                        onPress = { handleCallHistory }
-                        style = { styles.actionCard }>
-                        <Text style = { styles.actionIcon }>{'\u{1F4CB}'}</Text>
-                        <Text style = { styles.actionLabel }>History</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        accessibilityLabel = 'Start direct call'
-                        accessibilityRole = 'button'
-                        onPress = { () => handleJoinRoom(`vrs-${Date.now()}`) }
-                        style = { styles.actionCard }>
-                        <Text style = { styles.actionIcon }>{'\u{1F4F1}'}</Text>
-                        <Text style = { styles.actionLabel }>Direct Call</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Voicemail Link */}
-                <TouchableOpacity
-                    accessibilityLabel = 'Open voicemail inbox'
-                    accessibilityRole = 'button'
-                    onPress = { () => navigateRoot(screen.vrs.voicemail) }
-                    style = { styles.voicemailRow }>
-                    <Text style = { styles.voicemailIcon }>{'\u{1F4E3}'}</Text>
-                    <Text style = { styles.voicemailLabel }>Voicemail</Text>
-                    { voicemailUnreadCount > 0 && (
-                        <View style = { styles.voicemailBadge }>
-                            <Text style = { styles.voicemailBadgeText }>{ voicemailUnreadCount }</Text>
+                { showDialer && (
+                    <View style = { styles.dialerPanel }>
+                        <Text style = { styles.phoneNumber }>
+                            { digits ? formatPhone(digits) : 'Enter number' }
+                        </Text>
+                        { !canDialOut && (
+                            <Text style = { styles.callStatus }>
+                                Phone dial-out is not available for this account.
+                            </Text>
+                        ) }
+                        { callStatus ? (
+                            <Text style = { styles.callStatus }>{ callStatus }</Text>
+                        ) : null }
+                        <View style = { styles.keypad }>
+                            { DIGITS.map(([ digit, letters ]) => (
+                                <TouchableOpacity
+                                    accessibilityLabel = { `Dial ${digit}` }
+                                    accessibilityRole = 'button'
+                                    key = { digit }
+                                    onPress = { () => handleDigit(digit) }
+                                    style = { styles.key }>
+                                    <Text style = { styles.keyDigit }>{ digit }</Text>
+                                    <Text style = { styles.keyLetters }>{ letters }</Text>
+                                </TouchableOpacity>
+                            )) }
                         </View>
-                    ) }
-                </TouchableOpacity>
+                        <View style = { styles.dialerActions }>
+                            <TouchableOpacity
+                                accessibilityLabel = 'Place call'
+                                disabled = { !digits || !canDialOut }
+                                onPress = { handleDialCall }
+                                style = { [
+                                    styles.dialerCallButton,
+                                    (!digits || !canDialOut) && styles.dialerCallButtonDisabled
+                                ] }>
+                                <Text style = { styles.dialerCallText }>Call</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                accessibilityLabel = 'Delete digit'
+                                disabled = { !digits }
+                                onPress = { handleDeleteDigit }
+                                style = { styles.dialerDeleteButton }>
+                                <Text style = { styles.dialerDeleteText }>Delete</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                ) }
 
                 {/* Connection Status */}
                 <View style = { styles.statusBar }>
@@ -292,38 +394,137 @@ const VRSHomeScreen = () => {
                     </Text>
                 </View>
             </ScrollView>
+            <View style = { styles.bottomTabs }>
+                <TouchableOpacity
+                    accessibilityLabel = { showDialer ? 'Hide dial pad' : 'Show dial pad' }
+                    accessibilityRole = 'tab'
+                    onPress = { handleDialerToggle }
+                    style = { [
+                        styles.bottomTab,
+                        showDialer && styles.bottomTabActive
+                    ] }>
+                    <Text style = { [
+                        styles.bottomTabIcon,
+                        showDialer && { color: theme.accent }
+                    ] }>
+                        { showDialer ? '×' : '☎' }
+                    </Text>
+                    <Text style = { [
+                        styles.bottomTabLabel,
+                        showDialer && { color: theme.accent }
+                    ] }>
+                        Dial
+                    </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    accessibilityLabel = 'Open contacts'
+                    accessibilityRole = 'tab'
+                    onPress = { handleContacts }
+                    style = { styles.bottomTab }>
+                    <Text style = { styles.bottomTabIcon }>☰</Text>
+                    <Text style = { styles.bottomTabLabel }>Contacts</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    accessibilityLabel = 'View call history'
+                    accessibilityRole = 'tab'
+                    onPress = { handleCallHistory }
+                    style = { styles.bottomTab }>
+                    <Text style = { styles.bottomTabIcon }>◷</Text>
+                    <Text style = { styles.bottomTabLabel }>History</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    accessibilityLabel = 'Open voicemail inbox'
+                    accessibilityRole = 'tab'
+                    onPress = { () => navigateRoot(screen.vrs.voicemail) }
+                    style = { styles.bottomTab }>
+                    <View>
+                        <Text style = { styles.bottomTabIcon }>▣</Text>
+                        { voicemailUnreadCount > 0 && (
+                            <View style = { styles.bottomTabBadge }>
+                                <Text style = { styles.bottomTabBadgeText }>
+                                    { voicemailUnreadCount > 9 ? '9+' : voicemailUnreadCount }
+                                </Text>
+                            </View>
+                        ) }
+                    </View>
+                    <Text style = { styles.bottomTabLabel }>VM</Text>
+                </TouchableOpacity>
+            </View>
         </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
-    actionCard: {
+    actionBadge: {
         alignItems: 'center',
-        backgroundColor: '#1a1a2e',
-        borderRadius: 12,
-        elevation: 2,
+        backgroundColor: '#d32f2f',
+        borderRadius: 9,
+        minWidth: 18,
+        paddingHorizontal: 5,
+        paddingVertical: 1,
+        position: 'absolute',
+        right: -2,
+        top: -2
+    },
+    actionBadgeText: {
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: '800',
+        textAlign: 'center'
+    },
+    bottomTab: {
+        alignItems: 'center',
+        borderRadius: 14,
         flex: 1,
-        margin: 6,
-        padding: 16,
-        shadowColor: '#000',
-        shadowOffset: { height: 1, width: 0 },
-        shadowOpacity: 0.2,
-        shadowRadius: 2
+        justifyContent: 'center',
+        minHeight: 58,
+        paddingVertical: 8,
+        position: 'relative'
     },
-    actionIcon: {
-        fontSize: 28,
-        marginBottom: 6
+    bottomTabActive: {
+        backgroundColor: '#1a1a2e'
     },
-    actionLabel: {
-        color: '#e0e0e0',
-        fontSize: 13,
-        fontWeight: '500'
+    bottomTabBadge: {
+        alignItems: 'center',
+        backgroundColor: '#d32f2f',
+        borderRadius: 9,
+        minWidth: 18,
+        paddingHorizontal: 5,
+        paddingVertical: 1,
+        position: 'absolute',
+        right: -14,
+        top: -4
     },
-    actionsGrid: {
+    bottomTabBadgeText: {
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: '800',
+        textAlign: 'center'
+    },
+    bottomTabIcon: {
+        color: '#d8d8e2',
+        fontSize: 22,
+        fontWeight: '800',
+        lineHeight: 24
+    },
+    bottomTabLabel: {
+        color: '#aaaab8',
+        fontSize: 11,
+        fontWeight: '700',
+        marginTop: 3
+    },
+    bottomTabs: {
+        backgroundColor: '#111126',
+        borderColor: '#252540',
+        borderTopWidth: 1,
         flexDirection: 'row',
-        flexWrap: 'wrap',
-        marginBottom: 16,
-        paddingHorizontal: 16
+        gap: 6,
+        paddingBottom: 8,
+        paddingHorizontal: 10,
+        paddingTop: 8
     },
     captionText: {
         color: '#888',
@@ -347,32 +548,105 @@ const styles = StyleSheet.create({
     controlsRow: {
         alignItems: 'center',
         flexDirection: 'row',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-end',
         marginHorizontal: 16,
         marginBottom: 16
     },
-    langButton: {
-        backgroundColor: '#1a1a2e',
-        borderRadius: 8,
-        marginRight: 6,
-        paddingHorizontal: 10,
-        paddingVertical: 6
-    },
-    langButtonActive: {
-        backgroundColor: '#2979ff'
-    },
-    langText: {
-        color: '#888',
+    callStatus: {
+        color: '#ffb74d',
         fontSize: 12,
-        fontWeight: '600'
+        marginTop: 8,
+        textAlign: 'center'
     },
-    langTextActive: {
-        color: '#fff'
+    cameraOverlayButton: {
+        backgroundColor: 'rgba(10, 10, 26, 0.72)',
+        borderColor: 'rgba(255, 255, 255, 0.28)',
+        borderRadius: 12,
+        borderWidth: 1,
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        position: 'absolute',
+        right: 10,
+        top: 10
     },
-    languageSelector: {
+    cameraOverlayText: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: '800'
+    },
+    dialerActions: {
+        alignItems: 'center',
         flexDirection: 'row',
-        flex: 1,
-        flexWrap: 'wrap'
+        gap: 12,
+        justifyContent: 'center',
+        marginTop: 12
+    },
+    dialerCallButton: {
+        alignItems: 'center',
+        backgroundColor: '#4caf50',
+        borderRadius: 14,
+        minWidth: 132,
+        paddingHorizontal: 20,
+        paddingVertical: 14
+    },
+    dialerCallButtonDisabled: {
+        backgroundColor: '#26422d'
+    },
+    dialerCallText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '800'
+    },
+    dialerDeleteButton: {
+        alignItems: 'center',
+        borderColor: '#3a3a54',
+        borderRadius: 14,
+        borderWidth: 1,
+        minWidth: 96,
+        paddingHorizontal: 16,
+        paddingVertical: 14
+    },
+    dialerDeleteText: {
+        color: '#ddd',
+        fontSize: 14,
+        fontWeight: '700'
+    },
+    dialerPanel: {
+        backgroundColor: '#14142a',
+        borderColor: '#2c2c48',
+        borderRadius: 16,
+        borderWidth: 1,
+        marginBottom: 16,
+        marginHorizontal: 16,
+        padding: 16
+    },
+    key: {
+        alignItems: 'center',
+        backgroundColor: '#22223b',
+        borderRadius: 24,
+        height: 58,
+        justifyContent: 'center',
+        margin: 6,
+        width: 58
+    },
+    keypad: {
+        alignSelf: 'center',
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        maxWidth: 228,
+        paddingTop: 10
+    },
+    keyDigit: {
+        color: '#fff',
+        fontSize: 22,
+        fontWeight: '700'
+    },
+    keyLetters: {
+        color: '#85859a',
+        fontSize: 9,
+        fontWeight: '700',
+        letterSpacing: 1
     },
     voicemailBadge: {
         backgroundColor: '#d32f2f',
@@ -435,32 +709,80 @@ const styles = StyleSheet.create({
     primaryAction: {
         alignItems: 'center',
         backgroundColor: '#2979ff',
-        borderRadius: 16,
+        borderRadius: 14,
         elevation: 4,
-        marginBottom: 24,
+        marginBottom: 14,
         marginHorizontal: 16,
-        padding: 20,
+        paddingVertical: 14,
         shadowColor: '#2979ff',
-        shadowOffset: { height: 4, width: 0 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8
+        shadowOffset: { height: 2, width: 0 },
+        shadowOpacity: 0.24,
+        shadowRadius: 5
     },
     primaryActionCancel: {
         backgroundColor: '#d32f2f',
         shadowColor: '#d32f2f'
     },
-    primaryActionSubtext: {
-        color: 'rgba(255, 255, 255, 0.8)',
-        fontSize: 13,
-        marginTop: 4
-    },
     primaryActionText: {
         color: '#ffffff',
-        fontSize: 18,
-        fontWeight: '600'
+        fontSize: 17,
+        fontWeight: '700'
+    },
+    phoneNumber: {
+        color: '#fff',
+        fontSize: 28,
+        fontWeight: '400',
+        letterSpacing: 0,
+        textAlign: 'center'
     },
     scrollContent: {
-        paddingBottom: 40
+        flexGrow: 1,
+        paddingBottom: 96
+    },
+    retryCameraButton: {
+        borderColor: '#3a3a54',
+        borderRadius: 12,
+        borderWidth: 1,
+        marginTop: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 10
+    },
+    retryCameraText: {
+        color: '#ddd',
+        fontSize: 13,
+        fontWeight: '700'
+    },
+    selfViewCard: {
+        alignItems: 'center',
+        aspectRatio: 4 / 3,
+        backgroundColor: '#1a1a2e',
+        borderColor: '#2c2c48',
+        borderRadius: 16,
+        borderWidth: 1,
+        justifyContent: 'center',
+        marginBottom: 16,
+        marginHorizontal: 16,
+        overflow: 'hidden'
+    },
+    selfViewFallback: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20
+    },
+    selfViewHelp: {
+        color: '#85859a',
+        fontSize: 13,
+        marginTop: 6,
+        textAlign: 'center'
+    },
+    selfViewTitle: {
+        color: '#ddd',
+        fontSize: 16,
+        fontWeight: '700'
+    },
+    selfViewVideo: {
+        height: '100%',
+        width: '100%'
     },
     statusBar: {
         alignItems: 'center',

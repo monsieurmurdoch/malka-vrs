@@ -7,6 +7,7 @@
 
 import { APP_TYPE, FEATURES, type AppType, type FeatureKey } from './constants';
 import { getPersistentJson } from '../../vrs-auth/storage';
+import { NativeModules, Platform } from 'react-native';
 import malkaConfig from '../../../../whitelabel/malka.json';
 import malkaVriConfig from '../../../../whitelabel/malkavri.json';
 import mapleConfig from '../../../../whitelabel/maple.json';
@@ -45,10 +46,32 @@ function getBuildTenantId(): string | undefined {
     try {
         const env = (globalThis as any)?.process?.env;
 
-        return env?.TENANT || env?.VRS_TENANT || env?.EXPO_PUBLIC_TENANT;
+        return env?.TENANT || env?.VRS_TENANT || env?.EXPO_PUBLIC_TENANT || getNativeTenantId();
     } catch {
+        return getNativeTenantId();
+    }
+}
+
+function getNativeTenantId(): string | undefined {
+    if (Platform.OS === 'web') {
         return undefined;
     }
+
+    const appName = String(NativeModules?.AppInfo?.name || '').toLowerCase();
+
+    if (appName.includes('maple')) {
+        return 'maple';
+    }
+
+    if (appName.includes('vri')) {
+        return 'malkavri';
+    }
+
+    if (appName.includes('vrs') || appName.includes('malka')) {
+        return 'malka';
+    }
+
+    return undefined;
 }
 
 function flattenFeatures(features: Record<string, any> = {}) {

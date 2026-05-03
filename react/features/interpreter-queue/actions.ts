@@ -36,13 +36,20 @@ interface QueueStatusPayload {
     pendingRequests?: InterpreterRequest[];
 }
 
+interface RequestInterpreterOptions {
+    callType?: 'vrs' | 'vri';
+    inviteTokens?: string[];
+    roomName?: string;
+}
+
 /**
  * Creates an action to request an interpreter.
  *
  * @param {string} language - The requested language (e.g., 'ASL').
+ * @param {RequestInterpreterOptions} options - Optional service-mode and invite metadata.
  * @returns {Function}
  */
-export function requestInterpreter(language: string = 'ASL') {
+export function requestInterpreter(language: string = 'ASL', options: RequestInterpreterOptions = {}) {
     return (dispatch: Function, getState: Function) => {
         const localParticipant = getLocalParticipant(getState());
         const clientName = localParticipant?.name || localParticipant?.displayName || 'Guest';
@@ -60,7 +67,7 @@ export function requestInterpreter(language: string = 'ASL') {
 
         // Send request to queue service
         if (queueService.isConnected()) {
-            queueService.requestInterpreter(language, clientName);
+            queueService.requestInterpreter(language, clientName, options);
         } else {
             console.warn('Queue service not connected - request queued locally only');
         }

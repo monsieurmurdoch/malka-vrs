@@ -10,6 +10,8 @@
 
 const { z, ZodError } = require('zod');
 
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
 // ============================================
 // SANITIZATION HELPERS
 // ============================================
@@ -36,6 +38,21 @@ function sanitizeStrict(value) {
         .replace(/on\w+\s*=/gi, '');  // strip event handlers like onclick=
 }
 
+function sanitizeObject(value) {
+    if (typeof value === 'string') {
+        return sanitizeStrict(value);
+    }
+    if (Array.isArray(value)) {
+        return value.map(sanitizeObject);
+    }
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(
+            Object.entries(value).map(([key, nested]) => [key, sanitizeObject(nested)])
+        );
+    }
+    return value;
+}
+
 // ============================================
 // REUSABLE PRIMITIVE SCHEMAS
 // ============================================
@@ -60,7 +77,19 @@ const nonNegativeIntSchema = z.coerce.number().int().nonnegative().finite();
 
 const uuidSchema = z.string().uuid();
 
+const idSchema = z.string().min(1).max(120).transform(sanitizeText);
+
+const roomNameSchema = z.string().min(1).max(120).regex(/^[A-Za-z0-9_-]+$/, 'Invalid room name');
+
 const languageSchema = z.string().min(1).max(20).transform(sanitizeText);
+
+const sanitizedStringSchema = z.string().max(1000).transform(sanitizeStrict);
+
+const optionalSanitizedStringSchema = sanitizedStringSchema.optional();
+
+const metadataSchema = z.record(z.unknown()).optional().default({}).transform(sanitizeObject);
+
+const emptyBodySchema = z.object({}).passthrough();
 
 const languagesArraySchema = z.array(languageSchema).min(1).optional().default(['ASL']);
 
@@ -125,6 +154,64 @@ function validatePayload(schema, payload) {
     return { success: false, error: formatted };
 }
 
+function inferErrorCode(statusCode) {
+    if (statusCode === 400) return 'BAD_REQUEST';
+    if (statusCode === 401) return 'AUTH_REQUIRED';
+    if (statusCode === 403) return 'FORBIDDEN';
+    if (statusCode === 404) return 'NOT_FOUND';
+    if (statusCode === 409) return 'CONFLICT';
+    if (statusCode === 410) return 'ENDPOINT_RETIRED';
+    if (statusCode === 429) return 'RATE_LIMITED';
+    if (statusCode === 503) return 'SERVICE_UNAVAILABLE';
+    if (statusCode >= 500) return 'INTERNAL_ERROR';
+    return 'ERROR';
+}
+
+function normalizeErrorBody(statusCode, body) {
+    const safeBody = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+    const error = typeof safeBody.error === 'string' ? safeBody.error : 'Request failed';
+    const code = typeof safeBody.code === 'string' ? safeBody.code : inferErrorCode(statusCode);
+    const normalized = { ...safeBody, error, code };
+
+    if (IS_PRODUCTION && statusCode >= 500) {
+        delete normalized.details;
+        normalized.error = 'Internal server error';
+        normalized.code = 'INTERNAL_ERROR';
+    }
+
+    return normalized;
+}
+
+function standardizeErrorResponses(req, res, next) {
+    const originalJson = res.json.bind(res);
+    res.json = (body) => {
+        if (res.statusCode >= 400) {
+            return originalJson(normalizeErrorBody(res.statusCode, body));
+        }
+        return originalJson(body);
+    };
+    next();
+}
+
+function centralizedErrorHandler(logger) {
+    return (error, req, res, _next) => {
+        const requestLogger = req.log || logger;
+        if (requestLogger?.error) {
+            requestLogger.error({ err: error }, 'Unhandled server error');
+        }
+
+        if (res.headersSent) {
+            return;
+        }
+
+        res.status(error.statusCode || error.status || 500).json({
+            error: error.expose ? error.message : 'Internal server error',
+            code: error.code || inferErrorCode(error.statusCode || error.status || 500),
+            ...(!IS_PRODUCTION && { details: { message: error.message } })
+        });
+    };
+}
+
 module.exports = {
     z,
     ZodError,
@@ -140,12 +227,22 @@ module.exports = {
     positiveIntSchema,
     nonNegativeIntSchema,
     uuidSchema,
+    idSchema,
+    roomNameSchema,
     languageSchema,
+    sanitizedStringSchema,
+    optionalSanitizedStringSchema,
+    metadataSchema,
+    emptyBodySchema,
     languagesArraySchema,
     serviceModeSchema,
     serviceModesArraySchema,
     // Helpers
+    sanitizeObject,
     formatValidationErrors,
+    normalizeErrorBody,
+    standardizeErrorResponses,
+    centralizedErrorHandler,
     validate,
     validatePayload
 };

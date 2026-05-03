@@ -21,7 +21,10 @@ export const modalPresentation = Platform.select({
  * Screen options and transition types.
  */
 export const fullScreenOptions = {
-    ...TransitionPresets.ModalTransition,
+    ...TransitionPresets.DefaultTransition,
+    cardStyle: {
+        backgroundColor: BaseTheme.palette.uiBackground
+    },
     gestureEnabled: false,
     headerShown: false
 };

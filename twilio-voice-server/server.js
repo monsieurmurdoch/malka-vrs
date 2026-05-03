@@ -39,6 +39,7 @@ app.use(cors({
 }));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(standardizeErrorResponses);
 
 // Twilio configuration - YOU NEED TO SET THESE ENVIRONMENT VARIABLES
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID || DEFAULT_TWILIO_ACCOUNT_SID;
@@ -188,6 +189,39 @@ function validateRequest(schema) {
     };
 }
 
+function inferErrorCode(statusCode) {
+    if (statusCode === 400) return 'BAD_REQUEST';
+    if (statusCode === 401) return 'AUTH_REQUIRED';
+    if (statusCode === 403) return 'FORBIDDEN';
+    if (statusCode === 404) return 'NOT_FOUND';
+    if (statusCode === 429) return 'RATE_LIMITED';
+    if (statusCode === 503) return 'SERVICE_UNAVAILABLE';
+    if (statusCode >= 500) return 'INTERNAL_ERROR';
+    return 'ERROR';
+}
+
+function standardizeErrorResponses(req, res, next) {
+    const originalJson = res.json.bind(res);
+    res.json = (body) => {
+        if (res.statusCode >= 400) {
+            const source = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+            const payload = {
+                ...source,
+                error: typeof source.error === 'string' ? source.error : 'Request failed',
+                code: typeof source.code === 'string' ? source.code : inferErrorCode(res.statusCode)
+            };
+            if (process.env.NODE_ENV === 'production' && res.statusCode >= 500) {
+                delete payload.details;
+                payload.error = 'Internal server error';
+                payload.code = 'INTERNAL_ERROR';
+            }
+            return originalJson(payload);
+        }
+        return originalJson(body);
+    };
+    next();
+}
+
 const callSchema = z.object({
     to: z.string().regex(/^\+?\d{7,16}$/, 'Invalid phone number format'),
     from: z.string().regex(/^\+?\d{7,16}$/, 'Invalid phone number format').optional(),
@@ -199,6 +233,19 @@ const initiateCallSchema = z.object({
     interpreterId: z.string().min(1),
     sessionId: z.string().optional()
 });
+
+const hangupSchema = z.object({
+    callSid: z.string().min(1).max(100)
+});
+
+const twilioWebhookSchema = z.object({
+    CallSid: z.string().min(1).max(100),
+    CallStatus: z.string().min(1).max(80),
+    CallDuration: z.string().max(40).optional(),
+    From: z.string().max(80).optional(),
+    To: z.string().max(80).optional(),
+    Direction: z.string().max(80).optional()
+}).passthrough();
 
 /**
  * ROUTES
@@ -310,16 +357,9 @@ app.post('/api/voice/call', validateRequest(initiateCallSchema), async (req, res
 });
 
 // Hangup call
-app.post('/api/voice/hangup', async (req, res) => {
+app.post('/api/voice/hangup', validateRequest(hangupSchema), async (req, res) => {
     try {
         const { callSid } = req.body;
-
-        if (!callSid) {
-            return res.status(400).json({
-                error: 'Missing required field: callSid',
-                code: 'MISSING_CALL_SID'
-            });
-        }
 
         if (!twilio) {
             return res.status(500).json({
@@ -445,7 +485,7 @@ app.get('/api/voice/status/:callSid', async (req, res) => {
 });
 
 // Webhook endpoint for call status updates
-app.post('/api/voice/webhook/:sessionId?', (req, res) => {
+app.post('/api/voice/webhook/:sessionId?', validateRequest(twilioWebhookSchema), (req, res) => {
     if (twilio && !validateTwilioWebhook(req)) {
         log('Rejected webhook with invalid Twilio signature');
         return res.status(403).json({
@@ -511,7 +551,7 @@ app.use((error, req, res, next) => {
     res.status(500).json({
         error: 'Internal server error',
         code: 'INTERNAL_ERROR',
-        details: { message: error.message }
+        ...(process.env.NODE_ENV === 'development' && { details: { message: error.message } })
     });
 });
 

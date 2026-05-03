@@ -11,7 +11,8 @@ const queueService = require('../lib/queue-service');
 const log = require('../lib/logger').module('admin');
 const {
     validate, nameSchema, emailSchema, passwordSchema,
-    languagesArraySchema, serviceModesArraySchema, nonNegativeIntSchema, z
+    languagesArraySchema, serviceModesArraySchema, nonNegativeIntSchema,
+    optionalSanitizedStringSchema, emptyBodySchema, z
 } = require('../lib/validation');
 
 const router = express.Router();
@@ -122,7 +123,7 @@ const updateInterpreterSchema = z.object({
 const createClientSchema = z.object({
     name: nameSchema,
     email: emailSchema.optional(),
-    organization: z.string().min(1).max(200).optional(),
+    organization: optionalSanitizedStringSchema,
     password: passwordSchema.optional(),
     serviceModes: serviceModesArraySchema,
     tenantId: z.string().min(1).max(60).optional()
@@ -131,7 +132,7 @@ const createClientSchema = z.object({
 const updateClientSchema = z.object({
     name: nameSchema.optional(),
     email: emailSchema.optional(),
-    organization: z.string().min(1).max(200).optional(),
+    organization: optionalSanitizedStringSchema,
     password: passwordSchema.optional(),
     serviceModes: serviceModesArraySchema,
     tenantId: z.string().min(1).max(60).optional()
@@ -153,6 +154,10 @@ const updateCaptionerSchema = z.object({
 
 const assignQueueSchema = z.object({
     interpreterId: z.string().min(1)
+});
+
+const voicemailSettingSchema = z.object({
+    value: z.union([z.string().max(500), z.number().finite(), z.boolean()])
 });
 
 const activityQuerySchema = z.object({
@@ -178,7 +183,7 @@ const usageQuerySchema = z.object({
 // AUTH ENDPOINTS
 // ============================================
 
-router.post('/logout', authenticateAdmin, (req, res) => {
+router.post('/logout', authenticateAdmin, validate(emptyBodySchema), (req, res) => {
     activityLogger.log('admin_logout', { adminId: req.admin.id });
     res.json({ success: true });
 });
@@ -226,7 +231,7 @@ router.get('/interpreters', authenticateAdmin, async (req, res) => {
     }
 });
 
-router.post('/interpreters', validate(createInterpreterSchema), authenticateAdmin, async (req, res) => {
+router.post('/interpreters', authenticateAdmin, validate(createInterpreterSchema), async (req, res) => {
     const { name, email, languages, password, serviceModes, tenantId } = req.body;
 
     try {
@@ -245,7 +250,7 @@ router.post('/interpreters', validate(createInterpreterSchema), authenticateAdmi
     }
 });
 
-router.put('/interpreters/:id', validate(updateInterpreterSchema), authenticateAdmin, async (req, res) => {
+router.put('/interpreters/:id', authenticateAdmin, validate(updateInterpreterSchema), async (req, res) => {
     const { id } = req.params;
     const { name, email, languages, active, password, serviceModes, tenantId } = req.body;
 
@@ -294,7 +299,7 @@ router.get('/captioners', authenticateAdmin, async (req, res) => {
     }
 });
 
-router.post('/captioners', validate(createCaptionerSchema), authenticateAdmin, async (req, res) => {
+router.post('/captioners', authenticateAdmin, validate(createCaptionerSchema), async (req, res) => {
     const { name, email, languages, password } = req.body;
 
     try {
@@ -313,7 +318,7 @@ router.post('/captioners', validate(createCaptionerSchema), authenticateAdmin, a
     }
 });
 
-router.put('/captioners/:id', validate(updateCaptionerSchema), authenticateAdmin, async (req, res) => {
+router.put('/captioners/:id', authenticateAdmin, validate(updateCaptionerSchema), async (req, res) => {
     const { id } = req.params;
     const { name, email, languages, active } = req.body;
 
@@ -372,7 +377,7 @@ router.get('/clients', authenticateAdmin, async (req, res) => {
     }
 });
 
-router.post('/clients', validate(createClientSchema), authenticateAdmin, async (req, res) => {
+router.post('/clients', authenticateAdmin, validate(createClientSchema), async (req, res) => {
     const { name, email, organization, password, serviceModes, tenantId } = req.body;
 
     try {
@@ -389,7 +394,7 @@ router.post('/clients', validate(createClientSchema), authenticateAdmin, async (
     }
 });
 
-router.put('/clients/:id', validate(updateClientSchema), authenticateAdmin, async (req, res) => {
+router.put('/clients/:id', authenticateAdmin, validate(updateClientSchema), async (req, res) => {
     const { id } = req.params;
     const { name, email, organization, password, serviceModes, tenantId } = req.body;
 
@@ -499,19 +504,19 @@ router.get('/queue', validate(queueQuerySchema, 'query'), authenticateAdmin, asy
     }
 });
 
-router.post('/queue/pause', authenticateAdmin, (req, res) => {
+router.post('/queue/pause', authenticateAdmin, validate(emptyBodySchema), (req, res) => {
     queueService.pause();
     activityLogger.log('queue_paused', { adminId: req.admin.id });
     res.json({ success: true, paused: true });
 });
 
-router.post('/queue/resume', authenticateAdmin, (req, res) => {
+router.post('/queue/resume', authenticateAdmin, validate(emptyBodySchema), (req, res) => {
     queueService.resume();
     activityLogger.log('queue_resumed', { adminId: req.admin.id });
     res.json({ success: true, paused: false });
 });
 
-router.post('/queue/:requestId/assign', validate(assignQueueSchema), authenticateAdmin, async (req, res) => {
+router.post('/queue/:requestId/assign', authenticateAdmin, validate(assignQueueSchema), async (req, res) => {
     const { requestId } = req.params;
     const { interpreterId } = req.body;
 
@@ -632,15 +637,12 @@ router.get('/voicemail/settings', authenticateAdmin, async (req, res) => {
 /**
  * PUT /api/admin/voicemail/settings/:key
  */
-router.put('/voicemail/settings/:key', authenticateAdmin, async (req, res) => {
+router.put('/voicemail/settings/:key', authenticateAdmin, validate(voicemailSettingSchema), async (req, res) => {
     try {
         if (!voicemailServiceForAdmin) {
             return res.status(503).json({ error: 'Voicemail service not available', code: 'SERVICE_UNAVAILABLE' });
         }
         const { value } = req.body;
-        if (value === undefined || value === null) {
-            return res.status(400).json({ error: 'Missing required field: value', code: 'VALIDATION_ERROR' });
-        }
         await voicemailServiceForAdmin.updateSetting(req.params.key, String(value), req.admin.id);
         res.json({ success: true });
     } catch (error) {

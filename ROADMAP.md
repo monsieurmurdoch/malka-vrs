@@ -1,7 +1,7 @@
 # Malka VRS - Product & Engineering Roadmap
 
-> **Last updated**: May 1, 2026
-> **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. Malka VRS backend/WebSocket smoke now covers in-room-style interpreter request, admin live queue visibility, interpreter match, call end, and CDR creation. The main open risks are remaining real-browser in-room/admin UI verification, TURN/coturn fallback, Redis/state externalization, regulatory/compliance work, live Stripe/accounting configuration, and mobile parity.
+> **Last updated**: May 2, 2026
+> **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. Malka VRS backend/WebSocket smoke now covers in-room-style interpreter request, admin live queue visibility, interpreter match, call end, and CDR creation. Native mobile now has working Android/iOS client-app build lanes for MalkaVRS, MalkaVRI, and MapleVRI, production-backed auth/API/queue wiring, tenant-specific app IDs, iOS simulator install flow, Android 16 KB-compatible debug/release artifacts, and tenant visual polish. The main open risks are remaining real-browser in-room/admin UI verification, TURN/coturn fallback, Redis/state externalization, regulatory/compliance work, live Stripe/accounting configuration, physical-device mobile media/call smoke, TestFlight/Play release lanes, push/background calling, crash reporting, final secure-storage linkage, and contract/type hardening across web, native, and backend boundaries.
 
 ---
 
@@ -22,7 +22,7 @@
 - Redis/state externalization is still required before multi-server horizontal scaling.
 - FCC/VRS compliance, 911/E911, iTRS, NANP provisioning, billing immutability, and certification remain major parallel tracks.
 - VRI corporate billing/payment and interpreter payout foundations are now implemented: immutable CDR-to-invoice item linking, Stripe invoice/customer plumbing, invoice email/send path, credit notes, webhook replay, reconciliation dashboard, payables/payout/schedule/utilization tables, contractor invoices, payout CSV export, and admin APIs. Live Stripe production mode still needs real keys, Stripe portal configuration, and final accounting policy.
-- Mobile apps need feature and backend parity with the main web app before broad launch.
+- Mobile apps now have the main client-side parity foundation in place; physical-device smoke, release lanes, push/background call behavior, crash reporting, and store-readiness work remain before broad launch.
 
 ---
 
@@ -320,12 +320,12 @@
 
 
 ##### Mobile Apps / Mobile Release Gates Completed
-- [x] Define mobile MVP scope for end-of-May release: Malka VRS + Malka VRI client first, interpreter app post-May unless it becomes operationally critical
-  - 2026-04-30: Decision recorded on mobile branch: React Native client-first release, with interpreter app deferred from first release candidate.
+- [x] Define mobile MVP scope for end-of-May release: three client apps only — MalkaVRS, MalkaVRI, and MapleVRI
+  - 2026-05-01: Current mobile stage is exactly three client apps. MalkaVRI and MapleVRI share the same VRI client codepath and differ by tenant skin/config. No interpreter, captioner, or terp portal app is part of this stage.
 - [x] Decide platform strategy for first release: native React Native, not TWA-first
   - 2026-04-30: Existing RN shells/shared Redux path selected for the first release; TWA remains a fallback or later packaging option.
-- [x] Mobile email/password auth uses production client/interpreter endpoints instead of demo tokens
-  - 2026-05-01: Mobile login calls `/api/auth/client/login` or `/api/auth/interpreter/login`, stores real JWT metadata, and routes by backend role/app type.
+- [x] Mobile email/password auth uses production client endpoint instead of demo tokens
+  - 2026-05-01: Mobile login calls `/api/auth/client/login`, stores real JWT metadata, and routes by app type to MalkaVRS, MalkaVRI, or MapleVRI. Interpreter accounts are intentionally rejected in the current client-app builds.
 - [x] Native launch routing waits for AsyncStorage hydration before choosing login vs app route
 - [x] Native API and queue clients resolve tenant domains instead of falling back to `localhost`
 - [x] VRI self-view uses native camera preview and stores permission/default metadata
@@ -333,12 +333,42 @@
 - [x] Call history uses `/api/client/call-history` with local cache fallback
 - [x] VRI usage summary aggregates `/api/client/call-history` with local cache fallback
 - [x] Voicemail inbox uses production inbox/unread/seen/delete/playback URL APIs with local cache fallback
+- [x] Mobile VRI pre-match invite flow prepares/shareable session links and attaches invite tokens to the interpreter request
+  - 2026-05-01: VRIConsoleScreen can prepare a VRI invite before a room exists, share it via native share sheet, persist pending invite tokens, and send those tokens with the eventual VRI queue request so guests wait until the interpreter-connected room is live.
+- [x] Mobile VRI tenant accent colors use whitelabel theme in console/settings/usage controls
+- [x] Native app identifiers configured for initial internal-test apps
+  - 2026-05-01: Android product flavors and iOS build-setting defaults added for `com.malkacomm.vrs`, `com.malkacomm.vri`, and `com.maplecomm.vri`; store-side Apple/Google records still require developer account access.
+- [x] iOS simulator build/install lane for all three client apps
+  - 2026-05-02: `scripts/mobile/install-ios-simulator-variants.sh` bundles React Native JS, builds the Jitsi iOS simulator app three times, generates tenant-specific iOS app icons, and installs MalkaVRS, MalkaVRI, and MapleVRI on the booted iPhone simulator.
+- [x] Android flavor app targets for all three client apps
+  - 2026-05-02: Android product flavors exist for `malkaVrs`, `malkaVri`, and `mapleVri` with tenant-specific app IDs, app names, default URLs, and native BuildConfig tenant/app-type metadata.
+- [x] Mobile tenant visual polish for first app-review/testing pass
+  - 2026-05-02: VRI mobile console uses tenant mobile background colors, MapleVRI uses a darker burgundy mobile background, the VRI share action uses a standard upward/outward share glyph, and MalkaVRI has tenant-specific iOS and Android launcher artwork from the existing MalkaVRI asset.
+- [x] Resolve Android 16 KB native-library alignment before Android 15+/new-device release confidence
+  - 2026-05-01: MalkaVRS, MalkaVRI, and MapleVRI debug APKs now build arm64-only under React Native 0.77.3, AGP 8.7.2, NDK r28, updated WebRTC, and updated JSC native artifacts. `zipalign -P 16 -c -v 4` passes for all three, and `npm run mobile:check-android-16kb -- --all <apk>` reports `arm64-v8a: 13/13 compatible`.
+  - 2026-05-02: MalkaVRS, MalkaVRI, and MapleVRI release AABs also build successfully and pass `npm run mobile:check-android-16kb -- --all <aab>` with `arm64-v8a: 13/13 compatible`.
+- [x] Confirm backend API contract parity for auth, profile, calls, queue, contacts, voicemail, tenant, and billing metadata
+  - 2026-05-02: Client auth, phone/SMS, password-reset request, JWT refresh, tenant queue URL selection, native route hydration, profile refresh, contacts/detail, call history, VRI usage, voicemail inbox, billing summary, settings/preferences, mobile log upload, and VRI invite preparation all call production-backed contracts. Physical-device media/call smoke and store-release evidence remain tracked as separate release gates below.
+- [x] Add mobile build/test workflow to CI or a documented local release checklist
+  - 2026-05-02: `docs/mobile-builds.md` documents local Android and iOS build/install lanes, app IDs, Android 16 KB alignment checks, and store record prerequisites.
+- [x] Create mobile release checklist covering app version, tenant branding, backend base URL, privacy copy, permissions, crash reporting, and rollback plan
+  - 2026-05-02: Initial checklist lives in `docs/mobile-builds.md`; store execution and crash-reporting vendor setup remain open release work below.
 
 ##### Mobile Apps / Mobile Parity Track Completed
 - [x] Mobile QA matrix document created
+- [x] Audit current React Native/iOS/Android/TWA project health against current web/backend contracts
+- [x] Choose shared TypeScript API client strategy to prevent web/mobile contract drift
+- [x] Extract shared auth/session/profile/queue/contact types where practical
+- [x] Create mobile parity checklist template required for future web feature PRs
+- [x] Mobile-safe WebSocket queue client with reconnect/backoff/session restore
+- [x] Deep links into active rooms and invite links
+- [x] Tenant branding parity for Maple/Malka: logos, colors, app name, favicon/app icon/splash, copy
 
 ##### Mobile Apps / Mobile May 2026 Delivery Plan Completed
+- [x] Week 1: audit existing mobile shells, pick release strategy, define MVP by app/role, document known gaps
 - [x] Week 1: wire mobile auth/session config to production/staging endpoints
+- [x] Week 2: implement client VRI console parity and VRS client profile parity
+- [x] Week 2: implement client queue request/join path on mobile
 - [x] Week 3: implement contacts/call history essentials or explicitly defer with user-facing fallback
 - [x] Week 4: implement voicemail/billing summary essentials or explicitly defer with user-facing fallback
 
@@ -348,15 +378,31 @@
 - [x] Maintain `docs/mobile-parity.md` with route-by-route API/UI parity table
 - [x] Add smoke fixtures for demo accounts on iOS/Android
 
+##### Mobile Apps / Mobile App Targets Completed
+- [x] Malka VRS Client: Deaf/HoH users, VRS phone-number flow, interpreter-assisted calls, contacts, call history
+- [x] Malka VRI Client: corporate VRI mode for Malka tenant/accounts with VRI permissions
+- [x] Maple VRI Client: same VRI client app as MalkaVRI with Maple tenant skin/config
+- [x] Keep interpreter/captioner native apps out of current mobile scope; interpreter and captioner workflows remain web/admin operational surfaces for this stage
+- [x] Do not expose an interpreter, captioner, or terp portal app in the current mobile stage
+
 ## Immediate Open Work
 
 ### Release Readiness & Operations
 - [ ] Define explicit go/no-go gates for Maple VRI pilot, Malka VRI beta, Malka VRS beta, mobile beta, and full production
 - [ ] Stand up a production-like staging environment with separate database, tenant config, Stripe test mode, Twilio test/sandbox path, and seeded Maple/Malka accounts
+- [ ] Document environment/base-URL policy for web, native, API, queue, ops, and Twilio so local/staging builds cannot silently fall back to production domains
 - [ ] Create incident runbooks: restart VRS/ops/Twilio/Jitsi safely, clear stale queue items, verify media health, verify CDR integrity, and communicate user impact
 - [ ] Create support/admin runbooks for stale calls, interpreter no-answer/decline loops, stuck VRI invites, account lockouts, voicemail playback failures, and billing disputes
 - [ ] Define data retention/privacy matrix for CDRs, audit logs, voicemail media, captions/transcripts, VRI invite links, chat/TTS messages, and mobile logs
 - [ ] Remediate npm audit findings on a dependency-upgrade branch, prioritizing Twilio server high-severity findings before production Twilio use
+
+### Codebase Maintainability & Contract Hardening
+- [ ] Decide the remaining JS/TS migration boundary for VRS server routes, WebSocket handlers, queue service, validation, and compiled compatibility bridges
+- [ ] Replace high-risk `any`/`@ts-ignore` usage in mobile navigation, queue middleware, and shared tenant/config helpers with typed route params and typed event payloads
+- [ ] Create a single typed contract source for API responses and WebSocket events, then consume it from web, native, server tests, and smoke scripts
+- [ ] Add runtime contract tests for shared API client methods and queue WebSocket sequences so mobile/web drift is caught before manual QA
+- [ ] Decide whether checked-in `dist` files remain part of the deployment contract; if yes, add a CI check that source and generated output are in sync
+- [ ] Add a fast local verification target for common app work that runs the smallest useful subset before full CI (`tsc` slice, changed tests, smoke syntax checks)
 
 ### Admin Portal Refinement
 - [ ] Real-browser verify top-level admin dashboard navigation after replacing static buttons with hash-routing handlers
@@ -396,6 +442,8 @@
 - [ ] Unit tests: billing CDR creation and immutability
 - [ ] Integration tests: API endpoint contracts
 - [ ] Integration tests: WebSocket event sequences
+- [ ] Shared contract tests: validate mobile/web API client expectations against backend response schemas and seed fixtures
+- [ ] Shared WebSocket contract tests: auth, request, queued, invite, match, cancel, hangup, reconnect, and error payloads
 - [ ] E2E tests: signup/login/dial/match/call/hangup
 - [ ] E2E tests: Maple VRI request-interpreter pilot path
 - [ ] CI: require tests/build/smokes on every PR before merge
@@ -533,88 +581,43 @@
 
 **Target**: mobile parity by **May 31, 2026**, with an internal/TestFlight/Play pilot sooner if the core call flow is stable. The web app is the source of truth until mobile parity is explicitly checked off.
 
-**Current mobile state**: native iOS and Android project shells exist, plus a TWA path, and the mobile parity branch now has production-backed React Native screens for login, VRS home, VRI console, contacts, call history, voicemail, interpreter home/settings/earnings, tenant config, native storage helpers, deep-link scaffolding, QA docs, and CI typecheck wiring. Client/interpreter email-password auth, client phone-password auth, SMS OTP request/verify, backend password-reset request, JWT refresh-on-401, and native cold-start route hydration are wired. Native API and queue clients resolve tenant domains instead of localhost. VRI self-view uses a native camera preview. Contacts/detail/call-history/VRI-usage/voicemail/profile/settings/interpreter earnings paths call production APIs with local cache fallback where appropriate. Remaining release gates are physical iOS/Android media/call smoke, TestFlight/Play release lanes, crash-reporting vendor setup, push/background call-style notifications, final store privacy checks, and native hardware-backed secure-storage dependency linkage if final release requires it.
+**Current mobile state**: native iOS and Android project shells exist for the current three client apps: MalkaVRS, MalkaVRI, and MapleVRI. MalkaVRI and MapleVRI share the same VRI client experience with tenant-specific branding/config. The mobile parity branch now has production-backed React Native screens for client login, VRS home, VRI console, contacts, call history, voicemail, tenant config, native storage helpers, deep-link scaffolding, QA docs, and CI typecheck wiring. Client email-password auth, client phone-password auth, SMS OTP request/verify, backend password-reset request, JWT refresh-on-401, and native cold-start route hydration are wired. Native API and queue clients resolve tenant domains instead of localhost. VRI self-view uses a native camera preview. Contacts/detail/call-history/VRI-usage/voicemail/profile/settings paths call production APIs with local cache fallback where appropriate. Android flavors and iOS simulator variants are configured for MalkaVRS, MalkaVRI, and MapleVRI; Android debug/release artifacts are 16 KB-compatible for arm64 devices; iOS simulator variants install successfully; and tenant branding now covers app ID/name, core colors, MapleVRI mobile background, share glyph, and MalkaVRI launcher artwork. Remaining release gates are physical iOS/Android media/call smoke, TestFlight/Play release lanes, crash-reporting vendor setup, push/background call-style notifications, final store privacy checks, and native hardware-backed secure-storage dependency linkage if final release requires it.
 
 **Policy**: every web feature merged after April 29, 2026 must update this mobile section with one of: implemented on mobile, intentionally web-only, mobile follow-up ticket, or blocked by native platform capability.
 
 ### Mobile Release Gates
-- [ ] Confirm backend API contract parity for auth, profile, calls, queue, contacts, voicemail, tenant, and billing metadata
-  - 2026-05-01 update: Auth, phone/SMS, password-reset request, JWT refresh, tenant queue URL selection, native route hydration, profile refresh, contacts/detail, call history, VRI usage, voicemail inbox, billing summary, interpreter earnings, settings/preferences, and mobile log upload API calls are wired. Keep open for physical-device contract smoke and any app-store release evidence.
 - [ ] Run iOS simulator smoke for login, profile load, permissions, call join, and logout
   - 2026-04-30: Blocked locally by missing full Xcode simulator setup.
   - 2026-05-01: Still blocked locally: `xcrun simctl` is unavailable and `xcodebuild` reports Command Line Tools instead of full Xcode.
+  - 2026-05-01 setup update: iOS build identifiers are prepared in repo and full Xcode 26.4.1 exists at `/Applications/Xcode.app`; simulator builds are still blocked until the Xcode license is accepted with sudo and Xcode is selected or `DEVELOPER_DIR` is used.
+  - 2026-05-01 setup update 2: Full Xcode is now selected, first launch completed, and available iOS 26.1 simulators are visible via `simctl`; actual app simulator smoke remains open.
+  - 2026-05-02 update: All three iOS simulator variants build, install, and launch on the iPhone simulator. Visual smoke verified MapleVRI tenant background/share icon and MalkaVRI icon generation. Full login/permissions/call/logout simulator smoke remains open.
 - [ ] Run Android emulator smoke for login, profile load, permissions, call join, and logout
   - 2026-04-30: Blocked locally by missing Android SDK/emulator setup.
   - 2026-05-01: Still blocked locally: `adb` is not installed and Android Gradle cannot run because Java is missing.
+  - 2026-05-01 setup update: Android Studio, JDK 17, `adb`, command-line tools, Android 34 platform, and build-tools 33.0.2 are installed. Emulator/system-image install is still blocked by sdkmanager's Android Emulator zip-read error; Android Gradle flavor verification now reaches dependency resolution and is blocked by missing `com.github.jiangdongguo.AndroidUSBCamera:libuvc:3.3.3`.
+  - 2026-05-01 setup update 2: Android Studio installed the emulator binary under `$HOME/Library/Android/sdk`, but no AVD/system image is present yet. Gradle still reaches dependency resolution and remains blocked by missing `com.github.jiangdongguo.AndroidUSBCamera:libuvc:3.3.3`.
+  - 2026-05-01 setup update 3: Pixel 9 AVD boots, `:app:assembleMalkaVrsDebug` succeeds, `app-malkaVrs-debug.apk` installs as `com.malkacomm.vrs`, Metro loads after excluding the duplicate nested SDK checkout, and the native shell reaches the simplified MalkaVRS client login. Keep open for login/call/logout smoke.
+  - 2026-05-02 update: Android product flavors/assets now cover MalkaVRS, MalkaVRI, and MapleVRI. VRI console UI changes are shared React Native and apply on Android; MalkaVRI Android launcher icons now use the existing MalkaVRI artwork. Keep open for login/profile/permissions/call/logout emulator smoke.
 - [ ] Run one physical iPhone smoke: camera/mic permissions, speaker/Bluetooth, background/lock behavior, reconnect
 - [ ] Run one physical Android smoke: camera/mic permissions, speaker/Bluetooth, background/lock behavior, reconnect
 - [ ] Establish TestFlight release lane
 - [ ] Establish Play Internal Testing release lane
-- [ ] Add mobile build/test workflow to CI or a documented local release checklist
-- [ ] Create mobile release checklist covering app version, tenant branding, backend base URL, privacy copy, permissions, crash reporting, and rollback plan
 
 ### Mobile App Targets
-- [ ] Malka VRS Client: Deaf/HoH users, VRS phone-number flow, interpreter-assisted calls, contacts, call history
-- [ ] Maple VRI Client: corporate shared-device/session console, self-view, Request Interpreter, usage summary, settings
-- [ ] Malka VRI Client: corporate VRI mode for Malka tenant/accounts with VRI permissions
-- [ ] Interpreter App: queue availability, incoming request acceptance, VRS/VRI service-mode separation, profile, billing/earnings tab
-- [ ] Captioner App: caption assignment, caption publishing, session privacy routing
 - [ ] Admin Mobile/Tablet: decide whether admin is responsive web only or gets native moderation surfaces
 - [ ] Non-US Malka Client: unified relay/VRI client where local market does not distinguish VRS/VRI
-- [ ] Non-US Interpreter: interpreter app with market-specific billing backend
 
 ### Current Parity Gap Summary
 
-All current parity-gap summary items have been moved to Completed Work. Remaining mobile work is tracked below as app-target, client/interpreter flow, device-smoke, release-lane, and store-readiness tasks.
+All current parity-gap summary items have been moved to Completed Work. Remaining mobile work is tracked below as app-target, client flow, device-smoke, release-lane, and store-readiness tasks.
 
 ### Client Mobile Parity
-- [x] Malka VRS client login routes to VRS phone-number-oriented home
-  - 2026-04-30: Screen routing scaffold exists, but it depends on demo auth until real login is wired.
-  - 2026-05-01 update: Real email/password login routes by backend role and tenant app type; client phone/password login and SMS OTP flows are also wired.
-- [x] Malka VRI/Maple VRI client login routes to focused VRI session console
-  - 2026-04-30: Screen routing scaffold exists via app-type branching; needs real tenant/auth smoke.
-  - 2026-05-01 update: VRI tenants route to VRIConsoleScreen on login.
-- [x] VRI console shows large self-view and primary Request Interpreter action
-  - 2026-05-01 review: VRI console has a large self-view placeholder and request/cancel action, but no actual camera preview yet.
-  - 2026-05-01 update: VRI console now uses native camera preview for self-view with permission/default metadata persisted; device camera smoke remains open.
-- [x] VRI console prevents empty room start before interpreter match
-- [x] VRI console supports settings gear and media defaults
-- [x] VRI console exposes billing/usage summary without exposing admin-only billing controls
-- [x] VRS client supports phone-number profile, dial-via-interpreter, contacts, call history, missed calls
-  - 2026-05-01 review: VRS home/dialpad/contacts/history screens exist, but contact/history data is mock/local and dial/callback currently starts generic rooms rather than the verified backend phone-number/interpreter-assisted flow.
-  - 2026-05-01 update: Contacts, profile, call history, client phone/password login, and SMS OTP login now use API-backed data with local cache fallback. Dial-via-interpreter now sends p2p_call WebSocket message to backend for real P2P room bridging. Missed-call filter tabs added.
-- [x] Client can request interpreter, see pending status, cancel request, and auto-enter after match
-  - 2026-04-30: Queue Redux/WebSocket path is shared with native, but real matched-room device smoke is still open.
-- [x] Client can join active matched room with camera off/mic muted defaults
-- [x] Client can leave call without being signed out
-- [x] Client call end reliably writes call completion/CDR metadata
-- [x] Client supports captions/language controls in a mobile-appropriate location
-- [x] Client supports invite flow once VRI session invite model is built
-  - 2026-05-01 review: Native Jitsi invite modal exists through upstream conference navigation, but the custom VRI pre-match invite/session object flow is not implemented on mobile yet.
-  - 2026-05-01 update: VRI invite flow wired — Prepare Invite button on VRIConsoleScreen sends prepare_vri_invite via WebSocket, displays invite URL with copy action on response.
-- [x] Client supports visual voicemail inbox and unread badge
-- [x] Client supports contact history and notes
+All completed client mobile parity items have been moved to Completed Work. Remaining client-app work is now tracked as device smoke, release-lane, store-readiness, and deferred native interpreter/captioner scope below.
 
-### Interpreter Mobile Parity
-- [ ] Interpreter login routes to interpreter profile, not client surface
-- [ ] Interpreter profile mirrors web structure with self-view, availability, queue state, tabs
-- [ ] Interpreter can set service modes: VRS, VRI, captioning eligibility
-- [ ] Interpreter can set language pairs and skills
-- [ ] Interpreter can go available/unavailable
-- [ ] Interpreter receives incoming request notification while app is foregrounded
-- [ ] Interpreter receives push/call-style notification while app is backgrounded or locked
-- [ ] Interpreter can accept/decline request and auto-join correct room
-- [ ] Interpreter sees client/session context before accepting where permitted
-- [ ] Interpreter can end call and trigger call lifecycle completion
-- [ ] Interpreter billing/earnings tab shows payable minutes, invoice status, payout method placeholders
-- [ ] Interpreter schedule/break/teaming decisions documented for MVP vs post-May
-
-### Captioner Mobile Parity
-- [ ] Decide whether captioner mobile is required for May or web-only for initial production
-- [ ] Captioner login routes to captioner profile
-- [ ] Captioner assignment/hidden participant flow works on mobile if included
-- [ ] Caption publishing UI is usable on tablet/phone if included
-- [ ] Privacy routing for captioners documented and tested
+### Deferred Interpreter/Captioner Native Scope
+- [ ] Revisit interpreter/captioner native apps only after MalkaVRS, MalkaVRI, and MapleVRI client apps are production-stable
+- [ ] Keep interpreter/captioner workflow parity on responsive web/admin surfaces for now
 
 ### Admin Mobile / Tablet Parity
 - [ ] Decide whether admin moderation is responsive web/tablet only for May
@@ -626,34 +629,25 @@ All current parity-gap summary items have been moved to Completed Work. Remainin
 - [ ] Superadmin tenant management remains desktop-only or gets explicit mobile scope
 
 ### Mobile Parity Track
-- [ ] Audit current React Native/iOS/Android/TWA project health against current web/backend contracts
-- [ ] Choose shared TypeScript API client strategy to prevent web/mobile contract drift
-- [ ] Extract shared auth/session/profile/queue/contact types where practical
-- [ ] Create mobile parity checklist template required for future web feature PRs
 - [ ] Jitsi Meet React Native SDK integration verified against current Droplet/Jitsi config
-- [ ] Mobile-safe WebSocket queue client with reconnect/backoff/session restore
-  - 2026-04-30: Queue service can instantiate outside browser globals and has reconnect/backoff. Still needs native URL configuration, real auth token use, cold-start storage hydration, and device smoke.
-  - 2026-05-01 update: Native queue URL, real JWT metadata, and cold-start storage hydration are wired. Device smoke and background/lock recovery remain open.
-- [ ] Secure token storage: Keychain on iOS, Keystore/EncryptedSharedPreferences on Android
-- [ ] Deep links into active rooms and invite links
+- [ ] Secure token storage: link and verify hardware-backed Keychain on iOS and Keystore/EncryptedSharedPreferences on Android; document any fallback as a release exception
+- [ ] Tenant/domain safety: verify MalkaVRS, MalkaVRI, MapleVRI, staging, and local builds never use the wrong production API or queue domain
 - [ ] Push/background calling: APNs, FCM, CallKit, Android ConnectionService
 - [ ] Reconnect/handoff behavior after app background, network switch, lock screen, and call interruption
 - [ ] Poor-network states and media fallback copy
-- [ ] Tenant branding parity for Maple/Malka: logos, colors, app name, favicon/app icon/splash, copy
 - [ ] Mobile QA matrix executed: iOS/Android, phone/tablet, permissions, orientation, Bluetooth, screen lock
 - [ ] Store readiness: privacy manifests, permission copy, screenshots, TestFlight/Play internal testing, crash reporting
   - 2026-04-30: iOS privacy manifest added; store/testflight/play execution remains open.
 
 ### Mobile May 2026 Delivery Plan
-- [ ] Week 1: audit existing mobile shells, pick release strategy, define MVP by app/role, document known gaps
-- [ ] Week 2: implement client VRI console parity and VRS client profile parity
-- [ ] Week 2: implement queue request/accept/join path on mobile
-- [ ] Week 3: implement interpreter availability/acceptance path and background notification decision
+- [ ] Week 3: validate mobile client request flows against web interpreter/admin acceptance workflow and decide background notification scope for clients
 - [ ] Week 4: run device QA matrix, fix blockers, prepare TestFlight/Play internal release
 - [ ] End of May: mobile release candidate with documented unsupported features and production rollback plan
 
 ### Mobile Drift Controls
 - [ ] Add automated contract tests shared by web and mobile clients
+- [ ] Add typed WebSocket event fixtures shared by server tests and React Native queue middleware
+- [ ] Add CI/lint guard for new mobile-critical APIs requiring updates to `react/features/mobile/types.ts` and `docs/mobile-parity.md`
 - [ ] Tag mobile blockers separately in Linear/GitHub so they do not disappear under web work
 
 ---

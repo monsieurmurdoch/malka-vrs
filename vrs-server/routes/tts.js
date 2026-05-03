@@ -11,7 +11,7 @@ const express = require('express');
 const ttsService = require('../lib/tts-service');
 const { verifyJwtToken, normalizeAuthClaims } = require('../lib/auth');
 const log = require('../lib/logger').module('tts-routes');
-const { validate, z, sanitizeStrict } = require('../lib/validation');
+const { validate, z, sanitizeStrict, emptyBodySchema } = require('../lib/validation');
 
 const router = express.Router();
 
@@ -164,7 +164,7 @@ router.delete('/phrases/:id', authenticateClient, async (req, res) => {
  * POST /api/tts/seed-phrases
  * Seed default quick phrases for the authenticated client.
  */
-router.post('/seed-phrases', authenticateClient, async (req, res) => {
+router.post('/seed-phrases', authenticateClient, validate(emptyBodySchema), async (req, res) => {
     try {
         await ttsService.seedDefaultPhrases(req.user.id);
         const phrases = await ttsService.getQuickPhrases(req.user.id);

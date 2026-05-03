@@ -50,6 +50,8 @@ All persistent storage keys used by the app:
 - `vrs_language` — string: selected language code
 - `vrs_captions_enabled` — string: `'true'`|`'false'`
 - `vri_media_defaults` — JSON: MediaDefaults
+- `vri_pending_invite_tokens` — JSON: string[] (prepared VRI invite tokens to attach to next request)
+- `vri_pending_invite_url` — string: most recent prepared VRI invite URL for native share/resume
 - `vrs_tenant_config` — JSON: cached tenant config for native theme/branding
 
 ### Tenant Config (Whitelabel)

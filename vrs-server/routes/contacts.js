@@ -6,8 +6,79 @@ const express = require('express');
 const db = require('../database');
 const { verifyJwtToken, normalizeAuthClaims } = require('../lib/auth');
 const state = require('../lib/state');
+const {
+    validate,
+    z,
+    idSchema,
+    nameSchema,
+    emailSchema,
+    phoneNumberSchema,
+    sanitizedStringSchema,
+    optionalSanitizedStringSchema,
+    emptyBodySchema
+} = require('../lib/validation');
 
 const router = express.Router();
+
+const colorSchema = z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional();
+const importPhoneSchema = z.string()
+    .max(60)
+    .transform(value => value.replace(/[^\d+]/g, ''))
+    .refine(value => !value || /^\+?\d{7,16}$/.test(value), 'Invalid phone number format')
+    .optional()
+    .nullable();
+const contactBaseSchema = {
+    name: nameSchema,
+    email: emailSchema.optional().nullable(),
+    phoneNumber: phoneNumberSchema.optional().nullable(),
+    organization: optionalSanitizedStringSchema.nullable(),
+    notes: optionalSanitizedStringSchema.nullable(),
+    avatarColor: colorSchema,
+    isFavorite: z.boolean().optional(),
+    linkedClientId: idSchema.optional().nullable(),
+    groupIds: z.array(idSchema).max(50).optional()
+};
+const createContactSchema = z.object(contactBaseSchema);
+const updateContactSchema = z.object({
+    ...Object.fromEntries(Object.entries(contactBaseSchema).map(([key, schema]) => [key, schema.optional()])),
+    groupIds: z.array(idSchema).max(50).optional()
+}).refine(data => Object.keys(data).length > 0, { message: 'At least one field must be provided' });
+const createGroupSchema = z.object({
+    name: nameSchema,
+    color: colorSchema,
+    sortOrder: z.coerce.number().int().nonnegative().optional()
+});
+const updateGroupSchema = z.object({
+    name: nameSchema.optional(),
+    color: colorSchema,
+    sortOrder: z.coerce.number().int().nonnegative().optional()
+}).refine(data => Object.keys(data).length > 0, { message: 'At least one field must be provided' });
+const groupAssignmentSchema = z.object({ groupIds: z.array(idSchema).max(50) });
+const blockContactSchema = z.object({
+    blockedPhone: phoneNumberSchema.optional(),
+    blockedEmail: emailSchema.optional(),
+    blockedClientId: idSchema.optional(),
+    reason: optionalSanitizedStringSchema
+}).refine(data => data.blockedPhone || data.blockedEmail || data.blockedClientId, {
+    message: 'Must specify phone, email, or client ID to block'
+});
+const mergeContactsSchema = z.object({
+    primaryId: idSchema,
+    secondaryIds: z.array(idSchema).min(1).max(50)
+});
+const importContactSchema = z.object({
+    ...contactBaseSchema,
+    name: nameSchema.optional(),
+    phoneNumber: importPhoneSchema
+}).refine(contact => contact.name || contact.email || contact.phoneNumber, {
+    message: 'Imported contact must include name, email, or phone number'
+});
+const importContactsSchema = z.object({
+    contacts: z.array(importContactSchema).min(1).max(500)
+});
+const noteSchema = z.object({
+    content: sanitizedStringSchema.refine(value => value.trim().length > 0, 'Note content is required')
+});
 
 // ============================================
 // MIDDLEWARE
@@ -107,12 +178,8 @@ router.get('/:id', authenticateClient, async (req, res) => {
 /**
  * POST /api/contacts — create a contact
  */
-router.post('/', authenticateClient, async (req, res) => {
+router.post('/', authenticateClient, validate(createContactSchema), async (req, res) => {
     const { name, email, phoneNumber, organization, notes, avatarColor, isFavorite, linkedClientId, groupIds } = req.body;
-
-    if (!name) {
-        return res.status(400).json({ error: 'Contact name is required' });
-    }
 
     try {
         const contact = await db.createContact({
@@ -162,7 +229,7 @@ router.post('/', authenticateClient, async (req, res) => {
 /**
  * PUT /api/contacts/:id — update a contact
  */
-router.put('/:id', authenticateClient, async (req, res) => {
+router.put('/:id', authenticateClient, validate(updateContactSchema), async (req, res) => {
     const { name, email, phoneNumber, organization, notes, avatarColor, isFavorite, linkedClientId, groupIds } = req.body;
 
     try {
@@ -262,11 +329,8 @@ router.get('/groups/list', authenticateClient, async (req, res) => {
 /**
  * POST /api/contacts/groups — create a group
  */
-router.post('/groups', authenticateClient, async (req, res) => {
+router.post('/groups', authenticateClient, validate(createGroupSchema), async (req, res) => {
     const { name, color, sortOrder } = req.body;
-    if (!name) {
-        return res.status(400).json({ error: 'Group name is required' });
-    }
 
     try {
         const group = await db.createContactGroup({
@@ -288,7 +352,7 @@ router.post('/groups', authenticateClient, async (req, res) => {
 /**
  * PUT /api/contacts/groups/:groupId — update a group
  */
-router.put('/groups/:groupId', authenticateClient, async (req, res) => {
+router.put('/groups/:groupId', authenticateClient, validate(updateGroupSchema), async (req, res) => {
     const { name, color, sortOrder } = req.body;
 
     try {
@@ -322,11 +386,8 @@ router.delete('/groups/:groupId', authenticateClient, async (req, res) => {
 /**
  * PUT /api/contacts/:id/groups — set group membership for a contact
  */
-router.put('/:id/groups', authenticateClient, async (req, res) => {
+router.put('/:id/groups', authenticateClient, validate(groupAssignmentSchema), async (req, res) => {
     const { groupIds } = req.body;
-    if (!Array.isArray(groupIds)) {
-        return res.status(400).json({ error: 'groupIds must be an array' });
-    }
 
     try {
         await db.setContactGroups(req.user.id, req.params.id, groupIds);
@@ -357,12 +418,8 @@ router.get('/blocked/list', authenticateClient, async (req, res) => {
 /**
  * POST /api/contacts/blocked — block a contact
  */
-router.post('/blocked', authenticateClient, async (req, res) => {
+router.post('/blocked', authenticateClient, validate(blockContactSchema), async (req, res) => {
     const { blockedPhone, blockedEmail, blockedClientId, reason } = req.body;
-
-    if (!blockedPhone && !blockedEmail && !blockedClientId) {
-        return res.status(400).json({ error: 'Must specify phone, email, or client ID to block' });
-    }
 
     try {
         const result = await db.blockContact({
@@ -415,12 +472,8 @@ router.get('/duplicates/list', authenticateClient, async (req, res) => {
 /**
  * POST /api/contacts/merge — merge duplicate contacts
  */
-router.post('/merge', authenticateClient, async (req, res) => {
+router.post('/merge', authenticateClient, validate(mergeContactsSchema), async (req, res) => {
     const { primaryId, secondaryIds } = req.body;
-
-    if (!primaryId || !Array.isArray(secondaryIds) || !secondaryIds.length) {
-        return res.status(400).json({ error: 'primaryId and secondaryIds[] are required' });
-    }
 
     try {
         const merged = await db.mergeContacts(req.user.id, { primaryId, secondaryIds });
@@ -438,16 +491,8 @@ router.post('/merge', authenticateClient, async (req, res) => {
 /**
  * POST /api/contacts/import — import contacts from JSON (CSV parsed client-side)
  */
-router.post('/import', authenticateClient, async (req, res) => {
+router.post('/import', authenticateClient, validate(importContactsSchema), async (req, res) => {
     const { contacts } = req.body;
-
-    if (!Array.isArray(contacts) || contacts.length === 0) {
-        return res.status(400).json({ error: 'contacts array is required' });
-    }
-
-    if (contacts.length > 500) {
-        return res.status(400).json({ error: 'Maximum 500 contacts per import' });
-    }
 
     try {
         const result = await db.importContacts(req.user.id, contacts);
@@ -481,7 +526,7 @@ router.post('/import', authenticateClient, async (req, res) => {
 /**
  * POST /api/contacts/migrate-speed-dial — one-time migration
  */
-router.post('/migrate-speed-dial', authenticateClient, async (req, res) => {
+router.post('/migrate-speed-dial', authenticateClient, validate(emptyBodySchema), async (req, res) => {
     try {
         const migrated = await db.migrateSpeedDialToContacts(req.user.id);
         await db.ensureDefaultGroups(req.user.id);
@@ -541,11 +586,8 @@ router.get('/:id/notes', authenticateClient, async (req, res) => {
 /**
  * POST /api/contacts/:id/notes — add a note
  */
-router.post('/:id/notes', authenticateClient, async (req, res) => {
+router.post('/:id/notes', authenticateClient, validate(noteSchema), async (req, res) => {
     const { content } = req.body;
-    if (!content || !content.trim()) {
-        return res.status(400).json({ error: 'Note content is required' });
-    }
 
     try {
         const note = await db.createContactNote({
@@ -580,11 +622,8 @@ router.post('/:id/notes', authenticateClient, async (req, res) => {
 /**
  * PUT /api/contacts/:id/notes/:noteId — update a note
  */
-router.put('/:id/notes/:noteId', authenticateClient, async (req, res) => {
+router.put('/:id/notes/:noteId', authenticateClient, validate(noteSchema), async (req, res) => {
     const { content } = req.body;
-    if (!content || !content.trim()) {
-        return res.status(400).json({ error: 'Note content is required' });
-    }
 
     try {
         await db.updateContactNote(req.params.noteId, content.trim());

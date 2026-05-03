@@ -8,6 +8,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     FlatList,
+    Platform,
     SafeAreaView,
     StyleSheet,
     Text,
@@ -20,6 +21,8 @@ import { appNavigate } from '../../../../app/actions';
 import { apiClient } from '../../../../shared/api-client';
 import { getPersistentJson, setPersistentItem } from '../../../../vrs-auth/storage';
 import { mobileLog } from '../../logging';
+import { navigateRoot } from '../../rootNavigationContainerRef';
+import { screen } from '../../routes';
 import { CallRecord } from '../../../types';
 
 interface CallHistoryResponse {
@@ -226,6 +229,18 @@ const CallHistoryScreen = () => {
 
     return (
         <SafeAreaView style = { styles.container }>
+            <View style = { styles.header }>
+                <TouchableOpacity
+                    accessibilityLabel = 'Back to VRS home'
+                    accessibilityRole = 'button'
+                    onPress = { () => navigateRoot(screen.vrs.home) }
+                    style = { styles.backButton }>
+                    <Text style = { styles.backText }>Back</Text>
+                </TouchableOpacity>
+                <Text style = { styles.title }>Call History</Text>
+                <View style = { styles.headerSpacer } />
+            </View>
+
             {/* Filter Tabs */}
             <View style = { styles.filterRow }>
                 { FILTER_TABS.map(tab => (
@@ -330,6 +345,20 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         marginTop: 1
     },
+    backButton: {
+        alignItems: 'center',
+        borderColor: '#2d2d48',
+        borderRadius: 12,
+        borderWidth: 1,
+        height: 42,
+        justifyContent: 'center',
+        paddingHorizontal: 14
+    },
+    backText: {
+        color: '#f7f7fa',
+        fontSize: 14,
+        fontWeight: '700'
+    },
     container: {
         backgroundColor: '#0f0f23',
         flex: 1
@@ -348,15 +377,18 @@ const styles = StyleSheet.create({
         borderBottomColor: '#1a1a2e',
         borderBottomWidth: 1,
         flexDirection: 'row',
-        paddingHorizontal: 12,
-        paddingVertical: 8
+        gap: 8,
+        paddingBottom: 14,
+        paddingHorizontal: 16
     },
     filterTab: {
         backgroundColor: '#1a1a2e',
-        borderRadius: 8,
-        marginRight: 6,
-        paddingHorizontal: 12,
-        paddingVertical: 6
+        borderRadius: 12,
+        flex: 1,
+        minHeight: 42,
+        justifyContent: 'center',
+        paddingHorizontal: 8,
+        paddingVertical: 8
     },
     filterTabActive: {
         backgroundColor: '#2979ff'
@@ -364,13 +396,30 @@ const styles = StyleSheet.create({
     filterTabText: {
         color: '#888',
         fontSize: 12,
-        fontWeight: '500'
+        fontWeight: '700',
+        textAlign: 'center'
     },
     filterTabTextActive: {
         color: '#fff'
     },
+    header: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingBottom: 18,
+        paddingHorizontal: 16,
+        paddingTop: Platform.OS === 'android' ? 42 : 14
+    },
+    headerSpacer: {
+        width: 74
+    },
     listContent: {
         paddingBottom: 40
+    },
+    title: {
+        color: '#fff',
+        fontSize: 22,
+        fontWeight: '800'
     }
 });
 

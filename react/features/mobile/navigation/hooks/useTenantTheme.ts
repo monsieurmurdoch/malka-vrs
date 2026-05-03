@@ -26,6 +26,7 @@ export interface TenantColors {
     textPrimary: string;
     textSecondary: string;
     toolbarBg: string;
+    mobileBackground: string;
 }
 
 const DEFAULT_COLORS: TenantColors = {
@@ -41,7 +42,16 @@ const DEFAULT_COLORS: TenantColors = {
     surfaceLight: '#FFFFFF',
     textPrimary: '#FFFFFF',
     textSecondary: '#B0B0B0',
-    toolbarBg: '#0D1A38'
+    toolbarBg: '#0D1A38',
+    mobileBackground: '#0a0a1a'
+};
+
+const TENANT_FALLBACKS: Record<string, Partial<TenantColors>> = {
+    maple: {
+        mobileBackground: '#5A0000',
+        primary: '#E00000',
+        primaryDark: '#5A0000'
+    }
 };
 
 /**
@@ -62,11 +72,16 @@ export function useTenantTheme(): TenantColors {
         }
 
         // Native path: read cached tenant config
-        const cached = getPersistentJson<{ theme?: Partial<TenantColors> }>('vrs_tenant_config');
+        const cached = getPersistentJson<{ tenantId?: string; theme?: Partial<TenantColors> }>('vrs_tenant_config');
+        const tenantFallback = cached?.tenantId ? TENANT_FALLBACKS[cached.tenantId] || {} : {};
+
         if (cached?.theme) {
-            return { ...DEFAULT_COLORS, ...cached.theme };
+            return { ...DEFAULT_COLORS, ...tenantFallback, ...cached.theme };
         }
 
-        return DEFAULT_COLORS;
+        const wl = getWhitelabelConfig();
+        const configFallback = wl?.tenantId ? TENANT_FALLBACKS[wl.tenantId] || {} : {};
+
+        return { ...DEFAULT_COLORS, ...configFallback, ...wl?.theme };
     }, []);
 }

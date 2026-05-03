@@ -28,9 +28,10 @@
 -             (BOOL)application:(UIApplication *)application
   didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     JitsiMeet *jitsiMeet = [JitsiMeet sharedInstance];
+    NSString *customUrlScheme = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"VRSURLScheme"];
 
     jitsiMeet.conferenceActivityType = JitsiMeetConferenceActivityType;
-    jitsiMeet.customUrlScheme = @"org.jitsi.meet";
+    jitsiMeet.customUrlScheme = customUrlScheme.length ? customUrlScheme : @"malkavrs";
     jitsiMeet.universalLinkDomains = @[
         @"meet.jit.si",
         @"alpha.jitsi.net",
@@ -49,6 +50,10 @@
 
   [jitsiMeet application:application didFinishLaunchingWithOptions:launchOptions];
 
+    self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
+    self.window.rootViewController = [[ViewController alloc] init];
+    [self.window makeKeyAndVisible];
+
     // Initialize Crashlytics and Firebase if a valid GoogleService-Info.plist file was provided.
   if ([FIRUtilities appContainsRealServiceInfoPlist]) {
         NSLog(@"Enabling Firebase");
@@ -58,7 +63,11 @@
     }
 
     ViewController *rootController = (ViewController *)self.window.rootViewController;
-    [jitsiMeet showSplashScreen:rootController.view];
+    // LaunchScreen.xib is not compiled in CLI simulator builds when the installed
+    // simulator runtime does not match the Xcode SDK.
+    if ([[NSBundle mainBundle] pathForResource:@"LaunchScreen" ofType:@"nib"] != nil) {
+        [jitsiMeet showSplashScreen:rootController.view];
+    }
 
     return YES;
 }

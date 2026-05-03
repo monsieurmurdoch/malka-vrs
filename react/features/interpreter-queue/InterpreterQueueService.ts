@@ -8,6 +8,7 @@
 import { getUserRole } from '../base/user-role/functions';
 import { APP_TYPE } from '../base/whitelabel/constants';
 import { getAppType, getWhitelabelConfig } from '../base/whitelabel/functions';
+import { mobileLog } from '../mobile/navigation/logging';
 import { getPersistentJson, removePersistentItem } from '../vrs-auth/storage';
 
 declare var config: any;
@@ -61,6 +62,27 @@ interface StoredActiveCall {
     roomName?: string;
 }
 
+const CONNECTION_ERROR_LOG_INTERVAL = 60000;
+const SEND_WARNING_LOG_INTERVAL = 30000;
+
+function getErrorMessage(error: unknown, fallback: string) {
+    if (error instanceof Error && error.message) {
+        return error.message;
+    }
+
+    const maybeError = error as { message?: unknown; type?: unknown };
+
+    if (typeof maybeError?.message === 'string' && maybeError.message) {
+        return maybeError.message;
+    }
+
+    if (typeof maybeError?.type === 'string' && maybeError.type) {
+        return maybeError.type;
+    }
+
+    return fallback;
+}
+
 function getTenantQueueDomain(role: string): string | undefined {
     const domains = getWhitelabelConfig()?.domains;
 
@@ -69,18 +91,18 @@ function getTenantQueueDomain(role: string): string | undefined {
     }
 
     if (role === 'interpreter') {
-        return domains.interpreter || domains.clientVri || domains.clientVrs;
+        return domains.queue || domains.interpreter || domains.api || domains.clientVri || domains.clientVrs;
     }
 
     if (getAppType() === APP_TYPE.VRI) {
-        return domains.clientVri || domains.clientVrs || domains.interpreter;
+        return domains.queue || domains.api || domains.clientVri || domains.clientVrs || domains.interpreter;
     }
 
-    return domains.clientVrs || domains.clientVri || domains.interpreter;
+    return domains.queue || domains.api || domains.clientVrs || domains.clientVri || domains.interpreter;
 }
 
 function getDefaultQueueServiceUrl() {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && window.location?.host) {
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 
         return `${wsProtocol}//${window.location.host}/ws`;
@@ -158,6 +180,9 @@ class InterpreterQueueService {
     private config: { queueServiceUrl: string; queue: { maxWaitTime: number; estimatedWaitPerPerson: number } };
     private shouldReconnect = true;
     private reconnectPending = false;
+    private lastConnectionErrorLogAt = 0;
+    private connectionErrorCount = 0;
+    private lastSendWarningLogAt = 0;
 
     constructor() {
         this.config = getVRSConfig();
@@ -214,13 +239,35 @@ class InterpreterQueueService {
             };
 
             this.ws.onerror = error => {
-                console.error('WebSocket error:', error);
-                this.emit('error', { error });
+                this.reportConnectionIssue(error);
             };
         } catch (error) {
-            console.error('Failed to connect to queue server:', error);
+            this.reportConnectionIssue(error);
             this.attemptReconnect();
         }
+    }
+
+    private reportConnectionIssue(error: unknown) {
+        this.connectionErrorCount++;
+
+        const now = Date.now();
+        const shouldLog = this.lastConnectionErrorLogAt === 0
+            || now - this.lastConnectionErrorLogAt >= CONNECTION_ERROR_LOG_INTERVAL;
+        const payload = {
+            code: 'QUEUE_WS_CONNECTION_FAILED',
+            errorCount: this.connectionErrorCount,
+            message: getErrorMessage(error, 'Queue WebSocket connection failed'),
+            retrying: this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts,
+            url: this.config.queueServiceUrl
+        };
+
+        if (!shouldLog) {
+            return;
+        }
+
+        this.lastConnectionErrorLogAt = now;
+        mobileLog('warn', 'queue_ws_connection_failed', payload, { console: false });
+        this.emit('error', payload);
     }
 
     private startHeartbeat() {
@@ -537,13 +584,26 @@ class InterpreterQueueService {
         });
     }
 
-    public requestInterpreter(language = 'ASL', clientName?: string, roomName?: string) {
+    public requestInterpreter(
+            language = 'ASL',
+            clientName?: string,
+            roomNameOrOptions?: string | {
+                callType?: 'vrs' | 'vri';
+                inviteTokens?: string[];
+                roomName?: string;
+            }) {
+        const options = typeof roomNameOrOptions === 'string'
+            ? { roomName: roomNameOrOptions }
+            : roomNameOrOptions || {};
+
         this.send({
             type: 'request_interpreter',
             data: {
+                callType: options.callType,
+                inviteTokens: options.inviteTokens,
                 language,
                 clientName,
-                roomName: roomName || getCurrentRoomName()
+                roomName: options.roomName || getCurrentRoomName()
             }
         });
     }
@@ -604,7 +664,16 @@ class InterpreterQueueService {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify(message));
         } else {
-            console.warn('Cannot send queue message - WebSocket not connected');
+            const now = Date.now();
+
+            if (this.lastSendWarningLogAt === 0 || now - this.lastSendWarningLogAt >= SEND_WARNING_LOG_INTERVAL) {
+                this.lastSendWarningLogAt = now;
+                mobileLog('warn', 'queue_ws_send_skipped', {
+                    messageType: message.type,
+                    reason: 'not_connected',
+                    url: this.config.queueServiceUrl
+                }, { console: false });
+            }
         }
     }
 

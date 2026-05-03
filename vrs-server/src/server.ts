@@ -64,7 +64,15 @@ const handoffRouter = require('../routes/handoff');
 const { router: voicemailRouter, setVoicemailService } = require('../routes/voicemail');
 const ttsRouter = require('../routes/tts');
 const googleContactsRouter = require('../routes/google-contacts');
-const { validate, nameSchema, emailSchema, organizationSchema, z: zodLib } = require('../lib/validation');
+const {
+    validate,
+    standardizeErrorResponses,
+    centralizedErrorHandler,
+    nameSchema,
+    emailSchema,
+    organizationSchema,
+    z: zodLib
+} = require('../lib/validation');
 const auth = require('../lib/auth');
 
 // Billing routes (TypeScript — compiled)
@@ -195,12 +203,13 @@ app.use('/api', rateLimit({
     skip(req: Request) {
         return req.path === '/readiness' || req.path === '/health';
     },
-    message: { error: 'Too many requests, please try again later.' }
+    message: { error: 'Too many requests, please try again later.', code: 'RATE_LIMITED' }
 }));
 
 app.use(httpMetricsMiddleware);
 app.use(requestId);
 app.use(requestLogger);
+app.use(standardizeErrorResponses);
 
 // Body parsing
 app.use(express.json({ limit: '1mb' }));
@@ -525,14 +534,7 @@ app.get([
 // ERROR HANDLER
 // ============================================
 
-app.use((error: Error, req: Request, res: Response, _next: NextFunction) => {
-    (req as RequestWithLog).log?.error({ err: error }, 'Unhandled server error');
-    res.status(500).json({
-        error: 'Internal server error',
-        code: 'INTERNAL_ERROR',
-        ...(process.env.NODE_ENV === 'development' && { details: { message: error.message } })
-    });
-});
+app.use(centralizedErrorHandler(log));
 
 // ============================================
 // START SERVER

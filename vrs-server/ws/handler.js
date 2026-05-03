@@ -17,7 +17,7 @@ const state = require('../lib/state');
 const { verifyJwtToken, normalizeAuthClaims, tokenMatchesRequestedRole } = require('../lib/auth');
 const log = require('../lib/logger').module('ws');
 const { validatePayload } = require('../lib/validation');
-const { messageSchemas } = require('./schemas');
+const { messageEnvelopeSchema, messageSchemas } = require('./schemas');
 
 // Friendly room name adjectives/nouns used so the Jitsi header shows something
 // human-readable instead of a raw UUID (e.g. "vrs-amber-bridge-4712").
@@ -189,6 +189,13 @@ function handleConnection(ws, req) {
         }
 
         try {
+            const envelope = validatePayload(messageEnvelopeSchema, data);
+            if (!envelope.success) {
+                sendWsMessage(ws, 'validation_error', envelope.error);
+                return;
+            }
+            data = envelope.data;
+
             // Validate message payload against Zod schemas
             const schema = messageSchemas[data.type];
             if (schema) {
@@ -200,6 +207,7 @@ function handleConnection(ws, req) {
                 }
                 // Replace data with sanitized/parsed version
                 data.data = result.data;
+                Object.assign(data, result.data);
             }
 
             switch (data.type) {

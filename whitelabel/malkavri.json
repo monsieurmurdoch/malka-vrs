@@ -9,6 +9,8 @@
     "inviteDomain": ""
   },
   "domains": {
+    "api": "vrs.malkacomm.com",
+    "queue": "vrs.malkacomm.com",
     "clientVri": "vri.malkacomm.com",
     "interpreter": "terp.malkacomm.com",
     "admin": "admin.malkacomm.com"
@@ -67,8 +69,8 @@
     }
   },
   "mobile": {
-    "iosBundleId": "com.malka.vri",
-    "androidApplicationId": "com.malka.vri",
+    "iosBundleId": "com.malkacomm.vri",
+    "androidApplicationId": "com.malkacomm.vri",
     "displayName": "MalkaVRI"
   },
   "features": {

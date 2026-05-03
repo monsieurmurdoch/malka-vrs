@@ -6,7 +6,7 @@ const express = require('express');
 const db = require('../database');
 const { verifyJwtToken, normalizeAuthClaims } = require('../lib/auth');
 const log = require('../lib/logger').module('client');
-const { validate, validatePayload, nameSchema, phoneNumberSchema, nonNegativeIntSchema, z } = require('../lib/validation');
+const { validate, nameSchema, phoneNumberSchema, nonNegativeIntSchema, emptyBodySchema, sanitizeStrict, z } = require('../lib/validation');
 
 const router = express.Router();
 
@@ -17,13 +17,13 @@ const router = express.Router();
 const addSpeedDialSchema = z.object({
     name: nameSchema,
     phoneNumber: phoneNumberSchema,
-    category: z.string().max(50).optional()
+    category: z.string().max(50).transform(sanitizeStrict).optional()
 });
 
 const updateSpeedDialSchema = z.object({
     name: nameSchema.optional(),
     phoneNumber: phoneNumberSchema.optional(),
-    category: z.string().max(50).optional()
+    category: z.string().max(50).transform(sanitizeStrict).optional()
 });
 
 const lookupPhoneQuerySchema = z.object({
@@ -242,7 +242,7 @@ router.get('/missed-calls', authenticateUser, async (req, res) => {
     }
 });
 
-router.post('/missed-calls/mark-seen', authenticateUser, async (req, res) => {
+router.post('/missed-calls/mark-seen', authenticateUser, validate(emptyBodySchema), async (req, res) => {
     if (req.user.role !== 'client') {
         return res.status(403).json({ error: 'Client access required', code: 'FORBIDDEN' });
     }
@@ -301,7 +301,7 @@ router.get('/active-rooms', authenticateUser, async (req, res) => {
 
 const preferencesUpdateSchema = z.object({
     dnd_enabled: z.boolean().optional(),
-    dnd_message: z.string().max(200).optional(),
+    dnd_message: z.string().max(200).transform(sanitizeStrict).optional(),
     dark_mode: z.enum(['light', 'dark', 'system']).optional(),
     camera_default_off: z.boolean().optional(),
     mic_default_off: z.boolean().optional(),
@@ -327,19 +327,13 @@ router.get('/preferences', authenticateUser, async (req, res) => {
     }
 });
 
-router.put('/preferences', authenticateUser, async (req, res) => {
+router.put('/preferences', authenticateUser, validate(preferencesUpdateSchema), async (req, res) => {
     if (req.user.role !== 'client') {
         return res.status(403).json({ error: 'Client access required', code: 'FORBIDDEN' });
     }
 
     try {
-        const parsed = validatePayload(preferencesUpdateSchema, req.body);
-        if (!parsed.success) {
-            return res.status(400).json(parsed.error);
-        }
-
-        const updates = parsed.data;
-        await db.updateClientPreferences(req.user.id, updates);
+        await db.updateClientPreferences(req.user.id, req.body);
         const prefs = await db.getClientPreferences(req.user.id);
         res.json(prefs);
     } catch (error) {

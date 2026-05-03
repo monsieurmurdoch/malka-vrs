@@ -9,6 +9,8 @@
     "inviteDomain": "vri.maplecomm.ca"
   },
   "domains": {
+    "api": "vri.maplecomm.ca",
+    "queue": "vri.maplecomm.ca",
     "clientVri": "vri.maplecomm.ca",
     "interpreter": "vri.maplecomm.ca",
     "admin": "vri.maplecomm.ca"
@@ -28,7 +30,8 @@
     "textPrimary": "#FFFFFF",
     "textSecondary": "#666666",
     "toolbarBg": "#E00000",
-    "chatBg": "#E00000"
+    "chatBg": "#E00000",
+    "mobileBackground": "#5A0000"
   },
   "assets": {
     "logo": "logo.svg",
@@ -73,8 +76,8 @@
     }
   },
   "mobile": {
-    "iosBundleId": "com.maple.vri",
-    "androidApplicationId": "com.maple.vri",
+    "iosBundleId": "com.maplecomm.vri",
+    "androidApplicationId": "com.maplecomm.vri",
     "displayName": "MapleVRI"
   },
   "features": {

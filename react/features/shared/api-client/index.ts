@@ -24,9 +24,13 @@ export interface ApiResponse<T> {
 
 interface TenantConfig {
     domains?: {
+        api?: string;
         clientVrs?: string;
         clientVri?: string;
         interpreter?: string;
+    };
+    operations?: {
+        appType?: 'vrs' | 'vri';
     };
 }
 
@@ -39,7 +43,10 @@ function getBaseUrl(): string {
     const wl = getWhitelabelConfig() as TenantConfig;
     const cached = getPersistentJson<TenantConfig>('vrs_tenant_config');
     const domains = wl?.domains || cached?.domains;
-    const domain = domains?.clientVri || domains?.clientVrs || domains?.interpreter;
+    const appType = wl?.operations?.appType || cached?.operations?.appType;
+    const domain = domains?.api || (appType === 'vrs'
+        ? domains?.clientVrs || domains?.clientVri || domains?.interpreter
+        : domains?.clientVri || domains?.clientVrs || domains?.interpreter);
 
     if (domain) {
         return `https://${domain}`;

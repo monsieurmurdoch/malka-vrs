@@ -12,7 +12,7 @@ import { getUserRole } from '../base/user-role/functions';
 import { isVriApp } from '../base/whitelabel/functions';
 import { navigateRoot } from '../mobile/navigation/rootNavigationContainerRef';
 import { screen } from '../mobile/navigation/routes';
-import { getPersistentItem, getPersistentJson, setPersistentItem } from '../vrs-auth/storage';
+import { getPersistentItem, getPersistentJson, removePersistentItem, setPersistentItem } from '../vrs-auth/storage';
 import { getSecureItem } from '../vrs-auth/secureStorage';
 import { mobileLog } from '../mobile/navigation/logging';
 
@@ -158,6 +158,8 @@ MiddlewareRegistry.register((store: { _interpreterQueueInitialized?: boolean; di
             // Write local call history before clearing active call
             writeLocalCallHistory();
             queueService.endActiveCall();
+            removePersistentItem('vri_pending_invite_tokens');
+            removePersistentItem('vri_pending_invite_url');
             lastAutoEnteredQueueRoom = undefined;
 
             // Route back to the correct home screen based on role
@@ -302,8 +304,16 @@ function initializeInterpreterQueue(store: { dispatch: Function; getState: Funct
     });
 
     // Error handling
-    queueService.on('error', (data: { message?: string; }) => {
-        console.error('[InterpreterQueue] Service error:', data);
+    queueService.on('error', (data: { code?: string; message?: string; retrying?: boolean; }) => {
+        if (data.code === 'QUEUE_WS_CONNECTION_FAILED') {
+            return;
+        }
+
+        mobileLog('error', 'interpreter_queue_service_error', {
+            code: data.code,
+            message: data.message,
+            retrying: data.retrying
+        });
     });
 
     console.log('[InterpreterQueue] Middleware initialized');

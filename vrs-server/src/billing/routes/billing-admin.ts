@@ -5,7 +5,8 @@
  * All routes require admin authentication.
  */
 
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import * as billingDb from '../../lib/billing-db';
 import { getCdrs, getCdrById, getCdrStatusHistory, transitionCdrStatus } from '../cdr-service';
 import { getRateTiers, createRateTier, deactivateRateTier } from '../rate-service';
@@ -33,6 +34,65 @@ function queryNumber(value: unknown, fallback: number = 0): number {
     return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function validateBody(schema: z.ZodSchema) {
+    return (req: Request, res: Response, next: NextFunction): void => {
+        const result = schema.safeParse(req.body);
+        if (!result.success) {
+            const details: Record<string, string> = {};
+            for (const issue of result.error.issues) {
+                const key = issue.path.join('.') || '_root';
+                if (!details[key]) details[key] = issue.message;
+            }
+            res.status(400).json({ error: 'Validation failed', code: 'VALIDATION_ERROR', details });
+            return;
+        }
+        req.body = result.data;
+        next();
+    };
+}
+
+const text = z.string().min(1).max(500).transform(value => value.replace(/<[^>]*>/g, '').trim());
+const optionalText = text.optional();
+const dateText = z.string().min(1).max(40);
+const emptyBody = z.object({}).passthrough();
+const monthPeriodSchema = z.object({
+    year: z.coerce.number().int().min(2020).max(2100),
+    month: z.coerce.number().int().min(1).max(12)
+});
+const rateTierSchema = z.object({
+    callType: z.enum(['vrs', 'vri']),
+    label: text,
+    perMinuteRate: z.coerce.number().nonnegative(),
+    effectiveFrom: dateText,
+    effectiveTo: dateText.optional().nullable(),
+    fccOrderRef: optionalText
+});
+const cdrTransitionSchema = z.object({
+    toStatus: text,
+    reason: optionalText
+});
+const trsMarkSubmittedSchema = monthPeriodSchema.extend({
+    trsSubmissionId: text
+});
+const trsReconcileSchema = monthPeriodSchema.extend({
+    paymentAmount: z.coerce.number().nonnegative()
+});
+const corporateAccountSchema = z.object({}).passthrough();
+const invoicePeriodSchema = z.object({
+    periodStart: dateText,
+    periodEnd: dateText
+});
+const invoicePaymentSchema = z.object({
+    stripePaymentId: text
+});
+const reconciliationRunSchema = monthPeriodSchema.extend({
+    callType: z.enum(['vrs', 'vri']),
+    actualTotal: z.coerce.number().nonnegative()
+});
+const reconciliationResolveSchema = z.object({
+    reason: text
+});
+
 // ─── Rate Tiers ────────────────────────────────────────────
 
 /** GET /api/billing/rate-tiers — List rate tiers */
@@ -50,7 +110,7 @@ router.get('/rate-tiers', async (_req: Request, res: Response) => {
 });
 
 /** POST /api/billing/rate-tiers — Create a rate tier */
-router.post('/rate-tiers', async (req: Request, res: Response) => {
+router.post('/rate-tiers', validateBody(rateTierSchema), async (req: Request, res: Response) => {
     try {
         const tier = await createRateTier({
             callType: req.body.callType,
@@ -113,7 +173,7 @@ router.get('/cdrs/:id', async (req: Request, res: Response) => {
 });
 
 /** POST /api/billing/cdrs/:id/transition — Transition CDR status */
-router.post('/cdrs/:id/transition', async (req: Request, res: Response) => {
+router.post('/cdrs/:id/transition', validateBody(cdrTransitionSchema), async (req: Request, res: Response) => {
     try {
         await transitionCdrStatus(
             single(req.params.id),
@@ -130,7 +190,7 @@ router.post('/cdrs/:id/transition', async (req: Request, res: Response) => {
 // ─── VRS / TRS Fund ────────────────────────────────────────
 
 /** POST /api/billing/vrs/aggregate — Generate monthly VRS aggregation */
-router.post('/vrs/aggregate', async (req: Request, res: Response) => {
+router.post('/vrs/aggregate', validateBody(monthPeriodSchema), async (req: Request, res: Response) => {
     try {
         const { year, month } = req.body;
         const agg = await generateMonthlyAggregation(
@@ -169,7 +229,7 @@ router.get('/vrs/export', async (req: Request, res: Response) => {
 });
 
 /** POST /api/billing/vrs/mark-submitted — Mark VRS CDRs as submitted */
-router.post('/vrs/mark-submitted', async (req: Request, res: Response) => {
+router.post('/vrs/mark-submitted', validateBody(trsMarkSubmittedSchema), async (req: Request, res: Response) => {
     try {
         const { year, month, trsSubmissionId } = req.body;
         const count = await markTrsSubmitted(
@@ -185,7 +245,7 @@ router.post('/vrs/mark-submitted', async (req: Request, res: Response) => {
 });
 
 /** POST /api/billing/vrs/reconcile — Reconcile TRS payment */
-router.post('/vrs/reconcile', async (req: Request, res: Response) => {
+router.post('/vrs/reconcile', validateBody(trsReconcileSchema), async (req: Request, res: Response) => {
     try {
         const { year, month, paymentAmount } = req.body;
         const result = await reconcileTrsPayment(
@@ -213,7 +273,7 @@ router.get('/corporate', async (_req: Request, res: Response) => {
 });
 
 /** POST /api/billing/corporate — Create corporate account */
-router.post('/corporate', async (req: Request, res: Response) => {
+router.post('/corporate', validateBody(corporateAccountSchema), async (req: Request, res: Response) => {
     try {
         const account = await createCorporateAccount({
             ...req.body,
@@ -237,7 +297,7 @@ router.get('/corporate/:id', async (req: Request, res: Response) => {
 });
 
 /** POST /api/billing/corporate/:id/invoices — Generate invoice */
-router.post('/corporate/:id/invoices', async (req: Request, res: Response) => {
+router.post('/corporate/:id/invoices', validateBody(invoicePeriodSchema), async (req: Request, res: Response) => {
     try {
         const invoice = await generateInvoice(
             single(req.params.id),
@@ -253,7 +313,7 @@ router.post('/corporate/:id/invoices', async (req: Request, res: Response) => {
 });
 
 /** POST /api/billing/invoices/:id/issue — Issue an invoice */
-router.post('/invoices/:id/issue', async (req: Request, res: Response) => {
+router.post('/invoices/:id/issue', validateBody(emptyBody), async (req: Request, res: Response) => {
     try {
         await issueInvoice(
             single(req.params.id),
@@ -266,7 +326,7 @@ router.post('/invoices/:id/issue', async (req: Request, res: Response) => {
 });
 
 /** POST /api/billing/invoices/:id/pay — Mark invoice as paid */
-router.post('/invoices/:id/pay', async (req: Request, res: Response) => {
+router.post('/invoices/:id/pay', validateBody(invoicePaymentSchema), async (req: Request, res: Response) => {
     try {
         await markInvoicePaid(
             single(req.params.id),
@@ -282,7 +342,7 @@ router.post('/invoices/:id/pay', async (req: Request, res: Response) => {
 // ─── Reconciliation ────────────────────────────────────────
 
 /** POST /api/billing/reconciliation/run — Run reconciliation */
-router.post('/reconciliation/run', async (req: Request, res: Response) => {
+router.post('/reconciliation/run', validateBody(reconciliationRunSchema), async (req: Request, res: Response) => {
     try {
         const { year, month, callType, actualTotal } = req.body;
         const record = await runMonthlyReconciliation(year, month, callType, actualTotal);
@@ -305,7 +365,7 @@ router.get('/reconciliation', async (req: Request, res: Response) => {
 });
 
 /** POST /api/billing/reconciliation/:id/resolve — Resolve variance */
-router.post('/reconciliation/:id/resolve', async (req: Request, res: Response) => {
+router.post('/reconciliation/:id/resolve', validateBody(reconciliationResolveSchema), async (req: Request, res: Response) => {
     try {
         await resolveVariance(
             single(req.params.id),

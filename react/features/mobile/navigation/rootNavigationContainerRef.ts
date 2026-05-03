@@ -7,7 +7,7 @@ import { toState } from '../../base/redux/functions';
 import { isWelcomePageEnabled } from '../../welcome/functions';
 import { _sendReadyToClose } from '../external-api/functions';
 
-import { screen } from './routes';
+import { getMobileRootRoute } from './initialRoute';
 
 export const rootNavigationRef = React.createRef<NavigationContainerRef<any>>();
 
@@ -43,7 +43,7 @@ export function goBackToRoot(stateful: IStateful, dispatch: IStore['dispatch']) 
     const state = toState(stateful);
 
     if (isWelcomePageEnabled(state)) {
-        navigateRoot(screen.welcome.main);
+        navigateRoot(getMobileRootRoute());
     } else {
         // For JitsiSDK, WelcomePage is not available
         _sendReadyToClose(dispatch);

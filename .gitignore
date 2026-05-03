@@ -73,6 +73,7 @@ buck-out/
 # Build artifacts
 *.jsbundle
 *.framework
+*.hprof
 android/app/debug
 android/app/release
 ios/sdk/out

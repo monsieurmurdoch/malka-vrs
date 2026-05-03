@@ -20,6 +20,7 @@ import { getPersistentJson, setPersistentItem } from '../../../../vrs-auth/stora
 import { mobileLog } from '../../logging';
 import { navigateRoot } from '../../rootNavigationContainerRef';
 import { screen } from '../../routes';
+import { useTenantTheme } from '../../hooks/useTenantTheme';
 import { CallRecord, UserInfo } from '../../../types';
 
 interface UsagePeriod {
@@ -53,6 +54,7 @@ function normalizeUsageCall(raw: Record<string, any>): CallRecord {
 }
 
 const VRIUsageScreen = () => {
+    const theme = useTenantTheme();
     const [ localHistory, setLocalHistory ] = useState<CallRecord[]>(
         getPersistentJson<CallRecord[]>('vri_usage_history')
             || getPersistentJson<CallRecord[]>('vrs_call_history')
@@ -127,7 +129,7 @@ const VRIUsageScreen = () => {
                 <TouchableOpacity
                     accessibilityLabel = 'Back to VRI console'
                     onPress = { () => navigateRoot(screen.vri.console) }>
-                    <Text style = { styles.backText }>{'<'} Back</Text>
+                    <Text style = { [ styles.backText, { color: theme.accent } ] }>{'<'} Back</Text>
                 </TouchableOpacity>
                 <Text style = { styles.title }>Usage</Text>
                 <View style = { styles.headerSpacer } />

@@ -11,7 +11,7 @@ const db = require('../database');
 const activityLogger = require('../lib/activity-logger');
 const { signToken, normalizeAuthClaims, verifyJwtToken } = require('../lib/auth');
 const log = require('../lib/logger').module('auth');
-const { validate, emailSchema, passwordSchema, nameSchema, organizationSchema, phoneNumberSchema, z } = require('../lib/validation');
+const { validate, emailSchema, passwordSchema, nameSchema, organizationSchema, phoneNumberSchema, emptyBodySchema, z } = require('../lib/validation');
 const smsService = require('../lib/sms-service');
 const emailService = require('../lib/email-service');
 
@@ -71,6 +71,11 @@ const resetPasswordSchema = z.object({
     token: z.string().min(1),
     userId: z.string().min(1),
     role: z.enum(['client', 'interpreter']),
+    newPassword: passwordSchema
+});
+
+const changePasswordSchema = z.object({
+    currentPassword: z.string().min(1),
     newPassword: passwordSchema
 });
 
@@ -298,7 +303,7 @@ router.post('/captioner/login', authLimiter, validate(captionerLoginSchema), asy
 });
 
 // --- JWT refresh ---
-router.post('/refresh', authLimiter, async (req, res) => {
+router.post('/refresh', authLimiter, validate(emptyBodySchema), async (req, res) => {
     const user = getTokenUser(req, res);
 
     if (!user) {
@@ -579,7 +584,7 @@ router.post('/password/reset', authLimiter, validate(resetPasswordSchema), async
 });
 
 // --- Change password (authenticated) ---
-router.post('/password/change', authLimiter, async (req, res) => {
+router.post('/password/change', authLimiter, validate(changePasswordSchema), async (req, res) => {
     const user = getTokenUser(req, res);
 
     if (!user) {
@@ -587,14 +592,6 @@ router.post('/password/change', authLimiter, async (req, res) => {
     }
 
     const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
-        return res.status(400).json({ error: 'currentPassword and newPassword are required', code: 'VALIDATION_ERROR' });
-    }
-
-    if (newPassword.length < 8) {
-        return res.status(400).json({ error: 'New password must be at least 8 characters', code: 'VALIDATION_ERROR' });
-    }
 
     try {
         let dbUser;

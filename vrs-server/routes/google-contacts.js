@@ -11,6 +11,7 @@ const express = require('express');
 const crypto = require('crypto');
 const db = require('../database');
 const { verifyJwtToken, normalizeAuthClaims } = require('../lib/auth');
+const { validate, z, nameSchema, emailSchema, sanitizedStringSchema, emptyBodySchema, sanitizeStrict } = require('../lib/validation');
 
 const router = express.Router();
 
@@ -19,6 +20,27 @@ const CLIENT_SECRET = process.env.GOOGLE_CONTACTS_CLIENT_SECRET || '';
 const REDIRECT_URI = process.env.GOOGLE_CONTACTS_REDIRECT_URI || '';
 const SCOPES = 'https://www.googleapis.com/auth/contacts.readonly';
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+
+const importPhoneSchema = z.string()
+    .max(60)
+    .transform(value => value.replace(/[^\d+]/g, ''))
+    .refine(value => !value || /^\+?\d{7,16}$/.test(value), 'Invalid phone number format')
+    .optional()
+    .nullable();
+
+const googleContactSchema = z.object({
+    name: nameSchema.optional(),
+    email: emailSchema.optional().nullable(),
+    phone_number: importPhoneSchema,
+    organization: sanitizedStringSchema.optional().nullable(),
+    _googleResourceName: z.string().max(200).optional()
+}).refine(contact => contact.name || contact.email || contact.phone_number, {
+    message: 'Contact must include name, email, or phone number'
+});
+
+const importGoogleContactsSchema = z.object({
+    contacts: z.array(googleContactSchema).min(1).max(500)
+});
 
 function getOAuthStateSecret() {
     return process.env.GOOGLE_CONTACTS_STATE_SECRET
@@ -130,7 +152,7 @@ router.get('/callback', async (req, res) => {
     const { code, state: stateParam, error: oauthError } = req.query;
 
     if (oauthError) {
-        return res.status(400).send(`<html><body><script>window.close();</script><p>Authorization denied: ${oauthError}</p></body></html>`);
+        return res.status(400).send(`<html><body><script>window.close();</script><p>Authorization denied: ${sanitizeStrict(String(oauthError))}</p></body></html>`);
     }
 
     if (!code) {
@@ -226,7 +248,7 @@ async function getValidToken(clientId) {
 /**
  * POST /api/google-contacts/fetch — fetch contacts from Google People API
  */
-router.post('/fetch', authenticateClient, async (req, res) => {
+router.post('/fetch', authenticateClient, validate(emptyBodySchema), async (req, res) => {
     try {
         const accessToken = await getValidToken(req.user.id);
         if (!accessToken) {
@@ -280,16 +302,8 @@ router.post('/fetch', authenticateClient, async (req, res) => {
 /**
  * POST /api/google-contacts/import — import selected Google contacts
  */
-router.post('/import', authenticateClient, async (req, res) => {
+router.post('/import', authenticateClient, validate(importGoogleContactsSchema), async (req, res) => {
     const { contacts } = req.body;
-
-    if (!Array.isArray(contacts) || contacts.length === 0) {
-        return res.status(400).json({ error: 'contacts array is required' });
-    }
-
-    if (contacts.length > 500) {
-        return res.status(400).json({ error: 'Maximum 500 contacts per import' });
-    }
 
     try {
         const result = await db.importContacts(req.user.id, contacts);

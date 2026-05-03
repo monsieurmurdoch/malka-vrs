@@ -1,23 +1,21 @@
 import { NavigationContainer, Theme } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import React, { useCallback, useEffect, useState } from 'react';
-import { SafeAreaView, StatusBar, StyleSheet, Text } from 'react-native';
+import { SafeAreaView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { connect } from 'react-redux';
 
 import { IReduxState, IStore } from '../../../app/types';
-import { isVriApp } from '../../../base/whitelabel/functions';
 import DialInSummary from '../../../invite/components/dial-in-summary/native/DialInSummary';
 import Prejoin from '../../../prejoin/components/native/Prejoin';
 import UnsafeRoomWarning from '../../../prejoin/components/native/UnsafeRoomWarning';
 import { isUnsafeRoomWarningEnabled } from '../../../prejoin/functions';
-import { removeSecureItem } from '../../../vrs-auth/secureStorage';
-import { clearPersistentItems, getPersistentItem, getPersistentJson, hydratePersistentItems } from '../../../vrs-auth/storage';
 // eslint-disable-next-line
 // @ts-ignore
 import WelcomePage from '../../../welcome/components/WelcomePage';
 import { isWelcomePageEnabled } from '../../../welcome/functions';
 import Whiteboard from '../../../whiteboard/components/native/Whiteboard';
 import { _ROOT_NAVIGATION_READY } from '../actionTypes';
+import { getHydratedMobileRootRoute } from '../initialRoute';
 import { deepLinkConfig } from '../linking';
 import { rootNavigationRef } from '../rootNavigationContainerRef';
 import { screen } from '../routes';
@@ -52,59 +50,13 @@ import ContactDetailScreen from './vrs/ContactDetailScreen';
 import DialPadScreen from './vrs/DialPadScreen';
 
 const RootStack = createStackNavigator();
-const AUTH_STORAGE_KEYS = [
-    'vrs_client_auth',
-    'vrs_interpreter_auth',
-    'vrs_auth_token',
-    'vrs_user_info',
-    'vrs_user_role',
-    'vrs_tenant_config'
-];
-
-/**
- * Determine the initial route based on auth state and tenant app type.
- *
- * - If the user is already authenticated, route directly to the app home.
- * - If not authenticated, show the login screen.
- * - Falls back to the standard Jitsi welcome/connecting flow for SDK usage.
- */
-function getInitialRoute(): string {
-    const isAuthed = getPersistentItem('vrs_client_auth') === 'true'
-        || getPersistentItem('vrs_auth_token');
-
-    if (isAuthed) {
-        // Check if session has expired
-        const userInfo = getPersistentJson<{ expiresAt?: number }>('vrs_user_info');
-        const expiresAt = userInfo?.expiresAt;
-
-        if (expiresAt && Date.now() > expiresAt) {
-            // Session expired — clear auth state and show login
-            clearPersistentItems([ 'vrs_client_auth', 'vrs_auth_token', 'vrs_user_info' ]);
-            removeSecureItem('vrs_auth_token');
-
-            return screen.auth.login;
-        }
-
-        const role = getPersistentItem('vrs_user_role');
-
-        if (role === 'interpreter') {
-            return screen.interpreter.home;
-        }
-
-        return isVriApp() ? screen.vri.console : screen.vrs.home;
-    }
-
-    return screen.auth.login;
-}
 
 async function getHydratedInitialRoute(isWelcomePageAvailable: boolean): Promise<string> {
     if (!isWelcomePageAvailable) {
         return screen.connecting;
     }
 
-    await hydratePersistentItems(AUTH_STORAGE_KEYS);
-
-    return getInitialRoute();
+    return getHydratedMobileRootRoute();
 }
 
 
@@ -164,19 +116,20 @@ const RootNavigationContainer = ({ dispatch, isUnsafeRoomWarningAvailable, isWel
     }
 
     return (
-        <NavigationContainer
-            independent = { true }
-            linking = { deepLinkConfig }
-            onReady = { onReady }
-            ref = { rootNavigationRef }
-            theme = { navigationContainerTheme as Theme }>
-            <StatusBar
-                animated = { true }
-                backgroundColor = 'transparent'
-                barStyle = { 'light-content' }
-                translucent = { true } />
-            <RootStack.Navigator
-                initialRouteName = { initialRouteName }>
+        <View style = { bootStyles.root }>
+            <NavigationContainer
+                independent = { true }
+                linking = { deepLinkConfig }
+                onReady = { onReady }
+                ref = { rootNavigationRef }
+                theme = { navigationContainerTheme as Theme }>
+                <StatusBar
+                    animated = { true }
+                    backgroundColor = 'transparent'
+                    barStyle = { 'light-content' }
+                    translucent = { true } />
+                <RootStack.Navigator
+                    initialRouteName = { initialRouteName }>
                 {
                     isWelcomePageAvailable
                         && <>
@@ -271,8 +224,9 @@ const RootNavigationContainer = ({ dispatch, isUnsafeRoomWarningAvailable, isWel
                     component = { InterpreterEarningsScreen }
                     name = { screen.interpreter.earnings }
                     options = { fullScreenOptions } />
-            </RootStack.Navigator>
-        </NavigationContainer>
+                </RootStack.Navigator>
+            </NavigationContainer>
+        </View>
     );
 };
 
@@ -286,6 +240,9 @@ const bootStyles = StyleSheet.create({
     text: {
         color: '#ffffff',
         fontSize: 15
+    },
+    root: {
+        flex: 1
     }
 });
 
