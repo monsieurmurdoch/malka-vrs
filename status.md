@@ -5,6 +5,29 @@ This file is the project-level running status log. The current update stays at t
 ## Current Update
 
 - Updated: 2026-05-03
+- Branch: `codex/release-runbooks-audit`
+- HEAD: `92f2e40`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  ROADMAP.md`
+  - `A  docs/data-retention-privacy-matrix.md`
+  - `A  docs/incident-runbooks.md`
+  - `M  docs/npm-audit-review.md`
+  - `A  docs/support-admin-runbooks.md`
+  - `M  twilio-voice-server/package-lock.json`
+  - `M vrs-ops-server/dist/index.d.ts.map`
+  - `M vrs-ops-server/dist/index.js`
+  - `M vrs-ops-server/dist/index.js.map`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-05-03T22:01:02.219Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-05-03
 - Branch: `codex/interpreter-tools-workflow`
 - HEAD: `97bed6a`
 - Note: Pre-push project status sync.
@@ -29,7 +52,7 @@ Local changes at sync time:
   - `A  whitelabel/maple-staging.json`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-05-03T21:45:42.828Z
 
 <!-- status:current:start -->

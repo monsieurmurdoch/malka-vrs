@@ -1,6 +1,6 @@
 # NPM Audit Review
 
-Last reviewed: 2026-05-01
+Last reviewed: 2026-05-03
 
 Commands run:
 
@@ -32,17 +32,21 @@ Upgrade plan:
 
 ### `twilio-voice-server`
 
-- `axios 1.0.0 - 1.14.0`, high. Fix available with `npm audit fix`.
-- `jws <3.2.3`, high. Fix available with `npm audit fix`.
-- `express 4.0.0-rc1 - 4.21.2`, high via `body-parser`, `qs`, and `path-to-regexp`. Fix available with `npm audit fix`.
-- `minimatch <=3.1.3`, high. Fix available with `npm audit fix`.
-- `picomatch <=2.3.1`, high. Fix available with `npm audit fix`.
-- `brace-expansion <1.1.13`, moderate. Fix available with `npm audit fix`.
-- `follow-redirects <=1.15.11`, moderate. Fix available with `npm audit fix`.
-- `qs <=6.14.1`, moderate. Fix available with `npm audit fix`.
+- 2026-05-03: Remediated on `codex/release-runbooks-audit` with `npm --prefix twilio-voice-server audit fix`.
+- Follow-up `npm --prefix twilio-voice-server audit --audit-level=moderate` reports `found 0 vulnerabilities`.
+- Syntax check `node --check twilio-voice-server/server.js` passes.
 
-Upgrade plan:
+Upgraded transitive packages include:
 
-- Run `npm --prefix twilio-voice-server audit fix` on its own branch, then run syntax checks and a Twilio webhook/call smoke.
-- Prioritize this before production use of the Twilio bridge because several findings are high severity and network-facing.
+- `axios` to `1.16.0`
+- `express` to `4.22.1`
+- `body-parser` to `1.20.5`
+- `jws` to `3.2.3`
+- `path-to-regexp` to `0.1.13`
+- `qs` to patched `6.14.x/6.15.x` ranges in the lockfile
+- `follow-redirects` to `1.16.0`
+- `brace-expansion`, `minimatch`, and `picomatch` to patched versions
 
+Remaining follow-up:
+
+- Run a real Twilio webhook/call smoke before production Twilio use. This is a runtime verification step, not an audit blocker.

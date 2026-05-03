@@ -236,6 +236,14 @@
   - 2026-05-03: Added `docs/release-gates.md` with go/no-go criteria, evidence requirements, and lane-specific blockers.
 - [x] Environment/base-URL policy for web, native, API, queue, ops, Twilio, and billing modes
   - 2026-05-03: Added `docs/environment-policy.md` and staging tenant IDs so local/staging builds have explicit non-production targets.
+- [x] Incident runbooks for safe VRS/ops/Twilio/Jitsi restarts, stale queue clearing, media health, CDR integrity, and user-impact communication
+  - 2026-05-03: Added `docs/incident-runbooks.md` with production/staging commands, validation checks, and communication rules.
+- [x] Support/admin runbooks for stale calls, interpreter no-answer/decline loops, stuck VRI invites, account lockouts, voicemail playback failures, and billing disputes
+  - 2026-05-03: Added `docs/support-admin-runbooks.md` with admin endpoints, escalation criteria, and billing/voicemail evidence steps.
+- [x] Data retention/privacy matrix for CDRs, audit logs, voicemail media, captions/transcripts, VRI invite links, chat/TTS messages, mobile logs, and call lifecycle logs
+  - 2026-05-03: Added `docs/data-retention-privacy-matrix.md` with proposed retention defaults and legal/compliance decisions still needed.
+- [x] Twilio server npm audit remediation on dependency-upgrade branch
+  - 2026-05-03: Ran `npm --prefix twilio-voice-server audit fix`; follow-up audit reports zero vulnerabilities and syntax check passes.
 
 ### Maple VRI Pilot Readiness
 - [x] Admin moderation filters by tenant and service mode (`malka`/`maple`, `vrs`/`vri`)
@@ -447,10 +455,7 @@
 ## Immediate Open Work
 
 ### Release Readiness & Operations
-- [ ] Create incident runbooks: restart VRS/ops/Twilio/Jitsi safely, clear stale queue items, verify media health, verify CDR integrity, and communicate user impact
-- [ ] Create support/admin runbooks for stale calls, interpreter no-answer/decline loops, stuck VRI invites, account lockouts, voicemail playback failures, and billing disputes
-- [ ] Define data retention/privacy matrix for CDRs, audit logs, voicemail media, captions/transcripts, VRI invite links, chat/TTS messages, and mobile logs
-- [ ] Remediate npm audit findings on a dependency-upgrade branch, prioritizing Twilio server high-severity findings before production Twilio use
+- [ ] Run a real Twilio webhook/call smoke against the patched Twilio dependency set before production Twilio use
 
 ### Codebase Maintainability & Contract Hardening
 - [ ] Add a fast local verification target for common app work that runs the smallest useful subset before full CI (`tsc` slice, changed tests, smoke syntax checks)
