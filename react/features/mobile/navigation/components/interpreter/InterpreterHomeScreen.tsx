@@ -48,12 +48,16 @@ interface IncomingRequest {
     roomName?: string;
 }
 
+type QueueRootState = {
+    'features/interpreter-queue'?: QueueState;
+};
+
 const InterpreterHomeScreen = () => {
     const dispatch = useDispatch();
-    const queueState = useSelector((state: any) => state['features/interpreter-queue'] as QueueState | undefined);
+    const queueState = useSelector((state: QueueRootState) => state['features/interpreter-queue']);
     const isConnected = Boolean(queueState?.isConnected);
     const matchData = queueState?.matchData;
-    const pendingRequests = (queueState as any)?.pendingRequests as IncomingRequest[] | undefined;
+    const pendingRequests = queueState?.pendingRequests as IncomingRequest[] | undefined;
 
     const userInfo = getPersistentJson<InterpreterInfo>('vrs_user_info');
     const [ profile, setProfile ] = useState<InterpreterInfo | null>(userInfo || null);

@@ -24,21 +24,29 @@ import { screen } from '../../routes';
 import { Voicemail } from '../../../types';
 
 interface VoicemailInboxResponse {
-    messages?: Array<Record<string, any>>;
+    messages?: Array<Record<string, unknown>>;
     total?: number;
     unreadCount?: number;
 }
 
-function normalizeVoicemail(raw: Record<string, any>): Voicemail {
+function stringField(value: unknown, fallback = ''): string {
+    return typeof value === 'string' && value ? value : fallback;
+}
+
+function optionalStringField(value: unknown): string | undefined {
+    return typeof value === 'string' && value ? value : undefined;
+}
+
+function normalizeVoicemail(raw: Record<string, unknown>): Voicemail {
     return {
         id: String(raw.id),
-        fromName: raw.caller_name || raw.fromName || raw.caller_phone || 'Unknown caller',
-        fromPhone: raw.caller_phone || raw.fromPhone || raw.callee_phone,
+        fromName: stringField(raw.caller_name || raw.fromName || raw.caller_phone, 'Unknown caller'),
+        fromPhone: optionalStringField(raw.caller_phone || raw.fromPhone || raw.callee_phone),
         duration: Number(raw.duration_seconds ?? raw.durationSeconds ?? raw.duration ?? 0),
-        timestamp: raw.created_at || raw.timestamp || new Date().toISOString(),
+        playbackUrl: optionalStringField(raw.playbackUrl),
         isRead: Boolean(raw.seen ?? raw.isRead),
-        transcript: raw.transcript,
-        playbackUrl: raw.playbackUrl
+        timestamp: stringField(raw.created_at || raw.timestamp, new Date().toISOString()),
+        transcript: optionalStringField(raw.transcript)
     };
 }
 

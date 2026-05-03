@@ -56,11 +56,15 @@ function formatPhone(digits: string) {
     return `(${clean.slice(0, 3)}) ${clean.slice(3, 6)}-${clean.slice(6, 10)}`;
 }
 
+type QueueRootState = {
+    'features/interpreter-queue'?: QueueState;
+};
+
 const VRSHomeScreen = () => {
     const dispatch = useDispatch();
     const theme = useTenantTheme();
     const canDialOut = isFeatureEnabled(FEATURES.PHONE_DIAL_OUT);
-    const queueState = useSelector((state: any) => state['features/interpreter-queue'] as QueueState | undefined);
+    const queueState = useSelector((state: QueueRootState) => state['features/interpreter-queue']);
     const isConnected = Boolean(queueState?.isConnected);
     const isRequestPending = Boolean(queueState?.isRequestPending);
     const queuePosition = queueState?.queuePosition;
@@ -137,8 +141,8 @@ const VRSHomeScreen = () => {
 
             previewStreamRef.current = stream;
             setPreviewStream(stream);
-        } catch (err: any) {
-            setPreviewError(err?.message || 'Camera preview unavailable');
+        } catch (err: unknown) {
+            setPreviewError(err instanceof Error ? err.message : 'Camera preview unavailable');
         }
     }, []);
 

@@ -16,7 +16,12 @@ import { getPersistentItem, getPersistentJson, removePersistentItem, setPersiste
 import { getSecureItem } from '../vrs-auth/secureStorage';
 import { mobileLog } from '../mobile/navigation/logging';
 
-import { queueService } from './InterpreterQueueService';
+import {
+    type InterpreterRequestPayload,
+    type QueueMatchPayload,
+    type QueueStatus,
+    queueService
+} from './InterpreterQueueService';
 import {
     interpreterRequestReceived,
     matchFound,
@@ -24,6 +29,7 @@ import {
     queueConnectionChanged,
     queueStatusUpdate
 } from './actions';
+import type { InterpreterRequest, MatchData } from './reducer';
 
 let lastAutoEnteredQueueRoom: string | undefined;
 let callStartTimestamp: number | undefined;
@@ -31,7 +37,7 @@ let callStartTimestamp: number | undefined;
 /**
  * Persists match metadata to storage so it's available when the call ends.
  */
-function persistMatchData(data: Record<string, unknown>) {
+function persistMatchData(data: QueueMatchPayload) {
     setPersistentItem('vrs_active_call', JSON.stringify({
         callId: data.callId,
         roomName: data.roomName,
@@ -99,8 +105,8 @@ function writeLocalCallHistory() {
  * @param {Object} data - The queue match payload.
  * @returns {string|undefined}
  */
-function getQueueRoomName(data: Record<string, unknown>) {
-    return typeof data.roomName === 'string' && data.roomName.trim()
+function getQueueRoomName(data: QueueMatchPayload) {
+    return data.roomName?.trim()
         ? data.roomName
         : undefined;
 }
@@ -112,14 +118,36 @@ function getQueueRoomName(data: Record<string, unknown>) {
  * @param {string} roomName - The matched room name.
  * @returns {string}
  */
-function getQueueNavigationKey(data: Record<string, unknown>, roomName: string) {
-    const callId = typeof data.callId === 'string' ? data.callId : undefined;
-    const requestId = typeof data.requestId === 'string' ? data.requestId : undefined;
-
-    return callId || requestId || roomName;
+function getQueueNavigationKey(data: QueueMatchPayload, roomName: string) {
+    return data.callId || data.requestId || roomName;
 }
 
-function autoEnterQueueRoom(store: { dispatch: Function; }, data: Record<string, unknown>) {
+function toMatchData(data: QueueMatchPayload): MatchData {
+    const roomName = data.roomName || '';
+
+    return {
+        callId: data.callId || data.requestId || roomName,
+        clientId: data.clientId || '',
+        clientName: data.clientName || 'Client',
+        interpreterId: data.interpreterId || '',
+        interpreterName: data.interpreterName || 'Interpreter',
+        language: data.language || 'ASL',
+        requestId: data.requestId || data.callId || roomName,
+        roomName
+    };
+}
+
+function toInterpreterRequest(data: InterpreterRequestPayload): InterpreterRequest {
+    return {
+        clientName: data.clientName,
+        id: data.id,
+        language: data.language,
+        roomName: data.roomName,
+        timestamp: data.timestamp || Date.now()
+    };
+}
+
+function autoEnterQueueRoom(store: { dispatch: Function; }, data: QueueMatchPayload) {
     const roomName = getQueueRoomName(data);
 
     if (!roomName) {
@@ -221,16 +249,16 @@ function initializeInterpreterQueue(store: { dispatch: Function; getState: Funct
         });
 
         // Client receives notification when a match is found
-        queueService.on('matchFound', (data: Record<string, unknown>) => {
+        queueService.on('matchFound', (data: QueueMatchPayload) => {
             console.log('[InterpreterQueue] Match found:', data);
-            store.dispatch(matchFound(data as any));
+            store.dispatch(matchFound(toMatchData(data)));
             autoEnterQueueRoom(store, data);
         });
 
         // Client receives notification when meeting is initiated
-        queueService.on('meetingInitiated', (data: Record<string, unknown>) => {
+        queueService.on('meetingInitiated', (data: QueueMatchPayload) => {
             console.log('[InterpreterQueue] Meeting initiated:', data);
-            store.dispatch(meetingInitiated(data as any));
+            store.dispatch(meetingInitiated(toMatchData(data)));
             autoEnterQueueRoom(store, data);
         });
 
@@ -240,7 +268,7 @@ function initializeInterpreterQueue(store: { dispatch: Function; getState: Funct
         });
 
         // P2P call: ringing → auto-enter the room
-        queueService.on('p2pRinging', (data: Record<string, unknown>) => {
+        queueService.on('p2pRinging', (data: QueueMatchPayload & { calleeName?: string }) => {
             console.log('[InterpreterQueue] P2P ringing:', data);
             persistMatchData({
                 callId: data.callId,
@@ -248,7 +276,7 @@ function initializeInterpreterQueue(store: { dispatch: Function; getState: Funct
                 clientName: data.calleeName,
                 language: 'ASL'
             });
-            const roomName = data.roomName as string;
+            const roomName = data.roomName;
 
             if (roomName) {
                 store.dispatch(appNavigate(roomName, {
@@ -274,32 +302,38 @@ function initializeInterpreterQueue(store: { dispatch: Function; getState: Funct
     // Interpreter-specific events
     if (userRole === 'interpreter') {
         // Interpreter receives incoming interpreter requests
-        queueService.on('interpreterRequest', (data: Record<string, unknown>) => {
+        queueService.on('interpreterRequest', (data: InterpreterRequestPayload) => {
             console.log('[InterpreterQueue] New interpreter request:', data);
-            store.dispatch(interpreterRequestReceived(data as any));
+            store.dispatch(interpreterRequestReceived(toInterpreterRequest(data)));
         });
 
         // Interpreter receives notification when request is assigned
-        queueService.on('requestAssigned', (data: Record<string, unknown>) => {
+        queueService.on('requestAssigned', (data: QueueMatchPayload) => {
             console.log('[InterpreterQueue] Request assigned:', data);
         });
 
         // Queue status updates
-        queueService.on('queueStatus', (data: { activeInterpreters?: unknown[]; pendingRequests?: unknown[]; }) => {
+        queueService.on('queueStatus', (data: QueueStatus) => {
             store.dispatch(queueStatusUpdate({
                 activeInterpreters: data.activeInterpreters?.length || 0,
-                pendingRequests: (data.pendingRequests || []) as any[],
+                pendingRequests: data.pendingRequests.map(request => ({
+                    clientName: request.clientName,
+                    id: request.id,
+                    language: request.language,
+                    roomName: request.roomName,
+                    timestamp: request.timestamp || Date.now()
+                })),
                 queuePosition: undefined
             }));
         });
     }
 
     // Common events for both roles
-    queueService.on('requestAccepted', (data: Record<string, unknown>) => {
+    queueService.on('requestAccepted', (data: QueueMatchPayload) => {
         console.log('[InterpreterQueue] Request accepted:', data);
     });
 
-    queueService.on('requestDeclined', (data: Record<string, unknown>) => {
+    queueService.on('requestDeclined', (data: QueueMatchPayload) => {
         console.log('[InterpreterQueue] Request declined:', data);
     });
 

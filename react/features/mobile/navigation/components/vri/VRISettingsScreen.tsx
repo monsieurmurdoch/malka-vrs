@@ -46,7 +46,7 @@ const VRISettingsScreen = () => {
     useEffect(() => {
         let mounted = true;
 
-        apiClient.get<Record<string, any>>('/api/client/preferences').then(response => {
+        apiClient.get<Record<string, unknown>>('/api/client/preferences').then(response => {
             if (!mounted) {
                 return;
             }

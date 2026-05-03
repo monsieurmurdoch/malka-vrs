@@ -71,7 +71,7 @@ function getDemoCredentials(tenantId: string, isVRI: boolean) {
 function getTokenExpiry(token: string): number {
     const defaultExpiry = Date.now() + 12 * 60 * 60 * 1000;
     const payload = token.split('.')[1];
-    const decode = (globalThis as any)?.atob;
+    const decode = (globalThis as typeof globalThis & { atob?: (value: string) => string })?.atob;
 
     if (!payload || typeof decode !== 'function') {
         return defaultExpiry;
@@ -175,8 +175,8 @@ const MobileLoginScreen = () => {
             }
 
             finishLogin(response.data.token, response.data.user, trimmedEmail);
-        } catch (err: any) {
-            setError(err?.message || 'Network error');
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Network error');
         } finally {
             setLoading(false);
         }

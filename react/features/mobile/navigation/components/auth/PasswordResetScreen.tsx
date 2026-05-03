@@ -59,8 +59,8 @@ const PasswordResetScreen = () => {
             }
 
             setSent(true);
-        } catch (err: any) {
-            setError(err?.message || 'Unable to request password reset');
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Unable to request password reset');
         } finally {
             setLoading(false);
         }

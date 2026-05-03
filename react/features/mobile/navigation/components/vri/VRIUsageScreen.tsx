@@ -30,7 +30,7 @@ interface UsagePeriod {
 }
 
 interface CallHistoryResponse {
-    calls?: Array<Record<string, any>>;
+    calls?: Array<Record<string, unknown>>;
 }
 
 interface BillingSummary {
@@ -39,17 +39,29 @@ interface BillingSummary {
     totalChargeThisMonth?: number;
 }
 
-function normalizeUsageCall(raw: Record<string, any>): CallRecord {
+function stringField(value: unknown, fallback = ''): string {
+    return typeof value === 'string' && value ? value : fallback;
+}
+
+function optionalStringField(value: unknown): string | undefined {
+    return typeof value === 'string' && value ? value : undefined;
+}
+
+function normalizeDirection(value: unknown): CallRecord['direction'] {
+    return value === 'incoming' || value === 'missed' ? value : 'outgoing';
+}
+
+function normalizeUsageCall(raw: Record<string, unknown>): CallRecord {
     const durationMinutes = Number(raw.duration_minutes ?? raw.durationMinutes ?? 0);
 
     return {
         id: String(raw.id || raw.call_id || Date.now()),
-        contactName: raw.callee_name || raw.client_name || raw.target_name || 'Unknown',
-        phoneNumber: raw.callee_phone || raw.target_phone || '',
-        direction: raw.direction || 'outgoing',
+        contactName: stringField(raw.callee_name || raw.client_name || raw.target_name, 'Unknown'),
+        phoneNumber: stringField(raw.callee_phone || raw.target_phone),
+        direction: normalizeDirection(raw.direction),
         duration: Number(raw.duration_seconds ?? raw.durationSeconds ?? durationMinutes * 60),
-        timestamp: raw.started_at || raw.timestamp || raw.created_at || new Date().toISOString(),
-        interpreterName: raw.interpreter_name || raw.interpreterName
+        interpreterName: optionalStringField(raw.interpreter_name || raw.interpreterName),
+        timestamp: stringField(raw.started_at || raw.timestamp || raw.created_at, new Date().toISOString())
     };
 }
 

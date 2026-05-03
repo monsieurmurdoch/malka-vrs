@@ -68,11 +68,15 @@ const ShareIcon = ({ color }: { color: string }) => (
     </Svg>
 );
 
+type QueueRootState = {
+    'features/interpreter-queue'?: QueueState;
+};
+
 const VRIConsoleScreen = () => {
     const dispatch = useDispatch();
     const theme = useTenantTheme();
     const { height, width } = useWindowDimensions();
-    const queueState = useSelector((state: any) => state['features/interpreter-queue'] as QueueState | undefined);
+    const queueState = useSelector((state: QueueRootState) => state['features/interpreter-queue']);
     const isConnected = Boolean(queueState?.isConnected);
     const isRequestPending = Boolean(queueState?.isRequestPending);
     const queuePosition = queueState?.queuePosition;
@@ -171,8 +175,8 @@ const VRIConsoleScreen = () => {
                 microphoneDefaultMuted: true,
                 updatedAt: new Date().toISOString()
             }));
-        } catch (err: any) {
-            setPreviewError(err?.message || 'Camera preview unavailable');
+        } catch (err: unknown) {
+            setPreviewError(err instanceof Error ? err.message : 'Camera preview unavailable');
             setPersistentItem('vri_media_defaults', JSON.stringify({
                 cameraPermissionGranted: false,
                 cameraPreviewEnabled: false,
@@ -264,10 +268,12 @@ const VRIConsoleScreen = () => {
             });
             setInviteStatus('shared');
             mobileLog('info', 'vri_invite_shared');
-        } catch (err: any) {
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Unable to share invite';
+
             setInviteStatus('error');
-            setInviteError(err?.message || 'Unable to share invite');
-            mobileLog('warn', 'vri_invite_share_failed', { error: err?.message });
+            setInviteError(message);
+            mobileLog('warn', 'vri_invite_share_failed', { error: message });
         }
     }, [ inviteUrl ]);
 

@@ -1,7 +1,7 @@
-import { NavigationContainerRef } from '@react-navigation/native';
+import { NavigationContainerRef, ParamListBase } from '@react-navigation/native';
 import React from 'react';
 
-export const conferenceNavigationRef = React.createRef<NavigationContainerRef<any>>();
+export const conferenceNavigationRef = React.createRef<NavigationContainerRef<ParamListBase>>();
 
 /**
  * User defined navigation action included inside the reference to the container.
@@ -10,8 +10,12 @@ export const conferenceNavigationRef = React.createRef<NavigationContainerRef<an
  * @param {Object} params - Params to pass to the destination route.
  * @returns {Function}
  */
-export function navigate(name: string, params?: Object) {
-    return conferenceNavigationRef.current?.navigate(name, params);
+export function navigate(name: string, params?: Record<string, unknown>) {
+    const navigation = conferenceNavigationRef.current as unknown as {
+        navigate: (routeName: string, routeParams?: Record<string, unknown>) => void;
+    } | null;
+
+    return navigation?.navigate(name, params);
 }
 
 /**
@@ -29,7 +33,6 @@ export function goBack() {
  * @param {Object} params - Params to pass to the destination route.
  * @returns {Function}
  */
-export function setParams(params: Object) {
+export function setParams(params: Record<string, unknown>) {
     return conferenceNavigationRef.current?.setParams(params);
 }
-

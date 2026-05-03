@@ -114,11 +114,13 @@ export async function startMobileCameraPreview(source: string): Promise<CameraPr
                 devices,
                 stream
             };
-        } catch (err: any) {
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+
             lastError = err;
             mobileLog('warn', 'mobile_camera_preview_attempt_failed', {
                 attempt: attempt.label,
-                error: err?.message || String(err),
+                error: message,
                 source
             });
         }

@@ -19,11 +19,9 @@
  */
 
 import { LinkingOptions } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
 
 import { screen } from './routes';
-
-type RootStackParamList = Record<string, any>;
+import type { RootStackParamList } from './routes';
 
 /**
  * Tenant-specific URL schemes.

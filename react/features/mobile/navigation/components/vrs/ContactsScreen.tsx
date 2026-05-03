@@ -36,17 +36,25 @@ const DEV_CONTACTS: Contact[] = [
 const FAVORITES_KEY = 'vrs_favorite_contacts';
 
 interface ContactsResponse {
-    contacts?: Array<Record<string, any>>;
+    contacts?: Array<Record<string, unknown>>;
 }
 
-function normalizeContact(raw: Record<string, any>): Contact {
+function stringField(value: unknown, fallback = ''): string {
+    return typeof value === 'string' && value ? value : fallback;
+}
+
+function optionalStringField(value: unknown): string | undefined {
+    return typeof value === 'string' && value ? value : undefined;
+}
+
+function normalizeContact(raw: Record<string, unknown>): Contact {
     return {
         id: String(raw.id),
-        name: raw.name || raw.displayName || raw.email || raw.phoneNumber || raw.phone_number || 'Unnamed contact',
-        phoneNumber: raw.phoneNumber || raw.phone_number,
-        email: raw.email,
-        lastCalled: raw.lastCalled || raw.last_called,
-        notes: raw.notes,
+        name: stringField(raw.name || raw.displayName || raw.email || raw.phoneNumber || raw.phone_number, 'Unnamed contact'),
+        phoneNumber: optionalStringField(raw.phoneNumber || raw.phone_number),
+        email: optionalStringField(raw.email),
+        lastCalled: optionalStringField(raw.lastCalled || raw.last_called),
+        notes: optionalStringField(raw.notes),
         isFavorite: Boolean(raw.isFavorite ?? raw.is_favorite)
     };
 }

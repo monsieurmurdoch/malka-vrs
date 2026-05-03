@@ -2,7 +2,7 @@ import { isVriApp } from '../../base/whitelabel/functions';
 import { removeSecureItem } from '../../vrs-auth/secureStorage';
 import { clearPersistentItems, getPersistentItem, getPersistentJson, hydratePersistentItems } from '../../vrs-auth/storage';
 
-import { screen } from './routes';
+import { screen, type RootRouteName } from './routes';
 
 export const AUTH_STORAGE_KEYS = [
     'vrs_client_auth',
@@ -17,7 +17,7 @@ export const AUTH_STORAGE_KEYS = [
  * Returns the correct branded mobile root route instead of the upstream Jitsi
  * welcome page.
  */
-export function getMobileRootRoute(): string {
+export function getMobileRootRoute(): RootRouteName {
     const isAuthed = getPersistentItem('vrs_client_auth') === 'true'
         || getPersistentItem('vrs_auth_token');
 
@@ -50,7 +50,7 @@ export function getMobileRootRoute(): string {
 /**
  * Hydrates native storage before selecting the first branded mobile route.
  */
-export async function getHydratedMobileRootRoute(): Promise<string> {
+export async function getHydratedMobileRootRoute(): Promise<RootRouteName> {
     await hydratePersistentItems(AUTH_STORAGE_KEYS);
 
     return getMobileRootRoute();

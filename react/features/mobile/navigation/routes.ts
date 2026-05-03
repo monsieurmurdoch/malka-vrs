@@ -73,4 +73,20 @@ export const screen = {
             recent: 'Recent'
         }
     }
+} as const;
+
+type LeafRouteNames<T> = T extends string
+    ? T
+    : T extends Record<string, unknown>
+        ? LeafRouteNames<T[keyof T]>
+        : never;
+
+export type RootRouteName = LeafRouteNames<typeof screen>;
+
+export type RootStackParamList = {
+    [K in RootRouteName]: K extends 'VRS Contact Detail'
+        ? { contactId?: string } | undefined
+        : K extends 'Conference root'
+            ? { roomName?: string } | undefined
+            : Record<string, unknown> | undefined;
 };

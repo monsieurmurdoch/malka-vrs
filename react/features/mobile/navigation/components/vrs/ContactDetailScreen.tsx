@@ -26,16 +26,24 @@ import { screen } from '../../routes';
 import { CallRecord, Contact } from '../../../types';
 
 interface ContactResponse {
-    contact?: Record<string, any>;
+    contact?: Record<string, unknown>;
 }
 
-function normalizeContact(raw: Record<string, any>): Contact {
+function stringField(value: unknown, fallback = ''): string {
+    return typeof value === 'string' && value ? value : fallback;
+}
+
+function optionalStringField(value: unknown): string | undefined {
+    return typeof value === 'string' && value ? value : undefined;
+}
+
+function normalizeContact(raw: Record<string, unknown>): Contact {
     return {
         id: String(raw.id),
-        name: raw.name || raw.displayName || raw.email || raw.phoneNumber || raw.phone_number || 'Unknown',
-        phoneNumber: raw.phoneNumber || raw.phone_number,
-        email: raw.email,
-        notes: raw.notes
+        name: stringField(raw.name || raw.displayName || raw.email || raw.phoneNumber || raw.phone_number, 'Unknown'),
+        phoneNumber: optionalStringField(raw.phoneNumber || raw.phone_number),
+        email: optionalStringField(raw.email),
+        notes: optionalStringField(raw.notes)
     };
 }
 
