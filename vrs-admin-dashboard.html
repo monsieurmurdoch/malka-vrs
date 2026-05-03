@@ -452,6 +452,81 @@
             margin-top: 8px;
         }
 
+        .coverage-toolbar {
+            align-items: end;
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+            padding: 20px 24px 0;
+        }
+
+        .coverage-field {
+            display: grid;
+            gap: 6px;
+        }
+
+        .coverage-field label {
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .coverage-input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-primary);
+            min-height: 40px;
+            padding: 9px 12px;
+        }
+
+        .coverage-hour-grid {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: 70px repeat(7, minmax(80px, 1fr));
+            padding: 20px 24px;
+        }
+
+        .coverage-hour-cell {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-secondary);
+            min-height: 46px;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .coverage-hour-cell.header {
+            background: transparent;
+            border-color: transparent;
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 700;
+            min-height: auto;
+            text-transform: uppercase;
+        }
+
+        .coverage-hour-cell.covered {
+            background: rgba(40, 167, 69, 0.14);
+            border-color: rgba(40, 167, 69, 0.26);
+            color: #8ee8a3;
+        }
+
+        .coverage-hour-cell.gap {
+            background: rgba(220, 53, 69, 0.14);
+            border-color: rgba(220, 53, 69, 0.3);
+            color: #ff9aa7;
+        }
+
+        .coverage-hour-cell.over {
+            background: rgba(255, 193, 7, 0.14);
+            border-color: rgba(255, 193, 7, 0.3);
+            color: #ffd968;
+        }
+
         .ops-view-toggle {
             display: inline-flex;
             gap: 4px;
@@ -1284,7 +1359,48 @@
                         </select>
                     </div>
                 </div>
+                <div class="coverage-toolbar">
+                    <div class="coverage-field">
+                        <label for="scheduleWeekStart">Week Start</label>
+                        <input class="coverage-input" id="scheduleWeekStart" type="date">
+                    </div>
+                    <div class="coverage-field">
+                        <label for="scheduleStartHour">Start Hour</label>
+                        <input class="coverage-input" id="scheduleStartHour" type="number" min="0" max="23" value="8">
+                    </div>
+                    <div class="coverage-field">
+                        <label for="scheduleEndHour">End Hour</label>
+                        <input class="coverage-input" id="scheduleEndHour" type="number" min="1" max="24" value="18">
+                    </div>
+                    <div class="coverage-field">
+                        <label for="scheduleTargetCount">Target / Hour</label>
+                        <input class="coverage-input" id="scheduleTargetCount" type="number" min="1" max="50" value="1">
+                    </div>
+                    <button class="btn btn-primary" id="addScheduleWindowBtn">+ Manager Override</button>
+                </div>
                 <div class="coverage-grid" id="scheduleCoverageCards"></div>
+                <div class="coverage-hour-grid" id="scheduleCoverageGrid"></div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Pending Change</th>
+                                <th>Interpreter</th>
+                                <th>Window</th>
+                                <th>Service</th>
+                                <th>Manager Note</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pendingScheduleBody">
+                            <tr>
+                                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                                    No pending schedule changes.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
                 <div class="table-container" style="padding-top: 20px;">
                     <table>
                         <thead>

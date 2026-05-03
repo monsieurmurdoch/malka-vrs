@@ -18,9 +18,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.assignClientPhoneNumber = exports.getClientPhoneNumbers = exports.incrementSpeedDialUsage = exports.deleteSpeedDialEntry = exports.updateSpeedDialEntry = exports.addSpeedDialEntry = exports.getSpeedDialEntries = exports.getDailyUsageStats = exports.getDashboardStats = exports.getActivityLog = exports.logActivity = exports.getVriSessionInvite = exports.endVriInvitesForRoom = exports.expireVriInvitesForQueue = exports.activateVriInvitesForQueue = exports.attachVriInvitesToQueue = exports.createVriSessionInvite = exports.reorderQueue = exports.removeFromQueue = exports.completeRequest = exports.assignInterpreter = exports.getQueueRequests = exports.addToQueue = exports.getActiveCalls = exports.getCall = exports.setServerState = exports.getServerState = exports.endCall = exports.createCall = exports.updateClient = exports.createClient = exports.getClientByEmail = exports.getClient = exports.getAllClients = exports.deleteCaptioner = exports.updateCaptioner = exports.createCaptioner = exports.getCaptionerByEmail = exports.getCaptioner = exports.getAllCaptioners = exports.getInterpreterStats = exports.deleteInterpreter = exports.updateInterpreter = exports.createInterpreter = exports.getInterpreterByEmail = exports.getInterpreter = exports.getAllInterpreters = exports.createAdmin = exports.getAdminByUsername = exports.initialize = void 0;
-exports.upsertGoogleOAuthToken = exports.getGoogleOAuthToken = exports.getContactChangesSince = exports.logContactChange = exports.getContactTimeline = exports.deleteContactNote = exports.updateContactNote = exports.createContactNote = exports.getContactNotes = exports.getContactCallHistory = exports.ensureDefaultGroups = exports.migrateSpeedDialToContacts = exports.importContacts = exports.mergeContacts = exports.findDuplicateContacts = exports.isContactBlocked = exports.unblockContact = exports.blockContact = exports.getBlockedContacts = exports.setContactGroups = exports.deleteContactGroup = exports.updateContactGroup = exports.createContactGroup = exports.getContactGroups = exports.deleteContact = exports.updateContact = exports.createContact = exports.getContact = exports.getContacts = exports.getActiveP2PRoomsForClient = exports.markMissedCallsSeen = exports.getMissedCalls = exports.createMissedCall = exports.createP2PCall = exports.getClientByPhoneNumber = exports.getInterpreterCallHistory = exports.getClientCallHistory = exports.requestInterpreterTeamAssignment = exports.getInterpreterTeamAssignments = exports.createPostCallSurvey = exports.createInterpreterContinuityNote = exports.getInterpreterContinuityNotes = exports.endInterpreterBreak = exports.startInterpreterBreak = exports.getInterpreterBreaks = exports.getInterpreterAnalytics = exports.getInterpreterEarnings = exports.updateInterpreterShift = exports.createInterpreterShift = exports.getInterpreterShifts = void 0;
-exports.getVoicemailSetting = exports.getActiveVoicemailRecordings = exports.getExpiredVoicemailMessages = exports.getVoicemailMessageCount = exports.getVoicemailStorageUsage = exports.markVoicemailSeen = exports.getVoicemailUnreadCount = exports.getVoicemailInboxCount = exports.getVoicemailInbox = exports.deleteVoicemailMessage = exports.updateVoicemailMessage = exports.getVoicemailMessageByRoomName = exports.getVoicemailMessage = exports.createVoicemailMessage = exports.updateInterpreterPassword = exports.updateClientPassword = exports.consumePasswordReset = exports.createPasswordReset = exports.verifyOtpCode = exports.createOtpCode = exports.createVCOCall = exports.deleteQuickPhrase = exports.updateQuickPhrase = exports.addQuickPhrase = exports.getQuickPhrases = exports.updateTtsSettings = exports.getTtsSettings = exports.getActiveCallForClient = exports.setCallOnHold = exports.getChatMessages = exports.addChatMessage = exports.getConferenceParticipants = exports.removeConferenceParticipant = exports.addConferenceParticipant = exports.getPendingTransferForCall = exports.getCallTransfers = exports.updateCallTransferStatus = exports.createCallTransfer = exports.deleteExpiredHandoffTokens = exports.deleteHandoffTokensByUser = exports.deleteHandoffToken = exports.storeHandoffToken = exports.getAllActiveHandoffTokens = exports.deleteActiveSession = exports.upsertActiveSession = exports.getAllActiveSessions = exports.isClientDND = exports.updateClientPreferences = exports.getClientPreferences = exports.deleteGoogleOAuthToken = void 0;
-exports.assignInterpreterToRequest = exports.pool = exports.getVoicemailStorageStats = exports.getAllVoicemailMessages = exports.seedVoicemailSettings = exports.setVoicemailSetting = exports.getAllVoicemailSettings = void 0;
+exports.logContactChange = exports.getContactTimeline = exports.deleteContactNote = exports.updateContactNote = exports.createContactNote = exports.getContactNotes = exports.getContactCallHistory = exports.ensureDefaultGroups = exports.migrateSpeedDialToContacts = exports.importContacts = exports.mergeContacts = exports.findDuplicateContacts = exports.isContactBlocked = exports.unblockContact = exports.blockContact = exports.getBlockedContacts = exports.setContactGroups = exports.deleteContactGroup = exports.updateContactGroup = exports.createContactGroup = exports.getContactGroups = exports.deleteContact = exports.updateContact = exports.createContact = exports.getContact = exports.getContacts = exports.getActiveP2PRoomsForClient = exports.markMissedCallsSeen = exports.getMissedCalls = exports.createMissedCall = exports.createP2PCall = exports.getClientByPhoneNumber = exports.getInterpreterCallHistory = exports.getClientCallHistory = exports.requestInterpreterTeamAssignment = exports.getInterpreterTeamAssignments = exports.createPostCallSurvey = exports.createInterpreterContinuityNote = exports.getInterpreterContinuityNotes = exports.endInterpreterBreak = exports.startInterpreterBreak = exports.getInterpreterBreaks = exports.getInterpreterAnalytics = exports.getInterpreterEarnings = exports.updateInterpreterScheduleWindow = exports.createInterpreterScheduleWindow = exports.getInterpreterScheduleWindows = exports.updateInterpreterShift = exports.createInterpreterShift = exports.getInterpreterShifts = void 0;
+exports.getVoicemailMessageCount = exports.getVoicemailStorageUsage = exports.markVoicemailSeen = exports.getVoicemailUnreadCount = exports.getVoicemailInboxCount = exports.getVoicemailInbox = exports.deleteVoicemailMessage = exports.updateVoicemailMessage = exports.getVoicemailMessageByRoomName = exports.getVoicemailMessage = exports.createVoicemailMessage = exports.updateInterpreterPassword = exports.updateClientPassword = exports.consumePasswordReset = exports.createPasswordReset = exports.verifyOtpCode = exports.createOtpCode = exports.createVCOCall = exports.deleteQuickPhrase = exports.updateQuickPhrase = exports.addQuickPhrase = exports.getQuickPhrases = exports.updateTtsSettings = exports.getTtsSettings = exports.getActiveCallForClient = exports.setCallOnHold = exports.getChatMessages = exports.addChatMessage = exports.getConferenceParticipants = exports.removeConferenceParticipant = exports.addConferenceParticipant = exports.getPendingTransferForCall = exports.getCallTransfers = exports.updateCallTransferStatus = exports.createCallTransfer = exports.deleteExpiredHandoffTokens = exports.deleteHandoffTokensByUser = exports.deleteHandoffToken = exports.storeHandoffToken = exports.getAllActiveHandoffTokens = exports.deleteActiveSession = exports.upsertActiveSession = exports.getAllActiveSessions = exports.isClientDND = exports.updateClientPreferences = exports.getClientPreferences = exports.deleteGoogleOAuthToken = exports.upsertGoogleOAuthToken = exports.getGoogleOAuthToken = exports.getContactChangesSince = void 0;
+exports.assignInterpreterToRequest = exports.pool = exports.getVoicemailStorageStats = exports.getAllVoicemailMessages = exports.seedVoicemailSettings = exports.setVoicemailSetting = exports.getAllVoicemailSettings = exports.getVoicemailSetting = exports.getActiveVoicemailRecordings = exports.getExpiredVoicemailMessages = void 0;
 const pg_1 = require("pg");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const uuid_1 = require("uuid");
@@ -1504,6 +1504,82 @@ async function updateInterpreterShift(id, { interpreterId, endTime, totalMinutes
     return rows[0] || null;
 }
 exports.updateInterpreterShift = updateInterpreterShift;
+async function getInterpreterScheduleWindows({ startDate, endDate, tenantId, serviceMode, language } = {}) {
+    const params = [];
+    let sql = `
+        SELECT
+            w.*,
+            i.name AS interpreter_name,
+            i.email AS interpreter_email,
+            i.service_modes AS interpreter_service_modes,
+            i.languages AS interpreter_languages
+        FROM interpreter_schedule_windows w
+        JOIN interpreters i ON i.id = w.interpreter_id
+        WHERE 1 = 1`;
+    if (startDate) {
+        params.push(startDate);
+        sql += ` AND w.starts_at::date >= $${params.length}`;
+    }
+    if (endDate) {
+        params.push(endDate);
+        sql += ` AND w.starts_at::date <= $${params.length}`;
+    }
+    if (tenantId) {
+        params.push(tenantId);
+        sql += ` AND w.tenant_id = $${params.length}`;
+    }
+    if (serviceMode) {
+        params.push(serviceMode);
+        sql += ` AND w.service_modes ? $${params.length}`;
+    }
+    if (language) {
+        params.push(language);
+        sql += ` AND w.languages ? $${params.length}`;
+    }
+    sql += ' ORDER BY w.starts_at ASC, i.name ASC';
+    return await runQuery(sql, params);
+}
+exports.getInterpreterScheduleWindows = getInterpreterScheduleWindows;
+async function createInterpreterScheduleWindow({ interpreterId, startsAt, endsAt, tenantId = 'malka', serviceModes = ['vrs'], languages = ['ASL'], status = 'scheduled', managerNote }) {
+    const id = (0, uuid_1.v4)();
+    const rows = await runQuery(`INSERT INTO interpreter_schedule_windows
+            (id, interpreter_id, starts_at, ends_at, tenant_id, service_modes, languages, status, manager_note)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9)
+         RETURNING *`, [id, interpreterId, startsAt, endsAt, tenantId, JSON.stringify(serviceModes), JSON.stringify(languages), status, managerNote || null]);
+    return rows[0];
+}
+exports.createInterpreterScheduleWindow = createInterpreterScheduleWindow;
+async function updateInterpreterScheduleWindow(id, updates = {}) {
+    const fields = [];
+    const params = [];
+    const mapping = {
+        interpreterId: 'interpreter_id',
+        startsAt: 'starts_at',
+        endsAt: 'ends_at',
+        tenantId: 'tenant_id',
+        serviceModes: 'service_modes',
+        languages: 'languages',
+        status: 'status',
+        managerNote: 'manager_note'
+    };
+    for (const [key, column] of Object.entries(mapping)) {
+        if (updates[key] === undefined)
+            continue;
+        params.push(key === 'serviceModes' || key === 'languages' ? JSON.stringify(updates[key]) : updates[key]);
+        fields.push(`${column} = $${params.length}${key === 'serviceModes' || key === 'languages' ? '::jsonb' : ''}`);
+    }
+    if (!fields.length) {
+        const rows = await runQuery('SELECT * FROM interpreter_schedule_windows WHERE id = $1', [id]);
+        return rows[0] || null;
+    }
+    params.push(id);
+    const rows = await runQuery(`UPDATE interpreter_schedule_windows
+         SET ${fields.join(', ')}, updated_at = NOW()
+         WHERE id = $${params.length}
+         RETURNING *`, params);
+    return rows[0] || null;
+}
+exports.updateInterpreterScheduleWindow = updateInterpreterScheduleWindow;
 // ============================================
 // INTERPRETER EARNINGS OPERATIONS
 // ============================================

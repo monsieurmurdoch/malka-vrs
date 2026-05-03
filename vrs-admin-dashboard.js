@@ -66,6 +66,7 @@ let currentAdminRole = localStorage.getItem('vrs_admin_role') || 'admin';
 const scheduledRefreshes = new Map();
 let operationsRows = [];
 let activeOperationsView = 'live';
+let adminScheduleWindows = [];
 
 function scheduleRefresh(key, callback, delay = 250) {
     if (scheduledRefreshes.has(key)) {
@@ -182,9 +183,14 @@ function setupEventListeners() {
     document.getElementById('activityServiceFilter')?.addEventListener('change', loadActivityFeed);
     document.getElementById('activityRoleFilter')?.addEventListener('change', loadActivityFeed);
     document.getElementById('exportAuditBtn')?.addEventListener('click', exportAuditCsv);
-    document.getElementById('scheduleTenantFilter')?.addEventListener('change', renderAdminScheduling);
-    document.getElementById('scheduleServiceFilter')?.addEventListener('change', renderAdminScheduling);
-    document.getElementById('scheduleLanguageFilter')?.addEventListener('change', renderAdminScheduling);
+    document.getElementById('scheduleTenantFilter')?.addEventListener('change', loadAdminScheduleWindows);
+    document.getElementById('scheduleServiceFilter')?.addEventListener('change', loadAdminScheduleWindows);
+    document.getElementById('scheduleLanguageFilter')?.addEventListener('change', loadAdminScheduleWindows);
+    document.getElementById('scheduleWeekStart')?.addEventListener('change', loadAdminScheduleWindows);
+    document.getElementById('scheduleStartHour')?.addEventListener('input', debounce(renderAdminScheduling, 150));
+    document.getElementById('scheduleEndHour')?.addEventListener('input', debounce(renderAdminScheduling, 150));
+    document.getElementById('scheduleTargetCount')?.addEventListener('input', debounce(renderAdminScheduling, 150));
+    document.getElementById('addScheduleWindowBtn')?.addEventListener('click', showScheduleWindowModal);
 
     // Queue pause button
     document.getElementById('pauseQueueBtn')?.addEventListener('click', toggleQueue);
@@ -220,6 +226,12 @@ function setupEventListeners() {
                 break;
             case 'remove-from-queue':
                 removeFromQueue(id);
+                break;
+            case 'approve-schedule-window':
+                updateScheduleWindowStatus(id, 'confirmed');
+                break;
+            case 'reject-schedule-window':
+                updateScheduleWindowStatus(id, 'cancelled');
                 break;
         }
     });
@@ -1418,7 +1430,7 @@ async function loadInterpreters() {
     try {
         allInterpreters = await apiCall('/admin/interpreters');
         renderInterpretersTable(allInterpreters);
-        renderAdminScheduling();
+        await loadAdminScheduleWindows();
     } catch (error) {
         console.error('[Interpreters] Error:', error);
     }
@@ -1466,7 +1478,7 @@ function renderInterpretersTable(interpreters) {
 }
 
 function formatServiceModes(modes) {
-    const values = Array.isArray(modes) ? modes : [];
+    const values = parseServiceModes(modes, []);
     if (!values.length) return 'VRI';
     return values.map(mode => String(mode).toUpperCase()).join(', ');
 }
@@ -1491,6 +1503,47 @@ async function filterInterpreters() {
     renderAdminScheduling();
 }
 
+function toDateInputValue(date) {
+    return date.toISOString().split('T')[0];
+}
+
+function getScheduleWeekStart() {
+    const input = document.getElementById('scheduleWeekStart');
+    if (input && input.value) return input.value;
+    const today = new Date();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+    const value = toDateInputValue(monday);
+    if (input) input.value = value;
+    return value;
+}
+
+function getScheduleWeekEnd() {
+    const start = new Date(`${getScheduleWeekStart()}T00:00:00`);
+    start.setDate(start.getDate() + 6);
+    return toDateInputValue(start);
+}
+
+async function loadAdminScheduleWindows() {
+    try {
+        const params = new URLSearchParams();
+        params.set('startDate', getScheduleWeekStart());
+        params.set('endDate', getScheduleWeekEnd());
+        const tenant = document.getElementById('scheduleTenantFilter')?.value || '';
+        const service = document.getElementById('scheduleServiceFilter')?.value || '';
+        const language = document.getElementById('scheduleLanguageFilter')?.value || '';
+        if (tenant) params.set('tenantId', tenant);
+        if (service) params.set('serviceMode', service);
+        if (language) params.set('language', language);
+        const data = await apiCall(`/admin/scheduling/windows?${params.toString()}`);
+        adminScheduleWindows = data.windows || [];
+    } catch (error) {
+        console.error('[Scheduling] Error:', error);
+        adminScheduleWindows = [];
+    }
+    renderAdminScheduling();
+}
+
 function getScheduleFilteredInterpreters() {
     const tenantFilter = document.getElementById('scheduleTenantFilter')?.value || '';
     const serviceFilter = document.getElementById('scheduleServiceFilter')?.value || '';
@@ -1512,7 +1565,9 @@ function renderAdminScheduling() {
     const roster = getScheduleFilteredInterpreters();
     const cards = document.getElementById('scheduleCoverageCards');
     const tbody = document.getElementById('scheduleRosterBody');
-    if (!cards || !tbody) return;
+    const grid = document.getElementById('scheduleCoverageGrid');
+    const pendingBody = document.getElementById('pendingScheduleBody');
+    if (!cards || !tbody || !grid || !pendingBody) return;
 
     const activeCount = roster.filter(interp => ['available', 'assigned', 'in-call'].includes(deriveInterpreterStatus(interp, new Map()))).length;
     const vrsCount = roster.filter(interp => parseServiceModes(interp.service_modes).includes('vrs')).length;
@@ -1548,6 +1603,9 @@ function renderAdminScheduling() {
             <div class="coverage-note">${serviceFilter || languageFilter ? 'For the selected service/language filters.' : 'Select service and language to inspect gaps.'}</div>
         </div>
     `;
+
+    renderCoverageGrid(grid);
+    renderPendingScheduleChanges(pendingBody);
 
     if (!roster.length) {
         tbody.innerHTML = `
@@ -1589,6 +1647,166 @@ function renderAdminScheduling() {
             </tr>
         `;
     }).join('');
+}
+
+function renderCoverageGrid(container) {
+    const startHour = Math.max(0, Math.min(23, Number(document.getElementById('scheduleStartHour')?.value || 8)));
+    const endHour = Math.max(startHour + 1, Math.min(24, Number(document.getElementById('scheduleEndHour')?.value || 18)));
+    const target = Math.max(1, Number(document.getElementById('scheduleTargetCount')?.value || 1));
+    const weekStart = new Date(`${getScheduleWeekStart()}T00:00:00`);
+    const days = Array.from({ length: 7 }, (_, index) => {
+        const date = new Date(weekStart);
+        date.setDate(weekStart.getDate() + index);
+        return date;
+    });
+
+    let html = '<div class="coverage-hour-cell header"></div>';
+    html += days.map(day => `<div class="coverage-hour-cell header">${day.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>`).join('');
+
+    for (let hour = startHour; hour < endHour; hour += 1) {
+        html += `<div class="coverage-hour-cell header">${String(hour).padStart(2, '0')}:00</div>`;
+        for (const day of days) {
+            const slotStart = new Date(day);
+            slotStart.setHours(hour, 0, 0, 0);
+            const slotEnd = new Date(slotStart);
+            slotEnd.setHours(hour + 1, 0, 0, 0);
+            const covering = adminScheduleWindows.filter(window => {
+                const status = String(window.status || '').toLowerCase();
+                if (status === 'cancelled' || status === 'unavailable' || status === 'time-off') return false;
+                const startsAt = new Date(window.starts_at);
+                const endsAt = new Date(window.ends_at);
+                return startsAt < slotEnd && endsAt > slotStart;
+            }).length;
+            const state = covering < target ? 'gap' : covering > target + 1 ? 'over' : 'covered';
+            html += `<div class="coverage-hour-cell ${state}"><strong>${covering}</strong><br><span>${state === 'gap' ? 'gap' : state === 'over' ? 'over' : 'covered'}</span></div>`;
+        }
+    }
+
+    container.innerHTML = html;
+}
+
+function renderPendingScheduleChanges(tbody) {
+    const pending = adminScheduleWindows.filter(window => String(window.status || '').toLowerCase() === 'pending');
+    if (!pending.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    No pending schedule changes.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = pending.map(window => `
+        <tr>
+            <td><span class="status-badge status-waiting"><span class="status-dot"></span>Pending</span></td>
+            <td>${escapeHtml(window.interpreter_name || 'Interpreter')}</td>
+            <td>${formatDateTime(window.starts_at)} → ${formatDateTime(window.ends_at)}</td>
+            <td>${formatServiceModes(window.service_modes)}</td>
+            <td class="ops-info">${escapeHtml(window.manager_note || 'Interpreter schedule change awaiting manager review.')}</td>
+            <td>
+                <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" data-action="approve-schedule-window" data-id="${window.id}">Approve</button>
+                <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" data-action="reject-schedule-window" data-id="${window.id}">Reject</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function showScheduleWindowModal() {
+    const roster = getScheduleFilteredInterpreters();
+    const weekStart = getScheduleWeekStart();
+    const interpreterOptions = roster.map(interp => `<option value="${escapeHtml(interp.id)}">${escapeHtml(interp.name || interp.email || 'Interpreter')}</option>`).join('');
+    openAdminModal({
+        title: 'Manager Schedule Override',
+        subtitle: 'Add a coverage window, time-off block, or pending schedule change for manager review.',
+        body: `
+            <form id="scheduleWindowForm" class="form-grid">
+                <div class="form-field full">
+                    <label>Interpreter</label>
+                    <select name="interpreterId" required>${interpreterOptions || '<option value="">No interpreters match filters</option>'}</select>
+                </div>
+                <div class="form-field">
+                    <label>Starts</label>
+                    <input name="startsAt" type="datetime-local" value="${weekStart}T09:00" required>
+                </div>
+                <div class="form-field">
+                    <label>Ends</label>
+                    <input name="endsAt" type="datetime-local" value="${weekStart}T17:00" required>
+                </div>
+                <div class="form-field">
+                    <label>Tenant</label>
+                    <select name="tenantId">
+                        <option value="malka">Malka</option>
+                        <option value="maple">Maple</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>Status</label>
+                    <select name="status">
+                        <option value="confirmed">Confirmed</option>
+                        <option value="pending">Pending Review</option>
+                        <option value="unavailable">Unavailable</option>
+                        <option value="time-off">Time Off</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>Service Modes</label>
+                    <input name="serviceModes" value="${escapeHtml(document.getElementById('scheduleServiceFilter')?.value || 'vrs')}">
+                </div>
+                <div class="form-field">
+                    <label>Languages</label>
+                    <input name="languages" value="${escapeHtml(document.getElementById('scheduleLanguageFilter')?.value || 'ASL')}">
+                </div>
+                <div class="form-field full">
+                    <label>Manager Note</label>
+                    <textarea name="managerNote" rows="3" placeholder="Reason, override context, or coverage note"></textarea>
+                </div>
+            </form>
+        `,
+        footer: `
+            <button class="btn btn-secondary" type="button" data-modal-close>Cancel</button>
+            <button class="btn btn-primary" type="button" id="saveScheduleWindowBtn">Save Window</button>
+        `
+    });
+    document.getElementById('saveScheduleWindowBtn')?.addEventListener('click', saveScheduleWindow);
+}
+
+async function saveScheduleWindow() {
+    const form = document.getElementById('scheduleWindowForm');
+    if (!form) return;
+    const data = new FormData(form);
+    try {
+        await apiCall('/admin/scheduling/windows', {
+            method: 'POST',
+            body: JSON.stringify({
+                interpreterId: data.get('interpreterId'),
+                startsAt: data.get('startsAt'),
+                endsAt: data.get('endsAt'),
+                tenantId: data.get('tenantId'),
+                status: data.get('status'),
+                serviceModes: parseCsvList(data.get('serviceModes')).map(value => value.toLowerCase()),
+                languages: parseCsvList(data.get('languages')),
+                managerNote: data.get('managerNote')
+            })
+        });
+        closeAdminModal();
+        await loadAdminScheduleWindows();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function updateScheduleWindowStatus(id, status) {
+    try {
+        await apiCall(`/admin/scheduling/windows/${encodeURIComponent(id)}`, {
+            method: 'PUT',
+            body: JSON.stringify({ status })
+        });
+        await loadAdminScheduleWindows();
+    } catch (error) {
+        alert(error.message);
+    }
 }
 
 function showAddInterpreterModal() {

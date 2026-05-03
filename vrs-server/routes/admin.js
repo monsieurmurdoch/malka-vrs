@@ -120,6 +120,30 @@ const updateInterpreterSchema = z.object({
     active: z.boolean().optional()
 });
 
+const scheduleWindowQuerySchema = z.object({
+    startDate: z.string().min(1).optional(),
+    endDate: z.string().min(1).optional(),
+    tenantId: z.string().min(1).max(60).optional(),
+    serviceMode: z.enum(['vrs', 'vri']).optional(),
+    language: z.string().min(1).max(20).optional()
+});
+
+const scheduleStatusSchema = z.enum(['pending', 'scheduled', 'confirmed', 'unavailable', 'time-off', 'cancelled']);
+
+const scheduleWindowSchema = z.object({
+    interpreterId: z.string().min(1).max(120),
+    startsAt: z.string().min(1).max(80),
+    endsAt: z.string().min(1).max(80),
+    tenantId: z.string().min(1).max(60).optional(),
+    serviceModes: serviceModesArraySchema.optional(),
+    languages: languagesArraySchema.optional(),
+    status: scheduleStatusSchema.optional().default('confirmed'),
+    managerNote: optionalSanitizedStringSchema
+});
+
+const updateScheduleWindowSchema = scheduleWindowSchema.partial()
+    .refine(data => Object.keys(data).length > 0, { message: 'At least one field is required' });
+
 const createClientSchema = z.object({
     name: nameSchema,
     email: emailSchema.optional(),
@@ -350,6 +374,78 @@ router.delete('/captioners/:id', authenticateAdmin, async (req, res) => {
     } catch (error) {
         req.log.error({ err: error }, 'Delete captioner error');
         res.status(500).json({ error: 'Failed to delete captioner', code: 'INTERNAL_ERROR' });
+    }
+});
+
+// ============================================
+// INTERPRETER SCHEDULING
+// ============================================
+
+router.get('/scheduling/windows', authenticateAdmin, validate(scheduleWindowQuerySchema, 'query'), async (req, res) => {
+    try {
+        const windows = await db.getInterpreterScheduleWindows({
+            startDate: req.query.startDate,
+            endDate: req.query.endDate,
+            tenantId: req.query.tenantId,
+            serviceMode: req.query.serviceMode,
+            language: req.query.language
+        });
+        res.json({ windows });
+    } catch (error) {
+        req.log.error({ err: error }, 'Scheduling windows error');
+        res.status(500).json({ error: 'Failed to fetch schedule windows', code: 'INTERNAL_ERROR' });
+    }
+});
+
+router.post('/scheduling/windows', authenticateAdmin, validate(scheduleWindowSchema), async (req, res) => {
+    try {
+        const window = await db.createInterpreterScheduleWindow({
+            interpreterId: req.body.interpreterId,
+            startsAt: req.body.startsAt,
+            endsAt: req.body.endsAt,
+            tenantId: req.body.tenantId || 'malka',
+            serviceModes: req.body.serviceModes || ['vrs'],
+            languages: req.body.languages || ['ASL'],
+            status: req.body.status || 'confirmed',
+            managerNote: req.body.managerNote
+        });
+        activityLogger.log('interpreter_schedule_window_created', {
+            adminId: req.admin.id,
+            interpreterId: req.body.interpreterId,
+            scheduleWindowId: window.id,
+            status: window.status
+        });
+        res.status(201).json({ window });
+    } catch (error) {
+        req.log.error({ err: error }, 'Create scheduling window error');
+        res.status(500).json({ error: 'Failed to create schedule window', code: 'INTERNAL_ERROR' });
+    }
+});
+
+router.put('/scheduling/windows/:id', authenticateAdmin, validate(updateScheduleWindowSchema), async (req, res) => {
+    try {
+        const window = await db.updateInterpreterScheduleWindow(req.params.id, {
+            interpreterId: req.body.interpreterId,
+            startsAt: req.body.startsAt,
+            endsAt: req.body.endsAt,
+            tenantId: req.body.tenantId,
+            serviceModes: req.body.serviceModes,
+            languages: req.body.languages,
+            status: req.body.status,
+            managerNote: req.body.managerNote
+        });
+        if (!window) {
+            return res.status(404).json({ error: 'Schedule window not found', code: 'NOT_FOUND' });
+        }
+        activityLogger.log('interpreter_schedule_window_updated', {
+            adminId: req.admin.id,
+            scheduleWindowId: req.params.id,
+            updates: req.body
+        });
+        res.json({ window });
+    } catch (error) {
+        req.log.error({ err: error }, 'Update scheduling window error');
+        res.status(500).json({ error: 'Failed to update schedule window', code: 'INTERNAL_ERROR' });
     }
 });
 

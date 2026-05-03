@@ -1691,6 +1691,93 @@ async function updateInterpreterShift(id: any, { interpreterId, endTime, totalMi
     return rows[0] || null;
 }
 
+async function getInterpreterScheduleWindows({ startDate, endDate, tenantId, serviceMode, language }: any = {}) {
+    const params: any[] = [];
+    let sql = `
+        SELECT
+            w.*,
+            i.name AS interpreter_name,
+            i.email AS interpreter_email,
+            i.service_modes AS interpreter_service_modes,
+            i.languages AS interpreter_languages
+        FROM interpreter_schedule_windows w
+        JOIN interpreters i ON i.id = w.interpreter_id
+        WHERE 1 = 1`;
+
+    if (startDate) {
+        params.push(startDate);
+        sql += ` AND w.starts_at::date >= $${params.length}`;
+    }
+    if (endDate) {
+        params.push(endDate);
+        sql += ` AND w.starts_at::date <= $${params.length}`;
+    }
+    if (tenantId) {
+        params.push(tenantId);
+        sql += ` AND w.tenant_id = $${params.length}`;
+    }
+    if (serviceMode) {
+        params.push(serviceMode);
+        sql += ` AND w.service_modes ? $${params.length}`;
+    }
+    if (language) {
+        params.push(language);
+        sql += ` AND w.languages ? $${params.length}`;
+    }
+
+    sql += ' ORDER BY w.starts_at ASC, i.name ASC';
+    return await runQuery(sql, params);
+}
+
+async function createInterpreterScheduleWindow({ interpreterId, startsAt, endsAt, tenantId = 'malka', serviceModes = ['vrs'], languages = ['ASL'], status = 'scheduled', managerNote }: any) {
+    const id = uuidv4();
+    const rows = await runQuery(
+        `INSERT INTO interpreter_schedule_windows
+            (id, interpreter_id, starts_at, ends_at, tenant_id, service_modes, languages, status, manager_note)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9)
+         RETURNING *`,
+        [id, interpreterId, startsAt, endsAt, tenantId, JSON.stringify(serviceModes), JSON.stringify(languages), status, managerNote || null]
+    );
+    return rows[0];
+}
+
+async function updateInterpreterScheduleWindow(id: any, updates: any = {}) {
+    const fields = [];
+    const params = [];
+
+    const mapping: Record<string, string> = {
+        interpreterId: 'interpreter_id',
+        startsAt: 'starts_at',
+        endsAt: 'ends_at',
+        tenantId: 'tenant_id',
+        serviceModes: 'service_modes',
+        languages: 'languages',
+        status: 'status',
+        managerNote: 'manager_note'
+    };
+
+    for (const [key, column] of Object.entries(mapping)) {
+        if (updates[key] === undefined) continue;
+        params.push(key === 'serviceModes' || key === 'languages' ? JSON.stringify(updates[key]) : updates[key]);
+        fields.push(`${column} = $${params.length}${key === 'serviceModes' || key === 'languages' ? '::jsonb' : ''}`);
+    }
+
+    if (!fields.length) {
+        const rows = await runQuery('SELECT * FROM interpreter_schedule_windows WHERE id = $1', [id]);
+        return rows[0] || null;
+    }
+
+    params.push(id);
+    const rows = await runQuery(
+        `UPDATE interpreter_schedule_windows
+         SET ${fields.join(', ')}, updated_at = NOW()
+         WHERE id = $${params.length}
+         RETURNING *`,
+        params
+    );
+    return rows[0] || null;
+}
+
 // ============================================
 // INTERPRETER EARNINGS OPERATIONS
 // ============================================
@@ -3262,6 +3349,9 @@ export {
     getInterpreterShifts,
     createInterpreterShift,
     updateInterpreterShift,
+    getInterpreterScheduleWindows,
+    createInterpreterScheduleWindow,
+    updateInterpreterScheduleWindow,
     getInterpreterEarnings,
     getInterpreterAnalytics,
     getInterpreterBreaks,

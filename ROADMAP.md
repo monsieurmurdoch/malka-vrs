@@ -568,7 +568,9 @@
   - 2026-05-03: Interpreter Schedule tab now saves availability/time-off windows through authenticated shift endpoints and shows target, scheduled, signed-on, and remaining weekly hours.
 - [x] Admin scheduling UI first pass: weekly roster and coverage scan by tenant, service mode, language, interpreter, and current coverage gaps
   - 2026-05-03: Admin interpreter view now includes a Scheduling & Coverage panel with tenant/service/language filters, active coverage cards, roster status, and coverage notes.
-- [ ] Admin scheduling advanced controls: overstaffing detection by hour, manager overrides, and pending interpreter schedule change approval workflow
+- [x] Admin scheduling advanced controls: hourly coverage grid, overstaffing/gap detection, manager overrides, and pending interpreter schedule change approval workflow
+  - 2026-05-03: Admin Scheduling & Coverage now loads schedule windows from backend APIs, supports manager override creation, pending approval/rejection, and hour-by-hour coverage cells that flag gaps and overstaffing.
+- [ ] Admin scheduling next depth: recurring schedule rules, interpreter self-request workflow into pending windows, payroll/export approval lock, and coverage heatmap by 15/30-minute intervals
 - [ ] Utilization metrics expansion: queue acceptance rate, decline/no-answer rate, after-call/admin time, and SLA impact
 - [ ] Weekly utilization dashboard for interpreters: scheduled hours, signed-on hours, hands-up hours, in-call hours, breaks, remaining target hours, and earnings/payables preview
 - [ ] Weekly utilization dashboard for admin: coverage by hour, fill-rate, interpreter adherence, break patterns, productivity, queue SLA impact, and exportable payroll/accounting summary
@@ -678,7 +680,7 @@ All completed client mobile parity items have been moved to Completed Work. Rema
 - [x] Interpreter scheduling and shift management UI
   - Interpreter self-scheduling: target hours, scheduled hours, signed-on hours, remaining hours, availability windows, time-off/unavailable blocks.
   - Admin scheduling: weekly roster, coverage gaps, service mode/language filters, manager overrides, pending schedule changes.
-  - 2026-05-03: First-pass UI is live in interpreter profile and admin dashboard. Manager overrides and pending schedule-change approvals remain tracked in Interpreter Scheduling & Utilization.
+  - 2026-05-03: First-pass UI is live in interpreter profile and admin dashboard. Admin manager overrides, pending approvals, hourly gap detection, and overstaffing detection are now implemented in the deeper Scheduling & Coverage workflow.
 - [ ] Interpreter teaming workflow
   - Request second interpreter, accept/decline teaming request, join active room, track primary/secondary interpreter roles, and close team assignment when the call ends.
 - [ ] Interpreter notes/preferences for continuity
