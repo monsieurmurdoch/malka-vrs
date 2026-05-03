@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex,nofollow">
+    <meta name="theme-color" content="#42140f">
+    <title>Malka AI Lab - ASL to English</title>
+    <style>
+        * { box-sizing: border-box; }
+
+        :root {
+            --mars: #d95d39;
+            --mars-deep: #42140f;
+            --ember: #ffb066;
+            --sky: #161a2f;
+            --panel: rgba(20, 17, 29, 0.82);
+            --line: rgba(255, 224, 190, 0.16);
+            --text: #fff8ef;
+            --muted: rgba(255, 248, 239, 0.66);
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at 16% 18%, rgba(255, 176, 102, 0.22), transparent 28%),
+                radial-gradient(circle at 88% 9%, rgba(217, 93, 57, 0.26), transparent 24%),
+                linear-gradient(135deg, #160f1d 0%, #221123 42%, #42140f 100%);
+            color: var(--text);
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            overflow-x: hidden;
+        }
+
+        .page {
+            display: grid;
+            gap: 28px;
+            grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
+            max-width: 1180px;
+            min-height: 100vh;
+            margin: 0 auto;
+            padding: 40px 24px;
+            align-items: center;
+        }
+
+        .brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 28px;
+            color: var(--muted);
+            font-weight: 750;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .brand-mark {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            background: linear-gradient(145deg, var(--mars), var(--ember));
+            box-shadow: 0 0 28px rgba(255, 116, 62, 0.45);
+            position: relative;
+        }
+
+        .brand-mark::after {
+            content: "";
+            position: absolute;
+            inset: 11px 9px;
+            border-radius: 50%;
+            border: 2px solid rgba(66, 20, 15, 0.52);
+            transform: rotate(-18deg);
+        }
+
+        h1 {
+            font-size: clamp(46px, 8vw, 92px);
+            line-height: 0.88;
+            letter-spacing: 0;
+            margin: 0 0 22px;
+        }
+
+        .lede {
+            color: var(--muted);
+            font-size: clamp(18px, 2vw, 23px);
+            line-height: 1.45;
+            max-width: 740px;
+            margin: 0 0 28px;
+        }
+
+        .lab-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .lab-badge {
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            color: #ffd8b3;
+            background: rgba(255, 176, 102, 0.08);
+            font-size: 13px;
+            font-weight: 760;
+            padding: 9px 12px;
+        }
+
+        .mars-scene {
+            min-height: 380px;
+            position: relative;
+            border: 1px solid var(--line);
+            border-radius: 26px;
+            background:
+                radial-gradient(circle at 50% 34%, rgba(255, 183, 121, 0.18), transparent 18%),
+                linear-gradient(180deg, rgba(20, 16, 40, 0.4), rgba(65, 20, 15, 0.62));
+            box-shadow: 0 32px 80px rgba(0,0,0,0.32);
+            overflow: hidden;
+        }
+
+        .planet {
+            position: absolute;
+            width: 230px;
+            height: 230px;
+            border-radius: 50%;
+            right: 36px;
+            top: 40px;
+            background:
+                radial-gradient(circle at 34% 28%, #ffcf97 0 9%, transparent 10%),
+                radial-gradient(circle at 70% 62%, rgba(90, 28, 24, 0.46) 0 13%, transparent 14%),
+                linear-gradient(145deg, #ff8a4c, #b83c27 62%, #6d2118);
+            box-shadow: inset -28px -28px 42px rgba(59, 14, 12, 0.38), 0 0 72px rgba(255, 126, 64, 0.38);
+        }
+
+        .orbit {
+            position: absolute;
+            width: 310px;
+            height: 84px;
+            border: 2px solid rgba(255, 226, 190, 0.24);
+            border-radius: 50%;
+            right: -4px;
+            top: 110px;
+            transform: rotate(-17deg);
+        }
+
+        .robot {
+            position: absolute;
+            left: 48px;
+            bottom: 52px;
+            width: 126px;
+            height: 148px;
+            border: 1px solid rgba(255,255,255,0.22);
+            border-radius: 24px;
+            background: linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.06));
+            box-shadow: 0 20px 50px rgba(0,0,0,0.28);
+        }
+
+        .robot::before {
+            content: "";
+            position: absolute;
+            width: 70px;
+            height: 28px;
+            left: 27px;
+            top: 28px;
+            border-radius: 14px;
+            background:
+                radial-gradient(circle at 26% 50%, #7fffd4 0 12%, transparent 13%),
+                radial-gradient(circle at 74% 50%, #7fffd4 0 12%, transparent 13%),
+                rgba(6, 11, 20, 0.74);
+        }
+
+        .robot::after {
+            content: "ASL-01";
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 28px;
+            color: rgba(255,255,255,0.72);
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-align: center;
+        }
+
+        .terrain {
+            position: absolute;
+            left: -10%;
+            right: -10%;
+            bottom: -50px;
+            height: 160px;
+            background: linear-gradient(180deg, #8f321f, #43140e);
+            border-radius: 50% 50% 0 0;
+        }
+
+        .login-card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 24px;
+            padding: 26px;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.34);
+            backdrop-filter: blur(18px);
+        }
+
+        .login-card h2 {
+            margin: 0 0 8px;
+            font-size: 26px;
+        }
+
+        .login-card p {
+            color: var(--muted);
+            line-height: 1.5;
+            margin: 0 0 22px;
+        }
+
+        .field {
+            display: grid;
+            gap: 7px;
+            margin-bottom: 14px;
+        }
+
+        .field label {
+            color: rgba(255, 248, 239, 0.76);
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+        }
+
+        .field input,
+        .field select {
+            width: 100%;
+            min-height: 48px;
+            border: 1px solid rgba(255, 224, 190, 0.18);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.08);
+            color: var(--text);
+            font: inherit;
+            padding: 11px 13px;
+        }
+
+        .field select option {
+            color: #1b1214;
+        }
+
+        .actions {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: 1fr 1fr;
+            margin-top: 18px;
+        }
+
+        button,
+        .link-button {
+            border: 0;
+            border-radius: 14px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 48px;
+            padding: 12px 15px;
+            text-decoration: none;
+            font: inherit;
+            font-weight: 820;
+        }
+
+        .primary {
+            background: linear-gradient(135deg, #ff884d, #ffbd72);
+            color: #2a0d08;
+            box-shadow: 0 16px 32px rgba(255, 117, 63, 0.24);
+        }
+
+        .secondary {
+            background: rgba(255,255,255,0.08);
+            color: var(--text);
+            border: 1px solid rgba(255, 224, 190, 0.17);
+        }
+
+        .notice {
+            border: 1px solid rgba(255, 189, 114, 0.22);
+            border-radius: 16px;
+            background: rgba(255, 189, 114, 0.08);
+            color: rgba(255, 248, 239, 0.78);
+            font-size: 13px;
+            line-height: 1.45;
+            margin-top: 18px;
+            padding: 13px;
+        }
+
+        .status {
+            color: #ffd8b3;
+            font-size: 13px;
+            margin-top: 12px;
+            min-height: 18px;
+        }
+
+        @media (max-width: 880px) {
+            .page {
+                grid-template-columns: 1fr;
+                padding: 26px 16px;
+            }
+
+            .mars-scene {
+                min-height: 320px;
+                order: -1;
+            }
+        }
+
+        @media (max-width: 520px) {
+            .actions {
+                grid-template-columns: 1fr;
+            }
+
+            .planet {
+                right: -18px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <section>
+            <div class="brand">
+                <span class="brand-mark" aria-hidden="true"></span>
+                Malka AI Lab
+            </div>
+            <h1>ASL to English Mission Control</h1>
+            <p class="lede">
+                A separate experimental portal for consented ASL-to-English and English-to-ASL model testing.
+                This lab is not part of production VRS/VRI call handling.
+            </p>
+            <div class="lab-badges" aria-label="Lab boundaries">
+                <span class="lab-badge">Consent-gated</span>
+                <span class="lab-badge">Raw video discarded</span>
+                <span class="lab-badge">Human review required</span>
+                <span class="lab-badge">No production routing</span>
+            </div>
+        </section>
+
+        <aside>
+            <div class="mars-scene" aria-label="Mars robot lab illustration">
+                <div class="planet"></div>
+                <div class="orbit"></div>
+                <div class="robot"></div>
+                <div class="terrain"></div>
+            </div>
+
+            <form class="login-card" id="lab-login">
+                <h2>Robot Lab Login</h2>
+                <p>Access will be limited to approved testers while the ASL AI lab is experimental.</p>
+                <div class="field">
+                    <label for="lab-email">Email</label>
+                    <input id="lab-email" name="email" type="email" autocomplete="email" placeholder="researcher@malkacomm.com">
+                </div>
+                <div class="field">
+                    <label for="lab-mode">Experiment</label>
+                    <select id="lab-mode" name="mode">
+                        <option>ASL to English recognition</option>
+                        <option>English to ASL generation</option>
+                        <option>Dataset review queue</option>
+                    </select>
+                </div>
+                <div class="actions">
+                    <button class="primary" type="submit">Enter Lab</button>
+                    <a class="link-button secondary" href="/">Back to Malka</a>
+                </div>
+                <div class="notice">
+                    Lab authentication, dataset consent, recording policy, and model evaluation gates are intentionally not enabled in this stub.
+                </div>
+                <div class="status" id="lab-status" role="status"></div>
+            </form>
+        </aside>
+    </main>
+
+    <script>
+        document.getElementById('lab-login').addEventListener('submit', event => {
+            event.preventDefault();
+            document.getElementById('lab-status').textContent = 'Lab access is not enabled yet. This portal is a visual stub only.';
+        });
+    </script>
+</body>
+</html>

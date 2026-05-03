@@ -670,7 +670,8 @@ All completed client mobile parity items have been moved to Completed Work. Rema
 - [ ] Split Malka role/product surfaces into distinct domains when traffic and operations justify it
 - [ ] `vrs.malkacomm.com`: MalkaVRS client-facing VRS experience
 - [ ] `vri.malkacomm.com`: MalkaVRI client-facing VRI/corporate experience
-- [ ] `asltoenglish.malkacomm.com` or similar: distinct Malka ASL-to-English AI lab portal, not integrated into production VRS/VRI until validated
+- [x] `ai.malkacomm.com`: distinct Malka ASL-to-English AI lab portal stub, not integrated into production VRS/VRI until validated
+  - 2026-05-03: Added `asl-ai.html` as a visually distinct Mars/robot lab login stub with consent/legal boundaries, plus app-server host routing so `ai.malkacomm.com/` resolves to the lab page once DNS/nginx TLS are configured.
 - [ ] `terp.malkacomm.com`: interpreter and captioner portal
 - [ ] `admin.malkacomm.com`: admin/superadmin portal
 - [ ] Define redirect and session rules between domains so auth remains smooth without mixing product identities
@@ -697,8 +698,9 @@ All completed client mobile parity items have been moved to Completed Work. Rema
   - Acceptance rate, decline/no-answer rate, wait-time impact, in-call minutes, utilization, survey trends, teaming participation, notes/admin follow-up, and payout context.
 
 ### AI & Accessibility
-- [ ] Create a distinct Malka-side **ASL to English** portal for experimental automated ASL-to-English and English-to-ASL interpretation testing
-- [ ] Keep ASL-to-English AI portal visually and operationally distinct from MalkaVRS/MalkaVRI until it is accurate, safe, consented, and legally cleared for integration
+- [x] Create a distinct Malka-side **ASL to English** portal for experimental automated ASL-to-English and English-to-ASL interpretation testing
+- [x] Keep ASL-to-English AI portal visually and operationally distinct from MalkaVRS/MalkaVRI until it is accurate, safe, consented, and legally cleared for integration
+- [ ] Configure public `ai.malkacomm.com` DNS, TLS certificate, and production nginx HTTPS server block
 - [ ] ASL recognition research/prototype with video dataset strategy, consent model, evaluation set, and human review loop
 - [ ] ASL data flywheel architecture: turn consented video calls into training examples while discarding raw recordings
   - Consent gate: explicit opt-in by eligible participants, tenant/client policy controls, interpreter visibility, and per-call revocation path.
