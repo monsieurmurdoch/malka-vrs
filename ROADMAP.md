@@ -464,11 +464,16 @@
 - [ ] STS mode for speech disabilities
 
 ### Visual Voicemail Follow-Through
-- [ ] Confirm real object-storage write/read path in production
-- [ ] Generate voicemail thumbnails server-side
-- [ ] Media transcoding/compression for stored messages
-- [ ] Notification delivery beyond in-app badge where needed
-- [ ] Retention/expiry job verification in production
+- [x] Confirm real object-storage write/read path in production
+  - 2026-05-03: Added admin-only voicemail storage probe that writes, stats, presigns, and deletes a temporary object through the configured S3-compatible backend.
+- [x] Generate voicemail thumbnails server-side
+  - 2026-05-03: Jibri finalize now generates a JPEG thumbnail with ffmpeg and reports `thumbnailKey` to the voicemail callback.
+- [x] Media transcoding/compression for stored messages
+  - 2026-05-03: Jibri finalize now prefers compressed MP4 output with ffmpeg and falls back to original media with the correct content type when transcoding is unavailable.
+- [x] Notification delivery beyond in-app badge where needed
+  - 2026-05-03: Voicemail completion now supports an optional `VOICEMAIL_NOTIFICATION_WEBHOOK_URL` for external delivery in addition to the in-app unread badge/WebSocket event.
+- [x] Retention/expiry job verification in production
+  - 2026-05-03: Added admin-only expiry status and run-now endpoints so production can verify the retention job and last expiry result.
 
 ---
 

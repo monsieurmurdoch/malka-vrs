@@ -74,6 +74,28 @@ export interface StorageStats {
     activeRecordings: number;
 }
 
+export interface CompleteRecordingOptions {
+    contentType?: string;
+    thumbnailKey?: string | null;
+    originalStorageKey?: string | null;
+    compressed?: boolean;
+}
+
+export interface StorageVerificationResult {
+    ok: boolean;
+    reason?: string;
+    key?: string;
+    size?: number;
+    presignedUrlCreated?: boolean;
+    checkedAt: string;
+}
+
+export interface ExpiryJobStatus {
+    lastRunAt: string | null;
+    lastExpiredCount: number;
+    lastError: string | null;
+}
+
 // ============================================
 // IN-MEMORY STATE
 // ============================================
@@ -85,6 +107,9 @@ let broadcastToClient: ((userId: string, message: object) => void) | null = null
 
 // Expiry cleanup interval handle
 let expiryInterval: ReturnType<typeof setInterval> | null = null;
+let lastExpiryRunAt: string | null = null;
+let lastExpiryExpiredCount = 0;
+let lastExpiryError: string | null = null;
 
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const RECORDING_TIMEOUT_MS = 5 * 60 * 1000;  // 5 minutes max recording time
@@ -203,7 +228,7 @@ async function startRecording(callerId: string, calleeId: string | null, calleeP
     });
 
     // Auto-timeout the recording after max duration + buffer
-    setTimeout(async () => {
+    const timeout = setTimeout(async () => {
         const active = activeRecordings.get(messageId);
         if (active) {
             // Recording is still active after timeout — Jibri should stop it
@@ -211,23 +236,87 @@ async function startRecording(callerId: string, calleeId: string | null, calleeP
             console.log(`[Voicemail] Recording ${messageId} reached max duration`);
         }
     }, (maxDurationSeconds + 30) * 1000);
+    timeout.unref?.();
 
     await logActivity('voicemail_recording_started', `Voicemail recording started for room ${roomName}`, { messageId, callerId, calleeId }, callerId);
 
     return { messageId, roomName, maxDurationSeconds };
 }
 
-async function completeRecording(messageId: string, storageKey: string, durationSeconds: number, fileSizeBytes: number): Promise<void> {
-    const active = activeRecordings.get(messageId);
+function getContentTypeForStorageKey(storageKey: string, contentType?: string): string {
+    if (contentType) {
+        return contentType;
+    }
 
-    // Update DB record
-    await updateVoicemailMessage(messageId, {
+    const lower = storageKey.toLowerCase();
+
+    if (lower.endsWith('.webm')) {
+        return 'video/webm';
+    }
+
+    if (lower.endsWith('.mkv')) {
+        return 'video/x-matroska';
+    }
+
+    return 'video/mp4';
+}
+
+async function deliverVoicemailNotification(
+        active: ActiveRecording | undefined,
+        messageId: string,
+        unreadCount: number
+): Promise<void> {
+    if (!active?.calleeId) {
+        return;
+    }
+
+    const webhookUrl = process.env.VOICEMAIL_NOTIFICATION_WEBHOOK_URL;
+    if (!webhookUrl || typeof fetch !== 'function') {
+        return;
+    }
+
+    try {
+        await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                type: 'voicemail_new_message',
+                messageId,
+                callerId: active.callerId,
+                calleeId: active.calleeId,
+                calleePhone: active.calleePhone,
+                unreadCount,
+                createdAt: new Date().toISOString()
+            })
+        });
+    } catch (err) {
+        console.error('[Voicemail] External notification delivery failed:', err);
+    }
+}
+
+async function completeRecording(
+        messageId: string,
+        storageKey: string,
+        durationSeconds: number,
+        fileSizeBytes: number,
+        options: CompleteRecordingOptions = {}
+): Promise<void> {
+    const active = activeRecordings.get(messageId);
+    const contentType = getContentTypeForStorageKey(storageKey, options.contentType);
+    const updates: Record<string, unknown> = {
         status: 'available',
         storage_key: storageKey,
         duration_seconds: durationSeconds,
         file_size_bytes: fileSizeBytes,
-        content_type: 'video/mp4'
-    });
+        content_type: contentType
+    };
+
+    if (options.thumbnailKey) {
+        updates.thumbnail_key = options.thumbnailKey;
+    }
+
+    // Update DB record
+    await updateVoicemailMessage(messageId, updates);
 
     // Remove from active recordings
     activeRecordings.delete(messageId);
@@ -250,10 +339,24 @@ async function completeRecording(messageId: string, storageKey: string, duration
                 type: 'voicemail_unread_count',
                 data: { count }
             });
+            await deliverVoicemailNotification(active, messageId, count);
         }
     }
 
-    await logActivity('voicemail_recording_complete', `Voicemail ${messageId} is now available`, { messageId, durationSeconds, fileSizeBytes }, null);
+    await logActivity(
+        'voicemail_recording_complete',
+        `Voicemail ${messageId} is now available`,
+        {
+            messageId,
+            durationSeconds,
+            fileSizeBytes,
+            contentType,
+            thumbnailKey: options.thumbnailKey || null,
+            compressed: Boolean(options.compressed),
+            originalStorageKey: options.originalStorageKey || null
+        },
+        null
+    );
 }
 
 async function failRecording(messageId: string, reason: string): Promise<void> {
@@ -341,7 +444,7 @@ async function getMessageWithPlayback(messageId: string, requesterId: string): P
     if (storage?.isInitialized()) {
         playbackUrl = await storage.getPresignedUrl(
             msg.storage_key as string,
-            { expiresIn: 3600, responseContentType: 'video/mp4' }
+            { expiresIn: 3600, responseContentType: getContentTypeForStorageKey(msg.storage_key as string, msg.content_type as string) }
         );
     }
 
@@ -405,6 +508,9 @@ async function getUnreadCount(calleeId: string): Promise<number> {
 // ============================================
 
 async function expireOldMessages(): Promise<number> {
+    lastExpiryRunAt = new Date().toISOString();
+    lastExpiryError = null;
+
     const expired = await getExpiredVoicemailMessages();
     const storage = getStorageService();
 
@@ -431,7 +537,77 @@ async function expireOldMessages(): Promise<number> {
         await logActivity('voicemail_expired', `Expired ${expired.length} voicemail message(s)`, { count: expired.length }, null);
     }
 
+    lastExpiryExpiredCount = expired.length;
+
     return expired.length;
+}
+
+function getExpiryJobStatus(): ExpiryJobStatus {
+    return {
+        lastRunAt: lastExpiryRunAt,
+        lastExpiredCount: lastExpiryExpiredCount,
+        lastError: lastExpiryError
+    };
+}
+
+async function runExpiryJobNow(): Promise<ExpiryJobStatus> {
+    try {
+        await expireOldMessages();
+    } catch (err: any) {
+        lastExpiryRunAt = new Date().toISOString();
+        lastExpiryError = err?.message || 'Expiry job failed';
+        throw err;
+    }
+
+    return getExpiryJobStatus();
+}
+
+async function verifyObjectStoragePath(): Promise<StorageVerificationResult> {
+    const storage = getStorageService();
+    const checkedAt = new Date().toISOString();
+
+    if (!storage?.isInitialized()) {
+        return {
+            ok: false,
+            reason: 'storage_unavailable',
+            checkedAt
+        };
+    }
+
+    const key = `health/voicemail-storage-check-${uuidv4()}.txt`;
+    const body = Buffer.from(`voicemail-storage-check ${checkedAt}\n`, 'utf8');
+
+    try {
+        await storage.uploadBuffer(body, key, 'text/plain');
+        const exists = await storage.fileExists(key);
+        const stats = await storage.getFileStats(key);
+        const presignedUrl = await storage.getPresignedUrl(key, {
+            expiresIn: 60,
+            responseContentType: 'text/plain'
+        });
+
+        return {
+            ok: exists && stats.size === body.length && Boolean(presignedUrl),
+            key,
+            size: stats.size,
+            presignedUrlCreated: Boolean(presignedUrl),
+            checkedAt
+        };
+    } catch (err: any) {
+        return {
+            ok: false,
+            reason: err?.message || 'storage_check_failed',
+            key,
+            checkedAt
+        };
+    } finally {
+        try {
+            await storage.deleteFile(key);
+        } catch {
+            // The storage check should report write/read health, not fail because
+            // cleanup of the temporary probe object was already best-effort.
+        }
+    }
 }
 
 // ============================================
@@ -515,6 +691,9 @@ export {
     markMessageSeen,
     getUnreadCount,
     expireOldMessages,
+    getExpiryJobStatus,
+    runExpiryJobNow,
+    verifyObjectStoragePath,
     getSettings,
     updateSetting,
     getAllMessagesForAdmin,

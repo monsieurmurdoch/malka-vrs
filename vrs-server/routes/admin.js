@@ -828,4 +828,64 @@ router.get('/voicemail/stats', authenticateAdmin, async (req, res) => {
     }
 });
 
+/**
+ * POST /api/admin/voicemail/storage-check
+ * Runs a real object-storage write/stat/presign/delete probe.
+ */
+router.post('/voicemail/storage-check', authenticateAdmin, validate(emptyBodySchema), async (req, res) => {
+    try {
+        if (!voicemailServiceForAdmin) {
+            return res.status(503).json({ error: 'Voicemail service not available', code: 'SERVICE_UNAVAILABLE' });
+        }
+        if (typeof voicemailServiceForAdmin.verifyObjectStoragePath !== 'function') {
+            return res.status(503).json({ error: 'Voicemail storage check not available', code: 'SERVICE_UNAVAILABLE' });
+        }
+
+        const result = await voicemailServiceForAdmin.verifyObjectStoragePath();
+        res.status(result.ok ? 200 : 503).json(result);
+    } catch (error) {
+        req.log.error({ err: error }, 'Voicemail storage check error');
+        res.status(500).json({ error: 'Failed to verify voicemail storage', code: 'INTERNAL_ERROR' });
+    }
+});
+
+/**
+ * GET /api/admin/voicemail/expiry-status
+ */
+router.get('/voicemail/expiry-status', authenticateAdmin, async (req, res) => {
+    try {
+        if (!voicemailServiceForAdmin) {
+            return res.status(503).json({ error: 'Voicemail service not available', code: 'SERVICE_UNAVAILABLE' });
+        }
+        if (typeof voicemailServiceForAdmin.getExpiryJobStatus !== 'function') {
+            return res.status(503).json({ error: 'Voicemail expiry status not available', code: 'SERVICE_UNAVAILABLE' });
+        }
+
+        res.json(voicemailServiceForAdmin.getExpiryJobStatus());
+    } catch (error) {
+        req.log.error({ err: error }, 'Voicemail expiry status error');
+        res.status(500).json({ error: 'Failed to fetch voicemail expiry status', code: 'INTERNAL_ERROR' });
+    }
+});
+
+/**
+ * POST /api/admin/voicemail/expire-now
+ */
+router.post('/voicemail/expire-now', authenticateAdmin, validate(emptyBodySchema), async (req, res) => {
+    try {
+        if (!voicemailServiceForAdmin) {
+            return res.status(503).json({ error: 'Voicemail service not available', code: 'SERVICE_UNAVAILABLE' });
+        }
+        if (typeof voicemailServiceForAdmin.runExpiryJobNow !== 'function') {
+            return res.status(503).json({ error: 'Voicemail expiry job not available', code: 'SERVICE_UNAVAILABLE' });
+        }
+
+        const status = await voicemailServiceForAdmin.runExpiryJobNow();
+        res.json(status);
+    } catch (error) {
+        req.log.error({ err: error }, 'Voicemail expiry job error');
+        res.status(500).json({ error: 'Failed to run voicemail expiry job', code: 'INTERNAL_ERROR' });
+    }
+});
+
 module.exports = { router, setVoicemailServiceForAdmin };

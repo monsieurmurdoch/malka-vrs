@@ -22,9 +22,12 @@ const voicemailStartSchema = z.object({
 const jibriCallbackSchema = z.object({
     roomName: roomNameSchema,
     storageKey: z.string().min(1).max(1000),
+    thumbnailKey: z.string().max(1000).optional(),
     fileSizeBytes: nonNegativeIntSchema.optional(),
     durationSeconds: nonNegativeIntSchema.optional(),
-    contentType: z.string().max(120).optional()
+    contentType: z.string().max(120).optional(),
+    compressed: z.boolean().optional(),
+    originalStorageKey: z.string().max(1000).optional()
 });
 
 function setVoicemailService(service) {
@@ -229,7 +232,16 @@ router.post('/cancel/:id', authenticateClient, ensureService, validate(emptyBody
  */
 router.post('/jibri-callback', authenticateJibri, ensureService, validate(jibriCallbackSchema), async (req, res) => {
     try {
-        const { roomName, storageKey, fileSizeBytes, durationSeconds } = req.body;
+        const {
+            roomName,
+            storageKey,
+            thumbnailKey,
+            fileSizeBytes,
+            durationSeconds,
+            contentType,
+            compressed,
+            originalStorageKey
+        } = req.body;
 
         // Find the voicemail message by room name
         const db = require('../database');
@@ -242,7 +254,13 @@ router.post('/jibri-callback', authenticateJibri, ensureService, validate(jibriC
             message.id,
             storageKey,
             parseInt(String(durationSeconds)) || 0,
-            parseInt(String(fileSizeBytes)) || 0
+            parseInt(String(fileSizeBytes)) || 0,
+            {
+                contentType,
+                thumbnailKey,
+                compressed: Boolean(compressed),
+                originalStorageKey
+            }
         );
 
         res.json({ success: true });

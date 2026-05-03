@@ -2005,7 +2005,7 @@ async function getInterpreterUtilizationSummary(interpreterId: any, periodStart:
 }
 
 async function getAdminUtilizationSummary({ periodStart, periodEnd, tenantId, serviceMode, language }: any) {
-    const interpreters = await getAllInterpreters();
+    const interpreters: any[] = await getAllInterpreters();
     const arrayValue = (value: any) => {
         if (Array.isArray(value)) return value;
         if (typeof value === 'string') {
