@@ -230,6 +230,18 @@ async function createTables() {
             active BOOLEAN DEFAULT true
         );
 
+        CREATE TABLE IF NOT EXISTS client_contact_handles (
+            id TEXT PRIMARY KEY,
+            client_id TEXT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+            phone_number_id TEXT NOT NULL REFERENCES client_phone_numbers(id) ON DELETE CASCADE,
+            handle TEXT UNIQUE NOT NULL,
+            visibility TEXT DEFAULT 'public',
+            is_primary BOOLEAN DEFAULT true,
+            active BOOLEAN DEFAULT true,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
         -- Interpreter shifts/schedule
         CREATE TABLE IF NOT EXISTS interpreter_shifts (
             id TEXT PRIMARY KEY,
@@ -420,7 +432,6 @@ async function createTables() {
         ALTER TABLE clients ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'malka';
         ALTER TABLE interpreters ADD COLUMN IF NOT EXISTS service_modes JSONB DEFAULT '["vrs"]';
         ALTER TABLE interpreters ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'malka';
-
         ALTER TABLE clients DROP CONSTRAINT IF EXISTS clients_email_key;
         ALTER TABLE interpreters DROP CONSTRAINT IF EXISTS interpreters_email_key;
         CREATE UNIQUE INDEX IF NOT EXISTS clients_tenant_email_idx ON clients (tenant_id, email);
@@ -442,6 +453,8 @@ async function createTables() {
         CREATE INDEX IF NOT EXISTS idx_activity_date ON activity_log(created_at);
         CREATE INDEX IF NOT EXISTS idx_speed_dial_client ON speed_dial(client_id);
         CREATE INDEX IF NOT EXISTS idx_client_phone_client ON client_phone_numbers(client_id);
+        CREATE INDEX IF NOT EXISTS idx_client_handles_client ON client_contact_handles(client_id);
+        CREATE INDEX IF NOT EXISTS idx_client_handles_lookup ON client_contact_handles(handle) WHERE active = true;
         CREATE INDEX IF NOT EXISTS idx_shifts_interpreter ON interpreter_shifts(interpreter_id);
         CREATE INDEX IF NOT EXISTS idx_shifts_date ON interpreter_shifts(date);
         CREATE INDEX IF NOT EXISTS idx_earnings_interpreter ON interpreter_earnings(interpreter_id);
@@ -492,6 +505,7 @@ async function createTables() {
             name TEXT NOT NULL,
             email TEXT,
             phone_number TEXT,
+            contact_handle TEXT,
             organization TEXT,
             notes TEXT,
             avatar_color TEXT,
@@ -502,6 +516,7 @@ async function createTables() {
             updated_at TIMESTAMPTZ DEFAULT NOW()
         );
         CREATE INDEX IF NOT EXISTS idx_contacts_client ON contacts(client_id);
+        ALTER TABLE contacts ADD COLUMN IF NOT EXISTS contact_handle TEXT;
         CREATE INDEX IF NOT EXISTS idx_contacts_phone ON contacts(client_id, phone_number);
         CREATE INDEX IF NOT EXISTS idx_contacts_email ON contacts(client_id, email);
         CREATE INDEX IF NOT EXISTS idx_contacts_favorite ON contacts(client_id, is_favorite);
@@ -1642,6 +1657,117 @@ async function assignClientPhoneNumber({ clientId, phoneNumber, isPrimary }: any
     return { id, phoneNumber, isPrimary };
 }
 
+function normalizeVrsHandle(raw: any) {
+    if (typeof raw !== 'string') return null;
+    const handle = raw.trim().replace(/^@+/, '').toLowerCase();
+    if (!/^[a-z0-9][a-z0-9._-]{2,29}$/.test(handle)) return null;
+    if (handle.includes('..') || handle.includes('__') || handle.includes('--')) return null;
+    return handle;
+}
+
+async function getClientHandles(clientId: any) {
+    return await runQuery(
+        `SELECT h.*, cpn.phone_number
+         FROM client_contact_handles h
+         JOIN client_phone_numbers cpn ON cpn.id = h.phone_number_id
+         WHERE h.client_id = $1 AND h.active = true AND cpn.active = true
+         ORDER BY h.is_primary DESC, h.created_at ASC`,
+        [clientId]
+    );
+}
+
+async function upsertClientHandle({ clientId, handle, phoneNumberId, visibility }: any) {
+    const normalizedHandle = normalizeVrsHandle(handle);
+    if (!normalizedHandle) {
+        const err = new Error('Invalid handle');
+        (err as any).code = 'INVALID_HANDLE';
+        throw err;
+    }
+
+    const normalizedVisibility = visibility === 'private' ? 'private' : 'public';
+    const phoneRows = phoneNumberId
+        ? await runQuery(
+            'SELECT * FROM client_phone_numbers WHERE id = $1 AND client_id = $2 AND active = true',
+            [phoneNumberId, clientId]
+        )
+        : await runQuery(
+            `SELECT * FROM client_phone_numbers
+             WHERE client_id = $1 AND active = true
+             ORDER BY is_primary DESC, assigned_at ASC
+             LIMIT 1`,
+            [clientId]
+        );
+
+    if (!phoneRows.length) {
+        const err = new Error('A VRS phone number is required before creating a handle');
+        (err as any).code = 'PHONE_REQUIRED';
+        throw err;
+    }
+
+    const existingOwner = await runQuery(
+        'SELECT client_id FROM client_contact_handles WHERE handle = $1 AND active = true LIMIT 1',
+        [normalizedHandle]
+    );
+    if (existingOwner.length && existingOwner[0].client_id !== clientId) {
+        const err = new Error('Handle is already taken');
+        (err as any).code = 'HANDLE_TAKEN';
+        throw err;
+    }
+
+    const existingPrimary = await runQuery(
+        'SELECT id FROM client_contact_handles WHERE client_id = $1 AND is_primary = true AND active = true LIMIT 1',
+        [clientId]
+    );
+    const phoneNumber = phoneRows[0];
+
+    if (existingPrimary.length) {
+        await runUpdate(
+            `UPDATE client_contact_handles
+             SET handle = $1, phone_number_id = $2, visibility = $3, updated_at = NOW()
+             WHERE id = $4`,
+            [normalizedHandle, phoneNumber.id, normalizedVisibility, existingPrimary[0].id]
+        );
+    } else {
+        await runInsert(
+            `INSERT INTO client_contact_handles (id, client_id, phone_number_id, handle, visibility, is_primary, active)
+             VALUES ($1, $2, $3, $4, $5, true, true)`,
+            [uuidv4(), clientId, phoneNumber.id, normalizedHandle, normalizedVisibility]
+        );
+    }
+
+    const handles = await getClientHandles(clientId);
+    return handles.find(row => row.handle === normalizedHandle) || handles[0] || null;
+}
+
+async function deleteClientHandle(clientId: any, handleId: any) {
+    return await runUpdate(
+        `UPDATE client_contact_handles
+         SET active = false, is_primary = false, updated_at = NOW()
+         WHERE id = $1 AND client_id = $2`,
+        [handleId, clientId]
+    );
+}
+
+async function getClientByHandle(handle: any, requesterClientId?: any) {
+    const normalizedHandle = normalizeVrsHandle(handle);
+    if (!normalizedHandle) return null;
+
+    const rows = await runQuery(
+        `SELECT c.*, h.id as handle_id, h.handle, h.visibility, cpn.phone_number, cpn.is_primary
+         FROM client_contact_handles h
+         JOIN clients c ON c.id = h.client_id
+         JOIN client_phone_numbers cpn ON cpn.id = h.phone_number_id
+         WHERE h.handle = $1
+           AND h.active = true
+           AND cpn.active = true
+           AND (h.visibility = 'public' OR h.client_id = $2)
+         LIMIT 1`,
+        [normalizedHandle, requesterClientId || null]
+    );
+
+    return rows[0] ? { ...rows[0], service_modes: normalizeServiceModes(rows[0].service_modes) } : null;
+}
+
 // ============================================
 // INTERPRETER SHIFT OPERATIONS
 // ============================================
@@ -2319,7 +2445,7 @@ async function getContacts(clientId: any, { search, groupId, favoritesOnly }: an
     let idx = 2;
 
     if (search) {
-        sql += ` AND (c.name ILIKE $${idx} OR c.email ILIKE $${idx} OR c.phone_number ILIKE $${idx} OR c.organization ILIKE $${idx})`;
+        sql += ` AND (c.name ILIKE $${idx} OR c.email ILIKE $${idx} OR c.phone_number ILIKE $${idx} OR c.contact_handle ILIKE $${idx} OR c.organization ILIKE $${idx})`;
         params.push(`%${search}%`);
         idx++;
     }
@@ -2351,14 +2477,15 @@ async function getContact(clientId: any, contactId: any) {
     return contact;
 }
 
-async function createContact({ clientId, name, email, phoneNumber, organization, notes, avatarColor, isFavorite, linkedClientId }: any) {
+async function createContact({ clientId, name, email, phoneNumber, contactHandle, organization, notes, avatarColor, isFavorite, linkedClientId }: any) {
     const id = uuidv4();
     const sanitized = phoneNumber ? sanitizePhoneNumberRaw(phoneNumber) : null;
+    const normalizedHandle = contactHandle ? normalizeVrsHandle(contactHandle) : null;
 
     await runInsert(
-        `INSERT INTO contacts (id, client_id, name, email, phone_number, organization, notes, avatar_color, is_favorite, linked_client_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [id, clientId, name, email || null, sanitized, organization || null, notes || null, avatarColor || null, !!isFavorite, linkedClientId || null]
+        `INSERT INTO contacts (id, client_id, name, email, phone_number, contact_handle, organization, notes, avatar_color, is_favorite, linked_client_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [id, clientId, name, email || null, sanitized, normalizedHandle, organization || null, notes || null, avatarColor || null, !!isFavorite, linkedClientId || null]
     );
 
     return { id, name };
@@ -2367,7 +2494,7 @@ async function createContact({ clientId, name, email, phoneNumber, organization,
 async function updateContact(clientId: any, contactId: any, updates: any) {
     const fields = [];
     const params = [];
-    const allowed = ['name', 'email', 'phone_number', 'organization', 'notes', 'avatar_color', 'is_favorite', 'linked_client_id'];
+    const allowed = ['name', 'email', 'phone_number', 'contact_handle', 'organization', 'notes', 'avatar_color', 'is_favorite', 'linked_client_id'];
     let idx = 1;
 
     for (const key of allowed) {
@@ -2377,6 +2504,11 @@ async function updateContact(clientId: any, contactId: any, updates: any) {
                 if (!sanitized) continue;
                 fields.push(`${key} = $${idx++}`);
                 params.push(sanitized);
+            } else if (key === 'contact_handle' && updates[key]) {
+                const normalizedHandle = normalizeVrsHandle(updates[key]);
+                if (!normalizedHandle) continue;
+                fields.push(`${key} = $${idx++}`);
+                params.push(normalizedHandle);
             } else if (key === 'is_favorite') {
                 fields.push(`${key} = $${idx++}`);
                 params.push(!!updates[key]);
@@ -3572,6 +3704,10 @@ export {
     incrementSpeedDialUsage,
     getClientPhoneNumbers,
     assignClientPhoneNumber,
+    getClientHandles,
+    upsertClientHandle,
+    deleteClientHandle,
+    getClientByHandle,
     getInterpreterShifts,
     createInterpreterShift,
     updateInterpreterShift,

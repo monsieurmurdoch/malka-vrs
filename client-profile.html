@@ -1492,6 +1492,12 @@
             letter-spacing: 0.04em;
         }
 
+        .settings-help {
+            font-size: 12px;
+            line-height: 1.35;
+            opacity: 0.58;
+        }
+
         .settings-input,
         .settings-select,
         .settings-textarea {
@@ -2853,10 +2859,27 @@
         // ============================================
 
         /** Flow 1: enter hearing person's number → request interpreter → waiting overlay → auto-join. */
-        window.__dialViaInterpreter = function() {
+        async function resolveCallableTarget(value) {
+            const raw = String(value || '').trim();
+            if (!raw.startsWith('@')) return raw;
+            const lookup = await apiFetch('/api/client/lookup-handle?handle=' + encodeURIComponent(raw));
+            if (!lookup?.found || !lookup.phone) {
+                throw new Error('No public VRS handle found.');
+            }
+            return lookup.phone;
+        }
+
+        window.__dialViaInterpreter = async function() {
             const input = document.getElementById('dial-phone');
             if (!input) return;
-            const phone = input.value.trim();
+            let phone;
+            try {
+                phone = await resolveCallableTarget(input.value);
+            } catch (error) {
+                state.contactStatus = { type: 'error', message: error.message || 'Handle lookup failed.' };
+                render();
+                return;
+            }
             if (!phone) return;
 
             const user = getUser();
@@ -2874,10 +2897,17 @@
             renderOverlays();
         };
 
-        window.__p2pDial = function() {
+        window.__p2pDial = async function() {
             const input = document.getElementById('dial-phone');
             if (!input) return;
-            const phone = input.value.trim();
+            let phone;
+            try {
+                phone = await resolveCallableTarget(input.value);
+            } catch (error) {
+                state.contactStatus = { type: 'error', message: error.message || 'Handle lookup failed.' };
+                render();
+                return;
+            }
             if (!phone) return;
 
             wsSend({
@@ -3001,6 +3031,11 @@
             return value ? 'checked' : '';
         }
 
+        function primaryHandle(profile) {
+            const handles = Array.isArray(profile?.handles) ? profile.handles : [];
+            return handles.find(handle => handle.is_primary) || handles[0] || null;
+        }
+
         function callDurationMinutes(call) {
             const duration = Number(call?.duration_minutes || call?.durationMinutes || 0);
             return Number.isFinite(duration) ? duration : 0;
@@ -3118,6 +3153,9 @@
         }
 
         function renderClientSettingsSection(profile, user, preferences, open) {
+            const handle = primaryHandle(profile);
+            const primaryPhone = profile?.phoneNumbers?.find(phone => phone.is_primary) || profile?.phoneNumbers?.[0] || null;
+
             return `
                 <details class="card section-card" id="profile-settings-section" ${open ? 'open' : ''}>
                     <summary>Settings</summary>
@@ -3137,6 +3175,24 @@
                                     <label class="settings-label" for="settings-organization">Organization</label>
                                     <input id="settings-organization" class="settings-input" type="text" value="${escapeHtml(profile?.organization || '')}">
                                 </div>
+                                ${primaryPhone ? `
+                                    <div class="settings-row">
+                                        <label class="settings-label" for="settings-vrs-phone">Registered VRS Number</label>
+                                        <input id="settings-vrs-phone" class="settings-input" type="text" value="${escapeHtml(primaryPhone.phone_number || '')}" readonly>
+                                    </div>
+                                    <div class="settings-row">
+                                        <label class="settings-label" for="settings-handle">VRS Handle</label>
+                                        <input id="settings-handle" class="settings-input" type="text" placeholder="@yourname" value="${escapeHtml(handle ? '@' + handle.handle : '')}">
+                                        <div class="settings-help">Discovery only. Calls still route through the registered VRS number above.</div>
+                                    </div>
+                                    <div class="settings-row">
+                                        <label class="settings-label" for="settings-handle-visibility">Handle Visibility</label>
+                                        <select id="settings-handle-visibility" class="settings-select">
+                                            <option value="public" ${!handle || handle.visibility === 'public' ? 'selected' : ''}>Public discovery</option>
+                                            <option value="private" ${handle?.visibility === 'private' ? 'selected' : ''}>Private</option>
+                                        </select>
+                                    </div>
+                                ` : ''}
                                 <div class="settings-actions">
                                     <button class="settings-btn" data-action="save-client-profile">Save Profile</button>
                                 </div>
@@ -3438,6 +3494,7 @@
                 case 'prepare-vri-invite': return window.__prepareVriInvite();
                 case 'copy-vri-invite': return window.__copyVriInvite(Number(element.dataset.index || 0));
                 case 'search-contacts': return window.__searchContacts(document.getElementById('contact-search')?.value || '');
+                case 'add-handle-contact': return window.__addHandleContact();
                 case 'sync-contacts': return window.__syncContacts();
                 case 'import-device-contacts': return window.__importDeviceContacts();
                 case 'connect-google-contacts': return window.__connectGoogleContacts();
@@ -3558,6 +3615,7 @@
                             value="${escapeHtml(state.contactSearch || '')}"
                             data-enter-action="search-contacts">
                         <button class="settings-btn secondary" data-action="search-contacts">Search</button>
+                        ${String(state.contactSearch || '').trim().startsWith('@') ? '<button class="settings-btn" data-action="add-handle-contact">Add Handle</button>' : ''}
                     </div>
                     <div class="contacts-toolbar">
                         <button class="settings-btn secondary" data-action="import-device-contacts">Phone Contacts</button>
@@ -3574,7 +3632,7 @@
                             <div class="contact-avatar" style="${contact.avatar_color ? `background:${escapeHtml(contact.avatar_color)}` : ''}">${escapeHtml(initials(contact.name))}</div>
                             <div class="contact-main">
                                 <div class="contact-name">${escapeHtml(contact.name)}</div>
-                                <div class="contact-meta">${escapeHtml([contact.phone_number, contact.email, contact.organization].filter(Boolean).join(' · ') || 'No contact details')}</div>
+                                <div class="contact-meta">${escapeHtml([contact.contact_handle ? '@' + contact.contact_handle : '', contact.phone_number, contact.email, contact.organization].filter(Boolean).join(' · ') || 'No contact details')}</div>
                             </div>
                         </div>
                     `).join('') : '<div class="empty-state">No contacts yet. Import contacts or add speed dial entries.</div>'}
@@ -3584,7 +3642,7 @@
                             <div class="contact-detail-header">
                                 <div>
                                     <div class="contact-detail-title">${escapeHtml(detail.name)}</div>
-                                    <div class="contact-detail-subtitle">${escapeHtml([detail.phone_number, detail.email, detail.organization].filter(Boolean).join(' · '))}</div>
+                                    <div class="contact-detail-subtitle">${escapeHtml([detail.contact_handle ? '@' + detail.contact_handle : '', detail.phone_number, detail.email, detail.organization].filter(Boolean).join(' · '))}</div>
                                 </div>
                                 <button class="settings-btn secondary" data-action="close-contact">Close</button>
                             </div>
@@ -4166,7 +4224,7 @@
                             ${canUseVrs ? '<button class="quick-action-btn" data-action="open-tts-panel">Text-to-Speech Panel</button>' : ''}
                             <div class="dialer-row">
                                 ${canUseVrs ? `
-                                    <input type="tel" id="dial-phone" class="dialer-input" placeholder="+1-555-XXXX"
+                                    <input type="text" id="dial-phone" class="dialer-input" placeholder="+1-555-XXXX or @handle"
                                         data-enter-action="dial-via-interpreter">
                                     <button class="dialer-btn" data-action="dial-via-interpreter">Call via Interpreter</button>
                                 ` : `
@@ -4215,7 +4273,7 @@
                                     ` : ''}
                                 </div>
                             ` : ''}
-                            ${renderCallHistorySection(calls, true)}
+                            ${renderCallHistorySection(calls, false)}
                             </div>
                         </div>
                     </div>
@@ -4318,6 +4376,23 @@
                     throw new Error(data.error || 'Profile update failed');
                 }
                 state.profile = data;
+                const handleInput = document.getElementById('settings-handle')?.value?.trim() || '';
+                if (handleInput) {
+                    const handleResponse = await fetch(API_BASE + '/api/client/handles/primary', {
+                        method: 'PUT',
+                        headers: authHeaders(),
+                        body: JSON.stringify({
+                            handle: handleInput,
+                            phoneNumberId: data.phoneNumbers?.find(phone => phone.is_primary)?.id || data.phoneNumbers?.[0]?.id,
+                            visibility: document.getElementById('settings-handle-visibility')?.value || 'public'
+                        })
+                    });
+                    const handleData = await handleResponse.json().catch(() => ({}));
+                    if (!handleResponse.ok) {
+                        throw new Error(handleData.error || 'Handle update failed');
+                    }
+                    state.profile.handles = handleData.handle ? [handleData.handle] : state.profile.handles;
+                }
                 const user = getUser() || {};
                 setPersistentItem('vrs_user_info', JSON.stringify({
                     ...user,
@@ -4462,6 +4537,41 @@
         window.__searchContacts = async function(search) {
             state.contactSearch = search || '';
             await loadContacts();
+            render();
+        };
+
+        window.__addHandleContact = async function() {
+            const handle = String(state.contactSearch || document.getElementById('contact-search')?.value || '').trim();
+            if (!handle.startsWith('@')) {
+                state.contactStatus = { type: 'error', message: 'Enter a handle like @name first.' };
+                render();
+                return;
+            }
+
+            try {
+                const lookup = await apiFetch('/api/client/lookup-handle?handle=' + encodeURIComponent(handle));
+                if (!lookup?.found || !lookup.phone) {
+                    state.contactStatus = { type: 'error', message: 'No public VRS handle found.' };
+                    render();
+                    return;
+                }
+
+                await apiFetch('/api/contacts', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        name: lookup.name || handle,
+                        phoneNumber: lookup.phone,
+                        contactHandle: lookup.handle,
+                        linkedClientId: lookup.id,
+                        notes: 'Added by VRS handle.'
+                    })
+                });
+                state.contactStatus = { type: 'success', message: `${handle} was added to contacts.` };
+                state.contactSearch = '';
+                await loadContacts();
+            } catch (error) {
+                state.contactStatus = { type: 'error', message: error.message || 'Failed to add handle.' };
+            }
             render();
         };
 

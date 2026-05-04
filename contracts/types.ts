@@ -22,6 +22,7 @@ export interface UserInfo {
 }
 
 export interface Contact {
+    handle?: string;
     email?: string;
     id: string;
     isFavorite?: boolean;

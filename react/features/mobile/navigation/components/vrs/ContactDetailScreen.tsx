@@ -42,6 +42,7 @@ function normalizeContact(raw: Record<string, unknown>): Contact {
         id: String(raw.id),
         name: stringField(raw.name || raw.displayName || raw.email || raw.phoneNumber || raw.phone_number, 'Unknown'),
         phoneNumber: optionalStringField(raw.phoneNumber || raw.phone_number),
+        handle: optionalStringField(raw.handle || raw.contact_handle),
         email: optionalStringField(raw.email),
         notes: optionalStringField(raw.notes)
     };
@@ -73,6 +74,7 @@ const ContactDetailScreen = () => {
         id: selectedId,
         name: 'Unknown',
         phoneNumber: '',
+        handle: '',
         email: ''
     };
 
@@ -168,6 +170,9 @@ const ContactDetailScreen = () => {
                         </Text>
                     </View>
                     <Text style = { styles.name }>{ contact.name }</Text>
+                    { contact.handle ? (
+                        <Text style = { styles.phone }>{ `@${contact.handle}` }</Text>
+                    ) : null }
                     { contact.phoneNumber ? (
                         <Text style = { styles.phone }>{ contact.phoneNumber }</Text>
                     ) : null }

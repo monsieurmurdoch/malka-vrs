@@ -39,6 +39,7 @@ describe('shared API and queue contracts', () => {
         expect(apiContractSchemas.contactsListResponse.parse({
             contacts: [ {
                 id: 'contact-1',
+                handle: 'ruthie',
                 isFavorite: true,
                 name: 'Ruthie',
                 phoneNumber: '+15551234567'

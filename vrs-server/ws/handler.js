@@ -52,6 +52,13 @@ function sanitizePhoneNumber(raw) {
     return cleaned;
 }
 
+async function resolvePhoneOrHandle(raw, requesterClientId) {
+    if (typeof raw !== 'string' || !raw.trim()) return null;
+    if (!raw.trim().startsWith('@')) return sanitizePhoneNumber(raw);
+    const target = await db.getClientByHandle(raw, requesterClientId);
+    return target?.phone_number || null;
+}
+
 function normalizeServiceModes(modes) {
     if (!Array.isArray(modes)) return ['vrs'];
     const normalized = modes
@@ -658,11 +665,11 @@ async function handleInterpreterRequest(ws, data) {
     }
 
     const payload = data.data || {};
-    const targetPhone = sanitizePhoneNumber(payload.targetPhone);
+    const targetPhone = await resolvePhoneOrHandle(payload.targetPhone, client.userId);
     if (payload.targetPhone && !targetPhone) {
         ws.send(JSON.stringify({
             type: 'error',
-            data: { message: 'A valid hearing-party phone number is required.' }
+            data: { message: 'A valid hearing-party phone number or public VRS handle is required.' }
         }));
         return;
     }
@@ -1047,9 +1054,9 @@ async function handleP2PCall(ws, data) {
         return;
     }
 
-    const phoneNumber = sanitizePhoneNumber(payload.phoneNumber);
+    const phoneNumber = await resolvePhoneOrHandle(payload.phoneNumber, caller.userId);
     if (!phoneNumber) {
-        ws.send(JSON.stringify({ type: 'p2p_call_failed', data: { message: 'Invalid phone number.' } }));
+        ws.send(JSON.stringify({ type: 'p2p_call_failed', data: { message: 'Invalid phone number or VRS handle.' } }));
         return;
     }
 

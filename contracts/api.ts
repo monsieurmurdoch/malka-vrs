@@ -36,6 +36,7 @@ export const authRefreshResponseSchema = z.object({
 
 export const contactSchema = z.object({
     email: z.string().optional(),
+    handle: z.string().optional(),
     id: z.string(),
     isFavorite: z.boolean().optional(),
     lastCalled: z.string().optional(),

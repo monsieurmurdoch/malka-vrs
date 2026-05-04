@@ -2,7 +2,7 @@
 
 Route-by-route API/UI parity status between web and mobile surfaces.
 
-> Last updated: May 1, 2026
+> Last updated: May 4, 2026
 
 ## Legend
 
@@ -35,6 +35,7 @@ Route-by-route API/UI parity status between web and mobile surfaces.
 | Dial Pad | `vrs.dialPad` | Yes | Yes | Queue WebSocket |
 | Contacts | `vrs.contacts` | Yes | API-backed list/search/favorites with local cache fallback | API + local cache |
 | Contact Detail | `vrs.contactDetail` | Yes | API-backed detail/notes with cached selected contact fallback | API + local cache |
+| VRS handle display | `vrs.contacts`, `vrs.contactDetail` | Yes | Contact list/detail display server-provided handles; handle creation/lookup remains web-first until native UI adds an explicit discovery field | Partial |
 | Call History | `vrs.callHistory` | Yes | API-backed call history with local cache fallback; callback compliance still pending | API + local cache |
 | Voicemail Inbox | `vrs.voicemail` | Yes | API-backed inbox/unread/seen/delete/playback URL with local cache fallback; embedded audio and recording/upload pending | API + local cache |
 | Language selector | (inline on home) | Yes | Yes | Local storage |

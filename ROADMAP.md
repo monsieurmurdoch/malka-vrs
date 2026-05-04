@@ -317,6 +317,10 @@
 - [x] Accessibility audit against WCAG 2.1 AA, especially keyboard access and visible focus
 - [x] Notification preferences UI wired to backend preferences
 - [x] Add-to-contacts from call history when a call exposes a phone number
+- [x] VRS contact handles/aliases tied to NANP numbers, pending compliance review
+  - 2026-05-04: Added primary client handles backed by active VRS phone numbers, public/private visibility, lookup by public handle, contact creation from handle, and profile UI copy clarifying that the NANP number remains the registered/routable identity.
+- [x] Reduce clutter in profile home views and keep secondary panels collapsible
+  - 2026-05-04: Kept self-view and contacts prominent while collapsing call history by default and keeping speed dial/settings/password/usage in details sections.
 
 ##### Regulatory & Business Track / VRS Billing Completed
 - [x] CDR immutability: append-only after call end
@@ -483,9 +487,6 @@ No immediate open items.
 - [ ] Implement PostgreSQL RLS policies for all tenant-owned tables
 
 ### UX Polish (Deferred Until Billing Backend Complete)
-- [ ] VRS contact handles/aliases tied to NANP numbers, pending compliance review
-  - Current FCC-facing assumption: a ten-digit NANP number remains the registered/routable identifier for VRS. Optional private handles may be an app-layer discovery shortcut only if they resolve back to the registered number and do not replace TRS numbering/eligibility requirements.
-- [ ] Reduce clutter in profile home views and keep secondary panels collapsible
 - [ ] Finalize Malka light/dark palette against current public website
 - [ ] Finalize caption/language controls location so they are available without crowding the room UI
 

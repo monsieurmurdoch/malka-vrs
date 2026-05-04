@@ -9,6 +9,14 @@ export interface ClientProfile {
     organization: string | null;
     primaryPhone: string | null;
     phoneNumbers: Array<{ id: string; phone_number: string; is_primary: boolean }>;
+    handles?: Array<{
+        id: string;
+        handle: string;
+        visibility: 'public' | 'private';
+        phone_number: string;
+        phone_number_id: string;
+        is_primary: boolean;
+    }>;
 }
 
 export interface InterpreterProfileData {
@@ -91,6 +99,13 @@ export const profileAPI = {
 
     updateClientProfile(data: Partial<Pick<ClientProfile, 'name' | 'email' | 'organization'>>): Promise<ClientProfile> {
         return apiFetch('/api/client/profile', {
+            method: 'PUT',
+            body: JSON.stringify(data)
+        });
+    },
+
+    updatePrimaryHandle(data: { handle: string; phoneNumberId?: string; visibility: 'public' | 'private' }): Promise<{ handle: NonNullable<ClientProfile['handles']>[number] }> {
+        return apiFetch('/api/client/handles/primary', {
             method: 'PUT',
             body: JSON.stringify(data)
         });

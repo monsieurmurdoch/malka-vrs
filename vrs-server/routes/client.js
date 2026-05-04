@@ -6,7 +6,7 @@ const express = require('express');
 const db = require('../database');
 const { verifyJwtToken, normalizeAuthClaims } = require('../lib/auth');
 const log = require('../lib/logger').module('client');
-const { validate, nameSchema, phoneNumberSchema, nonNegativeIntSchema, emptyBodySchema, sanitizeStrict, z } = require('../lib/validation');
+const { validate, nameSchema, phoneNumberSchema, nonNegativeIntSchema, idSchema, emptyBodySchema, sanitizeStrict, z } = require('../lib/validation');
 
 const router = express.Router();
 
@@ -28,6 +28,24 @@ const updateSpeedDialSchema = z.object({
 
 const lookupPhoneQuerySchema = z.object({
     phone: phoneNumberSchema
+});
+
+const handleSchema = z.string()
+    .min(3)
+    .max(31)
+    .transform(value => value.trim().replace(/^@+/, '').toLowerCase())
+    .refine(value => /^[a-z0-9][a-z0-9._-]{2,29}$/.test(value), 'Invalid handle');
+
+const handleVisibilitySchema = z.enum(['public', 'private']).default('public');
+
+const upsertHandleSchema = z.object({
+    handle: handleSchema,
+    phoneNumberId: idSchema.optional(),
+    visibility: handleVisibilitySchema.optional()
+});
+
+const lookupHandleQuerySchema = z.object({
+    handle: handleSchema
 });
 
 const callHistoryQuerySchema = z.object({
@@ -69,7 +87,10 @@ router.get('/profile', authenticateUser, async (req, res) => {
             return res.status(404).json({ error: 'Client not found', code: 'NOT_FOUND' });
         }
 
-        const phones = await db.getClientPhoneNumbers(req.user.id);
+        const [phones, handles] = await Promise.all([
+            db.getClientPhoneNumbers(req.user.id),
+            db.getClientHandles(req.user.id)
+        ]);
         const primary = phones.find(p => p.is_primary);
 
         res.json({
@@ -80,7 +101,8 @@ router.get('/profile', authenticateUser, async (req, res) => {
             serviceModes: client.service_modes || ['vrs'],
             tenantId: client.tenant_id || 'malka',
             primaryPhone: primary?.phone_number || null,
-            phoneNumbers: phones
+            phoneNumbers: phones,
+            handles
         });
     } catch (error) {
         req.log.error({ err: error }, 'Client profile error');
@@ -106,7 +128,10 @@ router.put('/profile', authenticateUser, validate(updateProfileSchema), async (r
     try {
         await db.updateClient(req.user.id, req.body);
         const client = await db.getClient(req.user.id);
-        const phones = await db.getClientPhoneNumbers(req.user.id);
+        const [phones, handles] = await Promise.all([
+            db.getClientPhoneNumbers(req.user.id),
+            db.getClientHandles(req.user.id)
+        ]);
         const primary = phones.find(p => p.is_primary);
 
         res.json({
@@ -117,7 +142,8 @@ router.put('/profile', authenticateUser, validate(updateProfileSchema), async (r
             serviceModes: client.service_modes || ['vrs'],
             tenantId: client.tenant_id || 'malka',
             primaryPhone: primary?.phone_number || null,
-            phoneNumbers: phones
+            phoneNumbers: phones,
+            handles
         });
     } catch (error) {
         req.log.error({ err: error }, 'Client profile update error');
@@ -278,6 +304,79 @@ router.get('/lookup-phone', authenticateUser, validate(lookupPhoneQuerySchema, '
     } catch (error) {
         req.log.error({ err: error }, 'Lookup phone error');
         res.status(500).json({ error: 'Lookup failed', code: 'INTERNAL_ERROR' });
+    }
+});
+
+router.get('/handles', authenticateUser, async (req, res) => {
+    if (req.user.role !== 'client') {
+        return res.status(403).json({ error: 'Client access required', code: 'FORBIDDEN' });
+    }
+
+    try {
+        const handles = await db.getClientHandles(req.user.id);
+        res.json({ handles });
+    } catch (error) {
+        req.log.error({ err: error }, 'Get handles error');
+        res.status(500).json({ error: 'Failed to fetch handles', code: 'INTERNAL_ERROR' });
+    }
+});
+
+router.put('/handles/primary', authenticateUser, validate(upsertHandleSchema), async (req, res) => {
+    if (req.user.role !== 'client') {
+        return res.status(403).json({ error: 'Client access required', code: 'FORBIDDEN' });
+    }
+
+    try {
+        const handle = await db.upsertClientHandle({
+            clientId: req.user.id,
+            handle: req.body.handle,
+            phoneNumberId: req.body.phoneNumberId,
+            visibility: req.body.visibility
+        });
+        res.json({ handle });
+    } catch (error) {
+        const code = error.code || 'INTERNAL_ERROR';
+        const status = code === 'HANDLE_TAKEN' ? 409 : code === 'INVALID_HANDLE' || code === 'PHONE_REQUIRED' ? 400 : 500;
+        req.log[status >= 500 ? 'error' : 'warn']({ err: error }, 'Save handle failed');
+        res.status(status).json({ error: error.message || 'Failed to save handle', code });
+    }
+});
+
+router.delete('/handles/:id', authenticateUser, async (req, res) => {
+    if (req.user.role !== 'client') {
+        return res.status(403).json({ error: 'Client access required', code: 'FORBIDDEN' });
+    }
+
+    try {
+        await db.deleteClientHandle(req.user.id, req.params.id);
+        res.json({ success: true });
+    } catch (error) {
+        req.log.error({ err: error }, 'Delete handle error');
+        res.status(500).json({ error: 'Failed to delete handle', code: 'INTERNAL_ERROR' });
+    }
+});
+
+router.get('/lookup-handle', authenticateUser, validate(lookupHandleQuerySchema, 'query'), async (req, res) => {
+    if (req.user.role !== 'client') {
+        return res.status(403).json({ error: 'Client access required', code: 'FORBIDDEN' });
+    }
+
+    try {
+        const target = await db.getClientByHandle(req.query.handle, req.user.id);
+        if (!target) {
+            return res.json({ found: false });
+        }
+
+        res.json({
+            found: true,
+            id: target.id,
+            name: target.name,
+            handle: target.handle,
+            phone: target.phone_number
+        });
+    } catch (error) {
+        req.log.error({ err: error }, 'Lookup handle error');
+        res.status(500).json({ error: 'Handle lookup failed', code: 'INTERNAL_ERROR' });
     }
 });
 

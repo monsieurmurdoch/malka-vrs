@@ -21,6 +21,13 @@ const {
 const router = express.Router();
 
 const colorSchema = z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional();
+const contactHandleSchema = z.string()
+    .min(3)
+    .max(31)
+    .transform(value => value.trim().replace(/^@+/, '').toLowerCase())
+    .refine(value => /^[a-z0-9][a-z0-9._-]{2,29}$/.test(value), 'Invalid handle')
+    .optional()
+    .nullable();
 const importPhoneSchema = z.string()
     .max(60)
     .transform(value => value.replace(/[^\d+]/g, ''))
@@ -31,6 +38,7 @@ const contactBaseSchema = {
     name: nameSchema,
     email: emailSchema.optional().nullable(),
     phoneNumber: phoneNumberSchema.optional().nullable(),
+    contactHandle: contactHandleSchema,
     organization: optionalSanitizedStringSchema.nullable(),
     notes: optionalSanitizedStringSchema.nullable(),
     avatarColor: colorSchema,
@@ -179,7 +187,7 @@ router.get('/:id', authenticateClient, async (req, res) => {
  * POST /api/contacts — create a contact
  */
 router.post('/', authenticateClient, validate(createContactSchema), async (req, res) => {
-    const { name, email, phoneNumber, organization, notes, avatarColor, isFavorite, linkedClientId, groupIds } = req.body;
+    const { name, email, phoneNumber, contactHandle, organization, notes, avatarColor, isFavorite, linkedClientId, groupIds } = req.body;
 
     try {
         const contact = await db.createContact({
@@ -187,6 +195,7 @@ router.post('/', authenticateClient, validate(createContactSchema), async (req, 
             name,
             email,
             phoneNumber,
+            contactHandle,
             organization,
             notes,
             avatarColor,
@@ -230,13 +239,14 @@ router.post('/', authenticateClient, validate(createContactSchema), async (req, 
  * PUT /api/contacts/:id — update a contact
  */
 router.put('/:id', authenticateClient, validate(updateContactSchema), async (req, res) => {
-    const { name, email, phoneNumber, organization, notes, avatarColor, isFavorite, linkedClientId, groupIds } = req.body;
+    const { name, email, phoneNumber, contactHandle, organization, notes, avatarColor, isFavorite, linkedClientId, groupIds } = req.body;
 
     try {
         const updates = {};
         if (name !== undefined) updates.name = name;
         if (email !== undefined) updates.email = email;
         if (phoneNumber !== undefined) updates.phone_number = phoneNumber;
+        if (contactHandle !== undefined) updates.contact_handle = contactHandle;
         if (organization !== undefined) updates.organization = organization;
         if (notes !== undefined) updates.notes = notes;
         if (avatarColor !== undefined) updates.avatar_color = avatarColor;

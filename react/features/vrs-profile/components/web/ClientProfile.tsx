@@ -215,6 +215,8 @@ export default function ClientProfile({ onClose }: Props) {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [org, setOrg] = useState('');
+    const [handle, setHandle] = useState('');
+    const [handleVisibility, setHandleVisibility] = useState<'public' | 'private'>('public');
 
     useEffect(() => {
         Promise.all([
@@ -226,6 +228,8 @@ export default function ClientProfile({ onClose }: Props) {
             setName(p.name || '');
             setEmail(p.email || '');
             setOrg(p.organization || '');
+            setHandle(p.handles?.[0]?.handle || '');
+            setHandleVisibility(p.handles?.[0]?.visibility || 'public');
             setLoading(false);
         }).catch(err => {
             setStatus({ type: 'error', msg: err.message });
@@ -237,8 +241,16 @@ export default function ClientProfile({ onClose }: Props) {
         setSaving(true);
         setStatus(null);
         try {
+            const handlePayload = handle.trim()
+                ? profileAPI.updatePrimaryHandle({
+                    handle,
+                    phoneNumberId: profile?.phoneNumbers?.find(phone => phone.is_primary)?.id,
+                    visibility: handleVisibility
+                })
+                : Promise.resolve();
             const [updatedProfile] = await Promise.all([
                 profileAPI.updateClientProfile({ name, email, organization: org }),
+                handlePayload,
                 // Save prefs too if they changed
                 prefs ? profileAPI.updatePreferences(prefs) : Promise.resolve()
             ]);
@@ -249,7 +261,7 @@ export default function ClientProfile({ onClose }: Props) {
         } finally {
             setSaving(false);
         }
-    }, [name, email, org, prefs]);
+    }, [name, email, org, prefs, handle, handleVisibility, profile]);
 
     const togglePref = useCallback((key: keyof ClientPreferences) => {
         if (!prefs) return;
@@ -335,6 +347,32 @@ export default function ClientProfile({ onClose }: Props) {
                             type = 'tel'
                             value = { profile.primaryPhone } />
                     </div>
+                )}
+                {profile?.primaryPhone && (
+                    <>
+                        <div className = { classes.field }>
+                            <label className = { classes.label } htmlFor = 'profile-handle'>VRS Handle</label>
+                            <input
+                                aria-label = 'VRS handle'
+                                className = { classes.input }
+                                id = 'profile-handle'
+                                onChange = { e => setHandle(e.target.value) }
+                                placeholder = '@yourname'
+                                type = 'text'
+                                value = { handle ? `@${handle.replace(/^@+/, '')}` : '' } />
+                        </div>
+                        <div className = { classes.field }>
+                            <label className = { classes.label } htmlFor = 'profile-handle-visibility'>Handle Visibility</label>
+                            <select
+                                className = { classes.input }
+                                id = 'profile-handle-visibility'
+                                onChange = { e => setHandleVisibility(e.target.value as 'public' | 'private') }
+                                value = { handleVisibility }>
+                                <option value = 'public'>Public discovery</option>
+                                <option value = 'private'>Private</option>
+                            </select>
+                        </div>
+                    </>
                 )}
             </div>
 

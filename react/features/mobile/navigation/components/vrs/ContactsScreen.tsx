@@ -52,6 +52,7 @@ function normalizeContact(raw: Record<string, unknown>): Contact {
         id: String(raw.id),
         name: stringField(raw.name || raw.displayName || raw.email || raw.phoneNumber || raw.phone_number, 'Unnamed contact'),
         phoneNumber: optionalStringField(raw.phoneNumber || raw.phone_number),
+        handle: optionalStringField(raw.handle || raw.contact_handle),
         email: optionalStringField(raw.email),
         lastCalled: optionalStringField(raw.lastCalled || raw.last_called),
         notes: optionalStringField(raw.notes),
@@ -154,6 +155,7 @@ const ContactsScreen = () => {
     const filteredContacts = contacts.filter(c => {
         const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase())
             || c.phoneNumber?.includes(search)
+            || c.handle?.toLowerCase().includes(search)
             || c.email?.toLowerCase().includes(search.toLowerCase());
 
         if (showFavoritesOnly) {
@@ -191,7 +193,7 @@ const ContactsScreen = () => {
                 <View style = { styles.contactInfo }>
                     <Text style = { styles.contactName }>{ item.name }</Text>
                     <Text style = { styles.contactPhone }>
-                        { item.phoneNumber || 'No number' }
+                        { item.handle ? `@${item.handle}` : item.phoneNumber || 'No number' }
                     </Text>
                 </View>
                 <TouchableOpacity
