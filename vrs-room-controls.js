@@ -2,14 +2,15 @@
     'use strict';
 
     var BUTTON_SELECTOR = '[data-vrs-interpreter-button]';
-    var TOOLBAR_SELECTOR = '.toolbox-content-items';
     var ws = null;
     var requestId = null;
     var pendingSend = false;
     var pendingInviteSend = false;
     var state = 'idle';
+    var assistPanel = null;
     var button = null;
     var inviteButton = null;
+    var captionsButton = null;
     var lastInviteUrl = '';
 
     function getStored(key) {
@@ -217,6 +218,15 @@
         inviteButton.querySelector('[data-vri-invite-label]').textContent = label;
     }
 
+    function setCaptionsState(label, disabled) {
+        if (!captionsButton) {
+            return;
+        }
+
+        captionsButton.disabled = Boolean(disabled);
+        captionsButton.querySelector('[data-vrs-captions-label]').textContent = label;
+    }
+
     function connectQueue() {
         if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
             return;
@@ -357,6 +367,84 @@
         setInviteState('Creating...', true);
     }
 
+    function nativeCaptionsButton() {
+        var candidates = Array.prototype.slice.call(document.querySelectorAll('button, [role="button"]'));
+
+        return candidates.find(function(candidate) {
+            if (candidate.closest('[data-vrs-assist-panel]')) {
+                return false;
+            }
+
+            var label = [
+                candidate.getAttribute('aria-label'),
+                candidate.getAttribute('title'),
+                candidate.getAttribute('data-testid'),
+                candidate.textContent
+            ].filter(Boolean).join(' ');
+
+            return /caption|subtitle|cc/i.test(label);
+        });
+    }
+
+    function handleCaptionsClick() {
+        var nativeButton = nativeCaptionsButton();
+
+        if (nativeButton) {
+            nativeButton.click();
+            return;
+        }
+
+        setCaptionsState('Use More', true);
+        window.setTimeout(function() {
+            setCaptionsState('Captions / Language', false);
+        }, 1800);
+    }
+
+    function ensurePanelStyles() {
+        if (document.querySelector('[data-vrs-assist-panel-styles]')) {
+            return;
+        }
+
+        var style = document.createElement('style');
+
+        style.dataset.vrsAssistPanelStyles = 'true';
+        style.textContent = [
+            '.vrs-room-assist-panel{align-items:center;background:rgba(8,18,32,.82);',
+            'backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.16);',
+            'border-radius:12px;box-shadow:0 14px 34px rgba(0,0,0,.34);',
+            'box-sizing:border-box;display:flex;gap:8px;left:50%;max-width:calc(100vw - 32px);',
+            'padding:8px;position:fixed;bottom:76px;transform:translateX(-50%);z-index:290;}',
+            '.vrs-room-assist-panel button{align-items:center;border-radius:8px;display:inline-flex;',
+            'font-size:13px;font-weight:800;gap:8px;height:38px;justify-content:center;',
+            'letter-spacing:0;min-width:0;padding:0 14px;white-space:nowrap;}',
+            '.vrs-room-assist-panel .vrs-room-secondary{background:rgba(255,255,255,.08);',
+            'border:1px solid rgba(255,255,255,.18);color:#fff;cursor:pointer;}',
+            '.vrs-room-assist-panel .vrs-room-secondary:hover{background:rgba(255,255,255,.14);}',
+            '.vrs-room-assist-panel button:disabled{cursor:default;opacity:.82;}',
+            '.toolbox-content-items [aria-label*="caption" i],',
+            '.toolbox-content-items [aria-label*="subtitle" i]{display:none!important;}',
+            '@media(max-width:720px){.vrs-room-assist-panel{bottom:68px;gap:6px;padding:6px;}',
+            '.vrs-room-assist-panel button{font-size:12px;height:36px;padding:0 10px;}',
+            '.vrs-room-assist-panel [data-vrs-interpreter-label]{max-width:132px;overflow:hidden;text-overflow:ellipsis;}}'
+        ].join('');
+        document.head.appendChild(style);
+    }
+
+    function ensureAssistPanel() {
+        if (assistPanel && document.body.contains(assistPanel)) {
+            return assistPanel;
+        }
+
+        ensurePanelStyles();
+        assistPanel = document.createElement('div');
+        assistPanel.className = 'vrs-room-assist-panel';
+        assistPanel.dataset.vrsAssistPanel = 'true';
+        assistPanel.setAttribute('aria-label', 'Interpreter, invite, captions and language controls');
+        document.body.appendChild(assistPanel);
+
+        return assistPanel;
+    }
+
     function createButton() {
         var el = document.createElement('button');
 
@@ -375,7 +463,6 @@
         el.style.height = '40px';
         el.style.justifyContent = 'center';
         el.style.letterSpacing = '0';
-        el.style.margin = '0 8px';
         el.style.minWidth = '156px';
         el.style.padding = '0 16px';
         el.style.transition = 'background 160ms ease, border-color 160ms ease, transform 160ms ease';
@@ -405,11 +492,24 @@
         el.style.height = '40px';
         el.style.justifyContent = 'center';
         el.style.letterSpacing = '0';
-        el.style.margin = '0 8px';
         el.style.minWidth = '112px';
         el.style.padding = '0 14px';
         el.innerHTML = '<span aria-hidden="true">+</span><span data-vri-invite-label>Invite</span>';
         el.addEventListener('click', handleInviteClick);
+
+        return el;
+    }
+
+    function createCaptionsButton() {
+        var el = document.createElement('button');
+
+        el.type = 'button';
+        el.className = 'vrs-room-secondary';
+        el.dataset.vrsCaptionsButton = 'room-control';
+        el.setAttribute('aria-label', 'Captions and language');
+        el.title = 'Open captions and language controls';
+        el.innerHTML = '<span aria-hidden="true">CC</span><span data-vrs-captions-label>Captions / Language</span>';
+        el.addEventListener('click', handleCaptionsClick);
 
         return el;
     }
@@ -419,28 +519,33 @@
             connectQueue();
         }
 
-        if (!currentRoomName() || !isClientRoomUser() || !roomUiReady() || document.querySelector(BUTTON_SELECTOR)) {
+        if (!currentRoomName() || !isClientRoomUser() || !roomUiReady()) {
             return;
         }
 
-        var toolbar = document.querySelector(TOOLBAR_SELECTOR);
-
-        if (!toolbar) {
-            return;
-        }
+        var panel = ensureAssistPanel();
 
         if (activeCallForCurrentRoom()) {
             state = 'matched';
         }
 
-        button = createButton();
-        setState(state);
-        toolbar.insertBefore(button, toolbar.children[2] || toolbar.firstChild);
+        if (!document.querySelector(BUTTON_SELECTOR)) {
+            button = createButton();
+            panel.appendChild(button);
+            setState(state);
+        }
+
         var call = activeCall();
         if (call && call.callType === 'vri' && !document.querySelector('[data-vri-invite-button]')) {
             inviteButton = createInviteButton();
-            toolbar.insertBefore(inviteButton, button.nextSibling);
+            panel.appendChild(inviteButton);
         }
+
+        if (!document.querySelector('[data-vrs-captions-button]')) {
+            captionsButton = createCaptionsButton();
+            panel.appendChild(captionsButton);
+        }
+
         connectQueue();
     }
 

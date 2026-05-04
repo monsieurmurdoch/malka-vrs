@@ -321,6 +321,10 @@
   - 2026-05-04: Added primary client handles backed by active VRS phone numbers, public/private visibility, lookup by public handle, contact creation from handle, and profile UI copy clarifying that the NANP number remains the registered/routable identity.
 - [x] Reduce clutter in profile home views and keep secondary panels collapsible
   - 2026-05-04: Kept self-view and contacts prominent while collapsing call history by default and keeping speed dial/settings/password/usage in details sections.
+- [x] Finalize Malka light/dark palette against current public website
+  - 2026-05-04: Reconciled Malka light/dark profile colors with the documented Malka brand palette: royal purple/navy surfaces, orange accent/focus states, white cards, and no off-brand teal link/focus colors.
+- [x] Finalize caption/language controls location so they are available without crowding the room UI
+  - 2026-05-04: Moved in-room VRS/VRI helper actions into a compact floating assist panel above the Jitsi toolbar with Request Interpreter, VRI Invite, and Captions / Language controls.
 
 ##### Regulatory & Business Track / VRS Billing Completed
 - [x] CDR immutability: append-only after call end
@@ -485,12 +489,6 @@ No immediate open items.
 ### Maple VRI Pilot Readiness & White-Label Hardening (cont.)
 - [ ] Add optional SMS/email send to VRI session invites after Resend/Twilio policy is finalized
 - [ ] Implement PostgreSQL RLS policies for all tenant-owned tables
-
-### UX Polish (Deferred Until Billing Backend Complete)
-- [ ] Finalize Malka light/dark palette against current public website
-- [ ] Finalize caption/language controls location so they are available without crowding the room UI
-
----
 
 ## Near-Term Feature Work
 
