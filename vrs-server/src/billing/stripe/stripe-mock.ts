@@ -42,9 +42,28 @@ export class MockStripeProvider implements StripeProvider {
             customerId: params.customerId,
             status: 'draft',
             total,
+            hostedUrl: `https://billing.example.test/invoices/${id}`,
         };
         this.invoices.set(id, invoice);
         return invoice;
+    }
+
+    async sendInvoice(params: {
+        invoiceId: string;
+        metadata?: Record<string, string>;
+    }): Promise<StripeInvoice> {
+        const existing = this.invoices.get(params.invoiceId);
+        if (!existing) {
+            throw new Error(`Mock invoice ${params.invoiceId} not found`);
+        }
+
+        const sent: StripeInvoice = {
+            ...existing,
+            status: 'open',
+            sentAt: new Date().toISOString(),
+        };
+        this.invoices.set(params.invoiceId, sent);
+        return sent;
     }
 
     async getInvoice(invoiceId: string): Promise<StripeInvoice | null> {

@@ -78,6 +78,7 @@ const auth = require('../lib/auth');
 // Billing routes (TypeScript — compiled)
 const { router: billingAdminRouter } = require('./billing/routes/billing-admin');
 const { router: billingDashboardRouter } = require('./billing/routes/billing-dashboard');
+const { startInvoiceAutomation } = require('./billing/invoice-automation-service');
 
 // WebSocket handler
 const { handleConnection } = require('../ws/handler');
@@ -553,6 +554,7 @@ db.initialize().then(async () => {
     // Initialize billing PostgreSQL (opt-in via BILLING_PG_HOST env var)
     try {
         await billingDb.initialize();
+        startInvoiceAutomation();
     } catch (billingErr) {
         console.warn('[Server] Billing DB initialization failed (non-fatal):', billingErr instanceof Error ? billingErr.message : billingErr);
     }

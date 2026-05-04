@@ -69,6 +69,7 @@ let operationsRows = [];
 let activeOperationsView = 'live';
 let adminScheduleWindows = [];
 let adminUtilization = null;
+let billingAccounts = [];
 
 function scheduleRefresh(key, callback, delay = 250) {
     if (scheduledRefreshes.has(key)) {
@@ -184,6 +185,9 @@ function setupEventListeners() {
     document.getElementById('activityTenantFilter')?.addEventListener('change', loadActivityFeed);
     document.getElementById('activityServiceFilter')?.addEventListener('change', loadActivityFeed);
     document.getElementById('activityRoleFilter')?.addEventListener('change', loadActivityFeed);
+    document.getElementById('billingSelectAll')?.addEventListener('change', toggleAllBillingAccounts);
+    document.getElementById('billingSendSelectedBtn')?.addEventListener('click', sendSelectedBillingInvoices);
+    document.getElementById('billingAutoRunBtn')?.addEventListener('click', runBillingAutoInvoices);
     document.getElementById('exportAuditBtn')?.addEventListener('click', exportAuditCsv);
     document.getElementById('scheduleTenantFilter')?.addEventListener('change', loadAdminScheduleWindows);
     document.getElementById('scheduleServiceFilter')?.addEventListener('change', loadAdminScheduleWindows);
@@ -229,6 +233,12 @@ function setupEventListeners() {
                 break;
             case 'remove-from-queue':
                 removeFromQueue(id);
+                break;
+            case 'send-billing-invoice':
+                sendBillingInvoicesForAccounts([id]);
+                break;
+            case 'edit-billing-recipients':
+                editBillingRecipients(id);
                 break;
             case 'approve-schedule-window':
                 updateScheduleWindowStatus(id, 'confirmed');
@@ -289,6 +299,9 @@ function loadTabData(tab) {
         if (tab === 'queue') {
             renderLiveQueue([]);
         }
+        if (tab === 'billing') {
+            renderBillingAccounts([]);
+        }
         return;
     }
 
@@ -314,6 +327,9 @@ function loadTabData(tab) {
             break;
         case 'activity':
             loadActivityFeed();
+            break;
+        case 'billing':
+            loadBillingAutomation();
             break;
         case 'tenants':
             loadTenants();
@@ -3119,6 +3135,227 @@ function renderActivityFeed(activity) {
             </div>
         </div>
     `).join('');
+}
+
+// ============================================
+// BILLING AUTOMATION
+// ============================================
+
+function defaultPreviousMonthPeriod() {
+    const now = new Date();
+    const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+
+    return {
+        periodStart: periodStart.toISOString().slice(0, 10),
+        periodEnd: periodEnd.toISOString().slice(0, 10)
+    };
+}
+
+function ensureBillingPeriodDefaults() {
+    const startEl = document.getElementById('billingPeriodStart');
+    const endEl = document.getElementById('billingPeriodEnd');
+    const defaults = defaultPreviousMonthPeriod();
+
+    if (startEl && !startEl.value) {
+        startEl.value = defaults.periodStart;
+    }
+
+    if (endEl && !endEl.value) {
+        endEl.value = defaults.periodEnd;
+    }
+}
+
+async function loadBillingAutomation() {
+    ensureBillingPeriodDefaults();
+    const tbody = document.getElementById('billingAccountsTableBody');
+    if (tbody) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    Loading corporate billing accounts...
+                </td>
+            </tr>
+        `;
+    }
+
+    try {
+        billingAccounts = await apiCall('/billing/corporate');
+        renderBillingAccounts(Array.isArray(billingAccounts) ? billingAccounts : []);
+    } catch (error) {
+        console.error('[Billing] Error:', error);
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" style="text-align: center; color: var(--accent-red); padding: 24px;">
+                        Failed to load billing accounts: ${escapeHtml(error.message)}
+                    </td>
+                </tr>
+            `;
+        }
+    }
+}
+
+function renderBillingAccounts(accounts) {
+    const tbody = document.getElementById('billingAccountsTableBody');
+    if (!tbody) return;
+
+    if (!accounts.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    No corporate billing accounts found.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = accounts.map(account => `
+        <tr>
+            <td>
+                <input type="checkbox" class="billing-account-check" value="${escapeHtml(account.id)}" aria-label="Select ${escapeHtml(account.organizationName)}">
+            </td>
+            <td>
+                <strong>${escapeHtml(account.organizationName)}</strong>
+                <div class="help-text">${escapeHtml(account.country || '')}</div>
+            </td>
+            <td>
+                ${escapeHtml(account.billingContactName || 'Billing contact')}
+                <div class="help-text">${escapeHtml(account.billingContactEmail || '')}</div>
+            </td>
+            <td>${escapeHtml(account.paymentMethod || 'invoice')}</td>
+            <td>${escapeHtml(account.billingDay || '1')}</td>
+            <td>${account.stripeCustomerId ? '<span class="status-badge status-online">Connected</span>' : '<span class="status-badge status-busy">Not linked</span>'}</td>
+            <td>
+                <button class="btn btn-secondary btn-sm" data-action="edit-billing-recipients" data-id="${escapeHtml(account.id)}">
+                    Recipients
+                </button>
+            </td>
+            <td>
+                <button class="btn btn-primary btn-sm" data-action="send-billing-invoice" data-id="${escapeHtml(account.id)}">
+                    Send
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function selectedBillingAccountIds() {
+    return Array.from(document.querySelectorAll('.billing-account-check:checked'))
+        .map(input => input.value)
+        .filter(Boolean);
+}
+
+function toggleAllBillingAccounts(event) {
+    const checked = Boolean(event.target.checked);
+    document.querySelectorAll('.billing-account-check').forEach(input => {
+        input.checked = checked;
+    });
+}
+
+function billingPeriodPayload(accountIds) {
+    ensureBillingPeriodDefaults();
+    return {
+        corporateAccountIds: accountIds,
+        periodStart: document.getElementById('billingPeriodStart')?.value,
+        periodEnd: document.getElementById('billingPeriodEnd')?.value,
+        autoGenerate: true,
+        issueAndSend: document.getElementById('billingSendMode')?.value !== 'draft'
+    };
+}
+
+async function sendSelectedBillingInvoices() {
+    const accountIds = selectedBillingAccountIds();
+    if (!accountIds.length) {
+        updateBillingBulkStatus('Select at least one corporate client first.', true);
+        return;
+    }
+
+    await sendBillingInvoicesForAccounts(accountIds);
+}
+
+async function sendBillingInvoicesForAccounts(accountIds) {
+    const payload = billingPeriodPayload(accountIds);
+    updateBillingBulkStatus('Working on selected invoices...');
+
+    try {
+        const result = await apiCall('/billing/invoices/bulk-send', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+
+        updateBillingBulkStatus(`Generated ${result.generated || 0}, sent ${result.sent || 0}, skipped ${result.skipped || 0}, failed ${result.failed || 0}.`);
+    } catch (error) {
+        console.error('[Billing] Bulk send failed:', error);
+        updateBillingBulkStatus(`Bulk invoice send failed: ${error.message}`, true);
+    }
+}
+
+async function runBillingAutoInvoices() {
+    updateBillingBulkStatus('Running due invoice automation...');
+    try {
+        const result = await apiCall('/billing/invoices/auto-run', {
+            method: 'POST',
+            body: JSON.stringify({ autoSend: document.getElementById('billingSendMode')?.value !== 'draft' })
+        });
+
+        updateBillingBulkStatus(`Auto-run complete. Generated ${result.generated || 0}, sent ${result.sent || 0}, skipped ${result.skipped || 0}, failed ${result.failed || 0}.`);
+    } catch (error) {
+        console.error('[Billing] Auto-run failed:', error);
+        updateBillingBulkStatus(`Auto-run failed: ${error.message}`, true);
+    }
+}
+
+function updateBillingBulkStatus(message, isError = false) {
+    const el = document.getElementById('billingBulkStatus');
+    if (el) {
+        el.textContent = message;
+        el.style.color = isError ? 'var(--accent-red)' : 'var(--text-secondary)';
+    }
+}
+
+async function editBillingRecipients(accountId) {
+    const account = billingAccounts.find(item => item.id === accountId);
+    const response = await apiCall(`/billing/corporate/${encodeURIComponent(accountId)}/invoice-recipients`);
+    const recipients = response.recipients || [];
+    const recipientText = recipients.map(recipient => `${recipient.recipientType}:${recipient.email}`).join('\n');
+
+    openAdminModal({
+        title: 'Invoice Recipients',
+        subtitle: account ? account.organizationName : 'Corporate account',
+        body: `
+            <p class="help-text">One recipient per line. Prefix with <code>to:</code>, <code>cc:</code>, or <code>bcc:</code>.</p>
+            <textarea id="billingRecipientsText" rows="10" style="width: 100%;">${escapeHtml(recipientText)}</textarea>
+        `,
+        footer: `
+            <button class="btn btn-secondary" data-modal-close>Cancel</button>
+            <button class="btn btn-primary" id="saveBillingRecipientsBtn">Save Recipients</button>
+        `
+    });
+
+    document.getElementById('saveBillingRecipientsBtn')?.addEventListener('click', async () => {
+        const textarea = document.getElementById('billingRecipientsText');
+        const parsed = String(textarea?.value || '')
+            .split('\n')
+            .map(line => line.trim())
+            .filter(Boolean)
+            .map(line => {
+                const match = /^(to|cc|bcc)\s*:\s*(.+)$/i.exec(line);
+                return {
+                    recipientType: match ? match[1].toLowerCase() : 'to',
+                    email: match ? match[2].trim() : line,
+                    isPrimary: false
+                };
+            });
+
+        await apiCall(`/billing/corporate/${encodeURIComponent(accountId)}/invoice-recipients`, {
+            method: 'PUT',
+            body: JSON.stringify({ recipients: parsed })
+        });
+        closeAdminModal();
+        await loadBillingAutomation();
+    });
 }
 
 function formatActivityDescription(item) {

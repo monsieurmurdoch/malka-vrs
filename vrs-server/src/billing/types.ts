@@ -113,11 +113,36 @@ export interface CorporateAccount {
     createdBy: string | null;
 }
 
+export type InvoiceRecipientType = 'to' | 'cc' | 'bcc';
+
+export interface InvoiceRecipient {
+    id: string;
+    corporateAccountId: string;
+    recipientType: InvoiceRecipientType;
+    name: string | null;
+    email: string;
+    isPrimary: boolean;
+    isActive: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+    createdBy: string | null;
+}
+
+export interface UpsertInvoiceRecipientInput {
+    id?: string;
+    recipientType: InvoiceRecipientType;
+    name?: string;
+    email: string;
+    isPrimary?: boolean;
+    isActive?: boolean;
+}
+
 export interface CreateCorporateAccountInput {
     organizationName: string;
     billingContactName: string;
     billingContactEmail: string;
     billingContactPhone?: string;
+    invoiceRecipients?: UpsertInvoiceRecipientInput[];
     paymentMethod?: 'invoice' | 'stripe' | 'wire';
     contractType: 'monthly' | 'per_call' | 'quarterly';
     contractedRateTierId?: string;
@@ -149,8 +174,70 @@ export interface Invoice {
     issuedAt: Date | null;
     dueDate: string | null;
     paidAt: Date | null;
+    sentAt: Date | null;
+    lastSendStatus: string | null;
+    lastSendError: string | null;
+    stripeHostedUrl: string | null;
     createdAt: Date;
     createdBy: string | null;
+}
+
+export interface InvoiceSendEvent {
+    id: string;
+    invoiceId: string;
+    corporateAccountId: string;
+    deliveryMode: 'manual' | 'auto' | 'bulk';
+    sendStatus: 'sent' | 'partial' | 'failed' | 'skipped';
+    stripeInvoiceId: string | null;
+    stripeHostedUrl: string | null;
+    recipientTo: string[];
+    recipientCc: string[];
+    recipientBcc: string[];
+    businessCopyEmails: string[];
+    providerResult: Record<string, unknown>;
+    errorMessage: string | null;
+    sentAt: Date;
+    performedBy: string | null;
+}
+
+export interface SendInvoiceOptions {
+    performedBy?: string;
+    deliveryMode?: 'manual' | 'auto' | 'bulk';
+    forceResend?: boolean;
+}
+
+export interface InvoiceSendResult {
+    invoice: Invoice | null;
+    event: InvoiceSendEvent | null;
+    sent: boolean;
+    status: 'sent' | 'partial' | 'failed' | 'skipped';
+    message?: string;
+}
+
+export interface BulkInvoiceSendInput {
+    corporateAccountIds: string[];
+    periodStart: string;
+    periodEnd: string;
+    autoGenerate?: boolean;
+    issueAndSend?: boolean;
+    performedBy?: string;
+}
+
+export interface BulkInvoiceSendResult {
+    periodStart: string;
+    periodEnd: string;
+    requestedAccountIds: string[];
+    generated: number;
+    sent: number;
+    skipped: number;
+    failed: number;
+    results: Array<{
+        corporateAccountId: string;
+        invoiceId: string | null;
+        invoiceNumber?: string;
+        status: 'generated' | 'sent' | 'skipped' | 'failed';
+        message?: string;
+    }>;
 }
 
 export interface InvoiceItem {

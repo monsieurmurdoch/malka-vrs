@@ -98,6 +98,18 @@ Use:
 
 Staging invoice/customer IDs must never be copied into production records.
 
+Invoice automation:
+
+- `BILLING_AUTO_INVOICE_ENABLED=true` enables the daily invoice auto-run inside
+  the VRS server. Keep unset or `false` in local/dev unless intentionally
+  rehearsing billing.
+- `BILLING_AUTO_INVOICE_SEND=false` generates/updates due invoices without
+  sending them. Omit or set `true` only when Stripe/email delivery is ready for
+  that environment.
+- `BILLING_AUTO_INVOICE_HOUR_UTC=6` controls the once-daily UTC run hour.
+- `BILLING_INVOICE_CC_EMAILS` is a comma-separated business-copy list for
+  finance/admin visibility. Do not put personal test addresses in production.
+
 ## Verification
 
 Before promoting any build, record:

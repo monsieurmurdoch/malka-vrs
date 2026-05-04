@@ -24,6 +24,7 @@ export interface StripeInvoice {
     status: string;
     total: number;       // in cents
     hostedUrl?: string;
+    sentAt?: string;
     paidAt?: string;
 }
 
@@ -51,6 +52,12 @@ export interface StripeProvider {
         customerId: string;
         items: InvoiceItem[];
         dueDate?: Date;
+        metadata?: Record<string, string>;
+    }): Promise<StripeInvoice>;
+
+    /** Finalize/send an existing invoice through the payment provider */
+    sendInvoice(params: {
+        invoiceId: string;
         metadata?: Record<string, string>;
     }): Promise<StripeInvoice>;
 

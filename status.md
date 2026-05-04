@@ -4,6 +4,38 @@ This file is the project-level running status log. The current update stays at t
 <!-- status:current:start -->
 ## Current Update
 
+- Updated: 2026-05-04
+- Branch: `codex/release-runbooks-audit`
+- HEAD: `00860c3`
+- Note: Pre-push project status sync.
+- Snapshot:
+Local changes at sync time:
+  - `M  ROADMAP.md`
+  - `M  docs/environment-policy.md`
+  - `M  vrs-admin-dashboard.html`
+  - `M  vrs-admin-dashboard.js`
+  - `M vrs-ops-server/dist/index.d.ts.map`
+  - `M vrs-ops-server/dist/index.js`
+  - `M vrs-ops-server/dist/index.js.map`
+  - `M  vrs-server/__tests__/billing/stripe-mock.test.ts`
+  - `M  vrs-server/lib/email-service.js`
+  - `A  vrs-server/src/billing/invoice-automation-service.ts`
+  - `A  vrs-server/src/billing/migrations/009_invoice_delivery.sql`
+  - `M  vrs-server/src/billing/routes/billing-admin.ts`
+  - `M  vrs-server/src/billing/stripe/stripe-interface.ts`
+  - `M  vrs-server/src/billing/stripe/stripe-live.ts`
+  - `M  vrs-server/src/billing/stripe/stripe-mock.ts`
+  - `M  vrs-server/src/billing/types.ts`
+  - `M  vrs-server/src/billing/vri-billing-pipeline.ts`
+  - `M  vrs-server/src/server.ts`
+
+<!-- status:current:end -->
+## Archive
+### Archived Update - 2026-05-04T04:47:32.729Z
+
+<!-- status:current:start -->
+## Current Update
+
 - Updated: 2026-05-03
 - Branch: `codex/release-runbooks-audit`
 - HEAD: `ef77ddd`
@@ -28,7 +60,7 @@ Local changes at sync time:
   - `M  vrs-server/ws/handler.js`
 
 <!-- status:current:end -->
-## Archive
+
 ### Archived Update - 2026-05-03T23:30:20.235Z
 
 <!-- status:current:start -->

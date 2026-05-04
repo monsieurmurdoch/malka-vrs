@@ -11,7 +11,20 @@ import * as billingDb from '../../lib/billing-db';
 import { getCdrs, getCdrById, getCdrStatusHistory, transitionCdrStatus } from '../cdr-service';
 import { getRateTiers, createRateTier, deactivateRateTier } from '../rate-service';
 import { generateMonthlyAggregation, formatTrsSubmission, markTrsSubmitted, reconcileTrsPayment } from '../vrs-billing-pipeline';
-import { getCorporateAccounts, getCorporateAccount, createCorporateAccount, generateInvoice, issueInvoice, markInvoicePaid, getCorporateBillingSummary } from '../vri-billing-pipeline';
+import {
+    bulkGenerateAndSendInvoices,
+    createCorporateAccount,
+    generateInvoice,
+    getCorporateAccount,
+    getCorporateAccounts,
+    getCorporateBillingSummary,
+    getCorporateInvoiceRecipients,
+    issueInvoice,
+    markInvoicePaid,
+    replaceCorporateInvoiceRecipients,
+    runDueInvoiceAutomation,
+    sendInvoice,
+} from '../vri-billing-pipeline';
 import { runMonthlyReconciliation, getReconciliationReport, resolveVariance } from '../reconciliation-service';
 import { getAuditLog } from '../audit-service';
 import { TrsFormatter } from '../formatters/trs-formatter';
@@ -78,10 +91,37 @@ const trsReconcileSchema = monthPeriodSchema.extend({
     paymentAmount: z.coerce.number().nonnegative()
 });
 const corporateAccountSchema = z.object({}).passthrough();
+const emailText = z.string().email().max(320).transform(value => value.trim().toLowerCase());
+const invoiceRecipientSchema = z.object({
+    id: z.string().uuid().optional(),
+    recipientType: z.enum(['to', 'cc', 'bcc']),
+    name: optionalText,
+    email: emailText,
+    isPrimary: z.coerce.boolean().optional(),
+    isActive: z.coerce.boolean().optional()
+});
+const invoiceRecipientsSchema = z.object({
+    recipients: z.array(invoiceRecipientSchema).max(50)
+});
 const invoicePeriodSchema = z.object({
     periodStart: dateText,
     periodEnd: dateText
 });
+const invoiceIssueSchema = z.object({
+    send: z.coerce.boolean().optional()
+}).passthrough();
+const invoiceSendSchema = z.object({
+    forceResend: z.coerce.boolean().optional()
+}).passthrough();
+const invoiceBulkSendSchema = invoicePeriodSchema.extend({
+    corporateAccountIds: z.array(z.string().uuid()).min(1).max(250),
+    autoGenerate: z.coerce.boolean().optional(),
+    issueAndSend: z.coerce.boolean().optional()
+});
+const invoiceAutoRunSchema = z.object({
+    asOfDate: dateText.optional(),
+    autoSend: z.coerce.boolean().optional()
+}).passthrough();
 const invoicePaymentSchema = z.object({
     stripePaymentId: text
 });
@@ -296,6 +336,30 @@ router.get('/corporate/:id', async (req: Request, res: Response) => {
     }
 });
 
+/** GET /api/billing/corporate/:id/invoice-recipients — Get invoice recipients */
+router.get('/corporate/:id/invoice-recipients', async (req: Request, res: Response) => {
+    try {
+        const recipients = await getCorporateInvoiceRecipients(single(req.params.id));
+        res.json({ recipients });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch invoice recipients' });
+    }
+});
+
+/** PUT /api/billing/corporate/:id/invoice-recipients — Replace invoice recipients */
+router.put('/corporate/:id/invoice-recipients', validateBody(invoiceRecipientsSchema), async (req: Request, res: Response) => {
+    try {
+        const recipients = await replaceCorporateInvoiceRecipients(
+            single(req.params.id),
+            req.body.recipients,
+            (req as any).user?.id // eslint-disable-line @typescript-eslint/no-explicit-any
+        );
+        res.json({ recipients });
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        res.status(400).json({ error: err.message || 'Failed to update invoice recipients' });
+    }
+});
+
 /** POST /api/billing/corporate/:id/invoices — Generate invoice */
 router.post('/corporate/:id/invoices', validateBody(invoicePeriodSchema), async (req: Request, res: Response) => {
     try {
@@ -313,15 +377,67 @@ router.post('/corporate/:id/invoices', validateBody(invoicePeriodSchema), async 
 });
 
 /** POST /api/billing/invoices/:id/issue — Issue an invoice */
-router.post('/invoices/:id/issue', validateBody(emptyBody), async (req: Request, res: Response) => {
+router.post('/invoices/:id/issue', validateBody(invoiceIssueSchema), async (req: Request, res: Response) => {
     try {
-        await issueInvoice(
-            single(req.params.id),
-            (req as any).user?.id // eslint-disable-line @typescript-eslint/no-explicit-any
-        );
-        res.json({ success: true });
+        const invoiceId = single(req.params.id);
+        const performedBy = (req as any).user?.id; // eslint-disable-line @typescript-eslint/no-explicit-any
+        const invoice = await issueInvoice(invoiceId, performedBy);
+        if (req.body.send) {
+            const sendResult = await sendInvoice(invoiceId, {
+                performedBy,
+                deliveryMode: 'manual',
+            });
+            res.json({ success: sendResult.sent, invoice: sendResult.invoice, sendResult });
+            return;
+        }
+        res.json({ success: true, invoice });
     } catch (err) {
         res.status(500).json({ error: 'Failed to issue invoice' });
+    }
+});
+
+/** POST /api/billing/invoices/:id/send — Send an issued/draft invoice */
+router.post('/invoices/:id/send', validateBody(invoiceSendSchema), async (req: Request, res: Response) => {
+    try {
+        const result = await sendInvoice(single(req.params.id), {
+            performedBy: (req as any).user?.id, // eslint-disable-line @typescript-eslint/no-explicit-any
+            deliveryMode: 'manual',
+            forceResend: req.body.forceResend,
+        });
+        res.status(result.status === 'failed' ? 400 : 200).json(result);
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        res.status(500).json({ error: err.message || 'Failed to send invoice' });
+    }
+});
+
+/** POST /api/billing/invoices/bulk-send — Generate and send invoices for selected clients */
+router.post('/invoices/bulk-send', validateBody(invoiceBulkSendSchema), async (req: Request, res: Response) => {
+    try {
+        const result = await bulkGenerateAndSendInvoices({
+            corporateAccountIds: req.body.corporateAccountIds,
+            periodStart: req.body.periodStart,
+            periodEnd: req.body.periodEnd,
+            autoGenerate: req.body.autoGenerate,
+            issueAndSend: req.body.issueAndSend,
+            performedBy: (req as any).user?.id, // eslint-disable-line @typescript-eslint/no-explicit-any
+        });
+        res.json(result);
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        res.status(500).json({ error: err.message || 'Failed to bulk send invoices' });
+    }
+});
+
+/** POST /api/billing/invoices/auto-run — Run due invoice automation immediately */
+router.post('/invoices/auto-run', validateBody(invoiceAutoRunSchema), async (req: Request, res: Response) => {
+    try {
+        const result = await runDueInvoiceAutomation({
+            asOfDate: req.body.asOfDate,
+            autoSend: req.body.autoSend,
+            performedBy: (req as any).user?.id || 'admin-auto-run', // eslint-disable-line @typescript-eslint/no-explicit-any
+        });
+        res.json(result);
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        res.status(500).json({ error: err.message || 'Failed to run invoice automation' });
     }
 });
 

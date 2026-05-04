@@ -14,7 +14,7 @@ export class LiveStripeProvider implements StripeProvider {
         // Dynamic import to avoid requiring stripe package in dev/test
         try {
             const Stripe = require('stripe');
-            this.stripe = new Stripe(secretKey, { apiVersion: '2024-12-18.acacia' });
+            this.stripe = new Stripe(secretKey, { apiVersion: '2026-02-25.clover' });
         } catch (err) {
             throw new Error(
                 'Stripe SDK not installed. Run: npm install stripe. ' +
@@ -67,6 +67,40 @@ export class LiveStripeProvider implements StripeProvider {
             status: invoice.status,
             total: invoice.total,
             hostedUrl: invoice.hosted_invoice_url || undefined,
+        };
+    }
+
+    async sendInvoice(params: {
+        invoiceId: string;
+        metadata?: Record<string, string>;
+    }): Promise<StripeInvoice> {
+        let invoice = await this.stripe.invoices.retrieve(params.invoiceId);
+
+        if (invoice.status === 'draft') {
+            if (params.metadata && Object.keys(params.metadata).length > 0) {
+                await this.stripe.invoices.update(params.invoiceId, {
+                    metadata: {
+                        ...(invoice.metadata || {}),
+                        ...params.metadata,
+                    },
+                });
+            }
+
+            invoice = await this.stripe.invoices.finalizeInvoice(params.invoiceId);
+        }
+
+        const sent = await this.stripe.invoices.sendInvoice(params.invoiceId);
+
+        return {
+            id: sent.id,
+            customerId: sent.customer as string,
+            status: sent.status,
+            total: sent.total,
+            hostedUrl: sent.hosted_invoice_url || undefined,
+            sentAt: new Date().toISOString(),
+            paidAt: sent.status_transitions?.paid_at
+                ? new Date(sent.status_transitions.paid_at * 1000).toISOString()
+                : undefined,
         };
     }
 

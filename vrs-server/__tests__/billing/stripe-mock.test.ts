@@ -60,6 +60,28 @@ describe('MockStripeProvider', () => {
         expect(retrieved!.id).toBe(created.id);
     });
 
+    it('sends an invoice', async () => {
+        const customer = await provider.createCustomer({
+            name: 'Test Corp',
+            email: 'billing@testcorp.com',
+        });
+
+        const created = await provider.createInvoice({
+            customerId: customer.id,
+            items: [{ description: 'Test', quantity: 1, unitAmount: 1000, total: 1000 }],
+        });
+
+        const sent = await provider.sendInvoice({
+            invoiceId: created.id,
+            metadata: { deliveryMode: 'manual' },
+        });
+
+        expect(sent.id).toBe(created.id);
+        expect(sent.status).toBe('open');
+        expect(sent.hostedUrl).toContain(created.id);
+        expect(sent.sentAt).toBeTruthy();
+    });
+
     it('returns null for non-existent invoice', async () => {
         const result = await provider.getInvoice('in_nonexistent');
         expect(result).toBeNull();

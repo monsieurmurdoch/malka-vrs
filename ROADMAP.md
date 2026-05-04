@@ -1,6 +1,6 @@
 # Malka VRS - Product & Engineering Roadmap
 
-> **Last updated**: May 3, 2026
+> **Last updated**: May 4, 2026
 > **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. Malka VRS backend/WebSocket smoke now covers in-room-style interpreter request, admin live queue visibility, interpreter match, call end, and CDR creation. Native mobile now has working Android/iOS client-app build lanes for MalkaVRS, MalkaVRI, and MapleVRI, production-backed auth/API/queue wiring, tenant-specific app IDs, iOS simulator install flow, Android 16 KB-compatible debug/release artifacts, and tenant visual polish. The JS/TS migration boundary is documented, shared API/WebSocket contracts now feed web/native/tests/smoke tooling, and release gates plus staging/base-URL policy are documented. The main open risks are remaining real-browser in-room/admin UI verification, TURN/coturn fallback, Redis/state externalization, regulatory/compliance work, live Stripe/accounting configuration, physical-device mobile media/call smoke, TestFlight/Play release lanes, push/background calling, crash reporting, and final secure-storage linkage.
 
 ---
@@ -21,7 +21,7 @@
 - Admin portal filtering/moderation has been implemented and needs real-browser workflow smoke across Malka and Maple.
 - Redis/state externalization is still required before multi-server horizontal scaling.
 - FCC/VRS compliance, 911/E911, iTRS, NANP provisioning, billing immutability, and certification remain major parallel tracks.
-- VRI corporate billing/payment and interpreter payout foundations are now implemented: immutable CDR-to-invoice item linking, Stripe invoice/customer plumbing, invoice email/send path, credit notes, webhook replay, reconciliation dashboard, payables/payout/schedule/utilization tables, contractor invoices, payout CSV export, and admin APIs. Live Stripe production mode still needs real keys, Stripe portal configuration, and final accounting policy.
+- VRI corporate billing/payment and interpreter payout foundations are now implemented: immutable CDR-to-invoice item linking, Stripe invoice/customer plumbing, invoice email/send path, one-click/bulk invoice sending, scheduled auto-run invoice generation/sending, credit notes, webhook replay, reconciliation dashboard, payables/payout/schedule/utilization tables, contractor invoices, payout CSV export, and admin APIs. Live Stripe production mode still needs real keys, Stripe portal configuration, and final accounting policy.
 - Mobile apps now have the main client-side parity foundation in place; physical-device smoke, release lanes, push/background call behavior, crash reporting, and store-readiness work remain before broad launch.
 
 ---
@@ -332,6 +332,9 @@
 - [x] Stripe usage ingestion from immutable VRI CDRs: one idempotent meter event or invoice line source per completed billable interpreter minute
 - [x] Invoice generation: draft invoices from CDRs, review/approve, finalize, and send through Stripe-hosted invoices
 - [x] Auto-email issued invoices to billing contacts through Stripe invoice emails; evaluate Resend only for custom supplemental summaries
+- [x] Admin one-click invoice send: select one or many corporate clients, generate missing invoice drafts for a billing period, issue/send through Stripe when available, and send supplemental business-copy email
+- [x] Scheduled invoice auto-run: daily server-side automation can generate and optionally send due corporate invoices based on billing day and the previous calendar month
+- [x] Invoice recipient management: per-corporate-account To/CC/BCC recipients plus business-copy email support for finance/admin visibility
 - [x] Manual invoice path and admin-recorded offline payments
 - [x] Payment method support backend: reusable payment-method setup intents and customer payment-method management through Stripe Billing Portal
 - [x] Initial Stripe webhook handling for invoice finalized, paid, payment failed, voided, and uncollectible events
