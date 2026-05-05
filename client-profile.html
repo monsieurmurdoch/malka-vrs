@@ -218,6 +218,39 @@
             gap: 18px;
         }
 
+        .desktop-download-card {
+            align-items: center;
+            display: grid;
+            gap: 16px;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+        }
+
+        .desktop-download-icon {
+            background: #fff;
+            border-radius: 14px;
+            height: 54px;
+            object-fit: contain;
+            padding: 8px;
+            width: 54px;
+        }
+
+        .desktop-download-title {
+            font-size: 18px;
+            font-weight: 900;
+        }
+
+        .desktop-download-copy {
+            color: rgba(255,255,255,0.64);
+            font-size: 13px;
+            line-height: 1.35;
+            margin-top: 4px;
+        }
+
+        body.theme-light .desktop-download-copy,
+        body.theme-maple .desktop-download-copy {
+            color: rgba(17,17,17,0.62);
+        }
+
         .profile-sections {
             display: grid;
             grid-template-columns: minmax(0, 1fr);
@@ -1845,6 +1878,7 @@
             .profile-hero,
             .profile-sections,
             .profile-alert-grid,
+            .desktop-download-card,
             .vrs-home-lower,
             .vri-console-shell,
             .vri-lower-grid,
@@ -3068,6 +3102,19 @@
             `;
         }
 
+        function renderDesktopDownloadCard() {
+            return `
+                <div class="card desktop-download-card">
+                    <img class="desktop-download-icon" src="/desktop/malkavrs/assets/icon.png" alt="" aria-hidden="true">
+                    <div>
+                        <div class="desktop-download-title">MalkaVRS Desktop</div>
+                        <div class="desktop-download-copy">Use the desktop client for a large flashing incoming-call alert while keeping the same web account.</div>
+                    </div>
+                    <a class="settings-btn" href="/downloads/malkavrs-desktop.html" target="_blank" rel="noopener">Download</a>
+                </div>
+            `;
+        }
+
         function getUsageSummary(calls) {
             const now = new Date();
             const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -4274,6 +4321,7 @@
                                 </div>
                             ` : ''}
                             ${renderCallHistorySection(calls, false)}
+                            ${canUseVrs ? renderDesktopDownloadCard() : ''}
                             </div>
                         </div>
                     </div>

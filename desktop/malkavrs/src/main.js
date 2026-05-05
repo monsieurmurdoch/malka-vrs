@@ -1,8 +1,9 @@
 const path = require('path');
-const { app, BrowserWindow, Menu, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, nativeImage, shell } = require('electron');
 
 const DEFAULT_URL = 'https://vrs.malkacomm.com/interpreter-profile.html?desktop=1';
 const APP_URL = process.env.MALKA_DESKTOP_URL || DEFAULT_URL;
+const ICON_PATH = path.join(__dirname, '..', 'assets', 'icon.png');
 const TRUSTED_HOSTS = new Set([
     'localhost',
     '127.0.0.1',
@@ -25,9 +26,12 @@ function isTrustedUrl(url) {
 }
 
 function createMainWindow() {
+    const icon = nativeImage.createFromPath(ICON_PATH);
+
     mainWindow = new BrowserWindow({
         backgroundColor: '#0d1326',
         height: 920,
+        icon: icon.isEmpty() ? undefined : icon,
         minHeight: 720,
         minWidth: 1040,
         show: false,
@@ -154,6 +158,11 @@ function clearIncomingCallAlert() {
 
 app.whenReady().then(() => {
     Menu.setApplicationMenu(null);
+    const icon = nativeImage.createFromPath(ICON_PATH);
+
+    if (process.platform === 'darwin' && app.dock && !icon.isEmpty()) {
+        app.dock.setIcon(icon);
+    }
 
     app.on('web-contents-created', (_event, contents) => {
         contents.session.setPermissionRequestHandler((_webContents, permission, callback) => {

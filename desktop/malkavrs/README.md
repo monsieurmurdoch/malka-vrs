@@ -18,6 +18,7 @@ Defaults:
 
 - URL: `https://vrs.malkacomm.com/interpreter-profile.html?desktop=1`
 - App name: `MalkaVRS`
+- Icon: `desktop/malkavrs/assets/icon.png`
 
 Optional overrides:
 
@@ -32,6 +33,17 @@ npm --prefix desktop/malkavrs start
 - Interpreter incoming-request alert only.
 - No separate desktop auth or queue implementation.
 - No packaged installer yet.
+
+## Client Account Download Link
+
+MalkaVRS client accounts link to `/downloads/malkavrs-desktop.html`. Once
+signed installers are produced, place them at:
+
+- `/downloads/MalkaVRS-Desktop.dmg`
+- `/downloads/MalkaVRS-Desktop.exe`
+
+The account UI can stay stable while the downloadable artifacts change behind
+that page.
 
 ## Verification
 
