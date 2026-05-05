@@ -1761,6 +1761,18 @@
             }].concat(state.queueEvents || []).slice(0, 12);
         }
 
+        function notifyDesktopIncomingCall(request) {
+            if (window.MalkaDesktop && typeof window.MalkaDesktop.incomingCall === 'function') {
+                window.MalkaDesktop.incomingCall(request || {});
+            }
+        }
+
+        function clearDesktopIncomingCall() {
+            if (window.MalkaDesktop && typeof window.MalkaDesktop.clearIncomingCall === 'function') {
+                window.MalkaDesktop.clearIncomingCall();
+            }
+        }
+
         function handleWsMessage(msg) {
             console.log('[WS] Received:', msg.type, msg);
             switch (msg.type) {
@@ -1787,6 +1799,7 @@
                         state.requestActionPending = null;
                         state.queueNotice = null;
                         pushQueueEvent('Incoming request', `${msg.data?.clientName || 'Client'} requested ${msg.data?.callType || 'VRS/VRI'} support.`);
+                        notifyDesktopIncomingCall(msg.data);
                         renderAcceptOverlay();
                     }
                     break;
@@ -1796,6 +1809,7 @@
                     // Server confirmed; navigate to the shared room.
                     if (msg.data && msg.data.roomName) {
                         pushQueueEvent('Match accepted', `Room ${msg.data.roomName} is opening.`);
+                        clearDesktopIncomingCall();
                         clearTimeout(wsReconnectTimer);
                         persistActiveCall(msg.data);
                         setPersistentItem('vrs_user_role', 'interpreter');
@@ -1815,6 +1829,7 @@
                         state.requestActionPending = null;
                         if (/not available|not found|already assigned/i.test(msg.data.message)) {
                             state.pendingRequest = null;
+                            clearDesktopIncomingCall();
                             removeAcceptOverlay();
                         }
                         render();
@@ -2727,6 +2742,7 @@
             state.pendingRequest = null;
             state.requestActionPending = null;
             removeAcceptOverlay();
+            clearDesktopIncomingCall();
         };
 
         // Data loading

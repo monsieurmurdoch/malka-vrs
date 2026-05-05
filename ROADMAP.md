@@ -457,6 +457,8 @@
 #### Product Surface & Domain Split Completed
 - [x] `ai.malkacomm.com`: distinct Malka ASL-to-English AI lab portal stub, not integrated into production VRS/VRI until validated
   - 2026-05-03: Added `asl-ai.html` as a visually distinct Mars/robot lab login stub with consent/legal boundaries, plus app-server host routing so `ai.malkacomm.com/` resolves to the lab page once DNS/nginx TLS are configured.
+- [x] Lightweight MalkaVRS desktop client scaffold for web app
+  - 2026-05-05: Added an Electron wrapper for the MalkaVRS interpreter web profile with a flashing always-on-top incoming-request alert, window focus/flash behavior, and a preload bridge from the existing interpreter queue page.
 
 #### Interpreter Tools Completed
 - [x] Interpreter tools backend foundation: tables and interpreter-authenticated endpoints for analytics, breaks, continuity notes, teaming requests, and post-call surveys
@@ -485,6 +487,10 @@ No immediate open items.
 
 ### Calls, Rooms & Queue Follow-Up
 No immediate open items.
+
+### Desktop Client Follow-Up
+- [ ] Package/sign MalkaVRS desktop builds for macOS and Windows after the lightweight wrapper is smoke-tested
+- [ ] Extend desktop alert bridge beyond interpreter queue requests if MalkaVRS client-side P2P/direct-call receiving becomes a desktop launch requirement
 
 ### Maple VRI Pilot Readiness & White-Label Hardening (cont.)
 - [ ] Add optional SMS/email send to VRI session invites after Resend/Twilio policy is finalized
