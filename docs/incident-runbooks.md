@@ -185,8 +185,8 @@ nc -zvu vrs.malkacomm.com 10000
 TURN checks from a network outside the Droplet:
 
 ```sh
-nc -zvu turn-vrs.malkacomm.com 3478
-nc -zv turn-vrs.malkacomm.com 3478
+nc -zvu vrs.malkacomm.com 3478
+nc -zv vrs.malkacomm.com 3478
 docker compose -f docker-compose.prod.yml --profile turn logs --tail=100 coturn
 ```
 

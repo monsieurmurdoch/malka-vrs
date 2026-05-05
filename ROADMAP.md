@@ -17,7 +17,7 @@
 
 **Not yet production-complete**
 - Full real-browser UI verification is still required for the active-room request-interpreter button, VRI invite/guest flow, and admin moderation screens.
-- TURN/coturn fallback wiring exists, but DNS/firewall enablement and restrictive-network relay-candidate smoke are still required for corporate networks where direct UDP 10000 is blocked.
+- TURN/coturn fallback is enabled on production with external allocation smoke passing; remaining proof is browser ICE stats from a restrictive network showing the selected candidate pair is `relay`.
 - Admin portal filtering/moderation has been implemented and needs real-browser workflow smoke across Malka and Maple.
 - Redis/state externalization is still required before multi-server horizontal scaling.
 - FCC/VRS compliance, 911/E911, iTRS, NANP provisioning, billing immutability, and certification remain major parallel tracks.
@@ -559,7 +559,9 @@ No immediate open items.
 - [ ] Audio/caption fallback when video quality collapses
 - [x] TURN/coturn Compose profile, Prosody TURN advertisement env, staging/env docs, and media runbook checks
   - 2026-05-04: Added an opt-in coturn service profile, Jitsi Prosody TURN env wiring, TURN env examples, and relay-candidate smoke instructions.
-- [ ] Enable TURN on staging/production DNS and firewall, then verify selected `relay` ICE candidates from a restrictive network
+- [x] Enable production TURN host/firewall and verify external coturn allocation
+  - 2026-05-05: Enabled `vrs.malkacomm.com:3478` TURN on the Droplet, opened UFW for 3478 tcp/udp and relay UDP 49160-49200, confirmed Prosody advertises UDP/TCP TURN services, and verified external coturn allocation receives public relay addresses.
+- [ ] Verify browser-selected `relay` ICE candidates during a real call from a restrictive network
 
 ### Redundancy & Disaster Recovery
 - [ ] Multi-region deployment plan
