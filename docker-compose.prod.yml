@@ -43,8 +43,36 @@ services:
       - JICOFO_COMPONENT_SECRET=${JICOFO_COMPONENT_SECRET:-jicofo-secret}
       - JICOFO_AUTH_PASSWORD=${JICOFO_AUTH_PASSWORD:-jicofo-pass}
       - JVB_AUTH_PASSWORD=${JVB_AUTH_PASSWORD:-jvb-pass}
+      - TURN_CREDENTIALS=${TURN_SECRET:-}
+      - TURN_HOST=${TURN_HOST:-}
+      - TURN_PORT=${TURN_PORT:-3478}
+      - TURN_TRANSPORT=${TURN_TRANSPORT:-udp,tcp}
+      - TURNS_HOST=${TURNS_HOST:-}
+      - TURNS_PORT=${TURNS_PORT:-5349}
     volumes:
       - prosody-data:/config/data
+
+  coturn:
+    image: coturn/coturn:4.6.3
+    <<: *common
+    profiles:
+      - turn
+    ports:
+      - "${TURN_PORT:-3478}:${TURN_PORT:-3478}/udp"
+      - "${TURN_PORT:-3478}:${TURN_PORT:-3478}/tcp"
+      - "${TURN_RELAY_MIN_PORT:-49160}-${TURN_RELAY_MAX_PORT:-49200}:${TURN_RELAY_MIN_PORT:-49160}-${TURN_RELAY_MAX_PORT:-49200}/udp"
+    command:
+      - "--listening-port=${TURN_PORT:-3478}"
+      - "--realm=${TURN_REALM:-meet.jitsi}"
+      - "--external-ip=${DROPLET_PUBLIC_IP:-127.0.0.1}"
+      - "--use-auth-secret"
+      - "--static-auth-secret=${TURN_SECRET:-change-me-before-enabling-turn}"
+      - "--min-port=${TURN_RELAY_MIN_PORT:-49160}"
+      - "--max-port=${TURN_RELAY_MAX_PORT:-49200}"
+      - "--fingerprint"
+      - "--no-cli"
+      - "--no-multicast-peers"
+      - "--log-file=stdout"
 
   jicofo:
     image: jitsi/jicofo:stable-9584

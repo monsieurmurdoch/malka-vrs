@@ -103,10 +103,21 @@ docker compose -f docker-compose.prod.yml restart jvb
 docker compose -f docker-compose.prod.yml logs --tail=100 prosody jicofo jvb
 ```
 
+If the TURN profile is enabled, restart coturn before Prosody so fresh TURN
+credentials are advertised after Prosody comes back:
+
+```sh
+docker compose -f docker-compose.prod.yml --profile turn restart coturn
+docker compose -f docker-compose.prod.yml restart prosody jicofo jvb
+docker compose -f docker-compose.prod.yml --profile turn logs --tail=100 coturn
+```
+
 Validation:
 
 - Two-browser media smoke: client joins, interpreter joins, both see audio/video.
 - UDP 10000 is reachable from outside the Droplet network.
+- If testing from a restrictive network, coturn logs show allocations and the
+  browser selected a `relay` ICE candidate.
 - JVB logs show media endpoints joining without ICE failure loops.
 
 ## Clear Stale Queue Items
@@ -170,6 +181,22 @@ External UDP check from a network outside the Droplet:
 ```sh
 nc -zvu vrs.malkacomm.com 10000
 ```
+
+TURN checks from a network outside the Droplet:
+
+```sh
+nc -zvu turn-vrs.malkacomm.com 3478
+nc -zv turn-vrs.malkacomm.com 3478
+docker compose -f docker-compose.prod.yml --profile turn logs --tail=100 coturn
+```
+
+Port checks only prove reachability. A real TURN smoke must verify relay usage
+with browser WebRTC internals or equivalent candidate stats:
+
+- Open a call from a network that blocks direct UDP 10000.
+- Confirm the call still connects.
+- Confirm the selected candidate pair uses `relay`.
+- Confirm coturn logs an allocation for the client public IP.
 
 Human smoke:
 

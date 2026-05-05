@@ -20,6 +20,8 @@ beta, and mobile beta. It should be boring, isolated, and easy to reset.
     rehearsing non-Stripe billing flows.
 - Twilio test/sandbox credentials, or blank Twilio credentials when phone/SMS is outside the smoke
 - Staging-only JWT signing keys
+- Staging-only TURN/coturn shared secret and DNS if restrictive-network media
+  fallback is in scope for the smoke
 - Seeded Malka and Maple demo accounts
 
 ## Suggested Staging Domains
@@ -51,6 +53,17 @@ export STAGING_ENV_FILE=.env.staging
 docker compose --env-file .env.staging \
   -f docker-compose.prod.yml \
   -f docker-compose.staging.yml \
+  up --build -d
+```
+
+Enable TURN in staging only after `TURN_HOST`, `TURN_REALM`, `TURN_SECRET`,
+`DROPLET_PUBLIC_IP`, and firewall rules are set:
+
+```sh
+docker compose --env-file .env.staging \
+  -f docker-compose.prod.yml \
+  -f docker-compose.staging.yml \
+  --profile turn \
   up --build -d
 ```
 
@@ -99,6 +112,8 @@ Human smoke must include:
 - End call.
 - CDR check.
 - Billing usage check.
+- If TURN is enabled: run one restrictive-network call smoke and verify a
+  selected `relay` candidate plus coturn allocation logs.
 
 ## Reset Policy
 

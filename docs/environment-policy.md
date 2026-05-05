@@ -65,6 +65,20 @@ The queue WebSocket URL is derived from the same tenant domain:
 - HTTPS host -> `wss://<host>/ws`
 - HTTP local host -> `ws://<host>/ws`
 
+## Jitsi Media and TURN
+
+Direct JVB media uses UDP 10000. TURN fallback is opt-in through the Compose
+`turn` profile and must be explicit per environment:
+
+- Local: TURN may stay disabled unless testing restrictive-network behavior.
+- Staging: use staging-only `TURN_HOST`, `TURN_REALM`, and `TURN_SECRET`.
+- Production: use production TURN DNS, production-only `TURN_SECRET`, and
+  firewall rules for `3478/tcp`, `3478/udp`, and the configured relay UDP range.
+
+Do not ship staging or local builds that advertise a production TURN host. Do
+not set `TURN_HOST` until coturn is reachable and the shared secret matches
+Prosody's `TURN_CREDENTIALS`.
+
 ## Ops/Admin
 
 Ops/admin endpoints use `/ops` behind nginx:
@@ -116,6 +130,8 @@ Before promoting any build, record:
 
 - Tenant ID and environment.
 - API, queue, ops, and Twilio base URLs.
+- JVB UDP 10000 status, TURN host, TURN port, relay port range, and whether a
+  relay-candidate smoke was performed.
 - Database name and host class, not password.
 - Stripe mode.
 - Seed account set.

@@ -1,7 +1,7 @@
 # Malka VRS - Product & Engineering Roadmap
 
 > **Last updated**: May 4, 2026
-> **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. Malka VRS backend/WebSocket smoke now covers in-room-style interpreter request, admin live queue visibility, interpreter match, call end, and CDR creation. Native mobile now has working Android/iOS client-app build lanes for MalkaVRS, MalkaVRI, and MapleVRI, production-backed auth/API/queue wiring, tenant-specific app IDs, iOS simulator install flow, Android 16 KB-compatible debug/release artifacts, and tenant visual polish. The JS/TS migration boundary is documented, shared API/WebSocket contracts now feed web/native/tests/smoke tooling, and release gates plus staging/base-URL policy are documented. The main open risks are remaining real-browser in-room/admin UI verification, TURN/coturn fallback, Redis/state externalization, regulatory/compliance work, live Stripe/accounting configuration, physical-device mobile media/call smoke, TestFlight/Play release lanes, push/background calling, crash reporting, and final secure-storage linkage.
+> **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. Malka VRS backend/WebSocket smoke now covers in-room-style interpreter request, admin live queue visibility, interpreter match, call end, and CDR creation. Native mobile now has working Android/iOS client-app build lanes for MalkaVRS, MalkaVRI, and MapleVRI, production-backed auth/API/queue wiring, tenant-specific app IDs, iOS simulator install flow, Android 16 KB-compatible debug/release artifacts, and tenant visual polish. The JS/TS migration boundary is documented, shared API/WebSocket contracts now feed web/native/tests/smoke tooling, and release gates plus staging/base-URL policy are documented. TURN/coturn deployment wiring is staged behind an opt-in Compose profile. The main open risks are remaining real-browser in-room/admin UI verification, TURN relay enablement and restrictive-network smoke, Redis/state externalization, regulatory/compliance work, live Stripe/accounting configuration, physical-device mobile media/call smoke, TestFlight/Play release lanes, push/background calling, crash reporting, and final secure-storage linkage.
 
 ---
 
@@ -17,7 +17,7 @@
 
 **Not yet production-complete**
 - Full real-browser UI verification is still required for the active-room request-interpreter button, VRI invite/guest flow, and admin moderation screens.
-- TURN/coturn fallback is still needed for corporate networks where direct UDP 10000 is blocked.
+- TURN/coturn fallback wiring exists, but DNS/firewall enablement and restrictive-network relay-candidate smoke are still required for corporate networks where direct UDP 10000 is blocked.
 - Admin portal filtering/moderation has been implemented and needs real-browser workflow smoke across Malka and Maple.
 - Redis/state externalization is still required before multi-server horizontal scaling.
 - FCC/VRS compliance, 911/E911, iTRS, NANP provisioning, billing immutability, and certification remain major parallel tracks.
@@ -557,7 +557,9 @@ No immediate open items.
 - [ ] Resolution caps by call type: P2P, VRS, VRI
 - [ ] Bandwidth estimation and poor-network warnings
 - [ ] Audio/caption fallback when video quality collapses
-- [ ] TURN/coturn deployment for corporate NAT/firewall scenarios
+- [x] TURN/coturn Compose profile, Prosody TURN advertisement env, staging/env docs, and media runbook checks
+  - 2026-05-04: Added an opt-in coturn service profile, Jitsi Prosody TURN env wiring, TURN env examples, and relay-candidate smoke instructions.
+- [ ] Enable TURN on staging/production DNS and firewall, then verify selected `relay` ICE candidates from a restrictive network
 
 ### Redundancy & Disaster Recovery
 - [ ] Multi-region deployment plan
