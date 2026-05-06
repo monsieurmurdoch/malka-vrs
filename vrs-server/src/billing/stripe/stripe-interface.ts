@@ -35,6 +35,8 @@ export interface StripePaymentResult {
 }
 
 export interface WebhookEvent {
+    id?: string;
+    livemode?: boolean;
     type: string;
     data: Record<string, unknown>;
 }

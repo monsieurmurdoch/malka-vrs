@@ -18,6 +18,7 @@ import type {
     BulkInvoiceSendInput,
     BulkInvoiceSendResult,
     CorporateAccount,
+    CorporateUsageSummary,
     CreateCorporateAccountInput,
     Invoice,
     InvoiceRecipient,
@@ -725,6 +726,102 @@ export async function getCorporateBillingSummary(
         totalCallsThisMonth: parseInt(stats.rows[0]?.total_calls || '0', 10),
         totalChargeThisMonth: parseFloat(stats.rows[0]?.total_charge || '0'),
     };
+}
+
+export async function getCorporateUsageSummary(
+    corporateAccountId: string,
+    periodStart: string,
+    periodEnd: string
+): Promise<CorporateUsageSummary | null> {
+    if (!billingDb.isBillingDbReady()) return null;
+
+    const account = await getCorporateAccount(corporateAccountId);
+    if (!account) return null;
+
+    const totals = await usageTotals(corporateAccountId, periodStart, periodEnd);
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const weekStart = new Date(now);
+    weekStart.setUTCDate(now.getUTCDate() - now.getUTCDay());
+    const monthStart = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`;
+
+    return {
+        accountId: corporateAccountId,
+        periodStart,
+        periodEnd,
+        totalCalls: totals.totalCalls,
+        totalMinutes: totals.totalMinutes,
+        totalCharge: totals.totalCharge,
+        currency: account.currency,
+        day: await usageTotals(corporateAccountId, today, periodEnd),
+        week: await usageTotals(corporateAccountId, weekStart.toISOString().slice(0, 10), periodEnd),
+        month: await usageTotals(corporateAccountId, monthStart, periodEnd),
+    };
+}
+
+async function usageTotals(
+    corporateAccountId: string,
+    periodStart: string,
+    periodEnd: string
+): Promise<{ totalCalls: number; totalMinutes: number; totalCharge: number }> {
+    const result = await billingDb.query<{
+        total_calls: string;
+        total_seconds: string;
+        total_charge: string;
+    }>(
+        `SELECT COUNT(*) AS total_calls,
+                COALESCE(SUM(duration_seconds), 0) AS total_seconds,
+                COALESCE(SUM(total_charge), 0) AS total_charge
+         FROM billing_cdrs
+         WHERE corporate_account_id = $1
+           AND call_type = 'vri'
+           AND start_time >= $2
+           AND start_time < $3`,
+        [corporateAccountId, periodStart, periodEnd]
+    );
+
+    const row = result.rows[0] || { total_calls: '0', total_seconds: '0', total_charge: '0' };
+
+    return {
+        totalCalls: parseInt(row.total_calls || '0', 10),
+        totalMinutes: Math.round((parseInt(row.total_seconds || '0', 10) / 60) * 100) / 100,
+        totalCharge: parseFloat(row.total_charge || '0'),
+    };
+}
+
+export async function getCorporateUsageCsv(
+    corporateAccountId: string,
+    periodStart: string,
+    periodEnd: string
+): Promise<string | null> {
+    if (!billingDb.isBillingDbReady()) return null;
+
+    const result = await billingDb.query(
+        `SELECT call_id, start_time, end_time, duration_seconds, language,
+                per_minute_rate, total_charge
+         FROM billing_cdrs
+         WHERE corporate_account_id = $1
+           AND call_type = 'vri'
+           AND start_time >= $2
+           AND start_time < $3
+         ORDER BY start_time`,
+        [corporateAccountId, periodStart, periodEnd]
+    );
+
+    const lines = [
+        'call_id,start_time,end_time,duration_seconds,language,per_minute_rate,total_charge',
+        ...result.rows.map((row: Record<string, unknown>) => [
+            row.call_id,
+            row.start_time,
+            row.end_time,
+            row.duration_seconds,
+            row.language || '',
+            row.per_minute_rate,
+            row.total_charge,
+        ].map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')),
+    ];
+
+    return `${lines.join('\n')}\n`;
 }
 
 /**
