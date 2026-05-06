@@ -133,29 +133,6 @@ export class LiveStripeProvider implements StripeProvider {
         }
     }
 
-    async sendInvoice(invoiceId: string): Promise<StripeInvoice> {
-        let invoice = await this.stripe.invoices.retrieve(invoiceId);
-        if (invoice.status === 'draft') {
-            invoice = await this.stripe.invoices.finalizeInvoice(invoiceId);
-        }
-
-        if (invoice.status === 'open') {
-            invoice = await this.stripe.invoices.sendInvoice(invoiceId);
-        }
-
-        return {
-            id: invoice.id,
-            customerId: invoice.customer as string,
-            status: invoice.status,
-            total: invoice.total,
-            hostedUrl: invoice.hosted_invoice_url || undefined,
-            pdfUrl: invoice.invoice_pdf || undefined,
-            paidAt: invoice.status_transitions?.paid_at
-                ? new Date(invoice.status_transitions.paid_at * 1000).toISOString()
-                : undefined,
-        };
-    }
-
     async createPaymentIntent(params: {
         amount: number;
         currency: string;

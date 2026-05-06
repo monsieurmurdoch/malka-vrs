@@ -79,27 +79,6 @@ export class MockStripeProvider implements StripeProvider {
         return this.invoices.get(invoiceId) || null;
     }
 
-    async sendInvoice(invoiceId: string): Promise<StripeInvoice> {
-        const existing = this.invoices.get(invoiceId);
-        const invoice: StripeInvoice = existing
-            ? {
-                ...existing,
-                status: 'open',
-                hostedUrl: existing.hostedUrl || `https://billing.stripe.mock/invoices/${invoiceId}`,
-                pdfUrl: existing.pdfUrl || `https://billing.stripe.mock/invoices/${invoiceId}.pdf`,
-            }
-            : {
-                id: invoiceId,
-                customerId: 'cus_mock_unknown',
-                status: 'open',
-                total: 0,
-                hostedUrl: `https://billing.stripe.mock/invoices/${invoiceId}`,
-                pdfUrl: `https://billing.stripe.mock/invoices/${invoiceId}.pdf`,
-            };
-        this.invoices.set(invoiceId, invoice);
-        return invoice;
-    }
-
     async createPaymentIntent(params: {
         amount: number;
         currency: string;
