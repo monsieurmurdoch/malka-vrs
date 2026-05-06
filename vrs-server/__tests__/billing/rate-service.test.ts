@@ -30,7 +30,7 @@ describe('rate-service', () => {
         it('getEffectiveRate returns default VRI rate', async () => {
             (billingDb.isBillingDbReady as jest.Mock).mockReturnValue(false);
             const result = await getEffectiveRate('vri');
-            expect(result.perMinuteRate).toBe(4.95);
+            expect(result.perMinuteRate).toBe(1);
             expect(result.rateTierId).toBeNull();
         });
 

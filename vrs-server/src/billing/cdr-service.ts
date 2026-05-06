@@ -40,7 +40,11 @@ export async function createCdr(input: CreateCdrInput): Promise<BillingCdr | nul
 
         const { rateTierId, perMinuteRate } = await getEffectiveRate(
             input.callType,
-            input.startTime
+            input.startTime,
+            {
+                corporateAccountId: input.corporateAccountId || null,
+                languagePair: input.language || null,
+            }
         );
 
         const durationMinutes = input.durationSeconds / 60;
@@ -128,8 +132,19 @@ export async function transitionCdrStatus(
     if (!billingDb.isBillingDbReady()) return;
 
     // Get current status
-    const cdrResult = await billingDb.query<{ billing_status: BillingStatus }>(
-        'SELECT billing_status FROM billing_cdrs WHERE id = $1',
+    const cdrResult = await billingDb.query<{ current_status: BillingStatus }>(
+        `SELECT COALESCE(
+            (
+                SELECT to_status
+                FROM billing_cdr_status_transitions
+                WHERE cdr_id = billing_cdrs.id
+                ORDER BY transitioned_at DESC
+                LIMIT 1
+            ),
+            billing_status
+        ) AS current_status
+        FROM billing_cdrs
+        WHERE id = $1`,
         [cdrId]
     );
 
@@ -137,7 +152,7 @@ export async function transitionCdrStatus(
         throw new Error(`CDR ${cdrId} not found`);
     }
 
-    const fromStatus = cdrResult.rows[0].billing_status;
+    const fromStatus = cdrResult.rows[0].current_status;
 
     await billingDb.query(
         `INSERT INTO billing_cdr_status_transitions (cdr_id, from_status, to_status, transitioned_by, reason)
@@ -184,7 +199,7 @@ export async function getCdrStatusHistory(cdrId: string): Promise<CdrStatusTrans
 export async function getCdrById(id: string): Promise<BillingCdr | null> {
     if (!billingDb.isBillingDbReady()) return null;
 
-    const result = await billingDb.query('SELECT * FROM billing_cdrs WHERE id = $1', [id]);
+    const result = await billingDb.query(`${cdrSelectSql()} WHERE c.id = $1`, [id]);
     if (result.rows.length === 0) return null;
 
     return mapCdrRow(result.rows[0]);
@@ -201,23 +216,23 @@ export async function getCdrs(filters: CdrQueryFilters): Promise<BillingCdr[]> {
     let paramIdx = 1;
 
     if (filters.callType) {
-        conditions.push(`call_type = $${paramIdx++}`);
+        conditions.push(`c.call_type = $${paramIdx++}`);
         params.push(filters.callType);
     }
     if (filters.billingStatus) {
-        conditions.push(`billing_status = $${paramIdx++}`);
+        conditions.push(`COALESCE(latest_transition.to_status, c.billing_status) = $${paramIdx++}`);
         params.push(filters.billingStatus);
     }
     if (filters.fromDate) {
-        conditions.push(`start_time >= $${paramIdx++}`);
+        conditions.push(`c.start_time >= $${paramIdx++}`);
         params.push(filters.fromDate);
     }
     if (filters.toDate) {
-        conditions.push(`start_time < $${paramIdx++}`);
+        conditions.push(`c.start_time < $${paramIdx++}`);
         params.push(filters.toDate);
     }
     if (filters.corporateAccountId) {
-        conditions.push(`corporate_account_id = $${paramIdx++}`);
+        conditions.push(`c.corporate_account_id = $${paramIdx++}`);
         params.push(filters.corporateAccountId);
     }
 
@@ -228,7 +243,7 @@ export async function getCdrs(filters: CdrQueryFilters): Promise<BillingCdr[]> {
     params.push(limit, offset);
 
     const result = await billingDb.query(
-        `SELECT * FROM billing_cdrs ${where} ORDER BY start_time DESC LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
+        `${cdrSelectSql()} ${where} ORDER BY c.start_time DESC LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
         params
     );
 
@@ -256,6 +271,19 @@ export async function getCdrsForPeriod(
     });
 }
 
+function cdrSelectSql(): string {
+    return `SELECT c.*,
+        COALESCE(latest_transition.to_status, c.billing_status) AS current_status
+     FROM billing_cdrs c
+     LEFT JOIN LATERAL (
+        SELECT to_status
+        FROM billing_cdr_status_transitions
+        WHERE cdr_id = c.id
+        ORDER BY transitioned_at DESC
+        LIMIT 1
+     ) latest_transition ON true`;
+}
+
 function mapCdrRow(row: Record<string, unknown>): BillingCdr {
     return {
         id: row.id as string,
@@ -272,7 +300,7 @@ function mapCdrRow(row: Record<string, unknown>): BillingCdr {
         rateTierId: row.rate_tier_id as string | null,
         perMinuteRate: parseFloat(row.per_minute_rate as string),
         totalCharge: parseFloat(row.total_charge as string),
-        billingStatus: row.billing_status as BillingStatus,
+        billingStatus: (row.current_status || row.billing_status) as BillingStatus,
         trsSubmissionId: row.trs_submission_id as string | null,
         corporateAccountId: row.corporate_account_id as string | null,
         invoiceId: row.invoice_id as string | null,

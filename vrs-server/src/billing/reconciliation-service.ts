@@ -107,6 +107,82 @@ export async function getReconciliationReport(
 }
 
 /**
+ * Get a live reconciliation dashboard for billing operations.
+ */
+export async function getBillingReconciliationDashboard(filters: {
+    periodStart: string;
+    periodEnd: string;
+}): Promise<Record<string, unknown> | null> {
+    if (!billingDb.isBillingDbReady()) return null;
+
+    const cdrTotals = await billingDb.query(
+        `SELECT call_type,
+                COUNT(*) AS call_count,
+                COALESCE(SUM(duration_seconds), 0) AS duration_seconds,
+                COALESCE(SUM(total_charge), 0) AS total_charge
+         FROM billing_cdrs
+         WHERE start_time >= $1
+           AND start_time < $2
+         GROUP BY call_type
+         ORDER BY call_type`,
+        [filters.periodStart, filters.periodEnd]
+    );
+    const invoiceTotals = await billingDb.query(
+        `SELECT status,
+                COUNT(*) AS invoice_count,
+                COALESCE(SUM(total), 0) AS total
+         FROM invoices
+         WHERE billing_period_start >= $1
+           AND billing_period_start < $2
+         GROUP BY status
+         ORDER BY status`,
+        [filters.periodStart, filters.periodEnd]
+    );
+    const paymentTotals = await billingDb.query(
+        `SELECT provider, status,
+                COUNT(*) AS payment_count,
+                COALESCE(SUM(amount), 0) AS total
+         FROM billing_payments
+         WHERE created_at >= $1
+           AND created_at < $2
+         GROUP BY provider, status
+         ORDER BY provider, status`,
+        [filters.periodStart, filters.periodEnd]
+    );
+    const adjustmentTotals = await billingDb.query(
+        `SELECT reason, status,
+                COUNT(*) AS adjustment_count,
+                COALESCE(SUM(amount), 0) AS total
+         FROM billing_adjustments
+         WHERE created_at >= $1
+           AND created_at < $2
+         GROUP BY reason, status
+         ORDER BY reason, status`,
+        [filters.periodStart, filters.periodEnd]
+    );
+    const webhookHealth = await billingDb.query(
+        `SELECT processing_status,
+                COUNT(*) AS event_count
+         FROM stripe_webhook_events
+         WHERE received_at >= $1
+           AND received_at < $2
+         GROUP BY processing_status`,
+        [filters.periodStart, filters.periodEnd]
+    );
+
+    return {
+        periodStart: filters.periodStart,
+        periodEnd: filters.periodEnd,
+        generatedAt: new Date(),
+        cdrTotals: cdrTotals.rows,
+        invoiceTotals: invoiceTotals.rows,
+        paymentTotals: paymentTotals.rows,
+        adjustmentTotals: adjustmentTotals.rows,
+        webhookHealth: webhookHealth.rows,
+    };
+}
+
+/**
  * Resolve a variance by providing a reason.
  */
 export async function resolveVariance(

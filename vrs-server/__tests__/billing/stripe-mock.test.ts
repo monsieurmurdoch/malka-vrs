@@ -99,6 +99,37 @@ describe('MockStripeProvider', () => {
         expect(intent.clientSecret).toBeTruthy();
     });
 
+    it('sends invoices and returns hosted invoice links', async () => {
+        const invoice = await provider.createInvoice({
+            customerId: 'cus_test',
+            items: [{ description: 'Test', quantity: 1, unitAmount: 1000, total: 1000 }],
+        });
+
+        const sent = await provider.sendInvoice(invoice.id);
+        expect(sent.status).toBe('open');
+        expect(sent.hostedUrl).toContain(invoice.id);
+        expect(sent.pdfUrl).toContain(invoice.id);
+    });
+
+    it('creates billing portal sessions, setup intents, and credit notes', async () => {
+        const portal = await provider.createCustomerPortalSession({
+            customerId: 'cus_test',
+            returnUrl: 'https://example.test/billing',
+        });
+        const setup = await provider.createSetupIntent({ customerId: 'cus_test' });
+        const creditNote = await provider.createCreditNote({
+            invoiceId: 'in_test',
+            amount: 500,
+            reason: 'test_credit',
+        });
+
+        expect(portal.url).toContain('cus_test');
+        expect(setup.id).toMatch(/^seti_mock_/);
+        expect(setup.clientSecret).toBeTruthy();
+        expect(creditNote.id).toMatch(/^cn_mock_/);
+        expect(creditNote.amount).toBe(500);
+    });
+
     it('verifies webhook signature', async () => {
         const event = await provider.verifyWebhookSignature('payload', 'sig');
         expect(event.type).toBe('invoice.paid');

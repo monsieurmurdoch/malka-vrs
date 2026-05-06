@@ -5,7 +5,15 @@
  * Mimics the StripeProvider interface without making real API calls.
  */
 
-import type { StripeProvider, StripeCustomer, StripeInvoice, StripePaymentResult, WebhookEvent } from './stripe-interface';
+import type {
+    StripeProvider,
+    StripeCustomer,
+    StripeInvoice,
+    StripePaymentResult,
+    WebhookEvent,
+    StripePortalSession,
+    StripeCreditNote,
+} from './stripe-interface';
 
 export class MockStripeProvider implements StripeProvider {
     private customers = new Map<string, StripeCustomer>();
@@ -32,6 +40,7 @@ export class MockStripeProvider implements StripeProvider {
     async createInvoice(params: {
         customerId: string;
         items: { description: string; quantity: number; unitAmount: number; total: number }[];
+        currency?: string;
         dueDate?: Date;
         metadata?: Record<string, string>;
     }): Promise<StripeInvoice> {
@@ -70,6 +79,27 @@ export class MockStripeProvider implements StripeProvider {
         return this.invoices.get(invoiceId) || null;
     }
 
+    async sendInvoice(invoiceId: string): Promise<StripeInvoice> {
+        const existing = this.invoices.get(invoiceId);
+        const invoice: StripeInvoice = existing
+            ? {
+                ...existing,
+                status: 'open',
+                hostedUrl: existing.hostedUrl || `https://billing.stripe.mock/invoices/${invoiceId}`,
+                pdfUrl: existing.pdfUrl || `https://billing.stripe.mock/invoices/${invoiceId}.pdf`,
+            }
+            : {
+                id: invoiceId,
+                customerId: 'cus_mock_unknown',
+                status: 'open',
+                total: 0,
+                hostedUrl: `https://billing.stripe.mock/invoices/${invoiceId}`,
+                pdfUrl: `https://billing.stripe.mock/invoices/${invoiceId}.pdf`,
+            };
+        this.invoices.set(invoiceId, invoice);
+        return invoice;
+    }
+
     async createPaymentIntent(params: {
         amount: number;
         currency: string;
@@ -86,10 +116,56 @@ export class MockStripeProvider implements StripeProvider {
         return result;
     }
 
-    async verifyWebhookSignature(_payload: string, _signature: string): Promise<WebhookEvent> {
+    async createCustomerPortalSession(params: {
+        customerId: string;
+        returnUrl: string;
+    }): Promise<StripePortalSession> {
         return {
-            type: 'invoice.paid',
-            data: { mock: true },
+            url: `https://billing.stripe.mock/portal/${params.customerId}?return=${encodeURIComponent(params.returnUrl)}`,
+        };
+    }
+
+    async createSetupIntent(params: {
+        customerId: string;
+        usage?: 'on_session' | 'off_session';
+        metadata?: Record<string, string>;
+    }): Promise<StripePaymentResult> {
+        const id = this.nextId('seti');
+        return {
+            id,
+            status: 'requires_payment_method',
+            clientSecret: `${id}_secret_mock`,
+        };
+    }
+
+    async createCreditNote(params: {
+        invoiceId: string;
+        amount: number;
+        reason?: string;
+        metadata?: Record<string, string>;
+    }): Promise<StripeCreditNote> {
+        return {
+            id: this.nextId('cn'),
+            status: 'issued',
+            amount: params.amount,
+        };
+    }
+
+    async verifyWebhookSignature(_payload: string, _signature: string): Promise<WebhookEvent> {
+        let payload: Record<string, unknown> = {};
+        try {
+            payload = JSON.parse(_payload || '{}');
+        } catch {
+            payload = {};
+        }
+
+        return {
+            id: String(payload.id || this.nextId('evt')),
+            livemode: Boolean(payload.livemode),
+            type: String(payload.type || 'invoice.paid'),
+            data: (payload.data && typeof payload.data === 'object'
+                ? (payload.data as { object?: Record<string, unknown> }).object
+                : undefined) || { mock: true },
         };
     }
 }
