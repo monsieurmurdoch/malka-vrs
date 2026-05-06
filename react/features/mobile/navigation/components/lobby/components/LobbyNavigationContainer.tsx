@@ -1,4 +1,4 @@
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, Theme } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import React from 'react';
 import { useSelector } from 'react-redux';
@@ -25,9 +25,7 @@ const LobbyNavigationContainer = () => {
         <NavigationContainer
             independent = { true }
             ref = { lobbyNavigationContainerRef }
-
-            // @ts-ignore
-            theme = { navigationContainerTheme }>
+            theme = { navigationContainerTheme as Theme }>
             <LobbyStack.Navigator
                 screenOptions = {{
                     presentation: 'modal'

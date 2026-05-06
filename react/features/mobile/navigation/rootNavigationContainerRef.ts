@@ -7,9 +7,10 @@ import { toState } from '../../base/redux/functions';
 import { isWelcomePageEnabled } from '../../welcome/functions';
 import { _sendReadyToClose } from '../external-api/functions';
 
-import { screen } from './routes';
+import { getMobileRootRoute } from './initialRoute';
+import type { RootRouteName, RootStackParamList } from './routes';
 
-export const rootNavigationRef = React.createRef<NavigationContainerRef<any>>();
+export const rootNavigationRef = React.createRef<NavigationContainerRef<RootStackParamList>>();
 
 
 /**
@@ -19,8 +20,18 @@ export const rootNavigationRef = React.createRef<NavigationContainerRef<any>>();
  * @param {Object} params - Params to pass to the destination route.
  * @returns {Function}
  */
-export function navigateRoot(name: string, params?: Object) {
-    return rootNavigationRef.current?.navigate(name, params);
+export function navigateRoot<RouteName extends RootRouteName>(name: RouteName, params?: RootStackParamList[RouteName]) {
+    const navigation = rootNavigationRef.current;
+
+    if (!navigation) {
+        return undefined;
+    }
+
+    const dynamicNavigation = navigation as unknown as {
+        navigate: (routeName: string, routeParams?: Record<string, unknown>) => void;
+    };
+
+    return dynamicNavigation.navigate(name, params as Record<string, unknown> | undefined);
 }
 
 /**
@@ -43,7 +54,7 @@ export function goBackToRoot(stateful: IStateful, dispatch: IStore['dispatch']) 
     const state = toState(stateful);
 
     if (isWelcomePageEnabled(state)) {
-        navigateRoot(screen.welcome.main);
+        navigateRoot(getMobileRootRoute());
     } else {
         // For JitsiSDK, WelcomePage is not available
         _sendReadyToClose(dispatch);

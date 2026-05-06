@@ -63,6 +63,18 @@ jobs:
         cache: 'npm'
     - run: npm install
     - run: npx react-native bundle --entry-file react/index.native.js --platform android --bundle-output /tmp/android.bundle --reset-cache
+  mobile-typecheck:
+    name: TypeScript (web + native)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/setup-node@v6
+      with:
+        node-version: 18
+        cache: 'npm'
+    - run: npm install
+    - run: npm run tsc:web
+    - run: npm run tsc:native
   ios-build:
     name: Build mobile bundle (iOS)
     runs-on: macOS-latest
@@ -114,6 +126,7 @@ jobs:
       working-directory: vrs-server
     - run: npm run build
       working-directory: vrs-server
+    - run: npm run check:vrs-dist-sync
     - run: npm test -- --runInBand --forceExit
       working-directory: vrs-server
   ops-server:

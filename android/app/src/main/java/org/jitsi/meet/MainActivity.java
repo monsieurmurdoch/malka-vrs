@@ -132,6 +132,9 @@ public class MainActivity extends JitsiMeetActivity {
             new IntentFilter(Intent.ACTION_APPLICATION_RESTRICTIONS_CHANGED));
 
         resolveRestrictions();
+        if (defaultURL == null || defaultURL.trim().isEmpty()) {
+            defaultURL = BuildConfig.VRS_DEFAULT_URL;
+        }
         setJitsiMeetConferenceDefaultOptions();
         super.initialize();
     }

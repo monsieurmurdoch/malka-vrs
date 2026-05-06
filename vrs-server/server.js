@@ -116,6 +116,8 @@ const DEFAULT_CORS_ORIGINS = [
     'https://vrs.malkacomm.com',
     'http://vri.malkacomm.com',
     'https://vri.malkacomm.com',
+    'http://ai.malkacomm.com',
+    'https://ai.malkacomm.com',
     'http://app.malkacomm.com',
     'https://app.malkacomm.com',
     'http://www.malkavrs.com',
@@ -222,8 +224,9 @@ app.use((req, res, next) => {
         return next();
     }
 
+    const host = String(req.headers.host || '').split(':')[0].toLowerCase();
     const filePath = req.path === '/'
-        ? path.join(staticRoot, 'index.html')
+        ? path.join(staticRoot, host === 'ai.malkacomm.com' ? 'asl-ai.html' : 'index.html')
         : path.join(staticRoot, req.path);
 
     if (!filePath.startsWith(staticRoot)) {

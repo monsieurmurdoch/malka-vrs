@@ -60,10 +60,20 @@ export interface WhitelabelConfig {
     theme: WhitelabelTheme;
     features: WhitelabelFeatures;
     assets: WhitelabelAssets;
+    operations?: {
+        appType?: string;
+        defaultServiceModes?: string[];
+        [key: string]: unknown;
+    };
 }
 
 declare global {
     interface Window {
         __WHITELABEL__?: WhitelabelConfig;
     }
+
+    // Native builds may inject tenant config outside a browser window.
+    // Keep the surface typed so shared helpers do not need broad `any` casts.
+    // eslint-disable-next-line no-var
+    var __WHITELABEL__: WhitelabelConfig | undefined;
 }

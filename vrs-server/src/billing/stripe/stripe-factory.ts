@@ -2,7 +2,8 @@
  * Stripe Factory
  *
  * Creates the appropriate Stripe provider based on configuration.
- * Returns MockStripeProvider for development, LiveStripeProvider for production.
+ * Returns MockStripeProvider for development, LiveStripeProvider for Stripe
+ * test/live modes.
  */
 
 import { loadBillingConfig } from '../config';
@@ -17,7 +18,7 @@ export function createStripeProvider(): StripeProvider {
 
     const config = loadBillingConfig();
 
-    if (config.stripe.mode === 'live' && config.stripe.secretKey) {
+    if ((config.stripe.mode === 'live' || config.stripe.mode === 'test') && config.stripe.secretKey) {
         instance = new LiveStripeProvider(config.stripe.secretKey);
     } else {
         instance = new MockStripeProvider();

@@ -8,11 +8,27 @@
 const express = require('express');
 const { verifyJwtToken, normalizeAuthClaims } = require('../lib/auth');
 const log = require('../lib/logger').module('voicemail');
+const { validate, z, phoneNumberSchema, roomNameSchema, nonNegativeIntSchema, emptyBodySchema } = require('../lib/validation');
 
 const router = express.Router();
 
 // Voicemail service — set via setVoicemailService()
 let voicemailService = null;
+
+const voicemailStartSchema = z.object({
+    calleePhone: phoneNumberSchema.optional()
+});
+
+const jibriCallbackSchema = z.object({
+    roomName: roomNameSchema,
+    storageKey: z.string().min(1).max(1000),
+    thumbnailKey: z.string().max(1000).optional(),
+    fileSizeBytes: nonNegativeIntSchema.optional(),
+    durationSeconds: nonNegativeIntSchema.optional(),
+    contentType: z.string().max(120).optional(),
+    compressed: z.boolean().optional(),
+    originalStorageKey: z.string().max(1000).optional()
+});
 
 function setVoicemailService(service) {
     voicemailService = service;
@@ -141,7 +157,7 @@ router.delete('/messages/:id', authenticateClient, ensureService, async (req, re
  * POST /api/voicemail/messages/:id/seen
  * Mark a voicemail message as seen.
  */
-router.post('/messages/:id/seen', authenticateClient, ensureService, async (req, res) => {
+router.post('/messages/:id/seen', authenticateClient, ensureService, validate(emptyBodySchema), async (req, res) => {
     try {
         await voicemailService.markMessageSeen(req.params.id, req.user.id);
         res.json({ success: true });
@@ -156,7 +172,7 @@ router.post('/messages/:id/seen', authenticateClient, ensureService, async (req,
  * Start a new voicemail recording session.
  * Body: { calleePhone: string }
  */
-router.post('/start', authenticateClient, ensureService, async (req, res) => {
+router.post('/start', authenticateClient, ensureService, validate(voicemailStartSchema), async (req, res) => {
     try {
         const { calleePhone } = req.body;
 
@@ -190,7 +206,7 @@ router.post('/start', authenticateClient, ensureService, async (req, res) => {
  * POST /api/voicemail/cancel/:id
  * Cancel an active voicemail recording.
  */
-router.post('/cancel/:id', authenticateClient, ensureService, async (req, res) => {
+router.post('/cancel/:id', authenticateClient, ensureService, validate(emptyBodySchema), async (req, res) => {
     try {
         await voicemailService.cancelRecording(req.params.id, req.user.id);
         res.json({ success: true });
@@ -214,13 +230,18 @@ router.post('/cancel/:id', authenticateClient, ensureService, async (req, res) =
  *
  * Body: { roomName, storageKey, fileSizeBytes, durationSeconds, contentType }
  */
-router.post('/jibri-callback', authenticateJibri, ensureService, async (req, res) => {
+router.post('/jibri-callback', authenticateJibri, ensureService, validate(jibriCallbackSchema), async (req, res) => {
     try {
-        const { roomName, storageKey, fileSizeBytes, durationSeconds } = req.body;
-
-        if (!roomName || !storageKey) {
-            return res.status(400).json({ error: 'Missing roomName or storageKey' });
-        }
+        const {
+            roomName,
+            storageKey,
+            thumbnailKey,
+            fileSizeBytes,
+            durationSeconds,
+            contentType,
+            compressed,
+            originalStorageKey
+        } = req.body;
 
         // Find the voicemail message by room name
         const db = require('../database');
@@ -233,7 +254,13 @@ router.post('/jibri-callback', authenticateJibri, ensureService, async (req, res
             message.id,
             storageKey,
             parseInt(String(durationSeconds)) || 0,
-            parseInt(String(fileSizeBytes)) || 0
+            parseInt(String(fileSizeBytes)) || 0,
+            {
+                contentType,
+                thumbnailKey,
+                compressed: Boolean(compressed),
+                originalStorageKey
+            }
         );
 
         res.json({ success: true });

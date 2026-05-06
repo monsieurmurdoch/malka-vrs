@@ -95,13 +95,6 @@
         .join-room-btn:focus-visible,
         .call-back-btn:focus-visible,
         .add-speed-dial-btn:focus-visible,
-        .auth-tab:focus-visible,
-        .auth-field:focus-visible,
-        .auth-password-toggle:focus-visible,
-        .vri-invite-input:focus-visible,
-        .contact-search:focus-visible,
-        summary:focus-visible,
-        [role="button"]:focus-visible,
         .contact-card:focus-visible,
         .speed-dial-card:focus-visible {
             outline: 3px solid #ffd166;
@@ -223,6 +216,39 @@
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 18px;
+        }
+
+        .desktop-download-card {
+            align-items: center;
+            display: grid;
+            gap: 16px;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+        }
+
+        .desktop-download-icon {
+            background: #fff;
+            border-radius: 14px;
+            height: 54px;
+            object-fit: contain;
+            padding: 8px;
+            width: 54px;
+        }
+
+        .desktop-download-title {
+            font-size: 18px;
+            font-weight: 900;
+        }
+
+        .desktop-download-copy {
+            color: rgba(255,255,255,0.64);
+            font-size: 13px;
+            line-height: 1.35;
+            margin-top: 4px;
+        }
+
+        body.theme-light .desktop-download-copy,
+        body.theme-maple .desktop-download-copy {
+            color: rgba(17,17,17,0.62);
         }
 
         .profile-sections {
@@ -587,9 +613,10 @@
             background: rgba(0,0,0,0.16);
             border-radius: 8px;
             font-size: 13px;
-            overflow-wrap: anywhere;
+            overflow: hidden;
             padding: 10px 12px;
-            white-space: normal;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .vri-invite-status {
@@ -1361,7 +1388,7 @@
         }
 
         body:not(.theme-maple):not(.theme-light) {
-            background: linear-gradient(135deg, #071424 0%, #102c48 52%, #17202f 100%);
+            background: linear-gradient(135deg, #05063c 0%, #0d1a38 54%, #000000 100%);
             color: #fff;
         }
 
@@ -1381,20 +1408,20 @@
         body:not(.theme-maple):not(.theme-light) .settings-btn,
         body:not(.theme-maple):not(.theme-light) .dialer-btn {
             background: #fff;
-            color: #102c48;
+            color: #0d1a38;
         }
 
         body:not(.theme-maple):not(.theme-light) .start-call-btn:hover,
         body:not(.theme-maple):not(.theme-light) .settings-btn:hover,
         body:not(.theme-maple):not(.theme-light) .dialer-btn:hover {
-            background: #f6f8fb;
+            background: #fff7f1;
             box-shadow: 0 4px 16px rgba(255,255,255,0.22);
         }
 
         body:not(.theme-maple):not(.theme-light) .vrs-number,
         body:not(.theme-maple):not(.theme-light) .call-duration,
         body:not(.theme-maple):not(.theme-light) .auth-link {
-            color: #3aa5b4;
+            color: #f47d22;
         }
 
         body:not(.theme-maple):not(.theme-light) .settings-input:focus,
@@ -1402,26 +1429,26 @@
         body:not(.theme-maple):not(.theme-light) .settings-textarea:focus,
         body:not(.theme-maple):not(.theme-light) .dialer-input:focus,
         body:not(.theme-maple):not(.theme-light) .auth-field:focus {
-            border-color: #3aa5b4;
+            border-color: #f47d22;
         }
 
         body.theme-light:not(.theme-maple) {
-            background: #f6f8fb;
-            color: #17202f;
+            background: #f7f8fb;
+            color: #0d1a38;
         }
 
         body.theme-light:not(.theme-maple) .profile-header {
             background: rgba(255,255,255,0.92);
-            border-bottom-color: #dbe1ea;
-            color: #17202f;
+            border-bottom-color: rgba(13,26,56,0.14);
+            color: #0d1a38;
         }
 
         body.theme-light:not(.theme-maple) .card,
         body.theme-light:not(.theme-maple) .section-card {
             background: #fff;
-            border-color: #dbe1ea;
+            border-color: rgba(13,26,56,0.14);
             box-shadow: 0 24px 70px rgba(23,32,47,0.1);
-            color: #17202f;
+            color: #0d1a38;
         }
 
         body.theme-light:not(.theme-maple) .card-title,
@@ -1430,21 +1457,21 @@
         body.theme-light:not(.theme-maple) .empty-state,
         body.theme-light:not(.theme-maple) .settings-label,
         body.theme-light:not(.theme-maple) .settings-toggle {
-            color: #17202f;
+            color: #0d1a38;
         }
 
         body.theme-light:not(.theme-maple) .start-call-btn,
         body.theme-light:not(.theme-maple) .settings-btn,
         body.theme-light:not(.theme-maple) .dialer-btn {
-            background: #102c48;
+            background: #0d1a38;
             color: #fff;
         }
 
         body.theme-light:not(.theme-maple) .start-call-btn:hover,
         body.theme-light:not(.theme-maple) .settings-btn:hover,
         body.theme-light:not(.theme-maple) .dialer-btn:hover {
-            background: #1d4f78;
-            box-shadow: 0 4px 16px rgba(29,79,120,0.22);
+            background: #16164c;
+            box-shadow: 0 4px 16px rgba(13,26,56,0.22);
         }
 
         body.theme-light:not(.theme-maple) .quick-action-btn,
@@ -1452,21 +1479,21 @@
         body.theme-light:not(.theme-maple) .profile-nav-btn,
         body.theme-light:not(.theme-maple) .sign-out-btn {
             background: #fff;
-            border-color: #dbe1ea;
-            color: #102c48;
+            border-color: rgba(13,26,56,0.14);
+            color: #0d1a38;
         }
 
         body.theme-light:not(.theme-maple) .quick-action-btn:hover,
         body.theme-light:not(.theme-maple) .settings-btn.secondary:hover,
         body.theme-light:not(.theme-maple) .profile-nav-btn:hover,
         body.theme-light:not(.theme-maple) .sign-out-btn:hover {
-            border-color: #1d4f78;
+            border-color: #f47d22;
         }
 
         body.theme-light:not(.theme-maple) .vrs-number,
         body.theme-light:not(.theme-maple) .call-duration,
         body.theme-light:not(.theme-maple) .auth-link {
-            color: #1d4f78;
+            color: #e97a00;
         }
 
         body.theme-light:not(.theme-maple) .settings-input,
@@ -1476,8 +1503,8 @@
         body.theme-light:not(.theme-maple) .dialer-input,
         body.theme-light:not(.theme-maple) .contact-search {
             background: #fff;
-            border-color: #dbe1ea;
-            color: #17202f;
+            border-color: rgba(13,26,56,0.14);
+            color: #0d1a38;
         }
 
         .settings-grid {
@@ -1496,6 +1523,12 @@
             opacity: 0.62;
             text-transform: uppercase;
             letter-spacing: 0.04em;
+        }
+
+        .settings-help {
+            font-size: 12px;
+            line-height: 1.35;
+            opacity: 0.58;
         }
 
         .settings-input,
@@ -1836,49 +1869,7 @@
             opacity: 0.3;
         }
 
-        .dialer-input:focus-visible,
-        .inline-form input:focus-visible,
-        .settings-input:focus-visible,
-        .settings-select:focus-visible,
-        .settings-textarea:focus-visible,
-        .auth-field:focus-visible,
-        .contact-search:focus-visible {
-            outline: 3px solid #ffd166;
-            outline-offset: 3px;
-        }
-
         /* Responsive */
-        @media (max-width: 1024px) {
-            .profile-main {
-                max-width: 920px;
-            }
-
-            .profile-hero:not(.vrs-home-hero),
-            .vrs-home-lower {
-                grid-template-columns: 1fr;
-            }
-
-            .vrs-action-strip {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-
-            .vrs-action-strip .dialer-row {
-                grid-column: 1 / -1;
-            }
-
-            .vri-action-row {
-                grid-template-columns: 1fr;
-            }
-
-            .vri-invite-form {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-
-            .vri-invite-form .settings-btn {
-                grid-column: 1 / -1;
-            }
-        }
-
         @media (max-width: 768px) {
             .profile-main {
                 padding: 16px;
@@ -1887,6 +1878,7 @@
             .profile-hero,
             .profile-sections,
             .profile-alert-grid,
+            .desktop-download-card,
             .vrs-home-lower,
             .vri-console-shell,
             .vri-lower-grid,
@@ -1946,49 +1938,6 @@
             }
 
             .overlay-caller-name { font-size: 24px; }
-        }
-
-        @media (max-width: 520px) {
-            .profile-main {
-                padding: 12px;
-            }
-
-            .card,
-            .section-body,
-            .auth-card {
-                padding: 16px;
-            }
-
-            .self-preview-frame,
-            .vrs-self-hero-card .self-preview-frame,
-            .vri-self-card .self-preview-frame {
-                min-height: clamp(260px, 48vh, 420px);
-            }
-
-            .vri-invite-form,
-            .vri-invite-item,
-            .dialer-row {
-                grid-template-columns: 1fr;
-            }
-
-            .inline-form-actions,
-            .self-preview-actions,
-            .settings-actions {
-                flex-direction: column;
-            }
-
-            .dialer-btn,
-            .settings-btn,
-            .quick-action-btn,
-            .start-call-btn,
-            .auth-submit {
-                width: 100%;
-            }
-
-            .auth-page {
-                align-items: flex-start;
-                padding: 12px;
-            }
         }
     </style>
 </head>
@@ -2404,7 +2353,11 @@
 
         function updateMediaDevicePreference(kind, deviceId) {
             const key = kind === 'camera' ? 'vrs_camera_device_id' : 'vrs_microphone_device_id';
+            const labelKey = kind === 'camera' ? 'vrs_camera_device_label' : 'vrs_microphone_device_label';
+            const devices = kind === 'camera' ? state.mediaDevices.cameras : state.mediaDevices.microphones;
+            const selected = (devices || []).find(device => device.deviceId === deviceId);
             setPersistentItem(key, deviceId || '');
+            setPersistentItem(labelKey, selected?.label || '');
             state.mediaDevices = {
                 ...state.mediaDevices,
                 selectedCameraId: kind === 'camera' ? (deviceId || '') : state.mediaDevices.selectedCameraId,
@@ -2923,6 +2876,17 @@
             render();
         };
 
+        window.__copyVrsNumber = async function(number) {
+            if (!number) return;
+            try {
+                await navigator.clipboard.writeText(number);
+                state.queueStatus = { type: 'success', message: 'VRS number copied.' };
+            } catch (e) {
+                state.queueStatus = { type: 'success', message: number };
+            }
+            render();
+        };
+
         /** Cancel the current queue request. */
         window.__cancelQueueRequest = function() {
             if (!state.queueRequest || !state.queueRequest.requestId) {
@@ -2944,10 +2908,27 @@
         // ============================================
 
         /** Flow 1: enter hearing person's number → request interpreter → waiting overlay → auto-join. */
-        window.__dialViaInterpreter = function() {
+        async function resolveCallableTarget(value) {
+            const raw = String(value || '').trim();
+            if (!raw.startsWith('@')) return raw;
+            const lookup = await apiFetch('/api/client/lookup-handle?handle=' + encodeURIComponent(raw));
+            if (!lookup?.found || !lookup.phone) {
+                throw new Error('No public VRS handle found.');
+            }
+            return lookup.phone;
+        }
+
+        window.__dialViaInterpreter = async function() {
             const input = document.getElementById('dial-phone');
             if (!input) return;
-            const phone = input.value.trim();
+            let phone;
+            try {
+                phone = await resolveCallableTarget(input.value);
+            } catch (error) {
+                state.contactStatus = { type: 'error', message: error.message || 'Handle lookup failed.' };
+                render();
+                return;
+            }
             if (!phone) return;
 
             const user = getUser();
@@ -2965,10 +2946,17 @@
             renderOverlays();
         };
 
-        window.__p2pDial = function() {
+        window.__p2pDial = async function() {
             const input = document.getElementById('dial-phone');
             if (!input) return;
-            const phone = input.value.trim();
+            let phone;
+            try {
+                phone = await resolveCallableTarget(input.value);
+            } catch (error) {
+                state.contactStatus = { type: 'error', message: error.message || 'Handle lookup failed.' };
+                render();
+                return;
+            }
             if (!phone) return;
 
             wsSend({
@@ -3092,6 +3080,11 @@
             return value ? 'checked' : '';
         }
 
+        function primaryHandle(profile) {
+            const handles = Array.isArray(profile?.handles) ? profile.handles : [];
+            return handles.find(handle => handle.is_primary) || handles[0] || null;
+        }
+
         function callDurationMinutes(call) {
             const duration = Number(call?.duration_minutes || call?.durationMinutes || 0);
             return Number.isFinite(duration) ? duration : 0;
@@ -3121,6 +3114,19 @@
                     data-contact-phone="${escapeHtml(phone)}">
                     Add Contact
                 </button>
+            `;
+        }
+
+        function renderDesktopDownloadCard() {
+            return `
+                <div class="card desktop-download-card">
+                    <img class="desktop-download-icon" src="/images/apple-touch-icon.png" alt="" aria-hidden="true">
+                    <div>
+                        <div class="desktop-download-title">MalkaVRS Desktop</div>
+                        <div class="desktop-download-copy">Use the desktop client for a large flashing incoming-call alert while keeping the same web account.</div>
+                    </div>
+                    <a class="settings-btn" href="/downloads/malkavrs-desktop.html" target="_blank" rel="noopener">Download</a>
+                </div>
             `;
         }
 
@@ -3209,6 +3215,9 @@
         }
 
         function renderClientSettingsSection(profile, user, preferences, open) {
+            const handle = primaryHandle(profile);
+            const primaryPhone = profile?.phoneNumbers?.find(phone => phone.is_primary) || profile?.phoneNumbers?.[0] || null;
+
             return `
                 <details class="card section-card" id="profile-settings-section" ${open ? 'open' : ''}>
                     <summary>Settings</summary>
@@ -3228,6 +3237,24 @@
                                     <label class="settings-label" for="settings-organization">Organization</label>
                                     <input id="settings-organization" class="settings-input" type="text" value="${escapeHtml(profile?.organization || '')}">
                                 </div>
+                                ${primaryPhone ? `
+                                    <div class="settings-row">
+                                        <label class="settings-label" for="settings-vrs-phone">Registered VRS Number</label>
+                                        <input id="settings-vrs-phone" class="settings-input" type="text" value="${escapeHtml(primaryPhone.phone_number || '')}" readonly>
+                                    </div>
+                                    <div class="settings-row">
+                                        <label class="settings-label" for="settings-handle">VRS Handle</label>
+                                        <input id="settings-handle" class="settings-input" type="text" placeholder="@yourname" value="${escapeHtml(handle ? '@' + handle.handle : '')}">
+                                        <div class="settings-help">Discovery only. Calls still route through the registered VRS number above.</div>
+                                    </div>
+                                    <div class="settings-row">
+                                        <label class="settings-label" for="settings-handle-visibility">Handle Visibility</label>
+                                        <select id="settings-handle-visibility" class="settings-select">
+                                            <option value="public" ${!handle || handle.visibility === 'public' ? 'selected' : ''}>Public discovery</option>
+                                            <option value="private" ${handle?.visibility === 'private' ? 'selected' : ''}>Private</option>
+                                        </select>
+                                    </div>
+                                ` : ''}
                                 <div class="settings-actions">
                                     <button class="settings-btn" data-action="save-client-profile">Save Profile</button>
                                 </div>
@@ -3299,6 +3326,26 @@
                         </div>
                     </div>
                 </details>
+            `;
+        }
+
+        function renderVrsNumberCard(profile) {
+            const primaryPhone = profile?.phoneNumbers?.find(phone => phone.is_primary) || profile?.phoneNumbers?.[0] || null;
+            const number = primaryPhone?.phone_number || primaryPhone?.phoneNumber || '';
+
+            return `
+                <div class="card vrs-number-card" aria-label="Registered VRS number">
+                    <div class="card-title">Your VRS Number</div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                        <div>
+                            <div style="font-size:24px;font-weight:900;letter-spacing:0;color:var(--text-primary);">${escapeHtml(number || 'Not assigned yet')}</div>
+                            <div style="margin-top:4px;color:var(--text-secondary);font-size:13px;">
+                                Give this number to hearing callers. To place a VRS call, enter the hearing party's number or handle below.
+                            </div>
+                        </div>
+                        ${number ? `<button class="settings-btn secondary" data-action="copy-vrs-number" data-number="${escapeHtml(number)}">Copy</button>` : ''}
+                    </div>
+                </div>
             `;
         }
 
@@ -3402,9 +3449,9 @@
                         <p class="vri-session-copy">Prepare guest links now. Guests wait until the interpreter-connected room is live.</p>
                     </div>
                     <div class="vri-invite-form">
-                        <input class="vri-invite-input" data-change-action="vri-invite-field" data-field="guestName" value="${escapeHtml(form.guestName || '')}" placeholder="Guest name" aria-label="Guest name">
-                        <input class="vri-invite-input" data-change-action="vri-invite-field" data-field="guestEmail" value="${escapeHtml(form.guestEmail || '')}" placeholder="Email" aria-label="Guest email">
-                        <input class="vri-invite-input" data-change-action="vri-invite-field" data-field="guestPhone" value="${escapeHtml(form.guestPhone || '')}" placeholder="Phone" aria-label="Guest phone">
+                        <input class="vri-invite-input" data-change-action="vri-invite-field" data-field="guestName" value="${escapeHtml(form.guestName || '')}" placeholder="Guest name">
+                        <input class="vri-invite-input" data-change-action="vri-invite-field" data-field="guestEmail" value="${escapeHtml(form.guestEmail || '')}" placeholder="Email">
+                        <input class="vri-invite-input" data-change-action="vri-invite-field" data-field="guestPhone" value="${escapeHtml(form.guestPhone || '')}" placeholder="Phone">
                         <button class="settings-btn" data-action="prepare-vri-invite">Add Link</button>
                     </div>
                     ${state.vriInviteStatus ? `<div class="vri-invite-status">${escapeHtml(state.vriInviteStatus)}</div>` : ''}
@@ -3434,7 +3481,7 @@
             const connectionLabel = state.wsConnected ? 'Ready' : 'Connecting';
             const profileView = ['settings', 'usage'].includes(state.profileView) ? state.profileView : 'home';
             const navButton = (view, label) => `
-                <button class="profile-nav-btn ${profileView === view ? 'active' : ''}" data-action="set-profile-view" data-view="${view}"${profileView === view ? ' aria-current="page"' : ''}>${label}</button>
+                <button class="profile-nav-btn ${profileView === view ? 'active' : ''}" data-action="set-profile-view" data-view="${view}">${label}</button>
             `;
             const header = title => `
                 <div class="profile-header">
@@ -3528,12 +3575,13 @@
                 case 'vri-invite-field': return window.__vriInviteField(element.dataset.field, element.value);
                 case 'prepare-vri-invite': return window.__prepareVriInvite();
                 case 'copy-vri-invite': return window.__copyVriInvite(Number(element.dataset.index || 0));
+                case 'copy-vrs-number': return window.__copyVrsNumber(element.dataset.number || '');
                 case 'search-contacts': return window.__searchContacts(document.getElementById('contact-search')?.value || '');
+                case 'add-handle-contact': return window.__addHandleContact();
                 case 'sync-contacts': return window.__syncContacts();
                 case 'import-device-contacts': return window.__importDeviceContacts();
                 case 'connect-google-contacts': return window.__connectGoogleContacts();
                 case 'migrate-speed-dial': return window.__migrateSpeedDial();
-                case 'open-contact-file-picker': return document.getElementById('contacts-csv-input')?.click();
                 case 'import-contacts-file': return window.__importContactsFile(element.files && element.files[0]);
                 case 'open-contact': return window.__openContact(element.dataset.contactId);
                 case 'close-contact': return window.__closeContact();
@@ -3602,21 +3650,11 @@
         });
 
         document.addEventListener('keydown', function(event) {
-            const isActivationKey = event.key === 'Enter' || event.key === ' ';
-            if (!isActivationKey) return;
-
+            if (event.key !== 'Enter') return;
             const actionElement = event.target.closest('[data-enter-action]');
-            if (event.key === 'Enter' && actionElement && document.body.contains(actionElement)) {
-                event.preventDefault();
-                dispatchUiAction(actionElement.dataset.enterAction, actionElement, event);
-                return;
-            }
-
-            const roleButton = event.target.closest('[role="button"][data-action], .speed-dial-card[data-action]');
-            if (!roleButton || !document.body.contains(roleButton)) return;
-            if (/^(BUTTON|A|INPUT|SELECT|TEXTAREA)$/.test(event.target.tagName)) return;
+            if (!actionElement || !document.body.contains(actionElement)) return;
             event.preventDefault();
-            dispatchUiAction(roleButton.dataset.action, roleButton, event);
+            dispatchUiAction(actionElement.dataset.enterAction, actionElement, event);
         });
 
         function initials(name) {
@@ -3660,21 +3698,24 @@
                             value="${escapeHtml(state.contactSearch || '')}"
                             data-enter-action="search-contacts">
                         <button class="settings-btn secondary" data-action="search-contacts">Search</button>
+                        ${String(state.contactSearch || '').trim().startsWith('@') ? '<button class="settings-btn" data-action="add-handle-contact">Add Handle</button>' : ''}
                     </div>
                     <div class="contacts-toolbar">
                         <button class="settings-btn secondary" data-action="import-device-contacts">Phone Contacts</button>
                         <button class="settings-btn secondary" data-action="connect-google-contacts">Google Contacts</button>
-                        <button class="settings-btn secondary" data-action="open-contact-file-picker">Import CSV</button>
-                        <input id="contacts-csv-input" type="file" accept=".csv,text/csv" style="display:none" data-change-action="import-contacts-file">
+                        <label class="settings-btn secondary" style="display:inline-flex;align-items:center;gap:6px">
+                            Import CSV
+                            <input type="file" accept=".csv,text/csv" style="display:none" data-change-action="import-contacts-file">
+                        </label>
                     </div>
                     ${state.contactStatus ? `<div class="settings-status ${state.contactStatus.type}">${escapeHtml(state.contactStatus.message)}</div>` : ''}
 
                     ${contacts.length > 0 ? contacts.map(contact => `
-                        <div class="contact-card" role="button" tabindex="0" aria-label="Open contact ${escapeHtml(contact.name)}" data-action="open-contact" data-contact-id="${escapeHtml(contact.id)}">
+                        <div class="contact-card" data-action="open-contact" data-contact-id="${escapeHtml(contact.id)}">
                             <div class="contact-avatar" style="${contact.avatar_color ? `background:${escapeHtml(contact.avatar_color)}` : ''}">${escapeHtml(initials(contact.name))}</div>
                             <div class="contact-main">
                                 <div class="contact-name">${escapeHtml(contact.name)}</div>
-                                <div class="contact-meta">${escapeHtml([contact.phone_number, contact.email, contact.organization].filter(Boolean).join(' · ') || 'No contact details')}</div>
+                                <div class="contact-meta">${escapeHtml([contact.contact_handle ? '@' + contact.contact_handle : '', contact.phone_number, contact.email, contact.organization].filter(Boolean).join(' · ') || 'No contact details')}</div>
                             </div>
                         </div>
                     `).join('') : '<div class="empty-state">No contacts yet. Import contacts or add speed dial entries.</div>'}
@@ -3684,7 +3725,7 @@
                             <div class="contact-detail-header">
                                 <div>
                                     <div class="contact-detail-title">${escapeHtml(detail.name)}</div>
-                                    <div class="contact-detail-subtitle">${escapeHtml([detail.phone_number, detail.email, detail.organization].filter(Boolean).join(' · '))}</div>
+                                    <div class="contact-detail-subtitle">${escapeHtml([detail.contact_handle ? '@' + detail.contact_handle : '', detail.phone_number, detail.email, detail.organization].filter(Boolean).join(' · '))}</div>
                                 </div>
                                 <button class="settings-btn secondary" data-action="close-contact">Close</button>
                             </div>
@@ -3768,10 +3809,10 @@
                         <div class="auth-title">Sign In</div>
                         <div class="auth-subtitle">Access your ${SERVICE_LABEL} account</div>
 
-                        <div class="auth-tabs" role="tablist" aria-label="Sign-in method">
-                            <button class="auth-tab ${tab === 'email' ? 'active' : ''}" role="tab" aria-selected="${tab === 'email'}" data-action="set-auth-tab" data-tab="email">Email</button>
-                            <button class="auth-tab ${tab === 'phone' ? 'active' : ''}" role="tab" aria-selected="${tab === 'phone'}" data-action="set-auth-tab" data-tab="phone">Phone</button>
-                            <button class="auth-tab ${tab === 'sms' ? 'active' : ''}" role="tab" aria-selected="${tab === 'sms'}" data-action="set-auth-tab" data-tab="sms">SMS Code</button>
+                        <div class="auth-tabs">
+                            <button class="auth-tab ${tab === 'email' ? 'active' : ''}" data-action="set-auth-tab" data-tab="email">Email</button>
+                            <button class="auth-tab ${tab === 'phone' ? 'active' : ''}" data-action="set-auth-tab" data-tab="phone">Phone</button>
+                            <button class="auth-tab ${tab === 'sms' ? 'active' : ''}" data-action="set-auth-tab" data-tab="sms">SMS Code</button>
                         </div>
 
                         ${state.authError ? '<div class="auth-error">' + state.authError + '</div>' : ''}
@@ -4266,7 +4307,7 @@
                             ${canUseVrs ? '<button class="quick-action-btn" data-action="open-tts-panel">Text-to-Speech Panel</button>' : ''}
                             <div class="dialer-row">
                                 ${canUseVrs ? `
-                                    <input type="tel" id="dial-phone" class="dialer-input" placeholder="+1-555-XXXX"
+                                    <input type="text" id="dial-phone" class="dialer-input" placeholder="+1-555-XXXX or @handle"
                                         data-enter-action="dial-via-interpreter">
                                     <button class="dialer-btn" data-action="dial-via-interpreter">Call via Interpreter</button>
                                 ` : `
@@ -4276,7 +4317,10 @@
                         </div>
 
                         <div class="vrs-home-lower">
-                            ${renderContactsPanel()}
+                            <div class="profile-stack">
+                                ${renderVrsNumberCard(profile)}
+                                ${renderContactsPanel()}
+                            </div>
 
                             <div class="profile-stack">
                             ${(activeRooms.length > 0 || missed.length > 0) ? `
@@ -4315,7 +4359,8 @@
                                     ` : ''}
                                 </div>
                             ` : ''}
-                            ${renderCallHistorySection(calls, true)}
+                            ${renderCallHistorySection(calls, false)}
+                            ${canUseVrs ? renderDesktopDownloadCard() : ''}
                             </div>
                         </div>
                     </div>
@@ -4341,7 +4386,7 @@
                                     ${speedDial.length > 0 ? `
                                         <div class="speed-dial-grid">
                                             ${speedDial.map(entry => `
-                                                <div class="speed-dial-card" tabindex="0" aria-label="Call ${escapeHtml(entry.name)}" data-action="call-contact" data-phone="${escapeHtml(entry.phone_number)}">
+                                                <div class="speed-dial-card" data-action="call-contact" data-phone="${escapeHtml(entry.phone_number)}">
                                                     <div class="speed-dial-actions">
                                                         <button data-action="edit-entry" data-entry-id="${escapeHtml(entry.id)}">Edit</button>
                                                         <button data-action="delete-entry" data-entry-id="${escapeHtml(entry.id)}">Del</button>
@@ -4418,6 +4463,23 @@
                     throw new Error(data.error || 'Profile update failed');
                 }
                 state.profile = data;
+                const handleInput = document.getElementById('settings-handle')?.value?.trim() || '';
+                if (handleInput) {
+                    const handleResponse = await fetch(API_BASE + '/api/client/handles/primary', {
+                        method: 'PUT',
+                        headers: authHeaders(),
+                        body: JSON.stringify({
+                            handle: handleInput,
+                            phoneNumberId: data.phoneNumbers?.find(phone => phone.is_primary)?.id || data.phoneNumbers?.[0]?.id,
+                            visibility: document.getElementById('settings-handle-visibility')?.value || 'public'
+                        })
+                    });
+                    const handleData = await handleResponse.json().catch(() => ({}));
+                    if (!handleResponse.ok) {
+                        throw new Error(handleData.error || 'Handle update failed');
+                    }
+                    state.profile.handles = handleData.handle ? [handleData.handle] : state.profile.handles;
+                }
                 const user = getUser() || {};
                 setPersistentItem('vrs_user_info', JSON.stringify({
                     ...user,
@@ -4562,6 +4624,41 @@
         window.__searchContacts = async function(search) {
             state.contactSearch = search || '';
             await loadContacts();
+            render();
+        };
+
+        window.__addHandleContact = async function() {
+            const handle = String(state.contactSearch || document.getElementById('contact-search')?.value || '').trim();
+            if (!handle.startsWith('@')) {
+                state.contactStatus = { type: 'error', message: 'Enter a handle like @name first.' };
+                render();
+                return;
+            }
+
+            try {
+                const lookup = await apiFetch('/api/client/lookup-handle?handle=' + encodeURIComponent(handle));
+                if (!lookup?.found || !lookup.phone) {
+                    state.contactStatus = { type: 'error', message: 'No public VRS handle found.' };
+                    render();
+                    return;
+                }
+
+                await apiFetch('/api/contacts', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        name: lookup.name || handle,
+                        phoneNumber: lookup.phone,
+                        contactHandle: lookup.handle,
+                        linkedClientId: lookup.id,
+                        notes: 'Added by VRS handle.'
+                    })
+                });
+                state.contactStatus = { type: 'success', message: `${handle} was added to contacts.` };
+                state.contactSearch = '';
+                await loadContacts();
+            } catch (error) {
+                state.contactStatus = { type: 'error', message: error.message || 'Failed to add handle.' };
+            }
             render();
         };
 

@@ -158,6 +158,30 @@ groups:
           summary: "High WebSocket connection error rate"
           description: "{{ $value | printf \"%.0f\" }} WebSocket connection errors in the last 5 minutes."
 
+      # Host memory > 85%
+      - alert: VRSHostMemoryHigh
+        expr: 1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          component: host
+        annotations:
+          summary: "Host memory usage is above 85%"
+          description: "Host {{ $labels.instance }} has memory pressure above 85% for more than 10 minutes."
+          runbook: "Check service memory usage and Jitsi/JVB load before restarting or scaling."
+
+      # Host disk free < 15%
+      - alert: VRSHostDiskSpaceLow
+        expr: node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint!~"/run/.+"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint!~"/run/.+"} < 0.15
+        for: 10m
+        labels:
+          severity: critical
+          component: host
+        annotations:
+          summary: "Host disk free space is below 15%"
+          description: "Host {{ $labels.instance }} mount {{ $labels.mountpoint }} has less than 15% free disk space."
+          runbook: "Clean old logs/artifacts, verify backups/WAL retention, and expand storage if needed."
+
   # ─── Call Quality Alerts ────────────────────────────────
   - name: vrs_call_quality
     rules:

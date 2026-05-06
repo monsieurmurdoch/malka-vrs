@@ -57,11 +57,59 @@ echo "[jibri-finalize] Found recording: $RECORDING_FILE"
 DIRNAME=$(basename "$RECORDING_DIR")
 ROOM_NAME=$(echo "$DIRNAME" | sed 's/_.*//')
 
-# File size in bytes
-FILE_SIZE=$(stat -f%z "$RECORDING_FILE" 2>/dev/null || stat -c%s "$RECORDING_FILE" 2>/dev/null || echo "0")
+# Prepare upload artifact. Prefer a compressed MP4 so stored voicemail is
+# predictable for web/mobile playback, but keep a direct-upload fallback if
+# ffmpeg is not available on the recorder host.
+UPLOAD_FILE="$RECORDING_FILE"
+CONTENT_TYPE="video/mp4"
+COMPRESSED="false"
+ORIGINAL_STORAGE_KEY=""
 
-# Build storage key
-STORAGE_KEY="recordings/${ROOM_NAME}.mp4"
+SOURCE_EXT="${RECORDING_FILE##*.}"
+SOURCE_EXT="$(echo "$SOURCE_EXT" | tr '[:upper:]' '[:lower:]')"
+
+if command -v ffmpeg &>/dev/null; then
+    TRANSCODED_FILE="${RECORDING_DIR}/voicemail-transcoded.mp4"
+    echo "[jibri-finalize] Transcoding/compressing recording: $TRANSCODED_FILE"
+    if ffmpeg -y -i "$RECORDING_FILE" \
+        -vf "scale='min(1280,iw)':-2" \
+        -c:v libx264 -preset "${VOICEMAIL_FFMPEG_PRESET:-veryfast}" -crf "${VOICEMAIL_FFMPEG_CRF:-28}" \
+        -c:a aac -b:a "${VOICEMAIL_AUDIO_BITRATE:-96k}" \
+        -movflags +faststart \
+        "$TRANSCODED_FILE" >/tmp/jibri-voicemail-ffmpeg.log 2>&1; then
+        UPLOAD_FILE="$TRANSCODED_FILE"
+        SOURCE_EXT="mp4"
+        CONTENT_TYPE="video/mp4"
+        COMPRESSED="true"
+    else
+        echo "[jibri-finalize] WARNING: ffmpeg transcode failed; uploading original recording" >&2
+        tail -50 /tmp/jibri-voicemail-ffmpeg.log >&2 || true
+    fi
+else
+    echo "[jibri-finalize] WARNING: ffmpeg not available; uploading original recording without compression" >&2
+fi
+
+case "$SOURCE_EXT" in
+    webm)
+        CONTENT_TYPE="video/webm"
+        ;;
+    mkv)
+        CONTENT_TYPE="video/x-matroska"
+        ;;
+    *)
+        SOURCE_EXT="mp4"
+        CONTENT_TYPE="video/mp4"
+        ;;
+esac
+
+# File size in bytes for the actual uploaded object.
+FILE_SIZE=$(stat -f%z "$UPLOAD_FILE" 2>/dev/null || stat -c%s "$UPLOAD_FILE" 2>/dev/null || echo "0")
+
+# Build storage key.
+STORAGE_KEY="recordings/${ROOM_NAME}.${SOURCE_EXT}"
+if [ "$UPLOAD_FILE" != "$RECORDING_FILE" ]; then
+    ORIGINAL_STORAGE_KEY="recordings/${ROOM_NAME}-original.${RECORDING_FILE##*.}"
+fi
 
 echo "[jibri-finalize] Uploading to MinIO: ${MINIO_BUCKET}/${STORAGE_KEY}"
 
@@ -71,10 +119,26 @@ mc alias set voicemail-minio "http://${MINIO_ENDPOINT}" "${MINIO_ACCESS_KEY}" "$
 }
 
 # Upload to MinIO
-mc cp "$RECORDING_FILE" "voicemail-minio/${MINIO_BUCKET}/${STORAGE_KEY}" 2>/dev/null || {
+mc cp "$UPLOAD_FILE" "voicemail-minio/${MINIO_BUCKET}/${STORAGE_KEY}" 2>/dev/null || {
     echo "[jibri-finalize] ERROR: MinIO upload failed" >&2
     exit 1
 }
+
+# Generate and upload thumbnail if ffmpeg is available.
+THUMBNAIL_KEY=""
+if command -v ffmpeg &>/dev/null; then
+    THUMBNAIL_FILE="${RECORDING_DIR}/voicemail-thumbnail.jpg"
+    if ffmpeg -y -ss 00:00:01 -i "$UPLOAD_FILE" -frames:v 1 -q:v 3 "$THUMBNAIL_FILE" >/tmp/jibri-voicemail-thumbnail.log 2>&1; then
+        THUMBNAIL_KEY="thumbnails/${ROOM_NAME}.jpg"
+        mc cp "$THUMBNAIL_FILE" "voicemail-minio/${MINIO_BUCKET}/${THUMBNAIL_KEY}" 2>/dev/null || {
+            echo "[jibri-finalize] WARNING: Thumbnail upload failed" >&2
+            THUMBNAIL_KEY=""
+        }
+    else
+        echo "[jibri-finalize] WARNING: Thumbnail generation failed" >&2
+        tail -30 /tmp/jibri-voicemail-thumbnail.log >&2 || true
+    fi
+fi
 
 echo "[jibri-finalize] Upload complete. Notifying VRS server..."
 
@@ -93,9 +157,12 @@ curl -s -X POST "$VRS_CALLBACK_URL" \
     -d "{
         \"roomName\": \"${ROOM_NAME}\",
         \"storageKey\": \"${STORAGE_KEY}\",
+        \"thumbnailKey\": \"${THUMBNAIL_KEY}\",
         \"fileSizeBytes\": ${FILE_SIZE},
         \"durationSeconds\": ${DURATION},
-        \"contentType\": \"video/mp4\"
+        \"contentType\": \"${CONTENT_TYPE}\",
+        \"compressed\": ${COMPRESSED},
+        \"originalStorageKey\": \"${ORIGINAL_STORAGE_KEY}\"
     }" || {
     echo "[jibri-finalize] WARNING: Callback to VRS server failed"
 }

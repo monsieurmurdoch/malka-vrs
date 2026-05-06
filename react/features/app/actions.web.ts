@@ -22,7 +22,7 @@ import {
 } from './actions.any';
 import { getDefaultURL, getName } from './functions.web';
 import logger from './logger';
-import { IStore } from './types';
+import { IReloadNowOptions, IStore } from './types';
 
 export * from './actions.any';
 
@@ -65,7 +65,7 @@ function getVrsAuthenticatedReturnPath(): string | undefined {
  * scheme, or a mere room name.
  * @returns {Function}
  */
-export function appNavigate(uri?: string) {
+export function appNavigate(uri?: string, _options?: IReloadNowOptions) {
     return async (dispatch: IStore['dispatch'], getState: IStore['getState']) => {
         let location = parseURIString(uri);
 

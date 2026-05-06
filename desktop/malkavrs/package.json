@@ -1,0 +1,48 @@
+{
+  "name": "@malkacomm/malkavrs-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lightweight MalkaVRS desktop wrapper for the production web app.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack:mac": "electron-builder --mac dmg",
+    "pack:win": "electron-builder --win nsis",
+    "publish:downloads": "node scripts/publish-downloads.js"
+  },
+  "build": {
+    "appId": "com.malkacomm.vrs.desktop",
+    "productName": "MalkaVRS Desktop",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "assets/icon.png",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png"
+    }
+  },
+  "devDependencies": {
+    "electron": "^30.5.1",
+    "electron-builder": "^24.13.3"
+  }
+}

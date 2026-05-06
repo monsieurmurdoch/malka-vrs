@@ -163,7 +163,7 @@ const VoicemailPlayer: React.FC = () => {
     }, [ dispatch ]);
 
     const handleDelete = useCallback(() => {
-        if (currentMessage && window.confirm('Delete this voicemail?')) {
+        if (currentMessage && window.confirm?.('Delete this voicemail?')) {
             dispatch(removeMessage(currentMessage.id) as any);
         }
     }, [ dispatch, currentMessage ]);

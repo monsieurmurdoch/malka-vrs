@@ -1,7 +1,7 @@
 import { NavigationContainer, Theme } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import React, { useCallback } from 'react';
-import { StatusBar } from 'react-native';
+import React, { ComponentType, useCallback, useEffect, useState } from 'react';
+import { SafeAreaView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { connect } from 'react-redux';
 
 import { IReduxState, IStore } from '../../../app/types';
@@ -9,18 +9,20 @@ import DialInSummary from '../../../invite/components/dial-in-summary/native/Dia
 import Prejoin from '../../../prejoin/components/native/Prejoin';
 import UnsafeRoomWarning from '../../../prejoin/components/native/UnsafeRoomWarning';
 import { isUnsafeRoomWarningEnabled } from '../../../prejoin/functions';
-// eslint-disable-next-line
-// @ts-ignore
 import WelcomePage from '../../../welcome/components/WelcomePage';
 import { isWelcomePageEnabled } from '../../../welcome/functions';
 import Whiteboard from '../../../whiteboard/components/native/Whiteboard';
 import { _ROOT_NAVIGATION_READY } from '../actionTypes';
+import { getHydratedMobileRootRoute } from '../initialRoute';
+import { deepLinkConfig } from '../linking';
 import { rootNavigationRef } from '../rootNavigationContainerRef';
 import { screen } from '../routes';
+import type { RootRouteName, RootStackParamList } from '../routes';
 import {
     conferenceNavigationContainerScreenOptions,
     connectingScreenOptions,
     dialInSummaryScreenOptions,
+    fullScreenOptions,
     navigationContainerTheme,
     preJoinScreenOptions,
     unsafeMeetingScreenOptions,
@@ -31,8 +33,36 @@ import {
 import ConnectingPage from './ConnectingPage';
 import ConferenceNavigationContainer
     from './conference/components/ConferenceNavigationContainer';
+import VRIConsoleScreen from './vri/VRIConsoleScreen';
+import VRISettingsScreen from './vri/VRISettingsScreen';
+import VRIUsageScreen from './vri/VRIUsageScreen';
+import VRSHomeScreen from './vrs/VRSHomeScreen';
+import VoicemailInboxScreen from './vrs/VoicemailInboxScreen';
+import MobileLoginScreen from './auth/MobileLoginScreen';
+import PasswordResetScreen from './auth/PasswordResetScreen';
+import InterpreterHomeScreen from './interpreter/InterpreterHomeScreen';
+import InterpreterSettingsScreen from './interpreter/InterpreterSettingsScreen';
+import InterpreterEarningsScreen from './interpreter/InterpreterEarningsScreen';
+import CallHistoryScreen from './vrs/CallHistoryScreen';
+import ContactsScreen from './vrs/ContactsScreen';
+import ContactDetailScreen from './vrs/ContactDetailScreen';
+import DialPadScreen from './vrs/DialPadScreen';
 
-const RootStack = createStackNavigator();
+const RootStack = createStackNavigator<RootStackParamList>();
+
+type MobileScreenComponent = ComponentType<Record<string, unknown>>;
+
+function asScreen<Props extends object>(component: ComponentType<Props>): MobileScreenComponent {
+    return component as unknown as MobileScreenComponent;
+}
+
+async function getHydratedInitialRoute(isWelcomePageAvailable: boolean): Promise<RootRouteName> {
+    if (!isWelcomePageAvailable) {
+        return screen.connecting;
+    }
+
+    return getHydratedMobileRootRoute();
+}
 
 
 interface IProps {
@@ -55,8 +85,7 @@ interface IProps {
 
 
 const RootNavigationContainer = ({ dispatch, isUnsafeRoomWarningAvailable, isWelcomePageAvailable }: IProps) => {
-    const initialRouteName = isWelcomePageAvailable
-        ? screen.welcome.main : screen.connecting;
+    const [ initialRouteName, setInitialRouteName ] = useState<RootRouteName | null>(null);
     const onReady = useCallback(() => {
         dispatch({
             type: _ROOT_NAVIGATION_READY,
@@ -64,30 +93,58 @@ const RootNavigationContainer = ({ dispatch, isUnsafeRoomWarningAvailable, isWel
         });
     }, [ dispatch ]);
 
+    useEffect(() => {
+        let mounted = true;
+
+        getHydratedInitialRoute(isWelcomePageAvailable).then(routeName => {
+            if (mounted) {
+                setInitialRouteName(routeName);
+            }
+        });
+
+        return () => {
+            mounted = false;
+        };
+    }, [ isWelcomePageAvailable ]);
+
+    if (!initialRouteName) {
+        return (
+            <SafeAreaView style = { bootStyles.container }>
+                <StatusBar
+                    animated = { true }
+                    backgroundColor = 'transparent'
+                    barStyle = { 'light-content' }
+                    translucent = { true } />
+                <Text style = { bootStyles.text }>Loading...</Text>
+            </SafeAreaView>
+        );
+    }
+
     return (
-        <NavigationContainer
-            independent = { true }
-            onReady = { onReady }
-            ref = { rootNavigationRef }
-            theme = { navigationContainerTheme as Theme }>
-            <StatusBar
-                animated = { true }
-                backgroundColor = 'transparent'
-                barStyle = { 'light-content' }
-                translucent = { true } />
-            <RootStack.Navigator
-                initialRouteName = { initialRouteName }>
+        <View style = { bootStyles.root }>
+            <NavigationContainer
+                independent = { true }
+                linking = { deepLinkConfig }
+                onReady = { onReady }
+                ref = { rootNavigationRef }
+                theme = { navigationContainerTheme as Theme }>
+                <StatusBar
+                    animated = { true }
+                    backgroundColor = 'transparent'
+                    barStyle = { 'light-content' }
+                    translucent = { true } />
+                <RootStack.Navigator
+                    initialRouteName = { initialRouteName }>
                 {
                     isWelcomePageAvailable
                         && <>
-                            <RootStack.Screen // @ts-ignore
-                                component = { WelcomePage }
+                            <RootStack.Screen
+                                component = { asScreen(WelcomePage) }
                                 name = { screen.welcome.main }
                                 options = { welcomeScreenOptions } />
                             <RootStack.Screen
 
-                                // @ts-ignore
-                                component = { DialInSummary }
+                                component = { asScreen(DialInSummary) }
                                 name = { screen.dialInSummary }
                                 options = { dialInSummaryScreenOptions } />
                         </>
@@ -96,8 +153,8 @@ const RootNavigationContainer = ({ dispatch, isUnsafeRoomWarningAvailable, isWel
                     component = { ConnectingPage }
                     name = { screen.connecting }
                     options = { connectingScreenOptions } />
-                <RootStack.Screen // @ts-ignore
-                    component = { Whiteboard }
+                <RootStack.Screen
+                    component = { asScreen(Whiteboard) }
                     name = { screen.conference.whiteboard }
                     options = { whiteboardScreenOptions } />
                 <RootStack.Screen
@@ -115,10 +172,83 @@ const RootNavigationContainer = ({ dispatch, isUnsafeRoomWarningAvailable, isWel
                     component = { ConferenceNavigationContainer }
                     name = { screen.conference.root }
                     options = { conferenceNavigationContainerScreenOptions } />
-            </RootStack.Navigator>
-        </NavigationContainer>
+                <RootStack.Screen
+                    component = { asScreen(MobileLoginScreen) }
+                    name = { screen.auth.login }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen
+                    component = { asScreen(PasswordResetScreen) }
+                    name = { screen.auth.resetPassword }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen
+                    component = { asScreen(VRSHomeScreen) }
+                    name = { screen.vrs.home }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen
+                    component = { asScreen(VRIConsoleScreen) }
+                    name = { screen.vri.console }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen
+                    component = { asScreen(DialPadScreen) }
+                    name = { screen.vrs.dialPad }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen
+                    component = { asScreen(ContactsScreen) }
+                    name = { screen.vrs.contacts }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen
+                    component = { asScreen(CallHistoryScreen) }
+                    name = { screen.vrs.callHistory }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen
+                    component = { asScreen(ContactDetailScreen) }
+                    name = { screen.vrs.contactDetail }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen
+                    component = { asScreen(VRISettingsScreen) }
+                    name = { screen.vri.settings }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen
+                    component = { asScreen(VRIUsageScreen) }
+                    name = { screen.vri.usage }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen
+                    component = { asScreen(VoicemailInboxScreen) }
+                    name = { screen.vrs.voicemail }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen
+                    component = { asScreen(InterpreterHomeScreen) }
+                    name = { screen.interpreter.home }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen
+                    component = { asScreen(InterpreterSettingsScreen) }
+                    name = { screen.interpreter.settings }
+                    options = { fullScreenOptions } />
+                <RootStack.Screen
+                    component = { asScreen(InterpreterEarningsScreen) }
+                    name = { screen.interpreter.earnings }
+                    options = { fullScreenOptions } />
+                </RootStack.Navigator>
+            </NavigationContainer>
+        </View>
     );
 };
+
+const bootStyles = StyleSheet.create({
+    container: {
+        alignItems: 'center',
+        backgroundColor: '#0f0f23',
+        flex: 1,
+        justifyContent: 'center'
+    },
+    text: {
+        color: '#ffffff',
+        fontSize: 15
+    },
+    root: {
+        flex: 1
+    }
+});
 
 /**
  * Maps part of the Redux store to the props of this component.

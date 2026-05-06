@@ -35,7 +35,11 @@ const DarkModeToggle = () => {
             return;
         }
 
-        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const mediaQuery = window.matchMedia?.('(prefers-color-scheme: dark)');
+
+        if (!mediaQuery) {
+            return;
+        }
 
         const handler = () => applyDarkMode('system');
 

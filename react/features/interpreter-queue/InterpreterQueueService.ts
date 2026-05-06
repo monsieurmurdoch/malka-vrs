@@ -6,40 +6,45 @@
  */
 
 import { getUserRole } from '../base/user-role/functions';
+import { APP_TYPE } from '../base/whitelabel/constants';
+import { getAppType, getWhitelabelConfig } from '../base/whitelabel/functions';
+import { mobileLog } from '../mobile/navigation/logging';
+import { getPersistentJson, removePersistentItem } from '../vrs-auth/storage';
+import {
+    queueMessageSchema,
+    type InterpreterInfo,
+    type InterpreterRequestPayload,
+    type QueueErrorPayload,
+    type QueueEventMap,
+    type QueueMatchPayload,
+    type QueueMessage,
+    type QueueStatus,
+    type VriInvitePreparedPayload,
+    type VoicemailEventPayload
+} from '../../../contracts';
 
-declare var config: any;
+export type {
+    InterpreterInfo,
+    InterpreterRequestPayload,
+    QueueErrorPayload,
+    QueueEventMap,
+    QueueMatchPayload,
+    QueueMessage,
+    QueueStatus,
+    VriInvitePreparedPayload,
+    VoicemailEventPayload
+} from '../../../contracts';
 
-export interface QueueMessage {
-    type: string;
-    data?: any;
-    clientId?: string;
-    role?: string;
-    userId?: string;
-    name?: string;
-    token?: string;
-}
+declare const config: {
+    vrs?: Partial<VRSQueueConfig>;
+} | undefined;
 
-export interface InterpreterInfo {
-    id: string;
-    name: string;
-    status: 'active' | 'busy' | 'inactive';
-    languages: string[];
-}
-
-export interface RequestInfo {
-    id: string;
-    clientName: string;
-    language: string;
-    timestamp?: number;
-    roomName?: string;
-    position?: number;
-}
-
-export interface QueueStatus {
-    activeInterpreters: InterpreterInfo[];
-    pendingRequests: RequestInfo[];
-    totalMatches: number;
-    paused?: boolean;
+interface VRSQueueConfig {
+    queueServiceUrl: string;
+    queue: {
+        maxWaitTime: number;
+        estimatedWaitPerPerson: number;
+    };
 }
 
 interface StoredAuthToken {
@@ -58,17 +63,82 @@ interface StoredActiveCall {
     roomName?: string;
 }
 
+const CONNECTION_ERROR_LOG_INTERVAL = 60000;
+const SEND_WARNING_LOG_INTERVAL = 30000;
+
+function getErrorMessage(error: unknown, fallback: string) {
+    if (error instanceof Error && error.message) {
+        return error.message;
+    }
+
+    const maybeError = error as { message?: unknown; type?: unknown };
+
+    if (typeof maybeError?.message === 'string' && maybeError.message) {
+        return maybeError.message;
+    }
+
+    if (typeof maybeError?.type === 'string' && maybeError.type) {
+        return maybeError.type;
+    }
+
+    return fallback;
+}
+
+function getTenantQueueDomain(role: string): string | undefined {
+    const domains = getWhitelabelConfig()?.domains;
+
+    if (!domains) {
+        return undefined;
+    }
+
+    if (role === 'interpreter') {
+        return domains.queue || domains.interpreter || domains.api || domains.clientVri || domains.clientVrs;
+    }
+
+    if (getAppType() === APP_TYPE.VRI) {
+        return domains.queue || domains.api || domains.clientVri || domains.clientVrs || domains.interpreter;
+    }
+
+    return domains.queue || domains.api || domains.clientVrs || domains.clientVri || domains.interpreter;
+}
+
 function getDefaultQueueServiceUrl() {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && window.location?.host) {
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 
         return `${wsProtocol}//${window.location.host}/ws`;
     }
 
-    return 'ws://localhost:3001/ws';
+    const domain = getTenantQueueDomain(getUserRole());
+
+    if (domain) {
+        return `wss://${domain}/ws`;
+    }
+
+    return 'wss://vrs.malkacomm.com/ws';
 }
 
-function getVRSConfig() {
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function stringValue(value: unknown): string | undefined {
+    return typeof value === 'string' ? value : undefined;
+}
+
+function numberValue(value: unknown): number | undefined {
+    return typeof value === 'number' ? value : undefined;
+}
+
+function normalizeInterpreterStatus(value: unknown): InterpreterInfo['status'] {
+    return value === 'busy' || value === 'inactive' ? value : 'active';
+}
+
+function recordPayload(data: unknown): Record<string, unknown> {
+    return isRecord(data) ? data : {};
+}
+
+function getVRSConfig(): VRSQueueConfig {
     const defaults = {
         queueServiceUrl: getDefaultQueueServiceUrl(),
         queue: {
@@ -77,37 +147,22 @@ function getVRSConfig() {
         }
     };
 
-    if (typeof config !== 'undefined' && config.vrs) {
-        return { ...defaults, ...config.vrs };
+    if (typeof config !== 'undefined' && config?.vrs) {
+        return {
+            ...defaults,
+            ...config.vrs,
+            queue: {
+                ...defaults.queue,
+                ...config.vrs.queue
+            }
+        };
     }
 
     return defaults;
 }
 
 function getStoredJson<T>(key: string): T | null {
-    try {
-        const localValue = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
-        if (localValue) {
-            if (typeof sessionStorage !== 'undefined') {
-                sessionStorage.setItem(key, localValue);
-            }
-
-            return JSON.parse(localValue) as T;
-        }
-
-        const sessionValue = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(key) : null;
-        if (sessionValue) {
-            if (typeof localStorage !== 'undefined') {
-                localStorage.setItem(key, sessionValue);
-            }
-
-            return JSON.parse(sessionValue) as T;
-        }
-    } catch (error) {
-        return null;
-    }
-
-    return null;
+    return getPersistentJson<T>(key);
 }
 
 function getCurrentRoomName(): string | undefined {
@@ -147,12 +202,15 @@ class InterpreterQueueService {
     private maxReconnectDelay = 30000;
     private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
     private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
-    private listeners: Map<string, Function[]> = new Map();
+    private listeners: Map<keyof QueueEventMap, Array<(data: QueueEventMap[keyof QueueEventMap]) => void>> = new Map();
     private userId: string | null = null;
     private userRole: string;
-    private config: { queueServiceUrl: string; queue: { maxWaitTime: number; estimatedWaitPerPerson: number } };
+    private config: VRSQueueConfig;
     private shouldReconnect = true;
     private reconnectPending = false;
+    private lastConnectionErrorLogAt = 0;
+    private connectionErrorCount = 0;
+    private lastSendWarningLogAt = 0;
 
     constructor() {
         this.config = getVRSConfig();
@@ -164,6 +222,7 @@ class InterpreterQueueService {
 
     private connect() {
         this.userRole = getUserRole();
+        this.config = getVRSConfig();
 
         if (!hasQueueAuthForRole(this.userRole)) {
             return;
@@ -186,8 +245,15 @@ class InterpreterQueueService {
 
             this.ws.onmessage = event => {
                 try {
-                    const message: QueueMessage = JSON.parse(event.data);
-                    this.handleMessage(message);
+                    const parsed = queueMessageSchema.safeParse(JSON.parse(event.data));
+
+                    if (parsed.success) {
+                        this.handleMessage(parsed.data);
+                    } else {
+                        mobileLog('warn', 'queue_ws_contract_parse_failed', {
+                            issueCount: parsed.error.issues.length
+                        }, { console: false });
+                    }
                 } catch (error) {
                     console.error('Error parsing queue message:', error);
                 }
@@ -208,13 +274,35 @@ class InterpreterQueueService {
             };
 
             this.ws.onerror = error => {
-                console.error('WebSocket error:', error);
-                this.emit('error', { error });
+                this.reportConnectionIssue(error);
             };
         } catch (error) {
-            console.error('Failed to connect to queue server:', error);
+            this.reportConnectionIssue(error);
             this.attemptReconnect();
         }
+    }
+
+    private reportConnectionIssue(error: unknown) {
+        this.connectionErrorCount++;
+
+        const now = Date.now();
+        const shouldLog = this.lastConnectionErrorLogAt === 0
+            || now - this.lastConnectionErrorLogAt >= CONNECTION_ERROR_LOG_INTERVAL;
+        const payload = {
+            code: 'QUEUE_WS_CONNECTION_FAILED',
+            errorCount: this.connectionErrorCount,
+            message: getErrorMessage(error, 'Queue WebSocket connection failed'),
+            retrying: this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts,
+            url: this.config.queueServiceUrl
+        };
+
+        if (!shouldLog) {
+            return;
+        }
+
+        this.lastConnectionErrorLogAt = now;
+        mobileLog('warn', 'queue_ws_connection_failed', payload, { console: false });
+        this.emit('error', payload);
     }
 
     private startHeartbeat() {
@@ -280,15 +368,100 @@ class InterpreterQueueService {
         });
     }
 
-    private normalizeQueueStatus(data: any): QueueStatus {
-        const activeInterpreters = Array.isArray(data?.activeInterpreters) ? data.activeInterpreters : [];
-        const pendingRequests = Array.isArray(data?.pendingRequests) ? data.pendingRequests : [];
+    private normalizeQueueStatus(data: unknown): QueueStatus {
+        const source = isRecord(data) ? data : {};
+        const activeInterpreters = Array.isArray(source.activeInterpreters)
+            ? source.activeInterpreters.filter(isRecord).map(interpreter => ({
+                id: stringValue(interpreter.id) || '',
+                languages: Array.isArray(interpreter.languages)
+                    ? interpreter.languages.filter((language): language is string => typeof language === 'string')
+                    : [],
+                name: stringValue(interpreter.name) || 'Interpreter',
+                status: normalizeInterpreterStatus(interpreter.status)
+            }))
+            : [];
+        const pendingRequests = Array.isArray(source.pendingRequests)
+            ? source.pendingRequests.filter(isRecord).map(request => ({
+                clientName: stringValue(request.clientName) || 'Client',
+                id: stringValue(request.id) || stringValue(request.requestId) || '',
+                language: stringValue(request.language) || 'ASL',
+                position: numberValue(request.position),
+                roomName: stringValue(request.roomName),
+                timestamp: numberValue(request.timestamp)
+            }))
+            : [];
 
         return {
             activeInterpreters,
             pendingRequests,
-            totalMatches: data?.totalMatches || 0,
-            paused: data?.paused || false
+            totalMatches: typeof source.totalMatches === 'number' ? source.totalMatches : 0,
+            paused: Boolean(source.paused)
+        };
+    }
+
+    private normalizeMatchPayload(data: unknown): QueueMatchPayload {
+        const source = isRecord(data) ? data : {};
+
+        return {
+            callId: stringValue(source.callId),
+            callType: source.callType === 'vri' || source.callType === 'vrs' ? source.callType : undefined,
+            clientId: stringValue(source.clientId),
+            clientName: stringValue(source.clientName),
+            durationMinutes: numberValue(source.durationMinutes),
+            endedBy: stringValue(source.endedBy),
+            interpreterId: stringValue(source.interpreterId),
+            interpreterName: stringValue(source.interpreterName),
+            language: stringValue(source.language),
+            requestId: stringValue(source.requestId),
+            roomName: stringValue(source.roomName)
+        };
+    }
+
+    private normalizeInterpreterRequest(data: unknown): InterpreterRequestPayload {
+        const source = isRecord(data) ? data : {};
+
+        return {
+            clientName: stringValue(source.clientName) || 'Client',
+            id: stringValue(source.id) || stringValue(source.requestId) || '',
+            language: stringValue(source.language) || 'ASL',
+            roomName: stringValue(source.roomName),
+            timestamp: numberValue(source.timestamp)
+        };
+    }
+
+    private normalizeRequestQueued(data: unknown): QueueEventMap['requestQueued'] {
+        const source = isRecord(data) ? data : {};
+
+        return {
+            position: numberValue(source.position),
+            requestId: stringValue(source.requestId)
+        };
+    }
+
+    private normalizeVriInvitePrepared(data: unknown): VriInvitePreparedPayload {
+        const source = isRecord(data) ? data : {};
+
+        return {
+            inviteUrl: stringValue(source.inviteUrl),
+            token: stringValue(source.token)
+        };
+    }
+
+    private normalizeVoicemailPayload(data: unknown): VoicemailEventPayload {
+        const source = isRecord(data) ? data : {};
+
+        return {
+            ...source,
+            calleeId: stringValue(source.calleeId),
+            calleeName: stringValue(source.calleeName),
+            calleePhone: stringValue(source.calleePhone),
+            count: numberValue(source.count),
+            durationSeconds: numberValue(source.durationSeconds),
+            maxDurationSeconds: numberValue(source.maxDurationSeconds),
+            message: stringValue(source.message),
+            messageId: stringValue(source.messageId),
+            roomName: stringValue(source.roomName),
+            voicemailAvailable: typeof source.voicemailAvailable === 'boolean' ? source.voicemailAvailable : undefined
         };
     }
 
@@ -310,35 +483,39 @@ class InterpreterQueueService {
                 break;
 
             case 'match_found':
-                this.emit('matchFound', message.data);
+                this.emit('matchFound', this.normalizeMatchPayload(message.data));
                 break;
 
             case 'request_assigned':
-                this.emit('requestAssigned', message.data);
+                this.emit('requestAssigned', this.normalizeMatchPayload(message.data));
                 break;
 
             case 'request_queued':
-                this.emit('requestQueued', message.data);
+                this.emit('requestQueued', this.normalizeRequestQueued(message.data));
                 break;
 
             case 'request_cancelled':
-                this.emit('requestCancelled', message.data);
+                this.emit('requestCancelled', this.normalizeRequestQueued(message.data));
                 break;
 
             case 'interpreter_request':
-                this.emit('interpreterRequest', message.data);
+                this.emit('interpreterRequest', this.normalizeInterpreterRequest(message.data));
                 break;
 
             case 'request_accepted':
-                this.emit('requestAccepted', message.data);
+                this.emit('requestAccepted', this.normalizeMatchPayload(message.data));
                 break;
 
             case 'request_declined':
-                this.emit('requestDeclined', message.data);
+                this.emit('requestDeclined', this.normalizeMatchPayload(message.data));
                 break;
 
             case 'meeting_initiated':
-                this.emit('meetingInitiated', message.data);
+                this.emit('meetingInitiated', this.normalizeMatchPayload(message.data));
+                break;
+
+            case 'call_ended':
+                this.emit('callEnded', this.normalizeMatchPayload(message.data));
                 break;
 
             case 'ping':
@@ -352,7 +529,7 @@ class InterpreterQueueService {
 
             case 'error':
             case 'auth_error':
-                this.emit('error', message.data || { message: 'Queue server error' });
+                this.emit('error', isRecord(message.data) ? message.data as QueueErrorPayload : { message: 'Queue server error' });
                 break;
 
             // Handoff message types — emitted as events for device-handoff middleware
@@ -462,7 +639,55 @@ class InterpreterQueueService {
                 break;
 
             case 'p2p_target_dnd':
-                this.emit('p2pTargetDnd', message.data);
+                this.emit('p2pTargetDnd', recordPayload(message.data));
+                break;
+
+            case 'p2p_ringing':
+                this.emit('p2pRinging', {
+                    ...this.normalizeMatchPayload(message.data),
+                    calleeName: isRecord(message.data) ? stringValue(message.data.calleeName) : undefined
+                });
+                break;
+
+            case 'p2p_call_failed':
+                this.emit('p2pCallFailed', recordPayload(message.data));
+                break;
+
+            case 'p2p_target_offline':
+                this.emit('p2pTargetOffline', recordPayload(message.data));
+                this.emit('p2p_target_offline', recordPayload(message.data));
+                break;
+
+            case 'voicemail_new_message':
+                this.emit('voicemail_new_message', this.normalizeVoicemailPayload(message.data));
+                break;
+
+            case 'voicemail_unread_count':
+                this.emit('voicemail_unread_count', this.normalizeVoicemailPayload(message.data));
+                break;
+
+            case 'voicemail_recording_started':
+                this.emit('voicemail_recording_started', this.normalizeVoicemailPayload(message.data));
+                break;
+
+            case 'voicemail_recording_complete':
+                this.emit('voicemail_recording_complete', this.normalizeVoicemailPayload(message.data));
+                break;
+
+            case 'voicemail_recording_cancelled':
+                this.emit('voicemail_recording_cancelled', this.normalizeVoicemailPayload(message.data));
+                break;
+
+            case 'voicemail_message_deleted':
+                this.emit('voicemail_message_deleted', this.normalizeVoicemailPayload(message.data));
+                break;
+
+            case 'voicemail_error':
+                this.emit('voicemail_error', this.normalizeVoicemailPayload(message.data));
+                break;
+
+            case 'vri_invite_prepared':
+                this.emit('vriInvitePrepared', this.normalizeVriInvitePrepared(message.data));
                 break;
 
             case 'contacts_changed':
@@ -474,24 +699,24 @@ class InterpreterQueueService {
         }
     }
 
-    public on(event: string, callback: Function) {
+    public on<K extends keyof QueueEventMap>(event: K, callback: (data: QueueEventMap[K]) => void) {
         if (!this.listeners.has(event)) {
             this.listeners.set(event, []);
         }
-        this.listeners.get(event)!.push(callback);
+        this.listeners.get(event)!.push(callback as (data: QueueEventMap[keyof QueueEventMap]) => void);
     }
 
-    public off(event: string, callback: Function) {
+    public off<K extends keyof QueueEventMap>(event: K, callback: (data: QueueEventMap[K]) => void) {
         const eventListeners = this.listeners.get(event);
         if (eventListeners) {
-            const index = eventListeners.indexOf(callback);
+            const index = eventListeners.indexOf(callback as (data: QueueEventMap[keyof QueueEventMap]) => void);
             if (index > -1) {
                 eventListeners.splice(index, 1);
             }
         }
     }
 
-    private emit(event: string, data: any) {
+    private emit<K extends keyof QueueEventMap>(event: K, data: QueueEventMap[K]) {
         const eventListeners = this.listeners.get(event);
         if (eventListeners) {
             eventListeners.forEach(callback => {
@@ -508,20 +733,33 @@ class InterpreterQueueService {
         this.send({
             type: 'interpreter_status_update',
             data: {
-                status: status === 'active' ? 'available' : 'busy',
+                status,
                 name,
                 languages
             }
         });
     }
 
-    public requestInterpreter(language = 'ASL', clientName?: string, roomName?: string) {
+    public requestInterpreter(
+            language = 'ASL',
+            clientName?: string,
+            roomNameOrOptions?: string | {
+                callType?: 'vrs' | 'vri';
+                inviteTokens?: string[];
+                roomName?: string;
+            }) {
+        const options = typeof roomNameOrOptions === 'string'
+            ? { roomName: roomNameOrOptions }
+            : roomNameOrOptions || {};
+
         this.send({
             type: 'request_interpreter',
             data: {
+                callType: options.callType,
+                inviteTokens: options.inviteTokens,
                 language,
                 clientName,
-                roomName: roomName || getCurrentRoomName()
+                roomName: options.roomName || getCurrentRoomName()
             }
         });
     }
@@ -554,6 +792,13 @@ class InterpreterQueueService {
         });
     }
 
+    public prepareVriInvite(data: { guestName?: string; guestEmail?: string; guestPhone?: string; roomName?: string }) {
+        this.send({
+            type: 'prepare_vri_invite',
+            data
+        });
+    }
+
     public endActiveCall() {
         const activeCall = getStoredJson<StoredActiveCall>('vrs_active_call');
         if (!activeCall?.callId) {
@@ -568,19 +813,23 @@ class InterpreterQueueService {
             }
         });
 
-        try {
-            localStorage.removeItem('vrs_active_call');
-            sessionStorage.removeItem('vrs_active_call');
-        } catch {
-            // Storage cleanup is best effort; duplicate call_end is idempotent server-side.
-        }
+        removePersistentItem('vrs_active_call');
     }
 
     public send(message: QueueMessage) {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify(message));
         } else {
-            console.warn('Cannot send queue message - WebSocket not connected');
+            const now = Date.now();
+
+            if (this.lastSendWarningLogAt === 0 || now - this.lastSendWarningLogAt >= SEND_WARNING_LOG_INTERVAL) {
+                this.lastSendWarningLogAt = now;
+                mobileLog('warn', 'queue_ws_send_skipped', {
+                    messageType: message.type,
+                    reason: 'not_connected',
+                    url: this.config.queueServiceUrl
+                }, { console: false });
+            }
         }
     }
 
@@ -639,11 +888,11 @@ class InterpreterQueueService {
     }
 }
 
-const isBrowser = typeof window !== 'undefined' && typeof sessionStorage !== 'undefined';
+const hasWebSocketRuntime = typeof WebSocket !== 'undefined';
 let _queueService: InterpreterQueueService | null = null;
 
 function getQueueServiceInstance(): InterpreterQueueService | null {
-    if (!isBrowser) {
+    if (!hasWebSocketRuntime) {
         return null;
     }
 
@@ -658,8 +907,10 @@ export const queueService = {
     get instance(): InterpreterQueueService {
         return getQueueServiceInstance() as InterpreterQueueService;
     },
-    on: (...args: Parameters<InterpreterQueueService['on']>) => queueService.instance.on(...args),
-    off: (...args: Parameters<InterpreterQueueService['off']>) => queueService.instance.off(...args),
+    on: <K extends keyof QueueEventMap>(event: K, callback: (data: QueueEventMap[K]) => void) =>
+        queueService.instance.on(event, callback),
+    off: <K extends keyof QueueEventMap>(event: K, callback: (data: QueueEventMap[K]) => void) =>
+        queueService.instance.off(event, callback),
     isConnected: () => Boolean(getQueueServiceInstance()?.isConnected()),
     getUserId: () => getQueueServiceInstance()?.getUserId() || null,
     disconnect: () => getQueueServiceInstance()?.disconnect(),
@@ -674,6 +925,8 @@ export const queueService = {
     endActiveCall: () => getQueueServiceInstance()?.endActiveCall(),
     sendP2PCall: (...args: Parameters<InterpreterQueueService['sendP2PCall']>) =>
         getQueueServiceInstance()?.sendP2PCall(...args),
+    prepareVriInvite: (...args: Parameters<InterpreterQueueService['prepareVriInvite']>) =>
+        getQueueServiceInstance()?.prepareVriInvite(...args),
     cancelRequest: (...args: Parameters<InterpreterQueueService['cancelRequest']>) =>
         getQueueServiceInstance()?.cancelRequest(...args),
     acceptRequest: (...args: Parameters<InterpreterQueueService['acceptRequest']>) =>

@@ -7,6 +7,7 @@ const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
 const queueBaseUrl = process.env.VRS_QUEUE_BASE_URL || `http://localhost:${process.env.VRS_QUEUE_PORT || 3001}`;
 const opsBaseUrl = process.env.VRS_OPS_BASE_URL || `http://localhost:${process.env.VRS_OPS_PORT || 3003}`;
 const twilioBaseUrl = process.env.VRS_TWILIO_BASE_URL || `http://localhost:${process.env.VRS_TWILIO_PORT || 3002}`;
+const smokeManifest = readJson('contracts/api-manifest.json');
 const adminIdentifier = process.env.VRS_ADMIN_IDENTIFIER || process.env.VRS_BOOTSTRAP_SUPERADMIN_USERNAME || '';
 const adminPassword = process.env.VRS_ADMIN_PASSWORD || process.env.VRS_BOOTSTRAP_SUPERADMIN_PASSWORD || '';
 const curlResolveEntries = (process.env.VRS_VALIDATE_RESOLVE || '')
@@ -20,6 +21,22 @@ function exists(relativePath) {
 
 function readJson(relativePath) {
   return JSON.parse(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8'));
+}
+
+function baseUrlForCheck(check) {
+  if (check.base === 'ops') {
+    return opsBaseUrl;
+  }
+
+  if (check.base === 'twilio') {
+    return twilioBaseUrl;
+  }
+
+  return queueBaseUrl;
+}
+
+function checkUrl(check) {
+  return `${baseUrlForCheck(check)}${check.path}`;
 }
 
 async function parseJson(response) {
@@ -162,28 +179,14 @@ checks.push({
   details: twilioPackage.scripts?.start || 'missing'
 });
 
-const liveChecks = await Promise.all([
-  checkEndpoint('Queue health', `${queueBaseUrl}/api/health`),
-  checkEndpoint('Queue readiness', `${queueBaseUrl}/api/readiness`),
-  checkEndpoint('Ops health', `${opsBaseUrl}/api/health`),
-  checkEndpoint('Ops readiness', `${opsBaseUrl}/api/readiness`),
-  checkEndpoint('Twilio health', `${twilioBaseUrl}/health`),
-  checkEndpoint('Twilio readiness', `${twilioBaseUrl}/api/readiness`)
-]);
+const liveChecks = await Promise.all(
+  smokeManifest.liveChecks.map(check => checkEndpoint(check.label, checkUrl(check)))
+);
 
 const loginCheck = await loginAdmin();
-const authedChecks = loginCheck.skipped ? [] : await Promise.all([
-  checkAuthedEndpoint('Admin monitoring summary', `${opsBaseUrl}/api/admin/monitoring/summary`, loginCheck.token),
-  checkAuthedEndpoint('Queue admin stats', `${queueBaseUrl}/api/admin/stats`, loginCheck.token),
-  checkAuthedEndpoint('Active calls', `${queueBaseUrl}/api/admin/calls/active`, loginCheck.token),
-  checkAuthedEndpoint('Daily usage', `${queueBaseUrl}/api/admin/usage/daily?days=7`, loginCheck.token),
-  checkAuthedEndpoint('Live queue', `${queueBaseUrl}/api/admin/queue`, loginCheck.token),
-  checkAuthedEndpoint('Interpreter roster', `${queueBaseUrl}/api/admin/interpreters`, loginCheck.token),
-  checkAuthedEndpoint('Client roster', `${queueBaseUrl}/api/admin/clients`, loginCheck.token),
-  checkAuthedEndpoint('Queue activity feed', `${queueBaseUrl}/api/admin/activity?limit=10`, loginCheck.token),
-  checkAuthedEndpoint('Managed accounts', `${opsBaseUrl}/api/admin/accounts`, loginCheck.token),
-  checkAuthedEndpoint('Ops audit feed', `${opsBaseUrl}/api/admin/audit?limit=10`, loginCheck.token)
-]);
+const authedChecks = loginCheck.skipped ? [] : await Promise.all(
+  smokeManifest.adminChecks.map(check => checkAuthedEndpoint(check.label, checkUrl(check), loginCheck.token))
+);
 
 console.log('VRS Stack Validation');
 console.log('====================');

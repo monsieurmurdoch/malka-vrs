@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Malka</string>
+	<string>$(MOBILE_APP_DISPLAY_NAME)</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -26,10 +26,10 @@
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>CFBundleURLName</key>
-			<string>org.jitsi.meet</string>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>org.jitsi.meet</string>
+				<string>$(MOBILE_URL_SCHEME)</string>
 			</array>
 		</dict>
 		<dict>
@@ -77,25 +77,25 @@
 		<string>org.jitsi.JitsiMeet.ios.conference</string>
 	</array>
 	<key>RTCAppGroupIdentifier</key>
-	<string>group.org.jitsi.meet.appgroup</string>
+	<string>$(MOBILE_APP_GROUP_IDENTIFIER)</string>
 	<key>RTCScreenSharingExtension</key>
-	<string>org.jitsi.meet.broadcast.extension</string>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER).broadcast.extension</string>
+	<key>VRSURLScheme</key>
+	<string>$(MOBILE_URL_SCHEME)</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
 		<string>fetch</string>
 		<string>voip</string>
 	</array>
-	<key>UILaunchStoryboardName</key>
-	<string>LaunchScreen</string>
-	<key>UIMainStoryboardFile</key>
-	<string>Main</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>armv7</string>
 	</array>
 	<key>UIStatusBarStyle</key>
 	<string>UIStatusBarStyleLightContent</string>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationLandscapeLeft</string>

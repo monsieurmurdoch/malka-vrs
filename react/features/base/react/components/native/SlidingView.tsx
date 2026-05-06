@@ -71,6 +71,11 @@ interface IState {
  */
 export default class SlidingView extends PureComponent<IProps, IState> {
     /**
+     * Subscription for Android hardware back handling.
+     */
+    _backHandlerSubscription?: { remove: Function; };
+
+    /**
      * True if the component is mounted.
      */
     _mounted: boolean;
@@ -120,7 +125,7 @@ export default class SlidingView extends PureComponent<IProps, IState> {
      * @inheritdoc
      */
     componentDidMount() {
-        BackHandler.addEventListener('hardwareBackPress', this._onHardwareBackPress);
+        this._backHandlerSubscription = BackHandler.addEventListener('hardwareBackPress', this._onHardwareBackPress);
 
         this._mounted = true;
         this._setShow(this.props.show);
@@ -145,7 +150,7 @@ export default class SlidingView extends PureComponent<IProps, IState> {
      * @inheritdoc
      */
     componentWillUnmount() {
-        BackHandler.removeEventListener('hardwareBackPress', this._onHardwareBackPress);
+        this._backHandlerSubscription?.remove();
 
         this._mounted = false;
     }

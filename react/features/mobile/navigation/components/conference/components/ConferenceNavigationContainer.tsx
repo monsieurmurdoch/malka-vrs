@@ -6,44 +6,25 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSelector } from 'react-redux';
 
-import BreakoutRooms
-// @ts-ignore
-    from '../../../../../breakout-rooms/components/native/BreakoutRooms';
-// @ts-ignore
+import BreakoutRooms from '../../../../../breakout-rooms/components/native/BreakoutRooms';
 import Chat from '../../../../../chat/components/native/Chat';
-// @ts-ignore
 import Conference from '../../../../../conference/components/native/Conference';
-// @ts-ignore
 import CarMode from '../../../../../conference/components/native/carmode/CarMode';
-// @ts-ignore
 import { arePollsDisabled } from '../../../../../conference/functions';
-// @ts-ignore
 import SharedDocument from '../../../../../etherpad/components/native/SharedDocument';
-// @ts-ignore
 import GifsMenu from '../../../../../gifs/components/native/GifsMenu';
-import AddPeopleDialog
-// @ts-ignore
-    from '../../../../../invite/components/add-people-dialog/native/AddPeopleDialog';
-// @ts-ignore
+import AddPeopleDialog from '../../../../../invite/components/add-people-dialog/native/AddPeopleDialog';
 import ParticipantsPane from '../../../../../participants-pane/components/native/ParticipantsPane';
-// @ts-ignore
 import StartLiveStreamDialog from '../../../../../recording/components/LiveStream/native/StartLiveStreamDialog';
-import StartRecordingDialog
-// @ts-ignore
-    from '../../../../../recording/components/Recording/native/StartRecordingDialog';
+import StartRecordingDialog from '../../../../../recording/components/Recording/native/StartRecordingDialog';
 import SalesforceLinkDialog
-// @ts-ignore
     from '../../../../../salesforce/components/native/SalesforceLinkDialog';
 import SecurityDialog
-// @ts-ignore
     from '../../../../../security/components/security-dialog/native/SecurityDialog';
 import SpeakerStats
-// @ts-ignore
     from '../../../../../speaker-stats/components/native/SpeakerStats';
 import LanguageSelectorDialog
-// @ts-ignore
     from '../../../../../subtitles/components/native/LanguageSelectorDialog';
-// @ts-ignore
 import { screen } from '../../../routes';
 import {
     breakoutRoomsScreenOptions,
@@ -63,18 +44,11 @@ import {
     sharedDocumentScreenOptions,
     speakerStatsScreenOptions,
     subtitlesScreenOptions
-    // @ts-ignore
 } from '../../../screenOptions';
-// @ts-ignore
 import ChatAndPollsNavigator from '../../chat/components/ChatAndPollsNavigator';
-// @ts-ignore
 import LobbyNavigationContainer from '../../lobby/components/LobbyNavigationContainer';
-// @ts-ignore
 import SettingsNavigationContainer from '../../settings/components/SettingsNavigationContainer';
-import {
-    conferenceNavigationRef
-    // @ts-ignore
-} from '../ConferenceNavigationContainerRef';
+import { conferenceNavigationRef } from '../ConferenceNavigationContainerRef';
 
 
 const ConferenceStack = createStackNavigator();
@@ -96,6 +70,8 @@ const ConferenceNavigationContainer = () => {
         chatTitleString = 'chat.titleWithPolls';
     }
     const { t } = useTranslation();
+    const SettingsScreen = () => <SettingsNavigationContainer />;
+    const CarModeScreen = () => <CarMode />;
 
     return (
         <NavigationContainer
@@ -188,13 +164,11 @@ const ConferenceNavigationContainer = () => {
                         title: t('documentSharing.title')
                     }} />
                 <ConferenceStack.Screen
-                    // @ts-ignore
-                    component = { SettingsNavigationContainer }
+                    component = { SettingsScreen }
                     name = { screen.settings.main }
                     options = { settingsNavigationContainerScreenOptions } />
                 <ConferenceStack.Screen
-                    // @ts-ignore
-                    component = { CarMode }
+                    component = { CarModeScreen }
                     name = { screen.conference.carmode }
                     options = {{
                         ...carmodeScreenOptions,

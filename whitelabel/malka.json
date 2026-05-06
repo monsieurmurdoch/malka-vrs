@@ -9,6 +9,8 @@
     "inviteDomain": ""
   },
   "domains": {
+    "api": "vrs.malkacomm.com",
+    "queue": "vrs.malkacomm.com",
     "clientVrs": "vrs.malkacomm.com",
     "clientVri": "vri.malkacomm.com",
     "interpreter": "terp.malkacomm.com",
@@ -50,6 +52,7 @@
   },
   "operations": {
     "defaultServiceModes": ["vrs"],
+    "appType": "vrs",
     "billing": {
       "currency": "USD",
       "vriAslEnglishPerMinute": 1,
@@ -70,6 +73,11 @@
         "languages": ["English"]
       }
     }
+  },
+  "mobile": {
+    "iosBundleId": "com.malkacomm.vrs",
+    "androidApplicationId": "com.malkacomm.vrs",
+    "displayName": "MalkaVRS"
   },
   "features": {
     "vrs": { "enabled": true },

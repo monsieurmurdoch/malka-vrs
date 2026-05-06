@@ -226,6 +226,87 @@ if (fs.existsSync(tenantAssetsDir)) {
 }
 
 // ---------------------------------------------------------------------------
+// 6. Patch native mobile bundle IDs (iOS + Android) if mobile config exists
+// ---------------------------------------------------------------------------
+const mobileConfig = config.mobile;
+
+if (mobileConfig) {
+    // --- iOS: patch Info.plist and pbxproj ---
+    const iosInfoPlist = path.join(PROJECT_ROOT, 'ios', 'app', 'src', 'Info.plist');
+    if (fs.existsSync(iosInfoPlist)) {
+        let plist = fs.readFileSync(iosInfoPlist, 'utf8');
+
+        // Update CFBundleDisplayName
+        plist = plist.replace(
+            /(<key>CFBundleDisplayName<\/key>\s*<string>)[^<]*(<\/string>)/,
+            `$1${mobileConfig.displayName}$2`
+        );
+
+        fs.writeFileSync(iosInfoPlist, plist, 'utf8');
+        console.log(`[whitelabel] Patched ios/app/src/Info.plist (displayName: ${mobileConfig.displayName})`);
+    }
+
+    // Patch pbxproj bundle identifier
+    const pbxprojGlob = path.join(PROJECT_ROOT, 'ios', 'app', '*.pbxproj');
+    const pbxprojFiles = fs.readdirSync(path.join(PROJECT_ROOT, 'ios', 'app'))
+        .filter(f => f.endsWith('.pbxproj'));
+
+    for (const pbxFile of pbxprojFiles) {
+        const pbxPath = path.join(PROJECT_ROOT, 'ios', 'app', pbxFile);
+        let pbx = fs.readFileSync(pbxPath, 'utf8');
+
+        // Replace PRODUCT_BUNDLE_IDENTIFIER for the main app target
+        pbx = pbx.replace(
+            /PRODUCT_BUNDLE_IDENTIFIER = org\.jitsi\.meet;/g,
+            `PRODUCT_BUNDLE_IDENTIFIER = ${mobileConfig.iosBundleId};`
+        );
+
+        // Replace broadcast extension bundle ID
+        const broadcastBundleId = `${mobileConfig.iosBundleId}.broadcast`;
+        pbx = pbx.replace(
+            /PRODUCT_BUNDLE_IDENTIFIER = org\.jitsi\.meet\.broadcast\.extension;/g,
+            `PRODUCT_BUNDLE_IDENTIFIER = ${broadcastBundleId}.extension;`
+        );
+
+        fs.writeFileSync(pbxPath, pbx, 'utf8');
+        console.log(`[whitelabel] Patched ios/app/${pbxFile} (bundleId: ${mobileConfig.iosBundleId})`);
+    }
+
+    // --- Android: patch build.gradle ---
+    const androidBuildGradle = path.join(PROJECT_ROOT, 'android', 'app', 'build.gradle');
+    if (fs.existsSync(androidBuildGradle)) {
+        let gradle = fs.readFileSync(androidBuildGradle, 'utf8');
+
+        // Replace applicationId
+        gradle = gradle.replace(
+            /applicationId\s+'org\.jitsi\.meet'/,
+            `applicationId '${mobileConfig.androidApplicationId}'`
+        );
+
+        // Replace namespace
+        gradle = gradle.replace(
+            /namespace\s+'org\.jitsi\.meet'/,
+            `namespace '${mobileConfig.androidApplicationId}'`
+        );
+
+        fs.writeFileSync(androidBuildGradle, gradle, 'utf8');
+        console.log(`[whitelabel] Patched android/app/build.gradle (applicationId: ${mobileConfig.androidApplicationId})`);
+    }
+
+    // --- Android: patch strings.xml for app name ---
+    const stringsXml = path.join(PROJECT_ROOT, 'android', 'app', 'src', 'main', 'res', 'values', 'strings.xml');
+    if (fs.existsSync(stringsXml)) {
+        let strings = fs.readFileSync(stringsXml, 'utf8');
+        strings = strings.replace(
+            /(<string name="app_name">)[^<]*(<\/string>)/,
+            `$1${mobileConfig.displayName}$2`
+        );
+        fs.writeFileSync(stringsXml, strings, 'utf8');
+        console.log(`[whitelabel] Patched android strings.xml (app_name: ${mobileConfig.displayName})`);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Done
 // ---------------------------------------------------------------------------
 console.log(`[whitelabel] Prebuild complete for tenant: ${tenantId}`);

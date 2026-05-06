@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import { IStore } from '../../app/types';
 import { APP_WILL_MOUNT, APP_WILL_UNMOUNT } from '../../base/app/actionTypes';
 import MiddlewareRegistry from '../../base/redux/MiddlewareRegistry';
+import { flushMobileLogsToBackend, mobileLog } from '../navigation/logging';
 
 import { _setAppStateSubscription, appStateChanged } from './actions';
 
@@ -44,6 +45,12 @@ MiddlewareRegistry.register(store => next => action => {
  * @returns {void}
  */
 function _onAppStateChange(dispatch: IStore['dispatch'], appState: string) {
+    mobileLog('info', 'app_state_changed', { appState });
+
+    if (appState === 'background' || appState === 'inactive') {
+        void flushMobileLogsToBackend();
+    }
+
     dispatch(appStateChanged(appState));
 }
 

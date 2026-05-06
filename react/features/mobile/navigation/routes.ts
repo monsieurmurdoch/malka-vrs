@@ -44,6 +44,28 @@ export const screen = {
         profile: 'Profile'
     },
     unsafeRoomWarning: 'Unsafe Room Warning',
+    auth: {
+        login: 'Login',
+        resetPassword: 'Reset Password'
+    },
+    vrs: {
+        home: 'VRS Home',
+        callHistory: 'VRS Call History',
+        contacts: 'VRS Contacts',
+        contactDetail: 'VRS Contact Detail',
+        dialPad: 'VRS Dial Pad',
+        voicemail: 'VRS Voicemail'
+    },
+    vri: {
+        console: 'VRI Console',
+        settings: 'VRI Settings',
+        usage: 'VRI Usage'
+    },
+    interpreter: {
+        home: 'Interpreter Home',
+        settings: 'Interpreter Settings',
+        earnings: 'Interpreter Earnings'
+    },
     welcome: {
         main: 'Welcome',
         tabs: {
@@ -51,4 +73,20 @@ export const screen = {
             recent: 'Recent'
         }
     }
+} as const;
+
+type LeafRouteNames<T> = T extends string
+    ? T
+    : T extends Record<string, unknown>
+        ? LeafRouteNames<T[keyof T]>
+        : never;
+
+export type RootRouteName = LeafRouteNames<typeof screen>;
+
+export type RootStackParamList = {
+    [K in RootRouteName]: K extends 'VRS Contact Detail'
+        ? { contactId?: string } | undefined
+        : K extends 'Conference root'
+            ? { roomName?: string } | undefined
+            : Record<string, unknown> | undefined;
 };

@@ -25,7 +25,7 @@ export function isInterpreter(): boolean {
 
     // Check URL path for interpreter-specific pages
     if (typeof window !== 'undefined' && window.location) {
-        const path = window.location.pathname;
+        const path = window.location.pathname || '';
         if (path.includes('interpreter-dashboard') ||
             path.includes('interpreter-login') ||
             path.includes('/interpreter/')) {
@@ -56,7 +56,7 @@ export function isCaptioner(): boolean {
     }
 
     if (typeof window !== 'undefined' && window.location) {
-        const path = window.location.pathname;
+        const path = window.location.pathname || '';
         if (path.includes('captioner-profile') || path.includes('/captioner/')) {
             return true;
         }
@@ -97,7 +97,7 @@ export function isClient(): boolean {
 
     // Check URL path for client-specific pages
     if (typeof window !== 'undefined' && window.location) {
-        const path = window.location.pathname;
+        const path = window.location.pathname || '';
         if (path.includes('client-login') || path.includes('/client/')) {
             return true;
         }

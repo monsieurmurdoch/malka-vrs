@@ -5,9 +5,15 @@
  * Validates roles with backend server and manages session tokens.
  */
 
-import { VRSRole, VRSUser, AuthResponse, LoginCredentials, ValidationResult, AuthToken } from './types';
-import { STORAGE_KEYS, TOKEN_EXPIRY, ROLE_PERMISSIONS } from './constants';
-import { clearPersistentItems, getPersistentItem, removePersistentItem, setPersistentItem } from './storage';
+import { ROLE_PERMISSIONS, STORAGE_KEYS, TOKEN_EXPIRY } from './constants';
+import {
+    clearPersistentItems,
+    getPersistentItem,
+    getPersistentItemAsync,
+    hydratePersistentItems,
+    setPersistentItem
+} from './storage';
+import { AuthResponse, AuthToken, LoginCredentials, VRSRole, VRSUser, ValidationResult } from './types';
 
 // Config will be loaded from Jitsi's config
 declare var config: any;
@@ -34,8 +40,8 @@ function getVRSConfig() {
 function toBase64Url(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer);
     let binary = '';
-    for (const byte of bytes) {
-        binary += String.fromCharCode(byte);
+    for (let index = 0; index < bytes.length; index++) {
+        binary += String.fromCharCode(bytes[index]);
     }
 
     return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -45,22 +51,42 @@ function toBase64Url(buffer: ArrayBuffer): string {
  * Encode a JS object to a Base64URL JSON string.
  */
 function encodeBase64UrlJson(payload: object): string {
-    return toBase64Url(new TextEncoder().encode(JSON.stringify(payload)).buffer);
+    const encoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
+    if (!encoder) {
+        return btoa(JSON.stringify(payload)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+    return toBase64Url(encoder.encode(JSON.stringify(payload)).buffer);
 }
 
 /**
  * Create an HMAC-SHA256 signature using the Web Crypto API.
  */
 async function hmacSign(data: string, secret: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const key = await crypto.subtle.importKey(
+    const encoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
+    const subtle = typeof crypto !== 'undefined' && crypto.subtle ? crypto.subtle : null;
+
+    if (!encoder || !subtle) {
+        // Fallback: simple hash-based signature when Web Crypto is unavailable
+        let hash = 0;
+        const combined = data + secret;
+        for (let i = 0; i < combined.length; i++) {
+            const char = combined.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash |= 0;
+        }
+
+        return btoa(String.fromCharCode(...new Uint8Array(new Int32Array([hash]).buffer)))
+            .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    const key = await subtle.importKey(
         'raw',
         encoder.encode(secret),
         { name: 'HMAC', hash: 'SHA-256' },
         false,
         [ 'sign' ]
     );
-    const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(data));
+    const signature = await subtle.sign('HMAC', key, encoder.encode(data));
 
     return toBase64Url(signature);
 }
@@ -70,10 +96,16 @@ class VRSSAuthService {
     private currentUser: VRSUser | null = null;
     private validationCache: Map<string, { result: ValidationResult; timestamp: number }> = new Map();
     private cacheTimeout = 60000; // 1 minute cache
+    private storageReady: Promise<void>;
 
     constructor() {
         this.config = getVRSConfig();
         this.loadUserFromStorage();
+        this.storageReady = this.hydrateUserFromStorage();
+    }
+
+    ready(): Promise<void> {
+        return this.storageReady;
     }
 
     /**
@@ -84,17 +116,14 @@ class VRSSAuthService {
     }
 
     /**
-     * Get stored role from sessionStorage (fallback)
+     * Get stored role from shared storage (browser storage on web, in-memory on mobile fallback).
      */
     private getStoredRole(): VRSRole {
-        if (typeof sessionStorage === 'undefined') {
-            return 'none';
-        }
-
-        const role = sessionStorage.getItem(STORAGE_KEYS.USER_ROLE);
+        const role = getPersistentItem(STORAGE_KEYS.USER_ROLE);
         if (role && ['client', 'interpreter', 'admin', 'superadmin'].includes(role)) {
             return role as VRSRole;
         }
+
         return 'none';
     }
 
@@ -148,6 +177,8 @@ class VRSSAuthService {
      * For interpreters: requires server validation
      */
     async login(credentials: LoginCredentials): Promise<AuthResponse> {
+        await this.storageReady;
+
         try {
             const { role, name, email, password, languages } = credentials;
 
@@ -274,7 +305,9 @@ class VRSSAuthService {
      * Validate current session with server
      */
     async validateSession(): Promise<ValidationResult> {
-        const token = this.getStoredToken();
+        await this.storageReady;
+
+        const token = await this.getStoredTokenAsync();
         if (!token) {
             return { valid: false, error: 'No authentication token found' };
         }
@@ -378,6 +411,19 @@ class VRSSAuthService {
         setPersistentItem(STORAGE_KEYS.USER_INFO, JSON.stringify(user));
     }
 
+    private async hydrateUserFromStorage(): Promise<void> {
+        await hydratePersistentItems([
+            STORAGE_KEYS.USER_ROLE,
+            STORAGE_KEYS.AUTH_TOKEN,
+            STORAGE_KEYS.USER_INFO,
+            STORAGE_KEYS.CLIENT_AUTH,
+            'vrs_interpreter_auth',
+            'vrs_active_call'
+        ]);
+
+        this.loadUserFromStorage();
+    }
+
     private loadUserFromStorage(): void {
         try {
             const userInfo = getPersistentItem(STORAGE_KEYS.USER_INFO);
@@ -400,6 +446,19 @@ class VRSSAuthService {
     private getStoredToken(): AuthToken | null {
         try {
             const tokenStr = getPersistentItem(STORAGE_KEYS.AUTH_TOKEN);
+            if (tokenStr) {
+                return JSON.parse(tokenStr) as AuthToken;
+            }
+        } catch (error) {
+            console.error('Error loading token from storage:', error);
+        }
+
+        return null;
+    }
+
+    private async getStoredTokenAsync(): Promise<AuthToken | null> {
+        try {
+            const tokenStr = await getPersistentItemAsync(STORAGE_KEYS.AUTH_TOKEN);
             if (tokenStr) {
                 return JSON.parse(tokenStr) as AuthToken;
             }

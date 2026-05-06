@@ -134,7 +134,7 @@ const Prejoin: React.FC<IPrejoinProps> = ({ navigation }: IPrejoinProps) => {
     const { PRIMARY, TERTIARY } = BUTTON_TYPES;
 
     useEffect(() => {
-        BackHandler.addEventListener('hardwareBackPress', goBack);
+        const backHandlerSubscription = BackHandler.addEventListener('hardwareBackPress', goBack);
 
         dispatch(setPermanentProperty({
             wasPrejoinDisplayed: true
@@ -171,7 +171,7 @@ const Prejoin: React.FC<IPrejoinProps> = ({ navigation }: IPrejoinProps) => {
             queueService.on('requestCancelled', handleRequestCancelled);
 
             return () => {
-                BackHandler.removeEventListener('hardwareBackPress', goBack);
+                backHandlerSubscription.remove();
                 queueService.off('queueStatus', handleQueueStatus);
                 queueService.off('requestQueued', handleRequestQueued);
                 queueService.off('requestAccepted', handleRequestAccepted);
@@ -180,7 +180,7 @@ const Prejoin: React.FC<IPrejoinProps> = ({ navigation }: IPrejoinProps) => {
             };
         }
 
-        return () => BackHandler.removeEventListener('hardwareBackPress', goBack);
+        return () => backHandlerSubscription.remove();
 
     }, [userRole]); // dispatch is not in the dependancy list because we want the action to be dispatched only once when
     // the component is mounted.

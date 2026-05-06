@@ -8,6 +8,7 @@ export interface ContactEntry {
     name: string;
     email: string | null;
     phone_number: string | null;
+    contact_handle: string | null;
     organization: string | null;
     notes: string | null;
     avatar_color: string | null;
@@ -124,6 +125,7 @@ export const contactsAPI = {
                 name: data.name,
                 email: data.email,
                 phoneNumber: data.phone_number,
+                contactHandle: data.contact_handle,
                 organization: data.organization,
                 notes: data.notes,
                 avatarColor: data.avatar_color,
@@ -141,6 +143,7 @@ export const contactsAPI = {
                 name: data.name,
                 email: data.email,
                 phoneNumber: data.phone_number,
+                contactHandle: data.contact_handle,
                 organization: data.organization,
                 notes: data.notes,
                 avatarColor: data.avatar_color,

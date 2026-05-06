@@ -1,0 +1,777 @@
+/**
+ * VRI Client Console Screen.
+ *
+ * Focused corporate VRI session console for Maple/Malka VRI clients.
+ * Large self-view, Request Interpreter action, session controls.
+ */
+
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+    SafeAreaView,
+    ScrollView,
+    Share,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    useWindowDimensions,
+    View
+} from 'react-native';
+import { MediaStream, RTCView } from 'react-native-webrtc';
+import { useDispatch, useSelector } from 'react-redux';
+import Svg, { Path } from 'react-native-svg';
+
+import { cancelInterpreterRequest, requestInterpreter } from '../../../../interpreter-queue/actions';
+import { QueueState } from '../../../../interpreter-queue/reducer';
+import { queueService } from '../../../../interpreter-queue/InterpreterQueueService';
+import { apiClient } from '../../../../shared/api-client';
+import { removeSecureItem } from '../../../../vrs-auth/secureStorage';
+import { clearPersistentItems, getPersistentItem, getPersistentJson, setPersistentItem } from '../../../../vrs-auth/storage';
+import { mobileLog } from '../../logging';
+import { shouldAutoStartMobileCameraPreview, startMobileCameraPreview } from '../../mediaPreview';
+import { navigateRoot } from '../../rootNavigationContainerRef';
+import { screen } from '../../routes';
+import NetworkStatusBar from '../NetworkStatusBar';
+import { useTenantTheme } from '../../hooks/useTenantTheme';
+import { UserInfo } from '../../../types';
+
+const VRI_LANGUAGES = [
+    { code: 'ASL', label: 'ASL' },
+    { code: 'LSQ', label: 'LSQ' }
+];
+
+const ShareIcon = ({ color }: { color: string }) => (
+    <Svg
+        accessible = { false }
+        height = { 30 }
+        pointerEvents = 'none'
+        viewBox = '0 0 24 24'
+        width = { 30 }>
+        <Path
+            d = 'M12 3v12'
+            stroke = { color }
+            strokeLinecap = 'round'
+            strokeLinejoin = 'round'
+            strokeWidth = { 2.2 } />
+        <Path
+            d = 'M7 8l5-5 5 5'
+            stroke = { color }
+            strokeLinecap = 'round'
+            strokeLinejoin = 'round'
+            strokeWidth = { 2.2 } />
+        <Path
+            d = 'M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7'
+            fill = 'none'
+            stroke = { color }
+            strokeLinecap = 'round'
+            strokeLinejoin = 'round'
+            strokeWidth = { 2.2 } />
+    </Svg>
+);
+
+type QueueRootState = {
+    'features/interpreter-queue'?: QueueState;
+};
+
+const VRIConsoleScreen = () => {
+    const dispatch = useDispatch();
+    const theme = useTenantTheme();
+    const { height, width } = useWindowDimensions();
+    const queueState = useSelector((state: QueueRootState) => state['features/interpreter-queue']);
+    const isConnected = Boolean(queueState?.isConnected);
+    const isRequestPending = Boolean(queueState?.isRequestPending);
+    const queuePosition = queueState?.queuePosition;
+    const matchData = queueState?.matchData;
+    const canStartCameraPreview = shouldAutoStartMobileCameraPreview();
+
+    const [ userInfo, setUserInfo ] = useState<UserInfo | null>(() => getPersistentJson<UserInfo>('vrs_user_info'));
+    const savedLang = getPersistentJson<string>('vrs_request_language');
+    const [ language, setLanguage ] = useState(savedLang || 'ASL');
+    const [ elapsedTime, setElapsedTime ] = useState(0);
+    const [ previewStream, setPreviewStream ] = useState<MediaStream | null>(null);
+    const [ previewError, setPreviewError ] = useState('');
+    const previewStreamRef = useRef<MediaStream | null>(null);
+    const [ inviteUrl, setInviteUrl ] = useState<string | null>(() => getPersistentItem('vri_pending_invite_url'));
+    const [ inviteTokens, setInviteTokens ] = useState<string[]>(() => getPersistentJson<string[]>('vri_pending_invite_tokens') || []);
+    const [ inviteStatus, setInviteStatus ] = useState<'idle' | 'preparing' | 'ready' | 'shared' | 'error'>(
+        inviteTokens.length ? 'ready' : 'idle'
+    );
+    const [ inviteError, setInviteError ] = useState('');
+
+    // Listen for VRI invite preparation responses
+    useEffect(() => {
+        const onInvitePrepared = (data: { inviteUrl?: string; token?: string }) => {
+            if (data.inviteUrl) {
+                setInviteUrl(data.inviteUrl);
+                setPersistentItem('vri_pending_invite_url', data.inviteUrl);
+                setInviteStatus('ready');
+                setInviteError('');
+
+                if (data.token) {
+                    setInviteTokens(previous => {
+                        const next = Array.from(new Set([ ...previous, data.token as string ])).slice(0, 20);
+
+                        setPersistentItem('vri_pending_invite_tokens', JSON.stringify(next));
+
+                        return next;
+                    });
+                }
+                mobileLog('info', 'vri_invite_prepared', { token: data.token });
+            }
+        };
+
+        queueService.on('vriInvitePrepared', onInvitePrepared);
+
+        return () => {
+            queueService.off('vriInvitePrepared', onInvitePrepared);
+        };
+    }, []);
+
+    useEffect(() => {
+        queueService.reconnect();
+    }, []);
+
+    useEffect(() => {
+        let mounted = true;
+
+        apiClient.get<UserInfo>('/api/client/profile').then(response => {
+            if (!mounted) {
+                return;
+            }
+
+            if (response.error) {
+                mobileLog('warn', 'vri_client_profile_load_failed', { error: response.error });
+
+                return;
+            }
+
+            if (response.data) {
+                const nextUser = { ...userInfo, ...response.data };
+
+                setUserInfo(nextUser);
+                setPersistentItem('vrs_user_info', JSON.stringify(nextUser));
+            }
+        });
+
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
+    const startPreview = useCallback(async () => {
+        setPreviewError('');
+        previewStreamRef.current?.getTracks().forEach(track => track.stop());
+        previewStreamRef.current = null;
+        setPreviewStream(null);
+
+        try {
+            const { stream } = await startMobileCameraPreview('vri-console');
+
+            previewStreamRef.current = stream;
+            setPreviewStream(stream);
+            setPersistentItem('vri_media_defaults', JSON.stringify({
+                cameraPermissionGranted: true,
+                cameraPreviewEnabled: true,
+                cameraDefaultOn: true,
+                microphoneDefaultMuted: true,
+                updatedAt: new Date().toISOString()
+            }));
+        } catch (err: unknown) {
+            setPreviewError(err instanceof Error ? err.message : 'Camera preview unavailable');
+            setPersistentItem('vri_media_defaults', JSON.stringify({
+                cameraPermissionGranted: false,
+                cameraPreviewEnabled: false,
+                cameraDefaultOn: false,
+                microphoneDefaultMuted: true,
+                updatedAt: new Date().toISOString()
+            }));
+        }
+    }, []);
+
+    useEffect(() => {
+        if (canStartCameraPreview) {
+            void startPreview();
+        } else {
+            setPreviewError('Camera preview is paused in the Android emulator. Use a physical device for live self-view.');
+        }
+
+        return () => {
+            previewStreamRef.current?.getTracks().forEach(track => track.stop());
+            previewStreamRef.current = null;
+        };
+    }, [ canStartCameraPreview, startPreview ]);
+
+    // Track time since match was found
+    useEffect(() => {
+        if (!matchData) {
+            setElapsedTime(0);
+
+            return;
+        }
+
+        const interval = setInterval(() => {
+            setElapsedTime(prev => prev + 1);
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [ matchData ]);
+
+    const handleRequestInterpreter = useCallback(() => {
+        if (isRequestPending) {
+            dispatch(cancelInterpreterRequest());
+
+            return;
+        }
+        dispatch(requestInterpreter(language, {
+            callType: 'vri',
+            inviteTokens
+        }));
+    }, [ dispatch, inviteTokens, isRequestPending, language ]);
+
+    const handleLogout = useCallback(() => {
+        clearPersistentItems([
+            'vrs_user_role',
+            'vrs_auth_token',
+            'vrs_user_info',
+            'vrs_client_auth',
+            'vrs_interpreter_auth',
+            'vrs_active_call'
+        ]);
+        removeSecureItem('vrs_auth_token');
+        navigateRoot(screen.auth.login);
+    }, []);
+
+    const formatTime = (seconds: number) => {
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+
+        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    };
+
+    const handlePrepareInvite = useCallback(() => {
+        setInviteStatus('preparing');
+        setInviteError('');
+        queueService.prepareVriInvite({
+            roomName: matchData?.roomName || undefined
+        });
+    }, [ matchData ]);
+
+    const handleShareInvite = useCallback(async () => {
+        if (!inviteUrl) {
+            return;
+        }
+
+        try {
+            await Share.share({
+                message: `Join this VRI session: ${inviteUrl}`,
+                title: 'VRI session invite',
+                url: inviteUrl
+            });
+            setInviteStatus('shared');
+            mobileLog('info', 'vri_invite_shared');
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Unable to share invite';
+
+            setInviteStatus('error');
+            setInviteError(message);
+            mobileLog('warn', 'vri_invite_share_failed', { error: message });
+        }
+    }, [ inviteUrl ]);
+
+    useEffect(() => {
+        if (!matchData?.roomName || !inviteTokens.length) {
+            return;
+        }
+
+        setInviteTokens([]);
+        setPersistentItem('vri_pending_invite_tokens', JSON.stringify([]));
+    }, [ inviteTokens.length, matchData?.roomName ]);
+
+    const isInSession = Boolean(matchData?.roomName);
+    const hasPreparedInvite = Boolean(inviteUrl || inviteTokens.length);
+    const inviteHelperText = isInSession
+        ? 'Share this link with Deaf or hearing participants who should join this live VRI session.'
+        : 'Guests stay in a waiting screen. The session opens only after an interpreter is connected.';
+    const isLandscape = width > height;
+    const selfViewHeight = isLandscape
+        ? Math.max(210, Math.min(300, height * 0.58))
+        : Math.max(300, Math.min(560, height * 0.5));
+
+    return (
+        <SafeAreaView style = { [ styles.container, { backgroundColor: theme.mobileBackground || theme.primaryDark } ] }>
+            <NetworkStatusBar isConnected = { isConnected } />
+            <ScrollView
+                alwaysBounceVertical = { false }
+                contentContainerStyle = { [
+                    styles.scrollContent,
+                    { backgroundColor: theme.mobileBackground || theme.primaryDark }
+                ] }>
+                {/* Header with Logout */}
+                <View style = { styles.header }>
+                    <Text style = { styles.headerTitle }>
+                        { userInfo?.organization || 'VRI Console' }
+                    </Text>
+                    <TouchableOpacity
+                        accessibilityLabel = 'Sign out'
+                        onPress = { handleLogout }
+                        style = { styles.logoutButton }>
+                        <Text style = { styles.logoutText }>Sign Out</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Self-View Area */}
+                <View style = { [ styles.selfViewArea, { height: selfViewHeight } ] }>
+                    <View style = { styles.selfViewPlaceholder }>
+                        { previewStream ? (
+                            <RTCView
+                                mirror
+                                objectFit = 'cover'
+                                streamURL = { previewStream.toURL() }
+                                style = { styles.selfViewVideo } />
+                        ) : (
+                            <>
+                                <Text style = { styles.selfViewText }>
+                                    { isInSession ? 'In Session' : 'Camera Preview' }
+                                </Text>
+                                <Text style = { styles.selfViewSubtext }>
+                                    { previewError || (isInSession
+                                        ? `With ${matchData?.interpreterName || 'interpreter'}`
+                                        : 'Allow camera access to see yourself here') }
+                                </Text>
+                                { canStartCameraPreview && (
+                                    <TouchableOpacity
+                                        accessibilityLabel = 'Retry camera preview'
+                                        accessibilityRole = 'button'
+                                        onPress = { startPreview }
+                                        style = { styles.retryCameraButton }>
+                                        <Text style = { styles.retryCameraText }>Retry Camera</Text>
+                                    </TouchableOpacity>
+                                ) }
+                            </>
+                        ) }
+                        { previewStream && (
+                            <TouchableOpacity
+                                accessibilityLabel = 'Retry camera preview'
+                                accessibilityRole = 'button'
+                                onPress = { startPreview }
+                                style = { styles.cameraOverlayButton }>
+                                <Text style = { styles.cameraOverlayText }>Retry</Text>
+                            </TouchableOpacity>
+                        ) }
+                    </View>
+                </View>
+
+                {/* Session Info */}
+                <View style = { styles.sessionInfo }>
+                    { isInSession ? (
+                        <>
+                            <Text style = { styles.sessionLabel }>Active VRI Session</Text>
+                            <Text style = { [ styles.sessionTimer, { color: theme.accent } ] }>{ formatTime(elapsedTime) }</Text>
+                            <Text style = { styles.sessionDetail }>
+                                Interpreter: { matchData?.interpreterName || 'Assigned' }
+                            </Text>
+                        </>
+                    ) : (
+                        <>
+                            <Text style = { styles.sessionLabel }>
+                                { isRequestPending
+                                    ? `Queue Position: ${queuePosition ?? '—'}`
+                                    : 'No Active Session' }
+                            </Text>
+                            { isRequestPending && (
+                                <Text style = { styles.sessionDetail }>
+                                    Waiting for an available interpreter...
+                                </Text>
+                            ) }
+                        </>
+                    ) }
+                </View>
+
+                {/* Invite Panel — prepare before match; share again once live */}
+                <View style = { styles.invitePanel }>
+                    <View style = { styles.inviteCopy }>
+                        <Text style = { styles.inviteLabel }>
+                            { hasPreparedInvite ? 'Session Invite Ready' : 'Add Participants' }
+                        </Text>
+                        <Text style = { styles.inviteHelp }>
+                            { inviteHelperText }
+                        </Text>
+                        { inviteUrl && (
+                            <Text
+                                numberOfLines = { 2 }
+                                style = { styles.inviteUrl }>
+                                { inviteUrl }
+                            </Text>
+                        ) }
+                        { inviteError ? <Text style = { styles.inviteError }>{ inviteError }</Text> : null }
+                    </View>
+                    <TouchableOpacity
+                        accessibilityLabel = { inviteUrl ? 'Share VRI invite link' : 'Prepare VRI invite link' }
+                        accessibilityHint = { inviteUrl
+                            ? 'Opens the system share sheet with a web invite link'
+                            : 'Creates a web invite link for guests' }
+                        accessibilityRole = 'button'
+                        disabled = { inviteStatus === 'preparing' || (!isConnected && !inviteUrl) }
+                        onPress = { inviteUrl ? handleShareInvite : handlePrepareInvite }
+                        style = { [
+                            styles.inviteButton,
+                            { borderColor: theme.accent },
+                            inviteUrl && styles.shareIconButton,
+                            (inviteStatus === 'preparing' || (!isConnected && !inviteUrl)) && styles.inviteButtonDisabled
+                        ] }>
+                        { inviteUrl && inviteStatus !== 'preparing'
+                            ? <ShareIcon color = '#FFFFFF' />
+                            : (
+                                <Text style = { [ styles.inviteButtonText, { color: theme.accent } ] }>
+                                    { inviteStatus === 'preparing' ? 'Preparing...' : 'Prepare Link' }
+                                </Text>
+                            ) }
+                    </TouchableOpacity>
+                </View>
+
+                {/* Language Selector */}
+                { !isInSession && (
+                    <View style = { styles.languageRow }>
+                        { VRI_LANGUAGES.map(lang => (
+                            <TouchableOpacity
+                                accessibilityLabel = { `Select ${lang.label}` }
+                                key = { lang.code }
+                                onPress = { () => {
+                                    setLanguage(lang.code);
+                                    setPersistentItem('vrs_request_language', lang.code);
+                                } }
+                                style = { [
+                                    styles.langButton,
+                                    language === lang.code && { backgroundColor: theme.accent }
+                                ] }>
+                                <Text style = { [
+                                    styles.langText,
+                                    language === lang.code && styles.langTextActive
+                                ] }>
+                                    { lang.label }
+                                </Text>
+                            </TouchableOpacity>
+                        )) }
+                    </View>
+                )}
+
+                {/* Primary Action — only request/cancel, never manual room entry */}
+                <View style = { styles.actions }>
+                    <TouchableOpacity
+                        accessibilityLabel = { isRequestPending ? 'Cancel request' : isInSession ? 'Session active' : 'Request interpreter' }
+                        onPress = { handleRequestInterpreter }
+                        style = { [
+                            styles.requestButton,
+                            { backgroundColor: theme.accent, shadowColor: theme.accent },
+                            isRequestPending && styles.cancelButton,
+                            isInSession && styles.requestButtonDisabled
+                        ] }
+                        disabled = { isInSession }>
+                        <Text style = { styles.requestButtonText }>
+                            { isInSession
+                                ? 'Session Active'
+                                : isRequestPending
+                                    ? 'Cancel Request'
+                                    : 'Request Interpreter' }
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Connection Status */}
+                <View style = { styles.footer }>
+                    <View style = { styles.quickLinks }>
+                        <TouchableOpacity
+                            accessibilityLabel = 'Open VRI settings'
+                            onPress = { () => navigateRoot(screen.vri.settings) }
+                            style = { styles.quickLink }>
+                            <Text style = { styles.quickLinkText }>Settings</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            accessibilityLabel = 'View usage summary'
+                            onPress = { () => navigateRoot(screen.vri.usage) }
+                            style = { styles.quickLink }>
+                            <Text style = { styles.quickLinkText }>Usage</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <View style = { styles.connectionRow }>
+                        <View style = { [
+                            styles.dot,
+                            isConnected ? styles.dotGreen : styles.dotOrange
+                        ] } />
+                        <Text style = { styles.connectionText }>
+                            { isConnected ? 'Connected' : 'Reconnecting...' }
+                        </Text>
+                    </View>
+                </View>
+            </ScrollView>
+        </SafeAreaView>
+    );
+};
+
+const styles = StyleSheet.create({
+    actions: {
+        paddingHorizontal: 24,
+        paddingVertical: 16
+    },
+    cancelButton: {
+        backgroundColor: '#d32f2f'
+    },
+    cameraOverlayButton: {
+        backgroundColor: 'rgba(10, 10, 26, 0.72)',
+        borderColor: 'rgba(255, 255, 255, 0.28)',
+        borderRadius: 12,
+        borderWidth: 1,
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        position: 'absolute',
+        right: 10,
+        top: 10
+    },
+    cameraOverlayText: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: '800'
+    },
+    connectionRow: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        justifyContent: 'center'
+    },
+    connectionText: {
+        color: '#888',
+        fontSize: 12
+    },
+    container: {
+        backgroundColor: '#0a0a1a',
+        flex: 1
+    },
+    dot: {
+        borderRadius: 4,
+        height: 8,
+        marginRight: 6,
+        width: 8
+    },
+    dotGreen: {
+        backgroundColor: '#4caf50'
+    },
+    dotOrange: {
+        backgroundColor: '#ff9800'
+    },
+    footer: {
+        alignItems: 'center',
+        paddingBottom: 24,
+        paddingTop: 8
+    },
+    header: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingTop: 16
+    },
+    headerTitle: {
+        color: '#ffffff',
+        fontSize: 18,
+        fontWeight: '600'
+    },
+    inviteButton: {
+        backgroundColor: '#1a1a2e',
+        borderColor: '#2979ff',
+        borderWidth: 1,
+        borderRadius: 8,
+        minWidth: 112,
+        paddingHorizontal: 16,
+        paddingVertical: 10
+    },
+    inviteButtonDisabled: {
+        opacity: 0.5
+    },
+    inviteButtonText: {
+        color: '#2979ff',
+        fontSize: 13,
+        fontWeight: '600',
+        textAlign: 'center'
+    },
+    inviteCopy: {
+        flex: 1,
+        marginRight: 12
+    },
+    inviteError: {
+        color: '#ff6b6b',
+        fontSize: 12,
+        marginTop: 6
+    },
+    inviteHelp: {
+        color: '#aaa',
+        fontSize: 12,
+        lineHeight: 17,
+        marginBottom: 6
+    },
+    inviteLabel: {
+        color: '#888',
+        fontSize: 11,
+        fontWeight: '600',
+        letterSpacing: 0.5,
+        marginBottom: 4,
+        textTransform: 'uppercase'
+    },
+    invitePanel: {
+        alignItems: 'center',
+        backgroundColor: '#111126',
+        borderColor: '#252540',
+        borderRadius: 12,
+        borderWidth: 1,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginHorizontal: 20,
+        marginBottom: 8,
+        padding: 14
+    },
+    inviteUrl: {
+        color: '#aaa',
+        fontSize: 11,
+        lineHeight: 16
+    },
+    langButton: {
+        backgroundColor: '#1a1a2e',
+        borderRadius: 8,
+        marginRight: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 6
+    },
+    languageRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        marginBottom: 12,
+        marginHorizontal: 20
+    },
+    langText: {
+        color: '#888',
+        fontSize: 12,
+        fontWeight: '600'
+    },
+    langTextActive: {
+        color: '#fff'
+    },
+    logoutButton: {
+        paddingHorizontal: 12,
+        paddingVertical: 6
+    },
+    logoutText: {
+        color: '#888',
+        fontSize: 13
+    },
+    scrollContent: {
+        flexGrow: 1,
+        paddingBottom: 24
+    },
+    quickLink: {
+        backgroundColor: '#1a1a2e',
+        borderRadius: 8,
+        paddingHorizontal: 16,
+        paddingVertical: 8
+    },
+    quickLinkText: {
+        color: '#aaa',
+        fontSize: 13
+    },
+    quickLinks: {
+        flexDirection: 'row',
+        gap: 12,
+        marginBottom: 12
+    },
+    requestButton: {
+        alignItems: 'center',
+        backgroundColor: '#2979ff',
+        borderRadius: 14,
+        elevation: 3,
+        padding: 18,
+        shadowColor: '#2979ff',
+        shadowOffset: { height: 3, width: 0 },
+        shadowOpacity: 0.25,
+        shadowRadius: 6
+    },
+    requestButtonDisabled: {
+        backgroundColor: '#1a1a3e',
+        elevation: 0,
+        shadowColor: 'transparent',
+        shadowOpacity: 0
+    },
+    requestButtonText: {
+        color: '#fff',
+        fontSize: 17,
+        fontWeight: '600'
+    },
+    shareIconButton: {
+        alignItems: 'center',
+        borderRadius: 22,
+        height: 44,
+        justifyContent: 'center',
+        minWidth: 44,
+        paddingHorizontal: 0,
+        paddingVertical: 0,
+        width: 44
+    },
+    retryCameraButton: {
+        borderColor: '#3a3a54',
+        borderRadius: 12,
+        borderWidth: 1,
+        marginTop: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 10
+    },
+    retryCameraText: {
+        color: '#ddd',
+        fontSize: 13,
+        fontWeight: '700'
+    },
+    selfViewArea: {
+        paddingHorizontal: 16,
+        paddingTop: 16
+    },
+    selfViewPlaceholder: {
+        alignItems: 'center',
+        backgroundColor: '#1a1a2e',
+        borderRadius: 16,
+        flex: 1,
+        justifyContent: 'center',
+        overflow: 'hidden'
+    },
+    selfViewSubtext: {
+        color: '#555',
+        fontSize: 13,
+        marginTop: 4
+    },
+    selfViewText: {
+        color: '#777',
+        fontSize: 16,
+        fontWeight: '500'
+    },
+    selfViewVideo: {
+        height: '100%',
+        width: '100%'
+    },
+    sessionDetail: {
+        color: '#999',
+        fontSize: 13,
+        marginTop: 4
+    },
+    sessionInfo: {
+        alignItems: 'center',
+        paddingVertical: 16
+    },
+    sessionLabel: {
+        color: '#ddd',
+        fontSize: 16,
+        fontWeight: '600'
+    },
+    sessionTimer: {
+        color: '#2979ff',
+        fontSize: 36,
+        fontVariant: [ 'tabular-nums' ],
+        fontWeight: '700',
+        marginTop: 4
+    }
+});
+
+export default VRIConsoleScreen;

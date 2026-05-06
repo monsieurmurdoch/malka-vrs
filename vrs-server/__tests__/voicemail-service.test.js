@@ -24,14 +24,20 @@ jest.mock('../dist/database', () => ({
     logActivity: jest.fn()
 }));
 
+const mockStorage = {
+    isInitialized: jest.fn(() => false),
+    getPresignedUrl: jest.fn(),
+    deleteFiles: jest.fn(),
+    deleteFile: jest.fn(),
+    uploadBuffer: jest.fn(),
+    uploadFile: jest.fn(),
+    fileExists: jest.fn(),
+    getFileStats: jest.fn()
+};
+
 // Mock storage service
 jest.mock('../dist/lib/storage-service', () => ({
-    getStorageService: jest.fn(() => ({
-        isInitialized: jest.fn(() => false),
-        getPresignedUrl: jest.fn(),
-        deleteFiles: jest.fn(),
-        uploadFile: jest.fn()
-    })),
+    getStorageService: jest.fn(() => mockStorage),
     configureStorageService: jest.fn()
 }));
 
@@ -39,7 +45,7 @@ const {
     initialize, startRecording, completeRecording, failRecording,
     cancelRecording, getInbox, deleteMessage,
     getUnreadCount, expireOldMessages, getSettings,
-    updateSetting, getStats, shutdown
+    updateSetting, getStats, verifyObjectStoragePath, shutdown
 } = require('../dist/lib/voicemail-service');
 const db = require('../dist/database');
 
@@ -62,6 +68,13 @@ describe('VoicemailService', () => {
         db.getVoicemailStorageUsage.mockResolvedValue(0);
         db.getVoicemailInboxCount.mockResolvedValue(0);
         db.getVoicemailUnreadCount.mockResolvedValue(0);
+        mockStorage.isInitialized.mockReturnValue(false);
+        mockStorage.getPresignedUrl.mockReset();
+        mockStorage.deleteFiles.mockReset();
+        mockStorage.deleteFile.mockReset();
+        mockStorage.uploadBuffer.mockReset();
+        mockStorage.fileExists.mockReset();
+        mockStorage.getFileStats.mockReset();
     });
 
     afterAll(() => {
@@ -123,7 +136,24 @@ describe('VoicemailService', () => {
             expect(db.updateVoicemailMessage).toHaveBeenCalledWith('msg-1', expect.objectContaining({
                 status: 'available',
                 duration_seconds: 45,
-                file_size_bytes: 5242880
+                file_size_bytes: 5242880,
+                content_type: 'video/mp4'
+            }));
+        });
+
+        it('should persist thumbnail and content type metadata from the recorder', async () => {
+            db.updateVoicemailMessage.mockResolvedValue();
+
+            await completeRecording('msg-1', 'recordings/msg-1.webm', 45, 5242880, {
+                contentType: 'video/webm',
+                thumbnailKey: 'thumbnails/msg-1.jpg',
+                compressed: false
+            });
+
+            expect(db.updateVoicemailMessage).toHaveBeenCalledWith('msg-1', expect.objectContaining({
+                storage_key: 'recordings/msg-1.webm',
+                thumbnail_key: 'thumbnails/msg-1.jpg',
+                content_type: 'video/webm'
             }));
         });
     });
@@ -188,6 +218,36 @@ describe('VoicemailService', () => {
             const count = await expireOldMessages();
 
             expect(count).toBe(0);
+        });
+    });
+
+    describe('verifyObjectStoragePath()', () => {
+        it('should report unavailable when object storage is not initialized', async () => {
+            mockStorage.isInitialized.mockReturnValue(false);
+
+            const result = await verifyObjectStoragePath();
+
+            expect(result.ok).toBe(false);
+            expect(result.reason).toBe('storage_unavailable');
+        });
+
+        it('should perform a write/stat/presign/delete probe when storage is initialized', async () => {
+            mockStorage.isInitialized.mockReturnValue(true);
+            mockStorage.uploadBuffer.mockResolvedValue({ key: 'health/test.txt', size: 42 });
+            mockStorage.fileExists.mockResolvedValue(true);
+            mockStorage.getFileStats.mockImplementation(async () => ({
+                size: mockStorage.uploadBuffer.mock.calls[0][0].length
+            }));
+            mockStorage.getPresignedUrl.mockResolvedValue('https://storage.example/test');
+            mockStorage.deleteFile.mockResolvedValue();
+
+            const result = await verifyObjectStoragePath();
+
+            expect(mockStorage.uploadBuffer).toHaveBeenCalled();
+            expect(mockStorage.fileExists).toHaveBeenCalled();
+            expect(mockStorage.getPresignedUrl).toHaveBeenCalled();
+            expect(mockStorage.deleteFile).toHaveBeenCalled();
+            expect(result.ok).toBe(true);
         });
     });
 

@@ -1,4 +1,5 @@
 import { AnyAction } from 'redux';
+import { Platform } from 'react-native';
 
 import { IStore } from '../app/types';
 import MiddlewareRegistry from '../base/redux/MiddlewareRegistry';
@@ -15,6 +16,10 @@ MiddlewareRegistry.register((store: IStore) => (next: Function) => (action: AnyA
 
     switch (action.type) {
     case REQUEST_INTERPRETER: {
+        if (Platform.OS !== 'web') {
+            break;
+        }
+
         const { roomName } = action;
         const state = getState();
         const jwtState = state['features/base/jwt'];

@@ -3,9 +3,35 @@ opt_out_usage
 
 default_platform(:android)
 
+# Tenant application ID configuration.
+# Set TENANT env var to "malka", "malkavri", or "maple" before running.
+TENANT_APP_IDS = {
+  "malka" => {
+    application_id: "com.malka.vrs",
+    display_name: "MalkaVRS"
+  },
+  "malkavri" => {
+    application_id: "com.malka.vri",
+    display_name: "MalkaVRI"
+  },
+  "maple" => {
+    application_id: "com.maple.vri",
+    display_name: "MapleVRI"
+  }
+}
+
+def tenant_config
+  tenant = ENV["TENANT"] || "malka"
+  cfg = TENANT_APP_IDS[tenant]
+  UI.user_error!("Unknown tenant: #{tenant}. Available: #{TENANT_APP_IDS.keys.join(', ')}") unless cfg
+  cfg
+end
+
 platform :android do
-    desc "Deploy a new version to Goolge Play (Closed Beta)"
+    desc "Deploy a new version to Google Play (Internal Testing) for the given tenant (TENANT=malka|malkavri|maple)"
     lane :deploy do
+        cfg = tenant_config
+
         # Cleanup
         gradle(task: "clean")
 
@@ -15,17 +41,18 @@ platform :android do
             build_type: "Release",
             print_command: false,
             properties: {
-                "android.injected.signing.store.file" => ENV["JITSI_KEYSTORE"],
-                "android.injected.signing.store.password" => ENV["JITSI_KEYSTORE_PASSWORD"],
-                "android.injected.signing.key.alias" => ENV["JITSI_KEY_ALIAS"],
-                "android.injected.signing.key.password" => ENV["JITSI_KEY_PASSWORD"],
+                "android.injected.signing.store.file" => ENV["MALKA_KEYSTORE"] || ENV["JITSI_KEYSTORE"],
+                "android.injected.signing.store.password" => ENV["MALKA_KEYSTORE_PASSWORD"] || ENV["JITSI_KEYSTORE_PASSWORD"],
+                "android.injected.signing.key.alias" => ENV["MALKA_KEY_ALIAS"] || ENV["JITSI_KEY_ALIAS"],
+                "android.injected.signing.key.password" => ENV["MALKA_KEY_PASSWORD"] || ENV["JITSI_KEY_PASSWORD"],
+                "applicationId" => cfg[:application_id],
             }
         )
 
-        # Upload built artifact to the Closed Beta track
+        # Upload built artifact to Internal Testing track
         upload_to_play_store(
-            track: "beta",
-            json_key: ENV["JITSI_JSON_KEY_FILE"],
+            track: "internal",
+            json_key: ENV["MALKA_JSON_KEY_FILE"] || ENV["JITSI_JSON_KEY_FILE"],
             skip_upload_metadata: true,
             skip_upload_images: true,
             skip_upload_screenshots: true

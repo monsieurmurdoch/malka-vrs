@@ -1,5 +1,5 @@
 {
-    "include": ["react/features/**/*.ts", "react/features/**/*.tsx", "./custom.d.ts", "./globals.native.d.ts"],
+    "include": ["contracts/**/*.ts", "react/features/**/*.ts", "react/features/**/*.tsx", "./custom.d.ts", "./globals.native.d.ts"],
     "compilerOptions": {
         "allowSyntheticDefaultImports": true,
         "target": "es2020",
@@ -17,6 +17,7 @@
     "exclude": [
         "node_modules",
         "react/features/always-on-top",
+        "react/features/contacts/components/web",
         "react/features/analytics/handlers/GoogleAnalyticsHandler.ts",
         "react/features/base/components/participants-pane-list",
         "react/features/base/tooltip",
@@ -33,6 +34,7 @@
         "react/features/screenshot-capture",
         "react/features/stream-effects",
         "react/features/virtual-background",
+        "react/features/vrs-layout",
         "react/features/web-hid",
         "react/features/whiteboard",
         "**/web/*",

@@ -120,7 +120,7 @@ export function appNavigate(uri?: string, options: IReloadNowOptions = {}) {
 
         // Avoid (re)loading the config when there is no room.
         if (!room) {
-            config = restoreConfig(baseURL);
+            config = restoreConfig(baseURL) || createFakeConfig(baseURL);
         }
 
         if (!config) {
@@ -151,6 +151,15 @@ export function appNavigate(uri?: string, options: IReloadNowOptions = {}) {
         }
 
         dispatch(setLocationURL(locationURL));
+
+        // Apply runtime config overrides from navigation options.
+        if (options.startWithAudioMuted !== undefined) {
+            config.startWithAudioMuted = options.startWithAudioMuted;
+        }
+        if (options.startWithVideoMuted !== undefined) {
+            config.startWithVideoMuted = options.startWithVideoMuted;
+        }
+
         dispatch(setConfig(config));
         dispatch(setRoom(room));
 

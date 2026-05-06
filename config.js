@@ -32,10 +32,10 @@ var vrsHttpOrigin = typeof window !== 'undefined'
     ? window.location.origin
     : 'http://localhost:3001';
 var vrsWsOrigin = typeof window !== 'undefined'
-    ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
+    ? (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host
     : 'ws://localhost:3001';
 var vrsTwilioOrigin = typeof window !== 'undefined'
-    ? `${window.location.origin}/twilio`
+    ? window.location.origin + '/twilio'
     : 'http://localhost:3002';
 
 function resolveVrsServiceUrl(localUrl, remoteUrl) {
@@ -1726,7 +1726,7 @@ var config = {
     // VRS (Video Relay Service) Configuration
     vrs: {
         // Interpreter Queue Service WebSocket URL
-        queueServiceUrl: resolveVrsServiceUrl('ws://localhost:3001/ws', `${vrsWsOrigin}/ws`),
+        queueServiceUrl: resolveVrsServiceUrl('ws://localhost:3001/ws', vrsWsOrigin + '/ws'),
 
         // Twilio Voice Server URL for outbound calls to hearing parties
         twilioVoiceUrl: resolveVrsServiceUrl(
@@ -1735,7 +1735,7 @@ var config = {
         ),
 
         // Ops/Admin API endpoint for call logging and monitoring
-        opsApiUrl: resolveVrsServiceUrl('http://localhost:3003/api', `${vrsHttpOrigin}/ops/api`),
+        opsApiUrl: resolveVrsServiceUrl('http://localhost:3003/api', vrsHttpOrigin + '/ops/api'),
 
         // JWT secret for role validation — MUST be set via process.env or
         // a local .env file before running in any environment.
@@ -1745,7 +1745,7 @@ var config = {
             : '',
 
         // Role validation endpoint
-        authEndpoint: resolveVrsServiceUrl('http://localhost:3003/api/auth', `${vrsHttpOrigin}/ops/api/auth`),
+        authEndpoint: resolveVrsServiceUrl('http://localhost:3003/api/auth', vrsHttpOrigin + '/ops/api/auth'),
 
         // Call logging settings
         callLogging: {

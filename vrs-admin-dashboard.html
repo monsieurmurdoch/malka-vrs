@@ -34,37 +34,32 @@
             min-height: 100vh;
         }
 
-        :focus-visible {
-            outline: 3px solid var(--accent-yellow);
-            outline-offset: 3px;
-        }
-
         /* Header */
         .header {
             background: var(--bg-secondary);
             border-bottom: 1px solid var(--border-color);
             padding: 16px 24px;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 16px;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 18px;
             position: sticky;
             top: 0;
             z-index: 100;
         }
 
-        .header-left {
+        .header-main {
             display: flex;
             align-items: center;
-            flex-wrap: wrap;
-            gap: 24px;
-            min-width: 0;
+            justify-content: space-between;
+            gap: 18px;
         }
 
         .logo {
             display: flex;
             align-items: center;
             gap: 12px;
+            flex-shrink: 0;
         }
 
         .logo h1 {
@@ -83,13 +78,15 @@
 
         .nav-tabs {
             display: flex;
+            align-items: center;
             flex-wrap: wrap;
-            gap: 8px;
+            gap: 6px;
             min-width: 0;
+            width: 100%;
         }
 
         .nav-tab {
-            padding: 10px 18px;
+            padding: 10px 16px;
             background: transparent;
             border: none;
             color: var(--text-secondary);
@@ -98,6 +95,13 @@
             cursor: pointer;
             border-radius: 10px;
             transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 40px;
+            line-height: 1;
+            white-space: nowrap;
+            flex: 0 0 auto;
         }
 
         .nav-tab:hover {
@@ -113,9 +117,8 @@
         .header-right {
             display: flex;
             align-items: center;
-            flex-wrap: wrap;
             gap: 16px;
-            justify-content: flex-end;
+            flex-shrink: 0;
         }
 
         .refresh-btn {
@@ -259,7 +262,6 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            gap: 16px;
             padding: 20px 24px;
             border-bottom: 1px solid var(--border-color);
         }
@@ -274,7 +276,6 @@
 
         .section-actions {
             display: flex;
-            flex-wrap: wrap;
             gap: 12px;
         }
 
@@ -316,7 +317,6 @@
         /* Table Styles */
         .table-container {
             overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
         }
 
         table {
@@ -430,6 +430,117 @@
         .status-break .status-dot { background: var(--accent-purple); }
         .status-completed .status-dot { background: var(--accent-green); }
         .status-attention .status-dot { background: var(--accent-red); }
+
+        .coverage-grid {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            padding: 20px 24px 0;
+        }
+
+        .coverage-card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 16px;
+        }
+
+        .coverage-value {
+            font-size: 28px;
+            font-weight: 800;
+            line-height: 1.1;
+        }
+
+        .coverage-label {
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            margin-top: 7px;
+            text-transform: uppercase;
+        }
+
+        .coverage-note {
+            color: var(--text-muted);
+            font-size: 12px;
+            line-height: 1.45;
+            margin-top: 8px;
+        }
+
+        .coverage-toolbar {
+            align-items: end;
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+            padding: 20px 24px 0;
+        }
+
+        .coverage-field {
+            display: grid;
+            gap: 6px;
+        }
+
+        .coverage-field label {
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .coverage-input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-primary);
+            min-height: 40px;
+            padding: 9px 12px;
+        }
+
+        .coverage-hour-grid {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: 70px repeat(7, minmax(80px, 1fr));
+            padding: 20px 24px;
+        }
+
+        .coverage-hour-cell {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-secondary);
+            min-height: 46px;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .coverage-hour-cell.header {
+            background: transparent;
+            border-color: transparent;
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 700;
+            min-height: auto;
+            text-transform: uppercase;
+        }
+
+        .coverage-hour-cell.covered {
+            background: rgba(40, 167, 69, 0.14);
+            border-color: rgba(40, 167, 69, 0.26);
+            color: #8ee8a3;
+        }
+
+        .coverage-hour-cell.gap {
+            background: rgba(220, 53, 69, 0.14);
+            border-color: rgba(220, 53, 69, 0.3);
+            color: #ff9aa7;
+        }
+
+        .coverage-hour-cell.over {
+            background: rgba(255, 193, 7, 0.14);
+            border-color: rgba(255, 193, 7, 0.3);
+            color: #ffd968;
+        }
 
         .ops-view-toggle {
             display: inline-flex;
@@ -597,7 +708,6 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            flex-wrap: wrap;
             gap: 16px;
             padding: 20px 24px;
             border-bottom: 1px solid var(--border-color);
@@ -786,34 +896,6 @@
             }
         }
 
-        @media (max-width: 900px) {
-            .header {
-                align-items: flex-start;
-                flex-wrap: wrap;
-            }
-
-            .header-left,
-            .header-right {
-                width: 100%;
-            }
-
-            .header-right {
-                justify-content: flex-start;
-            }
-
-            .nav-tabs {
-                flex-wrap: nowrap;
-                overflow-x: auto;
-                padding-bottom: 4px;
-                width: 100%;
-                -webkit-overflow-scrolling: touch;
-            }
-
-            .nav-tab {
-                flex: 0 0 auto;
-            }
-        }
-
         /* Filter Bar */
         .filter-bar {
             display: flex;
@@ -854,58 +936,9 @@
             font-size: 13px;
         }
 
-        @media (max-width: 640px) {
-            .main-content {
-                padding: 12px;
-            }
-
-            .section-header {
-                align-items: stretch;
-                flex-direction: column;
-                padding: 16px;
-            }
-
-            .section-actions,
-            .section-actions .btn {
-                width: 100%;
-            }
-
-            .filter-bar {
-                padding: 12px;
-            }
-
-            .filter-label,
-            .filter-select,
-            .search-input {
-                flex: 1 1 100%;
-                width: 100%;
-            }
-
-            th,
-            td {
-                padding: 12px;
-            }
-
-            .modal-backdrop {
-                align-items: flex-start;
-                padding: 12px;
-            }
-
-            .modal-header,
-            .modal-footer,
-            .modal-body {
-                padding: 16px;
-            }
-        }
-
         .search-input:focus {
             outline: none;
             border-color: var(--accent-blue);
-        }
-
-        .search-input:focus-visible {
-            outline: 3px solid var(--accent-yellow);
-            outline-offset: 3px;
         }
 
         /* Mini Charts */
@@ -966,34 +999,35 @@
 <body>
     <!-- Header -->
     <header class="header">
-        <div class="header-left">
+        <div class="header-main">
             <div class="logo">
                 <h1>MalkaVRS</h1>
                 <span class="logo-badge">ADMIN</span>
             </div>
-            <nav class="nav-tabs" aria-label="Admin sections">
-                <button class="nav-tab active" type="button" data-tab="dashboard" aria-controls="dashboard-tab" aria-current="page">Dashboard</button>
-                <button class="nav-tab" type="button" data-tab="interpreters" aria-controls="interpreters-tab">Interpreters</button>
-                <button class="nav-tab" type="button" data-tab="captioners" aria-controls="captioners-tab">Captioners</button>
-                <button class="nav-tab" type="button" data-tab="accounts" aria-controls="accounts-tab">Accounts</button>
-                <button class="nav-tab" type="button" data-tab="clients" aria-controls="clients-tab">Clients</button>
-                <button class="nav-tab" type="button" data-tab="queue" aria-controls="queue-tab">Live Queue</button>
-                <button class="nav-tab" type="button" data-tab="activity" aria-controls="activity-tab">Activity</button>
-                <button class="nav-tab" type="button" data-tab="tenants" aria-controls="tenants-tab">Tenants</button>
-            </nav>
-        </div>
-        <div class="header-right">
-            <button class="refresh-btn" id="refreshBtn">🔄 Refresh</button>
-            <button class="lang-toggle" id="langToggle">🇺🇸 EN</button>
-            <div class="user-menu">
-                <div class="user-avatar">A</div>
-                <div class="user-info">
-                    <div class="user-name">Admin</div>
-                    <div class="user-role">Administrator</div>
+            <div class="header-right">
+                <button class="refresh-btn" id="refreshBtn">🔄 Refresh</button>
+                <button class="lang-toggle" id="langToggle">🇺🇸 EN</button>
+                <div class="user-menu">
+                    <div class="user-avatar">A</div>
+                    <div class="user-info">
+                        <div class="user-name">Admin</div>
+                        <div class="user-role">Administrator</div>
+                    </div>
                 </div>
+                <button class="logout-btn" id="logoutBtn">Logout</button>
             </div>
-            <button class="logout-btn" id="logoutBtn">Logout</button>
         </div>
+        <nav class="nav-tabs">
+            <button class="nav-tab active" data-tab="dashboard">Dashboard</button>
+            <button class="nav-tab" data-tab="interpreters">Interpreters</button>
+            <button class="nav-tab" data-tab="captioners">Captioners</button>
+            <button class="nav-tab" data-tab="accounts">Accounts</button>
+            <button class="nav-tab" data-tab="clients">Clients</button>
+            <button class="nav-tab" data-tab="queue">Live Queue</button>
+            <button class="nav-tab" data-tab="activity">Activity</button>
+            <button class="nav-tab" data-tab="billing">Billing</button>
+            <button class="nav-tab" data-tab="tenants">Tenants</button>
+        </nav>
     </header>
 
     <!-- Main Content -->
@@ -1319,6 +1353,97 @@
                     </table>
                 </div>
             </div>
+
+            <div class="section">
+                <div class="section-header">
+                    <h2 class="section-title">📅 Scheduling & Coverage</h2>
+                    <div class="section-actions">
+                        <button class="btn btn-secondary" id="exportUtilizationBtn">Export Utilization CSV</button>
+                        <select class="filter-select" id="scheduleTenantFilter">
+                            <option value="">All Tenants</option>
+                            <option value="malka">Malka</option>
+                            <option value="maple">Maple</option>
+                        </select>
+                        <select class="filter-select" id="scheduleServiceFilter">
+                            <option value="">All Services</option>
+                            <option value="vrs">VRS</option>
+                            <option value="vri">VRI</option>
+                        </select>
+                        <select class="filter-select" id="scheduleLanguageFilter">
+                            <option value="">All Languages</option>
+                            <option value="ASL">ASL</option>
+                            <option value="LSQ">LSQ</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="coverage-toolbar">
+                    <div class="coverage-field">
+                        <label for="scheduleWeekStart">Week Start</label>
+                        <input class="coverage-input" id="scheduleWeekStart" type="date">
+                    </div>
+                    <div class="coverage-field">
+                        <label for="scheduleStartHour">Start Hour</label>
+                        <input class="coverage-input" id="scheduleStartHour" type="number" min="0" max="23" value="8">
+                    </div>
+                    <div class="coverage-field">
+                        <label for="scheduleEndHour">End Hour</label>
+                        <input class="coverage-input" id="scheduleEndHour" type="number" min="1" max="24" value="18">
+                    </div>
+                    <div class="coverage-field">
+                        <label for="scheduleTargetCount">Target / Hour</label>
+                        <input class="coverage-input" id="scheduleTargetCount" type="number" min="1" max="50" value="1">
+                    </div>
+                    <button class="btn btn-primary" id="addScheduleWindowBtn">+ Manager Override</button>
+                </div>
+                <div class="coverage-grid" id="scheduleCoverageCards"></div>
+                <div class="coverage-hour-grid" id="scheduleCoverageGrid"></div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Pending Change</th>
+                                <th>Interpreter</th>
+                                <th>Window</th>
+                                <th>Service</th>
+                                <th>Manager Note</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pendingScheduleBody">
+                            <tr>
+                                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                                    No pending schedule changes.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="table-container" style="padding-top: 20px;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Interpreter</th>
+                                <th>Service</th>
+                                <th>Languages</th>
+                                <th>Status</th>
+                                <th>Calls Today</th>
+                                <th>Minutes Week</th>
+                                <th>Adherence</th>
+                                <th>Breaks</th>
+                                <th>SLA</th>
+                                <th>Coverage Note</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scheduleRosterBody">
+                            <tr>
+                                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                                    Loading scheduling view...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
 
         <!-- Captioners Tab -->
@@ -1574,6 +1699,63 @@
             </div>
         </div>
 
+        <!-- Billing Tab -->
+        <div class="tab-content" id="billing-tab">
+            <div class="section">
+                <div class="section-header">
+                    <h2 class="section-title">💳 Invoice Automation</h2>
+                    <div class="section-actions">
+                        <button class="btn btn-secondary" id="billingAutoRunBtn">Run Due Invoices</button>
+                        <button class="btn btn-primary" id="billingSendSelectedBtn">Send Selected</button>
+                    </div>
+                </div>
+                <div class="filter-bar">
+                    <label class="filter-label">
+                        Period start
+                        <input class="filter-select" id="billingPeriodStart" type="date">
+                    </label>
+                    <label class="filter-label">
+                        Period end
+                        <input class="filter-select" id="billingPeriodEnd" type="date">
+                    </label>
+                    <label class="filter-label">
+                        Action
+                        <select class="filter-select" id="billingSendMode">
+                            <option value="send">Generate missing drafts and send</option>
+                            <option value="draft">Generate drafts only</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="help-text" style="margin-bottom: 16px;">
+                    Select corporate VRI clients, then send Stripe-hosted invoices to billing contacts. Business copy emails come from invoice recipients and <code>BILLING_INVOICE_CC_EMAILS</code>.
+                </div>
+                <div id="billingBulkStatus" class="help-text" style="margin-bottom: 16px;"></div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="billingSelectAll" aria-label="Select all corporate accounts"></th>
+                                <th>Corporate Client</th>
+                                <th>Billing Contact</th>
+                                <th>Payment</th>
+                                <th>Billing Day</th>
+                                <th>Stripe</th>
+                                <th>Recipients</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="billingAccountsTableBody">
+                            <tr>
+                                <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                                    Loading billing accounts...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <!-- Tenants Tab -->
         <div class="tab-content" id="tenants-tab">
             <div class="section">
@@ -1606,7 +1788,7 @@
     </main>
 
     <div class="modal-backdrop" id="adminModal" aria-hidden="true">
-        <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="adminModalTitle" tabindex="-1">
+        <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="adminModalTitle">
             <div class="modal-header">
                 <div>
                     <h2 id="adminModalTitle">Admin</h2>

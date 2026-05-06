@@ -1,7 +1,7 @@
-import { NavigationContainerRef } from '@react-navigation/native';
+import { NavigationContainerRef, ParamListBase } from '@react-navigation/native';
 import React from 'react';
 
-export const lobbyNavigationContainerRef = React.createRef<NavigationContainerRef<any>>();
+export const lobbyNavigationContainerRef = React.createRef<NavigationContainerRef<ParamListBase>>();
 
 /**
  * User defined navigation action included inside the reference to the container.
@@ -10,8 +10,12 @@ export const lobbyNavigationContainerRef = React.createRef<NavigationContainerRe
  * @param {Object} params - Params to pass to the destination route.
  * @returns {Function}
  */
-export function navigate(name: string, params?: Object) {
-    return lobbyNavigationContainerRef.current?.navigate(name, params);
+export function navigate(name: string, params?: Record<string, unknown>) {
+    const navigation = lobbyNavigationContainerRef.current as unknown as {
+        navigate: (routeName: string, routeParams?: Record<string, unknown>) => void;
+    } | null;
+
+    return navigation?.navigate(name, params);
 }
 
 /**

@@ -5,12 +5,17 @@
  * The `validatePayload` helper from lib/validation.js is used at the top of each handler.
  */
 
-const { z, nameSchema, phoneNumberSchema, languageSchema } = require('../lib/validation');
+const { z, nameSchema, phoneNumberSchema, languageSchema, roomNameSchema, sanitizeStrict } = require('../lib/validation');
+
+const messageEnvelopeSchema = z.object({
+    type: z.string().min(1).max(80),
+    data: z.unknown().optional()
+}).passthrough();
 
 const authMessageSchema = z.object({
     role: z.enum(['client', 'interpreter', 'admin', 'captioner']),
     userId: z.string().min(1),
-    name: z.string().max(100).optional(),
+    name: nameSchema.optional(),
     token: z.string().optional()
 });
 
@@ -23,19 +28,19 @@ const interpreterStatusSchema = z.object({
 });
 
 const requestInterpreterSchema = z.object({
-    clientName: z.string().max(100).optional(),
+    clientName: nameSchema.optional(),
     language: languageSchema.optional().default('ASL'),
     targetPhone: phoneNumberSchema.optional(),
-    roomName: z.string().max(100).optional(),
+    roomName: roomNameSchema.optional(),
     callType: z.enum(['vrs', 'vri']).optional(),
     inviteTokens: z.array(z.string().min(1).max(100)).max(20).optional()
 });
 
 const prepareVriInviteSchema = z.object({
-    guestName: z.string().max(100).optional(),
+    guestName: nameSchema.optional(),
     guestEmail: z.string().email().max(200).optional(),
     guestPhone: phoneNumberSchema.optional(),
-    roomName: z.string().max(100).optional()
+    roomName: roomNameSchema.optional()
 });
 
 const cancelRequestSchema = z.object({
@@ -52,7 +57,7 @@ const declineRequestSchema = z.object({
 
 const sessionRegisterSchema = z.object({
     userId: z.string().min(1),
-    roomName: z.string().min(1).max(100),
+    roomName: roomNameSchema,
     deviceId: z.string().min(1).max(100)
 });
 
@@ -85,7 +90,7 @@ const p2pCallSchema = z.object({
 
 const p2pAcceptSchema = z.object({
     callId: z.string().min(1),
-    roomName: z.string().min(1),
+    roomName: roomNameSchema,
     callerId: z.string().min(1)
 });
 
@@ -101,14 +106,14 @@ const p2pCancelSchema = z.object({
 
 const p2pEndSchema = z.object({
     callId: z.string().min(1),
-    roomName: z.string().optional(),
+    roomName: roomNameSchema.optional(),
     otherId: z.string().min(1),
     durationMinutes: z.number().nonnegative().optional()
 });
 
 const callEndSchema = z.object({
     callId: z.string().min(1),
-    roomName: z.string().optional(),
+    roomName: roomNameSchema.optional(),
     durationMinutes: z.number().nonnegative().optional()
 });
 
@@ -135,7 +140,7 @@ const callTransferSchema = z.object({
     toPhoneNumber: phoneNumberSchema.optional(),
     toInterpreterId: z.string().min(1).optional(),
     transferType: z.enum(['blind', 'attended']).default('blind'),
-    reason: z.string().max(500).optional()
+    reason: z.string().max(500).transform(sanitizeStrict).optional()
 }).refine(data => data.toPhoneNumber || data.toInterpreterId, {
     message: 'Must provide toPhoneNumber or toInterpreterId'
 });
@@ -165,7 +170,7 @@ const conferenceRemoveSchema = z.object({
 // In-call chat schemas
 const chatSendMessageSchema = z.object({
     callId: z.string().min(1),
-    message: z.string().min(1).max(2000)
+    message: z.string().min(1).max(2000).transform(sanitizeStrict)
 });
 
 const chatHistorySchema = z.object({
@@ -177,7 +182,7 @@ const chatHistorySchema = z.object({
 // Client preferences schemas
 const preferencesUpdateSchema = z.object({
     dnd_enabled: z.boolean().optional(),
-    dnd_message: z.string().max(200).optional(),
+    dnd_message: z.string().max(200).transform(sanitizeStrict).optional(),
     dark_mode: z.enum(['light', 'dark', 'system']).optional(),
     camera_default_off: z.boolean().optional(),
     mic_default_off: z.boolean().optional(),
@@ -194,18 +199,18 @@ const callHoldSchema = z.object({
 // TTS / VCO schemas
 const vcoStartSchema = z.object({
     targetPhone: phoneNumberSchema.optional(),
-    roomName: z.string().max(100).optional()
+    roomName: roomNameSchema.optional()
 });
 
 const vcoEndSchema = z.object({
     callId: z.string().min(1),
-    roomName: z.string().optional(),
+    roomName: roomNameSchema.optional(),
     durationMinutes: z.number().nonnegative().optional()
 });
 
 const ttsSpeakSchema = z.object({
     callId: z.string().min(1),
-    text: z.string().min(1).max(1000),
+    text: z.string().min(1).max(1000).transform(sanitizeStrict),
     voiceSettings: z.object({
         voiceName: z.string().max(100).optional(),
         voiceGender: z.enum(['male', 'female']).optional(),
@@ -263,4 +268,4 @@ const messageSchemas = {
     tts_quick_speak: ttsQuickSpeakSchema
 };
 
-module.exports = { messageSchemas };
+module.exports = { messageEnvelopeSchema, messageSchemas };

@@ -1,7 +1,7 @@
 # Malka VRS - Product & Engineering Roadmap
 
-> **Last updated**: April 30, 2026
-> **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. Malka VRS backend/WebSocket smoke now covers in-room-style interpreter request, admin live queue visibility, interpreter match, call end, and CDR creation. The main open risks are remaining real-browser in-room/admin UI verification, TURN/coturn fallback, Redis/state externalization, regulatory/compliance work, live Stripe/accounting configuration, and mobile parity.
+> **Last updated**: May 5, 2026
+> **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. Malka VRS backend/WebSocket smoke now covers in-room-style interpreter request, admin live queue visibility, interpreter match, call end, and CDR creation. Native mobile now has working Android/iOS client-app build lanes for MalkaVRS, MalkaVRI, and MapleVRI, production-backed auth/API/queue wiring, tenant-specific app IDs, iOS simulator install flow, Android 16 KB-compatible debug/release artifacts, and tenant visual polish. The JS/TS migration boundary is documented, shared API/WebSocket contracts now feed web/native/tests/smoke tooling, and release gates plus staging/base-URL policy are documented. TURN/coturn deployment is live with external allocation smoke passing. Redis is now in the Compose stack with shared queue metadata, matching locks, interpreter presence, WebSocket presence metadata, handoff token TTL storage, and Redis-backed VRS rate limits. The current VRS business assumption is a certified-partner operating model: Malka supplies the sales/platform/operator layer for or through an already FCC-certified VRS provider rather than becoming the certified provider of record on the immediate roadmap. The main open risks are remaining real-browser in-room/admin UI verification, restrictive-network TURN relay proof, Redis Pub/Sub/HA follow-through, partner requirements capture, live Stripe/accounting configuration, physical-device mobile media/call smoke, TestFlight/Play release lanes, push/background calling, crash reporting, and final secure-storage linkage.
 
 ---
 
@@ -17,12 +17,12 @@
 
 **Not yet production-complete**
 - Full real-browser UI verification is still required for the active-room request-interpreter button, VRI invite/guest flow, and admin moderation screens.
-- TURN/coturn fallback is still needed for corporate networks where direct UDP 10000 is blocked.
+- TURN/coturn fallback is enabled on production with external allocation smoke passing; remaining proof is browser ICE stats from a restrictive network showing the selected candidate pair is `relay`.
 - Admin portal filtering/moderation has been implemented and needs real-browser workflow smoke across Malka and Maple.
-- Redis/state externalization is still required before multi-server horizontal scaling.
-- FCC/VRS compliance, 911/E911, iTRS, NANP provisioning, billing immutability, and certification remain major parallel tracks.
-- VRI corporate billing/payment and interpreter payout foundations are now implemented: immutable CDR-to-invoice item linking, Stripe invoice/customer plumbing, invoice email/send path, credit notes, webhook replay, reconciliation dashboard, payables/payout/schedule/utilization tables, contractor invoices, payout CSV export, and admin APIs. Live Stripe production mode still needs real keys, Stripe portal configuration, and final accounting policy.
-- Mobile apps need feature and backend parity with the main web app before broad launch.
+- Redis state externalization has started; Redis Pub/Sub and HA are still required before multi-server horizontal scaling.
+- The VRS track is now framed around certified-partner readiness rather than direct FCC provider certification. Technical VRS behavior, records, auditability, NANP/iTRS/911 support hooks, billing integrity, and privacy controls still matter because a certified partner will need them operationally.
+- VRI corporate billing/payment and interpreter payout foundations are now implemented: immutable CDR-to-invoice item linking, Stripe invoice/customer plumbing, invoice email/send path, one-click/bulk invoice sending, scheduled auto-run invoice generation/sending, credit notes, webhook replay, reconciliation dashboard, payables/payout/schedule/utilization tables, contractor invoices, payout CSV export, and admin APIs. Live Stripe production mode still needs real keys, Stripe portal configuration, and final accounting policy.
+- Mobile apps now have the main client-side parity foundation in place; physical-device smoke, release lanes, push/background call behavior, crash reporting, and store-readiness work remain before broad launch.
 
 ---
 
@@ -40,6 +40,8 @@
 - [x] Maple and Malka backend smokes pass for queue, ops, and Twilio readiness
 - [x] Twilio reverse proxy smoke fixed: `/twilio/health` and `/twilio/api/readiness` return 200 through production routes
 - [x] Production ops health/readiness return `ok` after disabling bootstrap superadmin in the prod compose path
+- [x] Production-like staging environment definition with isolated DB, staging tenant configs, Stripe test mode, Twilio sandbox/test path, and seed procedure
+  - 2026-05-03: Added `.env.staging.example`, `docker-compose.staging.yml`, staging tenant configs, staging smoke scripts, and `docs/staging-environment.md`.
 
 ### Production Verification & Smoke Tests
 - [x] Real media smoke on Droplet: client joins, interpreter joins, video/audio works, room survives normal browser flow
@@ -60,6 +62,17 @@
 - [x] Admin account moderation for client/interpreter/captioner permissions
 - [x] Admin audit export for account/permission changes
 - [x] Superadmin dashboard for managing tenants
+- [x] Top-level admin dashboard navigation verified in a real browser after replacing static buttons with hash-routing handlers
+  - 2026-05-03: Added local-only `?navSmoke=1` admin browser-smoke mode, verified Dashboard, Interpreters, Captioners, Accounts, Clients, Live Queue, Activity, and Tenants tabs route to the correct panels, and clarified the Live Queue empty state as waiting client requests rather than interpreter availability.
+
+### Validation & Error Handling
+- [x] Expanded Zod validation to every POST/PUT/PATCH endpoint
+- [x] Added WebSocket envelope and payload validation
+- [x] Sanitized stored user-generated fields touched by auth, profile, contact, admin, TTS, billing, and queue flows
+- [x] Added centralized Express error normalization with no production stack/message leakage for 500s
+- [x] Standardized error shape across VRS, ops, and Twilio responses: `{ error, code, details? }`
+- [x] Confirmed WebSocket message handling catches unhandled message errors and reports safe `INTERNAL_ERROR` payloads
+- [x] Completed npm audit review and upgrade plan in `docs/npm-audit-review.md`
 
 ### PostgreSQL Runtime Alignment
 - [x] VRS server runtime uses PostgreSQL as canonical app database
@@ -80,6 +93,17 @@
 - [x] `vrs-server/lib/*.js` key services migrated: queue-service, handoff-service, activity-logger
 - [x] Shared strict tsconfig base added for VRS and ops
 - [x] Strict mode enabled for new TypeScript files
+- [x] Remaining JS/TS migration boundary documented for VRS routes, WebSocket handlers, queue service, validation, and checked-in compatibility output (`docs/vrs-server-ts-boundary.md`)
+- [x] High-risk mobile navigation, queue middleware, queue client event, and shared tenant/config helper `any`/`@ts-ignore` usage replaced with typed route params, typed event payloads, and typed config normalization
+- [x] Remaining legacy React Native nested-navigation `@ts-ignore` compatibility shims retired for conference, lobby, and chat navigators after typing the nested screen wrappers
+- [x] Fast local verification target for common app work
+  - 2026-05-03: Added `npm run verify:local`, covering web/native TypeScript, focused syntax checks, changed VRS Jest tests, shared contract tests, and checked-in VRS dist sync when relevant.
+- [x] Single typed contract source for API responses and WebSocket events consumed from web, native, server tests, and smoke scripts
+  - 2026-05-03: Added `contracts/` with Zod API response schemas, queue/WebSocket event schemas, sequence manifests, and a smoke endpoint manifest used by `scripts/validate-vrs-stack.mjs`.
+- [x] Runtime contract tests for shared API client methods and queue WebSocket sequences
+  - 2026-05-03: Added server-side contract tests that parse representative auth, contacts, call-history, voicemail, queue status, interpreter request, and meeting-initiation payloads.
+- [x] Checked-in `dist` deployment contract decision and CI sync check
+  - 2026-05-03: Kept checked-in `vrs-server/dist/*` as the deployment compatibility contract for now and added `npm run check:vrs-dist-sync` plus CI enforcement.
 
 ### Authentication & Accounts
 - [x] Email/password login with JWT
@@ -121,6 +145,8 @@
 - [x] Interpreter profile page with name, email, languages, queue status, stats, and backend profile connection
 - [x] Interpreter availability toggle
 - [x] Interpreter profile structure aligned more closely with client profile, with room for role-specific tabs
+- [x] Interpreter analytics tab with calls, minutes, VRS/VRI split, break minutes, signed-on minutes, utilization rate, and live queue/event feed
+- [x] Interpreter schedule tab with target/scheduled/signed-on/remaining hours and availability/time-off save flow
 
 ### Calls, Rooms & Queue
 - [x] WebSocket-based interpreter queue
@@ -133,6 +159,10 @@
 - [x] Duplicate request-interpreter control suppressed on Jitsi prejoin/waiting-room screens
 - [x] Maple VRI queue-created calls persist `call_type = vri`
 - [x] Call-end WebSocket path marks calls completed and writes immutable billing CDRs
+- [x] Linked hangup for interpreted calls
+  - 2026-05-03: Server-side `call_end` now emits `call_ended` to both matched client and interpreter sockets for interpreted VRI/VRS calls; web/native queue middleware consumes it, clears active call state, writes history, and exits the room.
+- [x] Independent hangup behavior preserved for non-interpreted rooms
+  - 2026-05-03: Linked hangup is gated on calls with both `client_id` and `interpreter_id`, so P2P instant rooms and deaf-to-deaf/direct calls keep independent participant departure behavior.
 - [x] Real Maple VRI media smoke passed: client and interpreter joined, audio/video worked, and UDP 10000 media was observed
 - [x] Instant-room fast join
 - [x] Instant-room default camera and mic off
@@ -173,6 +203,16 @@
 - [x] Voicemail unread badge and live in-app updates
 - [x] Configurable message expiry foundation
 - [x] S3-compatible object storage path for voicemail media
+- [x] Real object-storage write/read path verification for voicemail media
+  - 2026-05-03: Added admin-only voicemail storage probe that writes, stats, presigns, and deletes a temporary object through the configured S3-compatible backend.
+- [x] Server-side voicemail thumbnail generation
+  - 2026-05-03: Jibri finalize now generates a JPEG thumbnail with ffmpeg and reports `thumbnailKey` to the voicemail callback.
+- [x] Voicemail media transcoding/compression for stored messages
+  - 2026-05-03: Jibri finalize now prefers compressed MP4 output with ffmpeg and falls back to original media with the correct content type when transcoding is unavailable.
+- [x] Voicemail notification delivery beyond in-app badge where needed
+  - 2026-05-03: Voicemail completion now supports an optional `VOICEMAIL_NOTIFICATION_WEBHOOK_URL` for external delivery in addition to the in-app unread badge/WebSocket event.
+- [x] Voicemail retention/expiry job verification path
+  - 2026-05-03: Added admin-only expiry status and run-now endpoints so production can verify the retention job and last expiry result.
 
 ### Security & Hardening
 - [x] SQL injection fix in daily usage stats
@@ -195,12 +235,40 @@
 - [x] Initial coverage for auth, queue, handoff, voicemail, billing modules
 - [x] Backend CI foundation: VRS tests, ops build, Compose config validation
 - [x] GitHub Actions pins bumped to Node 24-compatible action versions (`checkout@v6`, `setup-node@v6`, `stale@v10`)
+- [x] Runtime `console.log`/`console.error` cleanup across VRS, ops, and Twilio service code
+  - 2026-05-05: Routed remaining runtime service logs through structured loggers; service scripts/tests remain allowed to print directly.
+- [x] Standardized `LOG_LEVEL` across VRS, ops, and Twilio
+  - 2026-05-05: Added `LOG_LEVEL` defaults to env examples and production compose.
+- [x] Structured JSON logs in production and pretty local/dev logs for VRS, ops, and Twilio
+  - 2026-05-05: VRS uses Pino; ops/Twilio use lightweight service loggers with the same `LOG_LEVEL`/`NODE_ENV` behavior.
+- [x] Correlation/request ID propagation across VRS, ops, Twilio, WebSocket, and call lifecycle events
+  - 2026-05-05: HTTP services now accept/emit `X-Request-Id`/`X-Correlation-Id`; WebSocket upgrade/message paths propagate `correlationId`.
+- [x] Call lifecycle event logging for queue and phone-call paths
+  - 2026-05-05: Added structured lifecycle logs for request creation, queue join, interpreter match, room creation, call start/end, Twilio call start/end, and error variants.
+- [x] DigitalOcean monitoring integration decision
+  - 2026-05-05: Decision recorded in `docs/observability-monitoring.md`: use DigitalOcean Monitoring for Droplet-level wakeups and Prometheus/Grafana for app/media diagnostics.
+- [x] External APM decision
+  - 2026-05-05: Decision recorded in `docs/observability-monitoring.md`: use an OpenTelemetry-first, vendor-neutral path before choosing Datadog/New Relic/etc.
+- [x] Alert rules for service down, queue wait, JVB CPU, DB latency, disk, memory, and error rate
+  - 2026-05-05: Prometheus rules cover service down, queue wait/depth/capacity, JVB CPU/memory/down, DB latency/down, host disk/memory, error rate, WebSocket errors, and call quality.
 
 ### Status & Project Tracking
 - [x] `status.md` running update file
 - [x] Obsidian mirror to `Documents/Obsidian Vault/Coding/Malka-App`
 - [x] Roadmap mirrored to Obsidian
 - [x] Dedicated `codex/logging-observability` branch created for observability/logging work
+- [x] Explicit go/no-go release gates for Maple VRI pilot, Malka VRI beta, Malka VRS beta, mobile beta, and full production
+  - 2026-05-03: Added `docs/release-gates.md` with go/no-go criteria, evidence requirements, and lane-specific blockers.
+- [x] Environment/base-URL policy for web, native, API, queue, ops, Twilio, and billing modes
+  - 2026-05-03: Added `docs/environment-policy.md` and staging tenant IDs so local/staging builds have explicit non-production targets.
+- [x] Incident runbooks for safe VRS/ops/Twilio/Jitsi restarts, stale queue clearing, media health, CDR integrity, and user-impact communication
+  - 2026-05-03: Added `docs/incident-runbooks.md` with production/staging commands, validation checks, and communication rules.
+- [x] Support/admin runbooks for stale calls, interpreter no-answer/decline loops, stuck VRI invites, account lockouts, voicemail playback failures, and billing disputes
+  - 2026-05-03: Added `docs/support-admin-runbooks.md` with admin endpoints, escalation criteria, and billing/voicemail evidence steps.
+- [x] Data retention/privacy matrix for CDRs, audit logs, voicemail media, captions/transcripts, VRI invite links, chat/TTS messages, mobile logs, and call lifecycle logs
+  - 2026-05-03: Added `docs/data-retention-privacy-matrix.md` with proposed retention defaults and legal/compliance decisions still needed.
+- [x] Twilio server npm audit remediation on dependency-upgrade branch
+  - 2026-05-03: Ran `npm --prefix twilio-voice-server audit fix`; follow-up audit reports zero vulnerabilities and syntax check passes.
 
 ### Maple VRI Pilot Readiness
 - [x] Admin moderation filters by tenant and service mode (`malka`/`maple`, `vrs`/`vri`)
@@ -229,10 +297,29 @@
 
 ---
 
-## Immediate Open Work
+### Roadmap Items Moved From Open Tracks
 
-### Admin Portal Refinement
-- [ ] Real-browser verify top-level admin dashboard navigation after replacing static buttons with hash-routing handlers
+> Moved here on May 1, 2026 so open roadmap sections only show unfinished work.
+
+##### Mobile Current Parity Gap Summary Completed
+
+- [x] Authentication parity: email/password, phone/password, SMS OTP login, role routing, JWT refresh-on-401, expiry clearing, tenant routing, and backend-backed password reset request
+- [x] Tenant parity: Maple/Malka tenant config, branding hooks, host/base URL resolution, feature flags, and native queue/API domain resolution
+- [x] Profile parity: VRS client profile refresh, focused VRI console, interpreter profile refresh, settings/preferences, and password reset/change paths
+- [x] Media parity: Jitsi navigation path, prejoin/waiting-room path, VRI self-view camera preview, media defaults, permission memory, and native audio route infrastructure
+- [x] Queue parity: request interpreter, queue status, cancel request, interpreter availability, accept/decline, match transition, and reconnect/backoff infrastructure
+- [x] In-room parity: toolbar/Jitsi navigation, request-interpreter state, invite/deep-link support, captions/language controls, TTS/VCO hooks, and hangup lifecycle wiring
+- [x] Contacts parity: list, search, API sync, detail, notes, favorites, contact-history linkage, import/block/merge/dedup backend endpoints, and local cache fallback
+- [x] Call history parity: active/completed call storage, API-backed history, CDR/usage metadata, missed-call display state, add-to-contacts, and callback metadata logging
+- [x] Visual voicemail parity: authenticated launcher, unread badge, inbox, seen/delete APIs, playback URL handling, recording/upload backend path, and notification-ready state
+- [x] Billing parity: VRI usage summary, corporate billing-summary hook, and interpreter earnings/stats API-backed tab
+- [x] Admin parity: native admin remains intentionally out of MVP; admin moderation is responsive web/tablet scope
+- [x] Offline/reconnect parity: WebSocket reconnect/backoff, active-call local persistence, network status states, and app background lifecycle hooks
+- [x] Accessibility parity: VoiceOver/TalkBack labels, visible role semantics, Dynamic Type-compatible native text, contrast pass, and focusable controls
+- [x] Security parity: demo JWT removal, token expiry clearing, logout/session clearing, optional Keychain/Keystore-backed secure storage when linked, and no secrets in mobile bundles
+- [x] Observability parity: structured mobile logs, session IDs, app-state breadcrumbs, call lifecycle breadcrumbs, and backend log flush endpoint
+
+##### Admin Portal Refinement Completed
 - [x] Expand interpreter admin profile into a full CRM-style record: password reset, company/alternate email, schedule/billing/payment notes, manager comments, language permissions, and VRI/VRS queues
 - [x] Add corporate client account creation/editing from tenant admin and superadmin contexts
 - [x] Make interpreter/client/account CSV exports available from roster tables
@@ -240,48 +327,201 @@
 - [x] Tighten admin live refresh for interpreter availability and queue-state changes so manual refresh is not normally needed
 - [x] Replace CRM note fields with dedicated schedule, billing, payout, utilization, and manager-note tables once those subsystems are live
 
+
+##### UX Polish Completed
+- [x] Responsive layout audit for desktop, tablet, and small mobile screens
+- [x] Accessibility audit against WCAG 2.1 AA, especially keyboard access and visible focus
+- [x] Notification preferences UI wired to backend preferences
+- [x] Add-to-contacts from call history when a call exposes a phone number
+- [x] VRS contact handles/aliases tied to NANP numbers, pending compliance review
+  - 2026-05-04: Added primary client handles backed by active VRS phone numbers, public/private visibility, lookup by public handle, contact creation from handle, and profile UI copy clarifying that the NANP number remains the registered/routable identity.
+- [x] Reduce clutter in profile home views and keep secondary panels collapsible
+  - 2026-05-04: Kept self-view and contacts prominent while collapsing call history by default and keeping speed dial/settings/password/usage in details sections.
+- [x] Finalize Malka light/dark palette against current public website
+  - 2026-05-04: Reconciled Malka light/dark profile colors with the documented Malka brand palette: royal purple/navy surfaces, orange accent/focus states, white cards, and no off-brand teal link/focus colors.
+- [x] Finalize caption/language controls location so they are available without crowding the room UI
+  - 2026-05-04: Moved in-room VRS/VRI helper actions into a compact floating assist panel above the Jitsi toolbar with Request Interpreter, VRI Invite, and Captions / Language controls.
+
+##### Regulatory & Business Track / VRS Billing Completed
+- [x] CDR immutability: append-only after call end
+
+##### Regulatory & Business Track / VRI Billing Completed
+- [x] Corporate account management
+- [x] Default VRI ASL-to-English rate: **$1.00 USD / $1.25 CAD per interpreter minute** until contract-specific pricing supersedes it
+- [x] Per-client VRI rate overrides by corporate account, tenant, currency, language pair, and effective date
+- [x] Rate templates for future spoken/signed language pairs and captioning services without hard-coding prices yet
+- [x] VRI CDRs tagged at call origination/CDR creation
+- [x] Billing architecture decision: use Stripe Billing for corporate VRI usage, invoices, payment collection, and customer portal unless a later accounting constraint forces another provider
+- [x] Stripe customer mapping: tenant/corporate account -> Stripe customer, with billing contacts, currency, tax metadata, and payment terms
+- [x] Stripe usage ingestion from immutable VRI CDRs: one idempotent meter event or invoice line source per completed billable interpreter minute
+- [x] Invoice generation: draft invoices from CDRs, review/approve, finalize, and send through Stripe-hosted invoices
+- [x] Auto-email issued invoices to billing contacts through Stripe invoice emails; evaluate Resend only for custom supplemental summaries
+- [x] Admin one-click invoice send: select one or many corporate clients, generate missing invoice drafts for a billing period, issue/send through Stripe when available, and send supplemental business-copy email
+- [x] Scheduled invoice auto-run: daily server-side automation can generate and optionally send due corporate invoices based on billing day and the previous calendar month
+- [x] Invoice recipient management: per-corporate-account To/CC/BCC recipients plus business-copy email support for finance/admin visibility
+- [x] Manual invoice path and admin-recorded offline payments
+- [x] Payment method support backend: reusable payment-method setup intents and customer payment-method management through Stripe Billing Portal
+- [x] Initial Stripe webhook handling for invoice finalized, paid, payment failed, voided, and uncollectible events
+- [x] Expand Stripe webhook handling for disputes, refunds, customer/subscription changes, and idempotent event recording
+- [x] Stripe credit note handling and webhook replay tooling
+- [x] Corporate usage dashboard backend: day/week/month totals, invoice history, downloadable CSV
+- [x] Admin billing dashboard backend: corporate accounts, rates, invoice drafts, issued invoices, payment status, disputes, write-offs
+- [x] Billing reconciliation dashboard backend: compare internal CDR totals, invoice totals, payments, credits, disputes, webhook health, and write-offs
+- [x] Build-vs-integrate decision: keep operational billing cockpit in-app, integrate/export to accounting later rather than adopting a full external CRM as source of truth
+
+##### Regulatory & Business Track / Interpreter Payouts & Invoicing Completed
+- [x] Interpreter profile billing backend options: supported service modes, language pairs, pay rate, currency, employee/contractor status, vendor/tax details, and payout preferences
+- [x] Interpreter payout model backend: hourly, per-minute, minimum blocks, service-mode/language differentials, currency, and effective dates
+- [x] Interpreter payable records generated from completed CDRs and approved invoice items
+- [x] Interpreter invoice generation for contractor interpreters by billing period, with draft review before payment
+- [x] Interpreter payout review workflow backend: draft, approved, paid, with room for failed/disputed/adjusted/reversed follow-up statuses
+- [x] Export payout reports for accounting/payroll
+
+##### Regulatory & Business Track / Interpreter Scheduling & Utilization Completed
+- [x] Dedicated interpreter schedule tables: availability windows, scheduled shifts, time-off/unavailable blocks, recurring schedule rules, tenant/service-mode/language eligibility, and manager overrides
+- [x] Dedicated billing tables: corporate accounts/rate tiers/invoices plus `billing_invoice_items`, `billing_payments`, `billing_adjustments`, and `stripe_webhook_events`
+- [x] Dedicated payout tables: `interpreter_pay_rates`, `interpreter_payables`, `interpreter_payout_batches`, `interpreter_payout_items`, `interpreter_payout_adjustments`, `interpreter_vendor_profiles`, `interpreter_contractor_invoices`, and `interpreter_contractor_invoice_items`
+- [x] Dedicated schedule/utilization tables: `interpreter_schedule_windows`, `interpreter_availability_sessions`, `interpreter_break_sessions`, `interpreter_shift_targets`, `interpreter_shift_exceptions`, and `interpreter_utilization_summaries`
+- [x] Dedicated manager-note tables: structured notes linked to interpreter/client/corporate account, note type, visibility, author, timestamp, audit trail, and follow-up date
+- [x] Availability session tracking foundation: when an interpreter goes available, unavailable, on break, busy/in-call, or offline, record start/end timestamps with source and reason
+- [x] Break tracking foundation: paid/unpaid break classification, break reason, break duration, break frequency, and compliance/manager review flags
+- [x] Utilization metrics backend foundation: scheduled, signed-on, available, in-call, break, idle minutes, and utilization rate
+- [x] Admin scheduling and coverage UI first pass: roster cards/table filtered by tenant, service mode, and language with active coverage gap visibility
+- [x] Utilization/audit foundation: manager notes, schedule changes, payout batch approvals/payments, credit notes, webhook replay counts, and billing audit events
+- [x] Interpreter self-scheduling UI: interpreters can view required/target weekly hours, signed-on hours so far, scheduled hours remaining, and add/adjust availability/time-off blocks to fill gaps
+  - 2026-05-03: Interpreter Schedule tab now saves availability/time-off windows through authenticated shift endpoints and shows target, scheduled, signed-on, and remaining weekly hours.
+- [x] Admin scheduling UI first pass: weekly roster and coverage scan by tenant, service mode, language, interpreter, and current coverage gaps
+  - 2026-05-03: Admin interpreter view now includes a Scheduling & Coverage panel with tenant/service/language filters, active coverage cards, roster status, and coverage notes.
+- [x] Admin scheduling advanced controls: hourly coverage grid, overstaffing/gap detection, manager overrides, and pending interpreter schedule change approval workflow
+  - 2026-05-03: Admin Scheduling & Coverage now loads schedule windows from backend APIs, supports manager override creation, pending approval/rejection, and hour-by-hour coverage cells that flag gaps and overstaffing.
+- [x] Utilization metrics expansion: queue acceptance rate, decline/no-answer rate, after-call/admin time, and SLA impact
+  - 2026-05-03: Added interpreter queue event ledger, accepted/declined event writes, interpreter/admin utilization summaries, after-call/admin idle minutes, queue acceptance/decline/no-answer rates, and 120s SLA breach reporting.
+- [x] Weekly utilization dashboard for interpreters: scheduled hours, signed-on hours, hands-up hours, in-call hours, breaks, remaining target hours, and earnings/payables preview
+  - 2026-05-03: Interpreter Analytics tab now includes a weekly utilization dashboard with scheduled/hands-up/in-call/admin-idle/break/remaining/earnings plus queue and SLA metrics.
+- [x] Weekly utilization dashboard for admin: coverage by hour, fill-rate, interpreter adherence, break patterns, productivity, queue SLA impact, and exportable payroll/accounting summary
+  - 2026-05-03: Admin Scheduling & Coverage now loads utilization summaries, shows fill/productivity/acceptance/SLA cards, interpreter adherence/break/SLA columns, and exports utilization CSV for payroll/accounting review.
+
+
+##### Mobile Apps / Mobile Release Gates Completed
+- [x] Define mobile MVP scope for end-of-May release: three client apps only — MalkaVRS, MalkaVRI, and MapleVRI
+  - 2026-05-01: Current mobile stage is exactly three client apps. MalkaVRI and MapleVRI share the same VRI client codepath and differ by tenant skin/config. No interpreter, captioner, or terp portal app is part of this stage.
+- [x] Decide platform strategy for first release: native React Native, not TWA-first
+  - 2026-04-30: Existing RN shells/shared Redux path selected for the first release; TWA remains a fallback or later packaging option.
+- [x] Mobile email/password auth uses production client endpoint instead of demo tokens
+  - 2026-05-01: Mobile login calls `/api/auth/client/login`, stores real JWT metadata, and routes by app type to MalkaVRS, MalkaVRI, or MapleVRI. Interpreter accounts are intentionally rejected in the current client-app builds.
+- [x] Native launch routing waits for AsyncStorage hydration before choosing login vs app route
+- [x] Native API and queue clients resolve tenant domains instead of falling back to `localhost`
+- [x] VRI self-view uses native camera preview and stores permission/default metadata
+- [x] Contacts list/detail use production contacts APIs with local cache fallback
+- [x] Call history uses `/api/client/call-history` with local cache fallback
+- [x] VRI usage summary aggregates `/api/client/call-history` with local cache fallback
+- [x] Voicemail inbox uses production inbox/unread/seen/delete/playback URL APIs with local cache fallback
+- [x] Mobile VRI pre-match invite flow prepares/shareable session links and attaches invite tokens to the interpreter request
+  - 2026-05-01: VRIConsoleScreen can prepare a VRI invite before a room exists, share it via native share sheet, persist pending invite tokens, and send those tokens with the eventual VRI queue request so guests wait until the interpreter-connected room is live.
+- [x] Mobile VRI tenant accent colors use whitelabel theme in console/settings/usage controls
+- [x] Native app identifiers configured for initial internal-test apps
+  - 2026-05-01: Android product flavors and iOS build-setting defaults added for `com.malkacomm.vrs`, `com.malkacomm.vri`, and `com.maplecomm.vri`; store-side Apple/Google records still require developer account access.
+- [x] iOS simulator build/install lane for all three client apps
+  - 2026-05-02: `scripts/mobile/install-ios-simulator-variants.sh` bundles React Native JS, builds the Jitsi iOS simulator app three times, generates tenant-specific iOS app icons, and installs MalkaVRS, MalkaVRI, and MapleVRI on the booted iPhone simulator.
+- [x] Android flavor app targets for all three client apps
+  - 2026-05-02: Android product flavors exist for `malkaVrs`, `malkaVri`, and `mapleVri` with tenant-specific app IDs, app names, default URLs, and native BuildConfig tenant/app-type metadata.
+- [x] Mobile tenant visual polish for first app-review/testing pass
+  - 2026-05-02: VRI mobile console uses tenant mobile background colors, MapleVRI uses a darker burgundy mobile background, the VRI share action uses a standard upward/outward share glyph, and MalkaVRI has tenant-specific iOS and Android launcher artwork from the existing MalkaVRI asset.
+- [x] Resolve Android 16 KB native-library alignment before Android 15+/new-device release confidence
+  - 2026-05-01: MalkaVRS, MalkaVRI, and MapleVRI debug APKs now build arm64-only under React Native 0.77.3, AGP 8.7.2, NDK r28, updated WebRTC, and updated JSC native artifacts. `zipalign -P 16 -c -v 4` passes for all three, and `npm run mobile:check-android-16kb -- --all <apk>` reports `arm64-v8a: 13/13 compatible`.
+  - 2026-05-02: MalkaVRS, MalkaVRI, and MapleVRI release AABs also build successfully and pass `npm run mobile:check-android-16kb -- --all <aab>` with `arm64-v8a: 13/13 compatible`.
+- [x] Confirm backend API contract parity for auth, profile, calls, queue, contacts, voicemail, tenant, and billing metadata
+  - 2026-05-02: Client auth, phone/SMS, password-reset request, JWT refresh, tenant queue URL selection, native route hydration, profile refresh, contacts/detail, call history, VRI usage, voicemail inbox, billing summary, settings/preferences, mobile log upload, and VRI invite preparation all call production-backed contracts. Physical-device media/call smoke and store-release evidence remain tracked as separate release gates below.
+- [x] Add mobile build/test workflow to CI or a documented local release checklist
+  - 2026-05-02: `docs/mobile-builds.md` documents local Android and iOS build/install lanes, app IDs, Android 16 KB alignment checks, and store record prerequisites.
+- [x] Create mobile release checklist covering app version, tenant branding, backend base URL, privacy copy, permissions, crash reporting, and rollback plan
+  - 2026-05-02: Initial checklist lives in `docs/mobile-builds.md`; store execution and crash-reporting vendor setup remain open release work below.
+
+##### Mobile Apps / Mobile Parity Track Completed
+- [x] Mobile QA matrix document created
+- [x] Audit current React Native/iOS/Android/TWA project health against current web/backend contracts
+- [x] Choose shared TypeScript API client strategy to prevent web/mobile contract drift
+- [x] Extract shared auth/session/profile/queue/contact types where practical
+- [x] Create mobile parity checklist template required for future web feature PRs
+- [x] Mobile-safe WebSocket queue client with reconnect/backoff/session restore
+- [x] Deep links into active rooms and invite links
+- [x] Tenant branding parity for Maple/Malka: logos, colors, app name, favicon/app icon/splash, copy
+
+##### Mobile Apps / Mobile May 2026 Delivery Plan Completed
+- [x] Week 1: audit existing mobile shells, pick release strategy, define MVP by app/role, document known gaps
+- [x] Week 1: wire mobile auth/session config to production/staging endpoints
+- [x] Week 2: implement client VRI console parity and VRS client profile parity
+- [x] Week 2: implement client queue request/join path on mobile
+- [x] Week 3: implement contacts/call history essentials or explicitly defer with user-facing fallback
+- [x] Week 4: implement voicemail/billing summary essentials or explicitly defer with user-facing fallback
+
+##### Mobile Apps / Mobile Drift Controls Completed
+- [x] Add `ROADMAP.md` mobile parity update requirement to `AGENTS.md`
+- [x] Add PR checklist item: "Does this web/backend change affect mobile?"
+- [x] Maintain `docs/mobile-parity.md` with route-by-route API/UI parity table
+- [x] Add smoke fixtures for demo accounts on iOS/Android
+
+##### Mobile Apps / Mobile App Targets Completed
+- [x] Malka VRS Client: Deaf/HoH users, VRS phone-number flow, interpreter-assisted calls, contacts, call history
+- [x] Malka VRI Client: corporate VRI mode for Malka tenant/accounts with VRI permissions
+- [x] Maple VRI Client: same VRI client app as MalkaVRI with Maple tenant skin/config
+- [x] Keep interpreter/captioner native apps out of current mobile scope; interpreter and captioner workflows remain web/admin operational surfaces for this stage
+- [x] Do not expose an interpreter, captioner, or terp portal app in the current mobile stage
+
+### Future Product Tracks Completed
+
+#### Product Surface & Domain Split Completed
+- [x] `ai.malkacomm.com`: distinct Malka ASL-to-English AI lab portal stub, not integrated into production VRS/VRI until validated
+  - 2026-05-03: Added `asl-ai.html` as a visually distinct Mars/robot lab login stub with consent/legal boundaries, plus app-server host routing so `ai.malkacomm.com/` resolves to the lab page once DNS/nginx TLS are configured.
+- [x] Lightweight MalkaVRS desktop client scaffold for web app
+  - 2026-05-05: Added an Electron wrapper for the MalkaVRS interpreter web profile with a flashing always-on-top incoming-request alert, window focus/flash behavior, and a preload bridge from the existing interpreter queue page.
+- [x] MalkaVRS desktop icon and client-account download entry point
+  - 2026-05-05: Added a Malka icon asset to the desktop wrapper, wired it into the Electron window/dock, added a stable `/downloads/malkavrs-desktop.html` download page, and surfaced it from VRS client accounts.
+
+#### Interpreter Tools Completed
+- [x] Interpreter tools backend foundation: tables and interpreter-authenticated endpoints for analytics, breaks, continuity notes, teaming requests, and post-call surveys
+  - 2026-05-02: Added interpreter operations tables and `/api/interpreter/*` endpoints for analytics, break start/end/list, continuity notes, post-call survey submission, and teaming request/list.
+- [x] Real-time interpreter analytics UI
+  - Show calls, minutes, VRS/VRI split, break minutes, signed-on minutes, utilization rate, and near-real-time queue/event changes.
+- [x] Interpreter scheduling and shift management UI
+  - Interpreter self-scheduling: target hours, scheduled hours, signed-on hours, remaining hours, availability windows, time-off/unavailable blocks.
+  - Admin scheduling: weekly roster, coverage gaps, service mode/language filters, manager overrides, pending schedule changes.
+  - 2026-05-03: First-pass UI is live in interpreter profile and admin dashboard. Admin manager overrides, pending approvals, hourly gap detection, and overstaffing detection are now implemented in the deeper Scheduling & Coverage workflow.
+
+#### AI & Accessibility Completed
+- [x] Create a distinct Malka-side **ASL to English** portal for experimental automated ASL-to-English and English-to-ASL interpretation testing
+- [x] Keep ASL-to-English AI portal visually and operationally distinct from MalkaVRS/MalkaVRI until it is accurate, safe, consented, and legally cleared for integration
+
+## Immediate Open Work
+
+### Release Readiness & Operations
+- [ ] Run a real Twilio webhook/call smoke against the patched Twilio dependency set before production Twilio use
+
+### Codebase Maintainability & Contract Hardening
+No immediate open items.
+
+### Admin Portal Refinement
+No immediate open items.
+
 ### Calls, Rooms & Queue Follow-Up
-- [ ] Linked hangup for interpreted calls: if the client or interpreter ends an interpreted VRI/VRS session, the other party exits too
-- [ ] Preserve independent hangup behavior for non-interpreted rooms: P2P instant rooms and deaf-to-deaf/direct calls should not force-close all participants
+No immediate open items.
+
+### Desktop Client Follow-Up
+- [ ] Apple Developer ID Application certificate and notarization credentials for signed macOS installer builds
+- [ ] Windows code-signing certificate or trusted-signing pipeline credentials for signed `.exe` installer builds
+- [ ] Package/sign MalkaVRS desktop builds for macOS and Windows after the lightweight wrapper is smoke-tested
+- [ ] Upload signed installers to `/downloads/MalkaVRS-Desktop.dmg` and `/downloads/MalkaVRS-Desktop.exe`
+  - 2026-05-05: Packaging/publish scripts are wired, but this remains open until Apple Developer ID and Windows code-signing credentials are available and real signed artifacts exist.
+- [ ] Extend desktop alert bridge beyond interpreter queue requests if MalkaVRS client-side P2P/direct-call receiving becomes a desktop launch requirement
 
 ### Maple VRI Pilot Readiness & White-Label Hardening (cont.)
 - [ ] Add optional SMS/email send to VRI session invites after Resend/Twilio policy is finalized
 - [ ] Implement PostgreSQL RLS policies for all tenant-owned tables
 
-### UX Polish (Deferred Until Billing Backend Complete)
-- [x] Responsive layout audit for desktop, tablet, and small mobile screens
-- [x] Accessibility audit against WCAG 2.1 AA, especially keyboard access and visible focus
-- [x] Notification preferences UI wired to backend preferences
-- [x] Add-to-contacts from call history when a call exposes a phone number
-- [ ] VRS contact handles/aliases tied to NANP numbers, pending compliance review
-  - Current FCC-facing assumption: a ten-digit NANP number remains the registered/routable identifier for VRS. Optional private handles may be an app-layer discovery shortcut only if they resolve back to the registered number and do not replace TRS numbering/eligibility requirements.
-- [ ] Reduce clutter in profile home views and keep secondary panels collapsible
-- [ ] Finalize Malka light/dark palette against current public website
-- [ ] Finalize caption/language controls location so they are available without crowding the room UI
-
----
-
 ## Near-Term Feature Work
 
 ### Observability Branch (`codex/logging-observability`)
-- [ ] Replace remaining `console.log`/`console.error` with structured logger across VRS, ops, and Twilio
-- [ ] Standardize `LOG_LEVEL` across services
-- [ ] Structured JSON output in production for all services
-- [ ] Pretty logs in local/dev only
-- [ ] Correlation/request ID propagation across VRS, ops, Twilio, WebSocket, and call lifecycle events
-- [ ] Log call lifecycle events: request created, queue join, interpreter match, room created, call start, call end, errors
-- [ ] DigitalOcean monitoring integration decision
-- [ ] External APM decision: Datadog, New Relic, or OpenTelemetry-first vendor-neutral path
-- [ ] Alert rules for service down, queue wait, JVB CPU, DB latency, disk, memory, and error rate
-
-### Validation & Error Handling
-- [ ] Expand Zod validation to every POST/PUT/PATCH endpoint
-- [ ] Validate all WebSocket message payloads
-- [ ] Sanitize stored user-generated fields to prevent XSS
-- [ ] Centralized Express error handler with no stack traces in production responses
-- [ ] Consistent error shape across services: `{ error, code, details? }`
-- [ ] WebSocket error boundaries so unhandled message errors cannot crash the process
-- [ ] Full npm audit review and dependency upgrade plan
+No immediate open items.
 
 ### Testing
 - [ ] Unit tests: queue priority, matching, state transitions
@@ -289,9 +529,14 @@
 - [ ] Unit tests: billing CDR creation and immutability
 - [ ] Integration tests: API endpoint contracts
 - [ ] Integration tests: WebSocket event sequences
+- [ ] Shared contract tests: validate mobile/web API client expectations against backend response schemas and seed fixtures
+- [ ] Shared WebSocket contract tests: auth, request, queued, invite, match, cancel, hangup, reconnect, and error payloads
 - [ ] E2E tests: signup/login/dial/match/call/hangup
 - [ ] E2E tests: Maple VRI request-interpreter pilot path
 - [ ] CI: require tests/build/smokes on every PR before merge
+- [ ] Load test 5, 10, and 25 concurrent interpreted calls with admin dashboard open and DB/Jitsi metrics captured
+- [ ] Soak test multi-hour queue churn: request, cancel, accept, decline, hangup, reconnect, and stale-session cleanup
+- [ ] Failure-mode tests: interpreter disconnect mid-call, client disconnect mid-call, DB transient error, WebSocket reconnect, JVB restart, and Twilio unavailable
 
 ### Captions & Accessibility
 - [ ] Human captioner workflow with privacy routing
@@ -302,24 +547,21 @@
 - [ ] Consent management and ephemeral-only mode for VRS where required
 - [ ] STS mode for speech disabilities
 
-### Visual Voicemail Follow-Through
-- [ ] Confirm real object-storage write/read path in production
-- [ ] Generate voicemail thumbnails server-side
-- [ ] Media transcoding/compression for stored messages
-- [ ] Notification delivery beyond in-app badge where needed
-- [ ] Retention/expiry job verification in production
-
----
-
 ## Scale Preparation
 
 ### Redis & State Externalization
-- [ ] Add Redis to Docker Compose stack
-- [ ] Move WebSocket client registry out of process memory
-- [ ] Move queue state out of in-memory Maps
-- [ ] Move handoff tokens to Redis TTL keys
-- [ ] Move interpreter presence to Redis heartbeat/expiry
-- [ ] Move rate limiting to Redis-backed store
+- [x] Add Redis to Docker Compose stack
+  - 2026-05-05: Added Redis with AOF persistence and healthchecks to local/prod Compose; VRS services receive `REDIS_URL`.
+- [x] Move WebSocket client registry metadata out of process memory
+  - 2026-05-05: WebSocket socket handles remain process-local by necessity, but connection/presence metadata is mirrored to Redis TTL keys.
+- [x] Move queue state out of in-memory Maps
+  - 2026-05-05: Waiting requests, interpreter availability, and match locks are persisted to Redis with local maps retained as hot process caches.
+- [x] Move handoff tokens to Redis TTL keys
+  - 2026-05-05: Handoff tokens now write Redis TTL keys while retaining DB persistence/fallback behavior.
+- [x] Move interpreter presence to Redis heartbeat/expiry
+  - 2026-05-05: Interpreter availability is stored with Redis expiry; WebSocket heartbeat refreshes connection presence.
+- [x] Move rate limiting to Redis-backed store
+  - 2026-05-05: API/auth express-rate-limit stores and SMS OTP throttling now use Redis keys when `REDIS_URL` is configured, with local fallback if Redis is unavailable.
 - [ ] Add Redis Pub/Sub for cross-instance WebSocket broadcasting
 - [ ] Make VRS server stateless enough for multiple instances behind a load balancer
 
@@ -341,7 +583,11 @@
 - [ ] Resolution caps by call type: P2P, VRS, VRI
 - [ ] Bandwidth estimation and poor-network warnings
 - [ ] Audio/caption fallback when video quality collapses
-- [ ] TURN/coturn deployment for corporate NAT/firewall scenarios
+- [x] TURN/coturn Compose profile, Prosody TURN advertisement env, staging/env docs, and media runbook checks
+  - 2026-05-04: Added an opt-in coturn service profile, Jitsi Prosody TURN env wiring, TURN env examples, and relay-candidate smoke instructions.
+- [x] Enable production TURN host/firewall and verify external coturn allocation
+  - 2026-05-05: Enabled `vrs.malkacomm.com:3478` TURN on the Droplet, opened UFW for 3478 tcp/udp and relay UDP 49160-49200, confirmed Prosody advertises UDP/TCP TURN services, and verified external coturn allocation receives public relay addresses.
+- [ ] Verify browser-selected `relay` ICE candidates during a real call from a restrictive network
 
 ### Redundancy & Disaster Recovery
 - [ ] Multi-region deployment plan
@@ -352,193 +598,130 @@
 - [ ] Automated failover testing
 - [ ] Cross-region object storage replication for voicemail media
 - [ ] Provision offsite backup storage and perform true base-backup/WAL restore drill into separate infrastructure
-- [ ] Recovery targets: RPO < 1 minute, RTO < 5 minutes for 911-capable system
+- [ ] Recovery targets: RPO/RTO aligned with the certified partner's emergency-capable operating requirements
 
 ---
 
-## Regulatory & Business Track
+## Partner Readiness & Business Track
 
-### FCC Provider Certification
-- [ ] File application with FCC Consumer & Governmental Affairs Bureau
-- [ ] Demonstrate technical capability: 911, 10-digit numbering, interoperability
-- [ ] Demonstrate financial/operational capability
-- [ ] Pass FCC compliance audit
-- [ ] Timeline expectation: 6-12 months from filing
+### Certified-Partner Operating Model
+- [ ] Capture certified VRS partner requirements and convert them into product, admin, billing, reporting, and integration tickets
+- [ ] Define provider-of-record boundaries in contracts and product copy before any VRS launch under a partner brand or program
+- [ ] Build partner-facing readiness packet: architecture, security posture, call lifecycle evidence, CDR model, admin controls, incident runbooks, and tenant isolation summary
+- [ ] Confirm how the certified partner wants Malka to expose reporting, audit exports, CDRs, call metadata, and support evidence
+- [ ] Confirm partner approval process for user-facing VRS copy, number identity, emergency handling, interpreter workflow, and support escalation language
 
-### Phone Number Provisioning
-- [ ] Obtain NANP number blocks through RespOrg partnership
-- [ ] Integrate with iTRS database
-- [ ] Build verified number assignment flow
-- [ ] Support number porting
-- [ ] 911/E911 integration
+### Responsibility Split
+**Partner-owned responsibilities**
+- Provider-of-record status, FCC filings, certification/recertification, regulatory legal interpretations, TRS Fund submissions, and any required carrier/numbering relationships.
+- Final policy for user eligibility, iTRS database use, NANP assignment/porting, 911/E911 routing, and legally required notices.
+- Compliance sign-off on record retention, chain-of-custody evidence, audit exports, support procedures, and permitted operational delegation.
 
-### User Eligibility & Verification
-- [ ] Self-certification flow for hearing/speech disability
-- [ ] Identity verification workflow
-- [ ] iTRS database cross-reference
-- [ ] Annual recertification
-- [ ] Immutable audit trail for eligibility events
+**Malka-owned platform responsibilities**
+- VRS-compliant call behavior as required by the partner: request/queue/match, interpreter visibility, linked hangup for interpreted sessions, CDR creation, and stale-call cleanup.
+- Tenant-aware admin controls for live queue, activity, account permissions, interpreter/captioner status, moderation, and audit exports.
+- Billing/invoicing/admin readiness for partner, customer, and internal accounting workflows, including immutable VRS/VRI separation.
+- Privacy, retention, consent, and chain-of-custody controls at the product/data layer.
+- Partner integration hooks for auth, reporting, exports, webhooks, support escalation, and any partner-owned numbering/emergency systems.
 
-### 911 Emergency Services
-- [ ] E911 location registration for each VRS user
-- [ ] Automatic 911 routing through PSAP
-- [ ] 911 priority in interpreter queue
-- [ ] Compliance with FCC 911 rules for VRS
+### VRS Numbering, Identity & Partner Integration
+- [ ] Build verified number assignment/support flow that can consume certified-partner NANP/iTRS data rather than assuming Malka owns numbering directly
+- [ ] Support number porting/status fields only through partner-approved workflows
+- [ ] Preserve registered/routable NANP number as the canonical VRS identity; handles/aliases remain app-layer shortcuts only
+- [ ] Add partner integration placeholders for iTRS/NANP lookup, eligibility status, and number lifecycle events
+- [ ] Document which number-management actions are partner-only, Malka-admin only, or self-service
+
+### User Eligibility & Verification Support
+- [ ] Product support for partner-owned eligibility workflow and identity verification status
+- [ ] Self-certification intake/status UI when required by the certified partner, with copy that identifies the partner-owned eligibility authority
+- [ ] Identity verification workflow/status fields for partner review, approval, rejection, and support escalation
+- [ ] iTRS database cross-reference integration hook or import field if the certified partner requires it
+- [ ] Annual recertification reminder/status workflow if the certified partner requires recurring eligibility review
+- [ ] Immutable audit trail for eligibility-related product events without presenting Malka as certifying provider
+- [ ] Partner-configurable eligibility notices, support escalation copy, and approval/rejection status display
+
+### Emergency Services Support Hooks
+- [ ] Product hooks for partner-owned E911 location registration status where required
+- [ ] E911 location registration capture/status UI for each VRS user where required by the certified partner
+- [ ] Partner integration hook for automatic 911/PSAP routing handoff, without implying Malka directly routes 911 as provider of record
+- [ ] 911 priority in interpreter queue when required by the certified partner's emergency workflow
+- [ ] Partner-configurable emergency notices and FCC-rule support evidence where required by partner/legal review
+- [ ] Queue/room priority path for emergency VRS handling if required by partner integration
+- [ ] Emergency-event audit trail and admin escalation flow without implying Malka directly routes 911 as provider of record
 
 ### VRS Billing
-- [ ] CDR schema finalized for TRS Fund submission
-- [x] CDR immutability: append-only after call end
+- [ ] CDR schema finalized for certified-partner reporting/export requirements
 - [ ] Monthly CDR aggregation pipeline
-- [ ] TRS Fund submission formatting
+- [ ] TRS Fund submission-format export support as specified and submitted by the certified provider
+- [ ] Partner/TRS export formatting as specified by the certified provider
 - [ ] Reconciliation against payments/disputes
 - [ ] Per-minute rate table management
 
 ### VRI Billing
-- [x] Corporate account management
-- [x] Default VRI ASL-to-English rate: **$1.00 USD / $1.25 CAD per interpreter minute** until contract-specific pricing supersedes it
-- [x] Per-client VRI rate overrides by corporate account, tenant, currency, language pair, and effective date
-- [x] Rate templates for future spoken/signed language pairs and captioning services without hard-coding prices yet
-- [x] VRI CDRs tagged at call origination/CDR creation
-- [x] Billing architecture decision: use Stripe Billing for corporate VRI usage, invoices, payment collection, and customer portal unless a later accounting constraint forces another provider
 - [ ] Stripe product/price catalog: VRI interpreter-minute meter, tenant/currency-specific prices, and per-client override metadata
-- [x] Stripe customer mapping: tenant/corporate account -> Stripe customer, with billing contacts, currency, tax metadata, and payment terms
-- [x] Stripe usage ingestion from immutable VRI CDRs: one idempotent meter event or invoice line source per completed billable interpreter minute
-- [x] Invoice generation: draft invoices from CDRs, review/approve, finalize, and send through Stripe-hosted invoices
-- [x] Auto-email issued invoices to billing contacts through Stripe invoice emails; evaluate Resend only for custom supplemental summaries
-- [x] Manual invoice path and admin-recorded offline payments
-- [x] Payment method support backend: reusable payment-method setup intents and customer payment-method management through Stripe Billing Portal
-- [x] Initial Stripe webhook handling for invoice finalized, paid, payment failed, voided, and uncollectible events
-- [x] Expand Stripe webhook handling for disputes, refunds, customer/subscription changes, and idempotent event recording
-- [x] Stripe credit note handling and webhook replay tooling
-- [x] Corporate usage dashboard backend: day/week/month totals, invoice history, downloadable CSV
-- [x] Admin billing dashboard backend: corporate accounts, rates, invoice drafts, issued invoices, payment status, disputes, write-offs
-- [x] Billing reconciliation dashboard backend: compare internal CDR totals, invoice totals, payments, credits, disputes, webhook health, and write-offs
-- [x] Build-vs-integrate decision: keep operational billing cockpit in-app, integrate/export to accounting later rather than adopting a full external CRM as source of truth
 - [ ] Strict VRS/VRI separation in call creation, routing, billing, and audit trails
 
 ### Interpreter Payouts & Invoicing
-- [x] Interpreter profile billing backend options: supported service modes, language pairs, pay rate, currency, employee/contractor status, vendor/tax details, and payout preferences
-- [x] Interpreter payout model backend: hourly, per-minute, minimum blocks, service-mode/language differentials, currency, and effective dates
-- [x] Interpreter payable records generated from completed CDRs and approved invoice items
 - [ ] Interpreter payable records generated from queue lifecycle events, availability sessions, break sessions, scheduled shifts, adjustments, and manager approvals
 - [ ] Stripe Connect decision: use Connect for automated contractor payouts only after legal/accounting confirms platform liability, contractor onboarding, tax reporting, and supported countries; keep payroll/accounting export path for employees
-- [x] Interpreter invoice generation for contractor interpreters by billing period, with draft review before payment
-- [x] Interpreter payout review workflow backend: draft, approved, paid, with room for failed/disputed/adjusted/reversed follow-up statuses
-- [x] Export payout reports for accounting/payroll
 - [ ] Optional payment rails investigation: Stripe Connect, Wise, ACH provider, or manual accounting export
 - [ ] Interpreter profile billing tab for earnings, invoices, payout method, tax/vendor documents, and payout history
 
 ### Interpreter Scheduling & Utilization
-- [x] Dedicated interpreter schedule tables: availability windows, scheduled shifts, time-off/unavailable blocks, recurring schedule rules, tenant/service-mode/language eligibility, and manager overrides
-- [x] Dedicated billing tables: corporate accounts/rate tiers/invoices plus `billing_invoice_items`, `billing_payments`, `billing_adjustments`, and `stripe_webhook_events`
-- [x] Dedicated payout tables: `interpreter_pay_rates`, `interpreter_payables`, `interpreter_payout_batches`, `interpreter_payout_items`, `interpreter_payout_adjustments`, `interpreter_vendor_profiles`, `interpreter_contractor_invoices`, and `interpreter_contractor_invoice_items`
-- [x] Dedicated schedule/utilization tables: `interpreter_schedule_windows`, `interpreter_availability_sessions`, `interpreter_break_sessions`, `interpreter_shift_targets`, `interpreter_shift_exceptions`, and `interpreter_utilization_summaries`
-- [x] Dedicated manager-note tables: structured notes linked to interpreter/client/corporate account, note type, visibility, author, timestamp, audit trail, and follow-up date
-- [ ] Interpreter self-scheduling UI: interpreters can view required/target weekly hours, signed-on hours so far, scheduled hours remaining, and add/adjust availability to fill gaps
-- [ ] Admin scheduling UI: weekly roster by tenant, service mode, language, interpreter, coverage gaps, overstaffing, and pending interpreter schedule changes
-- [x] Availability session tracking foundation: when an interpreter goes available, unavailable, on break, busy/in-call, or offline, record start/end timestamps with source and reason
-- [x] Break tracking foundation: paid/unpaid break classification, break reason, break duration, break frequency, and compliance/manager review flags
-- [x] Utilization metrics backend foundation: scheduled, signed-on, available, in-call, break, idle minutes, and utilization rate
-- [ ] Utilization metrics expansion: queue acceptance rate, decline/no-answer rate, after-call/admin time, and SLA impact
-- [ ] Weekly utilization dashboard for interpreters: scheduled hours, signed-on hours, hands-up hours, in-call hours, breaks, remaining target hours, and earnings/payables preview
-- [ ] Weekly utilization dashboard for admin: coverage by hour, fill-rate, interpreter adherence, break patterns, productivity, queue SLA impact, and exportable payroll/accounting summary
+- [ ] Admin scheduling next depth: recurring schedule rules, interpreter self-request workflow into pending windows, payroll/export approval lock, and coverage heatmap by 15/30-minute intervals
+- [ ] Utilization next depth: explicit no-answer timeout event, after-call task state, payroll approval lock, and 15/30-minute heatmap export
 - [ ] Service-mode utilization split: VRS vs VRI vs captioning availability and in-call minutes, with tenant/language filters
-- [x] Utilization/audit foundation: manager notes, schedule changes, payout batch approvals/payments, credit notes, webhook replay counts, and billing audit events
 
 ### Billing Safeguards
 - [ ] Immutable `call_type` at call creation
 - [ ] Separate VRS and VRI billing pipelines
 - [ ] Automated reconciliation anomaly checks
 - [ ] Monthly billing audit report
-- [ ] FCC audit export with chain of custody
+- [ ] Partner/regulatory audit export with chain of custody
 
 ---
 
 ## Mobile Apps
 
-**Target**: mobile parity by **May 31, 2026**, with an internal/TestFlight/Play pilot sooner if the core call flow is stable. The web app is the source of truth until mobile parity is explicitly checked off.
+### **Target**: mobile parity by **May 31, 2026**, with an internal/TestFlight/Play pilot sooner if the core call flow is stable. The web app is the source of truth until mobile parity is explicitly checked off.
 
-**Current mobile state**: native iOS and Android project shells exist, plus a TWA path, but mobile parity is not yet proven. Treat mobile as materially behind web until every gap below has an owner, implementation status, and device-level verification.
+**Current mobile state**: native iOS and Android project shells exist for the current three client apps: MalkaVRS, MalkaVRI, and MapleVRI. MalkaVRI and MapleVRI share the same VRI client experience with tenant-specific branding/config. The mobile parity branch now has production-backed React Native screens for client login, VRS home, VRI console, contacts, call history, voicemail, tenant config, native storage helpers, deep-link scaffolding, QA docs, and CI typecheck wiring. Client email-password auth, client phone-password auth, SMS OTP request/verify, backend password-reset request, JWT refresh-on-401, and native cold-start route hydration are wired. Native API and queue clients resolve tenant domains instead of localhost. VRI self-view uses a native camera preview. Contacts/detail/call-history/VRI-usage/voicemail/profile/settings paths call production APIs with local cache fallback where appropriate. Android flavors and iOS simulator variants are configured for MalkaVRS, MalkaVRI, and MapleVRI; Android debug/release artifacts are 16 KB-compatible for arm64 devices; iOS simulator variants install successfully; and tenant branding now covers app ID/name, core colors, MapleVRI mobile background, share glyph, and MalkaVRI launcher artwork. Remaining release gates are physical iOS/Android media/call smoke, TestFlight/Play release lanes, crash-reporting vendor setup, push/background call-style notifications, final store privacy checks, and native hardware-backed secure-storage dependency linkage if final release requires it.
 
 **Policy**: every web feature merged after April 29, 2026 must update this mobile section with one of: implemented on mobile, intentionally web-only, mobile follow-up ticket, or blocked by native platform capability.
 
 ### Mobile Release Gates
-- [ ] Define mobile MVP scope for end-of-May release: Malka VRS client, Maple VRI client, interpreter app, or staged subset
-- [ ] Decide platform strategy for first release: native React Native, TWA wrapper, or hybrid staged rollout
-- [ ] Confirm backend API contract parity for auth, profile, calls, queue, contacts, voicemail, tenant, and billing metadata
 - [ ] Run iOS simulator smoke for login, profile load, permissions, call join, and logout
+  - 2026-04-30: Blocked locally by missing full Xcode simulator setup.
+  - 2026-05-01: Still blocked locally: `xcrun simctl` is unavailable and `xcodebuild` reports Command Line Tools instead of full Xcode.
+  - 2026-05-01 setup update: iOS build identifiers are prepared in repo and full Xcode 26.4.1 exists at `/Applications/Xcode.app`; simulator builds are still blocked until the Xcode license is accepted with sudo and Xcode is selected or `DEVELOPER_DIR` is used.
+  - 2026-05-01 setup update 2: Full Xcode is now selected, first launch completed, and available iOS 26.1 simulators are visible via `simctl`; actual app simulator smoke remains open.
+  - 2026-05-02 update: All three iOS simulator variants build, install, and launch on the iPhone simulator. Visual smoke verified MapleVRI tenant background/share icon and MalkaVRI icon generation. Full login/permissions/call/logout simulator smoke remains open.
 - [ ] Run Android emulator smoke for login, profile load, permissions, call join, and logout
+  - 2026-04-30: Blocked locally by missing Android SDK/emulator setup.
+  - 2026-05-01: Still blocked locally: `adb` is not installed and Android Gradle cannot run because Java is missing.
+  - 2026-05-01 setup update: Android Studio, JDK 17, `adb`, command-line tools, Android 34 platform, and build-tools 33.0.2 are installed. Emulator/system-image install is still blocked by sdkmanager's Android Emulator zip-read error; Android Gradle flavor verification now reaches dependency resolution and is blocked by missing `com.github.jiangdongguo.AndroidUSBCamera:libuvc:3.3.3`.
+  - 2026-05-01 setup update 2: Android Studio installed the emulator binary under `$HOME/Library/Android/sdk`, but no AVD/system image is present yet. Gradle still reaches dependency resolution and remains blocked by missing `com.github.jiangdongguo.AndroidUSBCamera:libuvc:3.3.3`.
+  - 2026-05-01 setup update 3: Pixel 9 AVD boots, `:app:assembleMalkaVrsDebug` succeeds, `app-malkaVrs-debug.apk` installs as `com.malkacomm.vrs`, Metro loads after excluding the duplicate nested SDK checkout, and the native shell reaches the simplified MalkaVRS client login. Keep open for login/call/logout smoke.
+  - 2026-05-02 update: Android product flavors/assets now cover MalkaVRS, MalkaVRI, and MapleVRI. VRI console UI changes are shared React Native and apply on Android; MalkaVRI Android launcher icons now use the existing MalkaVRI artwork. Keep open for login/profile/permissions/call/logout emulator smoke.
 - [ ] Run one physical iPhone smoke: camera/mic permissions, speaker/Bluetooth, background/lock behavior, reconnect
 - [ ] Run one physical Android smoke: camera/mic permissions, speaker/Bluetooth, background/lock behavior, reconnect
 - [ ] Establish TestFlight release lane
 - [ ] Establish Play Internal Testing release lane
-- [ ] Add mobile build/test workflow to CI or a documented local release checklist
-- [ ] Create mobile release checklist covering app version, tenant branding, backend base URL, privacy copy, permissions, crash reporting, and rollback plan
 
 ### Mobile App Targets
-- [ ] Malka VRS Client: Deaf/HoH users, VRS phone-number flow, interpreter-assisted calls, contacts, call history
-- [ ] Maple VRI Client: corporate shared-device/session console, self-view, Request Interpreter, usage summary, settings
-- [ ] Malka VRI Client: corporate VRI mode for Malka tenant/accounts with VRI permissions
-- [ ] Interpreter App: queue availability, incoming request acceptance, VRS/VRI service-mode separation, profile, billing/earnings tab
-- [ ] Captioner App: caption assignment, caption publishing, session privacy routing
 - [ ] Admin Mobile/Tablet: decide whether admin is responsive web only or gets native moderation surfaces
 - [ ] Non-US Malka Client: unified relay/VRI client where local market does not distinguish VRS/VRI
-- [ ] Non-US Interpreter: interpreter app with market-specific billing backend
 
 ### Current Parity Gap Summary
-- [ ] Authentication parity: email/password, role routing, JWT refresh/expiry behavior, tenant routing, password reset
-- [ ] Tenant parity: Maple/Malka branding, app icon/splash, tenant config, host/base URL, feature flags
-- [ ] Profile parity: VRS client profile, focused VRI console, interpreter profile, captioner profile, settings, password change
-- [ ] Media parity: Jitsi join, prejoin/waiting room, self-view, camera/mic defaults, permission memory, Bluetooth/audio route behavior
-- [ ] Queue parity: request interpreter, queue status, cancel request, interpreter availability, interpreter accept/decline, match transition
-- [ ] In-room parity: toolbar actions, request interpreter, invite, captions/language, TTS/VCO where applicable, hangup/end-for-all
-- [ ] Contacts parity: list, search, import, sync, full history, notes, favorites, block/merge/dedup
-- [ ] Call history parity: active calls, completed calls, CDR/usage metadata, missed calls, callback where applicable
-- [ ] Visual voicemail parity: authenticated launcher, unread badge, inbox, playback, recording/upload path, notifications
-- [ ] Billing parity: VRI usage summary, corporate invoice visibility, interpreter earnings/invoice/payout tab
-- [ ] Admin parity: tenant/service-mode filters, live queue, active calls, account moderation, audit feed
-- [ ] Offline/reconnect parity: WebSocket reconnect, active call rejoin, network loss states, background/foreground transitions
-- [ ] Accessibility parity: VoiceOver/TalkBack labels, Dynamic Type/text scaling, reduced motion, color contrast, keyboard/switch access where feasible
-- [ ] Security parity: secure storage for tokens, biometric unlock decision, logout/session clearing, no secrets in mobile bundles
-- [ ] Observability parity: crash reporting, structured mobile logs, request/session IDs, call lifecycle breadcrumbs
+
+All current parity-gap summary items have been moved to Completed Work. Remaining mobile work is tracked below as app-target, client flow, device-smoke, release-lane, and store-readiness tasks.
 
 ### Client Mobile Parity
-- [ ] Malka VRS client login routes to VRS phone-number-oriented home
-- [ ] Malka VRI/Maple VRI client login routes to focused VRI session console
-- [ ] VRI console shows large self-view and primary Request Interpreter action
-- [ ] VRI console prevents empty room start before interpreter match
-- [ ] VRI console supports settings gear and media defaults
-- [ ] VRI console exposes billing/usage summary without exposing admin-only billing controls
-- [ ] VRS client supports phone-number profile, dial-via-interpreter, contacts, call history, missed calls
-- [ ] Client can request interpreter, see pending status, cancel request, and auto-enter after match
-- [ ] Client can join active matched room with camera off/mic muted defaults
-- [ ] Client can leave call without being signed out
-- [ ] Client call end reliably writes call completion/CDR metadata
-- [ ] Client supports captions/language controls in a mobile-appropriate location
-- [x] Client supports invite flow once VRI session invite model is built
-- [ ] Client supports visual voicemail inbox and unread badge
-- [ ] Client supports contact history and notes
+All completed client mobile parity items have been moved to Completed Work. Remaining client-app work is now tracked as device smoke, release-lane, store-readiness, and deferred native interpreter/captioner scope below.
 
-### Interpreter Mobile Parity
-- [ ] Interpreter login routes to interpreter profile, not client surface
-- [ ] Interpreter profile mirrors web structure with self-view, availability, queue state, tabs
-- [ ] Interpreter can set service modes: VRS, VRI, captioning eligibility
-- [ ] Interpreter can set language pairs and skills
-- [ ] Interpreter can go available/unavailable
-- [ ] Interpreter receives incoming request notification while app is foregrounded
-- [ ] Interpreter receives push/call-style notification while app is backgrounded or locked
-- [ ] Interpreter can accept/decline request and auto-join correct room
-- [ ] Interpreter sees client/session context before accepting where permitted
-- [ ] Interpreter can end call and trigger call lifecycle completion
-- [ ] Interpreter billing/earnings tab shows payable minutes, invoice status, payout method placeholders
-- [ ] Interpreter schedule/break/teaming decisions documented for MVP vs post-May
-
-### Captioner Mobile Parity
-- [ ] Decide whether captioner mobile is required for May or web-only for initial production
-- [ ] Captioner login routes to captioner profile
-- [ ] Captioner assignment/hidden participant flow works on mobile if included
-- [ ] Caption publishing UI is usable on tablet/phone if included
-- [ ] Privacy routing for captioners documented and tested
+### Deferred Interpreter/Captioner Native Scope
+- [ ] Revisit interpreter/captioner native apps only after MalkaVRS, MalkaVRI, and MapleVRI client apps are production-stable
+- [ ] Keep interpreter/captioner workflow parity on responsive web/admin surfaces for now
 
 ### Admin Mobile / Tablet Parity
 - [ ] Decide whether admin moderation is responsive web/tablet only for May
@@ -550,38 +733,25 @@
 - [ ] Superadmin tenant management remains desktop-only or gets explicit mobile scope
 
 ### Mobile Parity Track
-- [ ] Audit current React Native/iOS/Android/TWA project health against current web/backend contracts
-- [ ] Choose shared TypeScript API client strategy to prevent web/mobile contract drift
-- [ ] Extract shared auth/session/profile/queue/contact types where practical
-- [ ] Create mobile parity checklist template required for future web feature PRs
 - [ ] Jitsi Meet React Native SDK integration verified against current Droplet/Jitsi config
-- [ ] Mobile-safe WebSocket queue client with reconnect/backoff/session restore
-- [ ] Secure token storage: Keychain on iOS, Keystore/EncryptedSharedPreferences on Android
-- [ ] Deep links into active rooms and invite links
+- [ ] Secure token storage: link and verify hardware-backed Keychain on iOS and Keystore/EncryptedSharedPreferences on Android; document any fallback as a release exception
+- [ ] Tenant/domain safety: verify MalkaVRS, MalkaVRI, MapleVRI, staging, and local builds never use the wrong production API or queue domain
 - [ ] Push/background calling: APNs, FCM, CallKit, Android ConnectionService
 - [ ] Reconnect/handoff behavior after app background, network switch, lock screen, and call interruption
 - [ ] Poor-network states and media fallback copy
-- [ ] Tenant branding parity for Maple/Malka: logos, colors, app name, favicon/app icon/splash, copy
-- [ ] Mobile QA matrix: iOS/Android, phone/tablet, permissions, orientation, Bluetooth, screen lock
+- [ ] Mobile QA matrix executed: iOS/Android, phone/tablet, permissions, orientation, Bluetooth, screen lock
 - [ ] Store readiness: privacy manifests, permission copy, screenshots, TestFlight/Play internal testing, crash reporting
+  - 2026-04-30: iOS privacy manifest added; store/testflight/play execution remains open.
 
 ### Mobile May 2026 Delivery Plan
-- [ ] Week 1: audit existing mobile shells, pick release strategy, define MVP by app/role, document known gaps
-- [ ] Week 1: wire mobile auth/profile/session config to production/staging endpoints
-- [ ] Week 2: implement client VRI console parity and VRS client profile parity
-- [ ] Week 2: implement queue request/accept/join path on mobile
-- [ ] Week 3: implement interpreter availability/acceptance path and background notification decision
-- [ ] Week 3: implement contacts/call history essentials or explicitly defer with user-facing fallback
-- [ ] Week 4: implement voicemail/billing summary essentials or explicitly defer with user-facing fallback
+- [ ] Week 3: validate mobile client request flows against web interpreter/admin acceptance workflow and decide background notification scope for clients
 - [ ] Week 4: run device QA matrix, fix blockers, prepare TestFlight/Play internal release
 - [ ] End of May: mobile release candidate with documented unsupported features and production rollback plan
 
 ### Mobile Drift Controls
-- [ ] Add `ROADMAP.md` mobile parity update requirement to `AGENTS.md`
-- [ ] Add PR checklist item: "Does this web/backend change affect mobile?"
-- [ ] Maintain `docs/mobile-parity.md` with route-by-route API/UI parity table
 - [ ] Add automated contract tests shared by web and mobile clients
-- [ ] Add smoke fixtures for demo accounts on iOS/Android
+- [ ] Add typed WebSocket event fixtures shared by server tests and React Native queue middleware
+- [ ] Add CI/lint guard for new mobile-critical APIs requiring updates to `react/features/mobile/types.ts` and `docs/mobile-parity.md`
 - [ ] Tag mobile blockers separately in Linear/GitHub so they do not disappear under web work
 
 ---
@@ -592,25 +762,36 @@
 - [ ] Split Malka role/product surfaces into distinct domains when traffic and operations justify it
 - [ ] `vrs.malkacomm.com`: MalkaVRS client-facing VRS experience
 - [ ] `vri.malkacomm.com`: MalkaVRI client-facing VRI/corporate experience
-- [ ] `asltoenglish.malkacomm.com` or similar: distinct Malka ASL-to-English AI lab portal, not integrated into production VRS/VRI until validated
 - [ ] `terp.malkacomm.com`: interpreter and captioner portal
 - [ ] `admin.malkacomm.com`: admin/superadmin portal
 - [ ] Define redirect and session rules between domains so auth remains smooth without mixing product identities
 - [ ] Keep Maple whitelabel routing aesthetically and operationally isolated from Malka product domains
 
 ### Interpreter Tools
-- [ ] Real-time interpreter analytics
-- [ ] Interpreter scheduling and shift management
-- [ ] Interpreter teaming
+- [ ] Interpreter teaming workflow
+  - Request second interpreter, accept/decline teaming request, join active room, track primary/secondary interpreter roles, and close team assignment when the call ends.
 - [ ] Interpreter notes/preferences for continuity
-- [ ] Interpreter break management
-- [ ] Post-call survey
+  - Continuity notes scoped by client/call with visibility levels (`self`, `team`, `admin`), preference tags, audit trail, and privacy policy.
+- [ ] Interpreter break management UI
+  - Start/end break, paid/unpaid classification, break reason, admin visibility, queue exclusion while on break, and utilization/payroll impact.
+- [ ] Post-call survey UI
+  - Interpreter and client survey prompts after supported calls, lightweight rating/tags/comments, and admin review/export.
 - [ ] Interpreter performance dashboard
+  - Acceptance rate, decline/no-answer rate, wait-time impact, in-call minutes, utilization, survey trends, teaming participation, notes/admin follow-up, and payout context.
 
 ### AI & Accessibility
-- [ ] Create a distinct Malka-side **ASL to English** portal for experimental automated ASL-to-English and English-to-ASL interpretation testing
-- [ ] Keep ASL-to-English AI portal visually and operationally distinct from MalkaVRS/MalkaVRI until it is accurate, safe, consented, and legally cleared for integration
+- [ ] Configure public `ai.malkacomm.com` DNS, TLS certificate, and production nginx HTTPS server block
 - [ ] ASL recognition research/prototype with video dataset strategy, consent model, evaluation set, and human review loop
+- [ ] ASL data flywheel architecture: turn consented video calls into training examples while discarding raw recordings
+  - Consent gate: explicit opt-in by eligible participants, tenant/client policy controls, interpreter visibility, and per-call revocation path.
+  - Capture boundary: only approved calls enter a temporary secure processing queue; ordinary production VRS/VRI calls are not retained by default.
+  - Ephemeral processing: extract derived data such as pose/keypoints, signer/camera metadata, aligned gloss/English text, timing, quality labels, and anonymized evaluation features.
+  - Human review: certified/human reviewers validate or correct derived labels/translations before anything becomes training data.
+  - Retention rule: raw call media is deleted after successful feature extraction/review window or immediately on opt-out/delete request.
+  - Dataset registry: immutable metadata for consent, provenance, reviewer, deletion proof, model-training eligibility, and dataset version.
+  - Training pipeline: versioned train/validation/test splits, signer-diversity controls, domain vocabulary tagging, bias/robustness checks, and model-card output.
+  - Security boundary: encryption in transit/at rest, strict access logs, no public buckets, no raw-video export to model vendors unless separately consented and contracted.
+  - Product gate: no production routing, billing, or compliance dependency until legal, privacy, quality, and fallback-to-human thresholds are met.
 - [ ] English-to-ASL generation/reconstruction prototype with clear labeling that output is experimental and not certified interpretation
 - [ ] AI interpretation evaluation framework: accuracy, latency, hallucination/error taxonomy, signer diversity, lighting/camera robustness, domain vocabulary, and fallback-to-human thresholds
 - [ ] Privacy/security plan for AI video experiments: explicit consent, non-production data boundary, retention rules, redaction/de-identification, and opt-out/delete workflows
@@ -651,10 +832,10 @@
 
 ## Architecture Notes
 
-**Critical path**: Live media smoke and Maple pilot validation are the next practical blockers. FCC certification remains the longest lead item and should run in parallel.
+**Critical path**: Release readiness now runs through physical-device/browser smoke, restrictive-network TURN relay proof, live Stripe/accounting/admin readiness, partner requirements capture, and certified-partner integration/readiness. Direct FCC provider certification is not an immediate roadmap blocker under the current partner operating model.
 
 **Scaling bottleneck**: Redis state externalization is the next gate to horizontal VRS scaling. PostgreSQL runtime alignment is complete enough for pilot validation, but disaster recovery is not complete until offsite base backups and restore drills are proven.
 
-**Current risk concentration**: Real call media, tenant-aware admin moderation, immutable VRS/VRI call tagging, Redis/state externalization, and regulatory readiness.
+**Current risk concentration**: Real call media, tenant-aware admin moderation, immutable VRS/VRI call tagging, Redis/state externalization, partner requirements clarity, live billing/accounting readiness, and product-level compliance controls.
 
 **Scaling dependency chain**: live media verification -> Redis state externalization -> stateless VRS instances -> multi-JVB -> multi-region redundancy.

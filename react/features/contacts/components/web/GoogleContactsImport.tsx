@@ -120,7 +120,7 @@ export default function GoogleContactsImport({ onImported }: Props) {
         setError('');
         try {
             const { url } = await contactsAPI.googleAuthUrl();
-            const popup = window.open(url, 'google-contacts-auth', 'width=500,height=600');
+            const popup = window.open?.(url, 'google-contacts-auth', 'width=500,height=600');
 
             // Poll for popup close
             const poll = setInterval(() => {

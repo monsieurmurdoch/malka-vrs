@@ -10,22 +10,22 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:7.4.2'
+        classpath 'com.android.tools.build:gradle:8.7.2'
         classpath 'com.google.gms:google-services:4.4.0'
         classpath 'com.google.firebase:firebase-crashlytics-gradle:2.9.9'
     }
 }
 
 ext {
-    kotlinVersion = "1.7.0"
-    buildToolsVersion = "33.0.2"
+    kotlinVersion = "2.0.21"
+    buildToolsVersion = "36.1.0"
     compileSdkVersion = 34
     minSdkVersion    = 24
     targetSdkVersion = 34
     supportLibVersion = "28.0.0"
 
-    // We use NDK 23 which has both M1 support and is the side-by-side NDK version from AGP.
-    ndkVersion = "23.1.7779620"
+    // NDK r28+ emits 16 KB-aligned ELF segments by default for native code we compile.
+    ndkVersion = "28.0.13004108"
 
     // The Maven artifact groupId of the third-party react-native modules which
     // Jitsi Meet SDK for Android depends on and which are not available in
@@ -44,7 +44,7 @@ ext {
     googleServicesEnabled = project.file('app/google-services.json').exists() && !libreBuild
 
     //React Native Version
-    rnVersion = "0.72.9"
+    rnVersion = "0.77.3"
 }
 
 allprojects {
@@ -53,6 +53,8 @@ allprojects {
         maven { url("$rootDir/../node_modules/jsc-android/dist") }
         mavenCentral()
         google()
+        // AndroidUSBCamera 3.3.3 publishes libuvc via Liferay's public Maven mirror.
+        maven { url 'https://repository.liferay.com/nexus/content/repositories/public/' }
         maven { url 'https://www.jitpack.io' }
     }
 
@@ -119,7 +121,7 @@ allprojects {
             project.version = "${json.version}-jitsi-${versionQualifierNumber}"
 
             task jitsiAndroidSourcesJar(type: Jar) {
-                classifier = 'sources'
+                archiveClassifier.set('sources')
                 from android.sourceSets.main.java.source
             }
 
@@ -170,6 +172,30 @@ allprojects {
     }
 }
 
+subprojects { subproject ->
+    plugins.withId('com.android.library') {
+        if (!subproject.android.namespace) {
+            def manifestFile = subproject.file('src/main/AndroidManifest.xml')
+            def fallbackNamespace = "org.jitsi.${subproject.name.replaceAll('[^A-Za-z0-9_]', '_')}"
+            def manifestPackage = fallbackNamespace
+
+            if (manifestFile.exists()) {
+                def manifest = new XmlSlurper(false, false).parse(manifestFile)
+                manifestPackage = manifest.@package?.text() ?: fallbackNamespace
+            }
+
+            subproject.android.namespace = manifestPackage
+        }
+
+        subproject.android.buildFeatures.buildConfig = true
+        subproject.android.compileOptions {
+            sourceCompatibility JavaVersion.VERSION_11
+            targetCompatibility JavaVersion.VERSION_11
+        }
+    }
+
+}
+
 // Force the version of the Android build tools we have chosen on all
 // subprojects. The forcing was introduced for react-native and the third-party
 // modules that we utilize such as react-native-background-timer.
@@ -180,6 +206,18 @@ subprojects { subproject ->
                 && rootProject.ext.has('buildToolsVersion')) {
             android {
                 buildToolsVersion rootProject.ext.buildToolsVersion
+                compileOptions {
+                    sourceCompatibility JavaVersion.VERSION_11
+                    targetCompatibility JavaVersion.VERSION_11
+                }
+            }
+        }
+
+        if (subproject.plugins.hasPlugin('kotlin-android')) {
+            tasks.matching { it.name.endsWith('Kotlin') }.configureEach {
+                kotlinOptions {
+                    jvmTarget = "11"
+                }
             }
         }
     }

@@ -20,18 +20,24 @@ android {
             excludes += ['lib/*/libhermes*.so']
         }
     }
+    buildFeatures {
+        buildConfig true
+    }
 
 
     defaultConfig {
         applicationId 'org.jitsi.meet'
         versionCode vcode
         versionName project.appVersion
+        manifestPlaceholders = [appName: 'MalkaVRS']
 
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
+        buildConfigField 'String', 'VRS_DEFAULT_URL', '"https://vrs.malkacomm.com"'
 
         ndk {
-            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+            // Ship only the phone ABI we validate for Android 15+/16 KB page-size devices.
+            abiFilters 'arm64-v8a'
         }
     }
 
@@ -74,11 +80,39 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+    flavorDimensions 'tenant'
+    productFlavors {
+        malkaVrs {
+            dimension 'tenant'
+            applicationId 'com.malkacomm.vrs'
+            manifestPlaceholders = [appName: 'MalkaVRS']
+            buildConfigField 'String', 'VRS_TENANT', '"malka"'
+            buildConfigField 'String', 'VRS_APP_TYPE', '"vrs"'
+            buildConfigField 'String', 'VRS_DEFAULT_URL', '"https://vrs.malkacomm.com"'
+        }
+        malkaVri {
+            dimension 'tenant'
+            applicationId 'com.malkacomm.vri'
+            manifestPlaceholders = [appName: 'MalkaVRI']
+            buildConfigField 'String', 'VRS_TENANT', '"malkavri"'
+            buildConfigField 'String', 'VRS_APP_TYPE', '"vri"'
+            buildConfigField 'String', 'VRS_DEFAULT_URL', '"https://vri.malkacomm.com"'
+        }
+        mapleVri {
+            dimension 'tenant'
+            applicationId 'com.maplecomm.vri'
+            manifestPlaceholders = [appName: 'MapleVRI']
+            buildConfigField 'String', 'VRS_TENANT', '"maple"'
+            buildConfigField 'String', 'VRS_APP_TYPE', '"vri"'
+            buildConfigField 'String', 'VRS_DEFAULT_URL', '"https://vri.maplecomm.ca"'
+        }
+    }
     namespace 'org.jitsi.meet'
 }
 
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.5.1'
+    implementation "org.jetbrains.kotlin:kotlin-parcelize-runtime:${rootProject.ext.kotlinVersion}"
 
     debugImplementation 'com.squareup.leakcanary:leakcanary-android:2.13'
 
