@@ -9,6 +9,9 @@
  */
 
 import * as db from '../database';
+import { createModuleLogger } from './logger';
+
+const log = createModuleLogger('queue');
 
 interface QueueRequest {
     id: string;
@@ -63,7 +66,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries: number = MAX_DB_RETRI
                 throw error;
             }
             const delay = DB_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
-            console.warn(`[Queue] DB operation failed (attempt ${attempt}/${retries}), retrying in ${delay}ms\u2026`, (error as Error).message);
+            log.warn({ err: error, attempt, retries, delay }, 'DB operation failed; retrying');
             await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
@@ -103,7 +106,7 @@ async function initialize(): Promise<InitializeResult> {
 
     reorderQueue();
 
-    console.log(`[Queue] Rehydrated ${queue.size} waiting request${queue.size === 1 ? '' : 's'} from database`);
+    log.info({ queueSize: queue.size }, 'Rehydrated waiting requests from database');
 
     return {
         success: true,
@@ -236,7 +239,7 @@ function interpreterAvailable(interpreterId: string, interpreterName: string, la
         availableAt: new Date()
     });
 
-    console.log(`[Queue] Interpreter ${interpreterName} (${languages.join(', ')}) is now available for ${serviceModes.join(', ')}`);
+    log.info({ interpreterId, interpreterName, languages, serviceModes }, 'Interpreter is available');
 
     return { success: true };
 }
@@ -244,7 +247,7 @@ function interpreterAvailable(interpreterId: string, interpreterName: string, la
 function interpreterUnavailable(interpreterId: string): { success: boolean } {
     availableInterpreters.delete(interpreterId);
 
-    console.log(`[Queue] Interpreter ${interpreterId} is now unavailable`);
+    log.info({ interpreterId }, 'Interpreter is unavailable');
 
     return { success: true };
 }
@@ -322,7 +325,7 @@ async function tryMatch(): Promise<void> {
     const interpreters = Array.from(availableInterpreters.values());
 
     if (interpreters.length === 0) {
-        console.log('[Queue] No interpreters available,', waitingRequests.length, 'requests waiting');
+        log.info({ waitingRequests: waitingRequests.length }, 'No interpreters available for waiting requests');
         return;
     }
 
@@ -347,7 +350,7 @@ async function tryMatch(): Promise<void> {
             try {
                 await completeMatch(request, matched);
             } catch (error) {
-                console.error(`[Queue] Error completing match for request ${request.id}:`, error);
+                log.error({ err: error, requestId: request.id }, 'Error completing queue match');
                 matchingLocks.delete(request.id);
                 continue;
             }
@@ -430,7 +433,14 @@ async function completeMatch(request: db.QueueRequest | QueueRequest, interprete
 
     totalMatches += 1;
 
-    console.log(`[Queue] Matched: ${clientName} -> ${interpreter.name}`);
+    log.info({
+        callId,
+        clientId,
+        clientName,
+        interpreterId: interpreter.id,
+        interpreterName: interpreter.name,
+        requestId: request.id
+    }, 'Queue match completed');
 
     // Notify admins
     notifyAdmins('queue_match_complete', {
@@ -486,7 +496,7 @@ async function assignInterpreter(requestId: string, interpreterId: string): Prom
 
         return result;
     } catch (error) {
-        console.error(`[Queue] Error assigning interpreter for request ${requestId}:`, error);
+        log.error({ err: error, requestId, interpreterId }, 'Error assigning interpreter');
 
         return { success: false, message: 'Failed to complete assignment' };
     } finally {

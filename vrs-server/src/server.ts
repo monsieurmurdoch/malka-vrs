@@ -24,7 +24,13 @@ tracing.initialize();
 try {
     require('dotenv').config();
 } catch (error) {
-    console.warn('[Server] dotenv not installed, continuing with process environment only.');
+    process.stderr.write(JSON.stringify({
+        level: 'warn',
+        time: new Date().toISOString(),
+        service: 'malka-vrs',
+        module: 'server',
+        msg: 'dotenv not installed; continuing with process environment only'
+    }) + '\n');
 }
 
 import express, { Request, Response, NextFunction } from 'express';
@@ -43,6 +49,7 @@ const metrics = require('../lib/metrics');
 const { httpMetricsMiddleware } = metrics;
 const log = require('../lib/logger').module('server');
 const { requestId, requestLogger } = require('../lib/middleware');
+const { createRedisRateLimitStore } = require('../lib/redis-rate-limit-store');
 
 // Services
 import * as db from './database';
@@ -100,8 +107,8 @@ const API_RATE_LIMIT_WINDOW_MS = Number(process.env.API_RATE_LIMIT_WINDOW_MS || 
 const API_RATE_LIMIT_MAX = Number(process.env.API_RATE_LIMIT_MAX || 300);
 
 if (!JWT_SECRET) {
-    console.error('FATAL: VRS_SHARED_JWT_SECRET or JWT_SECRET environment variable is required.');
-    console.error('Set it in your .env file before starting the server.');
+    log.error('FATAL: VRS_SHARED_JWT_SECRET or JWT_SECRET environment variable is required.');
+    log.error('Set it in your .env file before starting the server.');
     process.exit(1);
 }
 
@@ -199,6 +206,7 @@ app.use(helmet({
 
 // API rate limiter (kept off static assets so the dashboard can bootstrap cleanly)
 app.use('/api', rateLimit({
+    store: createRedisRateLimitStore({ prefix: 'vrs:rate-limit:api' }),
     windowMs: API_RATE_LIMIT_WINDOW_MS,
     max: API_RATE_LIMIT_MAX,
     standardHeaders: true,
@@ -268,9 +276,10 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     }
 
     const host = String(req.headers.host || '').split(':')[0].toLowerCase();
-    const filePath = req.path === '/'
+    const requestedPath = req.path === '/admin-dashboard.html' ? '/vrs-admin-dashboard.html' : req.path;
+    const filePath = requestedPath === '/'
         ? path.join(staticRoot, host === 'ai.malkacomm.com' ? 'asl-ai.html' : 'index.html')
-        : path.join(staticRoot, req.path);
+        : path.join(staticRoot, requestedPath);
 
     if (!filePath.startsWith(staticRoot)) {
         return next();
@@ -556,7 +565,7 @@ db.initialize().then(async () => {
         await billingDb.initialize();
         startInvoiceAutomation();
     } catch (billingErr) {
-        console.warn('[Server] Billing DB initialization failed (non-fatal):', billingErr instanceof Error ? billingErr.message : billingErr);
+        log.warn({ err: billingErr }, 'Billing DB initialization failed (non-fatal)');
     }
 
     if (process.env.MINIO_ENDPOINT) {
@@ -589,7 +598,7 @@ db.initialize().then(async () => {
         log.info('  HTTP Server:   http://localhost:%d', PORT);
         log.info('  WebSocket:     ws://localhost:%d/ws', PORT);
         log.info('  API Base:      /api');
-        log.info('  Admin Panel:   /vrs-admin-dashboard.html');
+        log.info('  Admin Panel:   /admin-dashboard.html');
         log.info('  Health (Ops):  http://localhost:%d/health', PORT);
         log.info('  Metrics:       http://localhost:%d/metrics', PORT);
 

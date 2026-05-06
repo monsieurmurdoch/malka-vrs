@@ -9,6 +9,7 @@
  */
 
 import * as billingDb from '../lib/billing-db';
+import { createModuleLogger } from '../lib/logger';
 import { logBillingEvent } from './audit-service';
 import { getCdrsForPeriod, transitionCdrStatus } from './cdr-service';
 import { createStripeProvider } from './stripe/stripe-factory';
@@ -27,6 +28,7 @@ import type {
 } from './types';
 
 const { sendInvoiceEmail } = require('../../lib/email-service');
+const log = createModuleLogger('vri-billing');
 
 // ─── Corporate Account Management ──────────────────────────
 
@@ -81,7 +83,7 @@ export async function createCorporateAccount(
                 [customer.id, id]
             );
         } catch (err) {
-            console.error('[VRI Billing] Failed to create Stripe customer:', err);
+            log.error({ err, corporateAccountId: id }, 'Failed to create Stripe customer');
         }
     }
 
@@ -386,7 +388,7 @@ export async function issueInvoice(
             stripeInvoiceId = stripeInvoice.id;
             stripeHostedUrl = stripeInvoice.hostedUrl || null;
         } catch (err) {
-            console.error('[VRI Billing] Failed to create Stripe invoice:', err);
+            log.error({ err, invoiceId }, 'Failed to create Stripe invoice');
         }
     }
 
@@ -751,7 +753,7 @@ export async function markInvoicePaid(
         try {
             await transitionCdrStatus(cdr.id, 'paid', performedBy, `Invoice ${invoiceId} paid`);
         } catch (err) {
-            console.error(`[VRI Billing] Failed to transition CDR ${cdr.id}:`, err);
+            log.error({ err, cdrId: cdr.id, invoiceId }, 'Failed to transition CDR after invoice payment');
         }
     }
 

@@ -1,7 +1,7 @@
 # Malka VRS - Product & Engineering Roadmap
 
-> **Last updated**: May 4, 2026
-> **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. Malka VRS backend/WebSocket smoke now covers in-room-style interpreter request, admin live queue visibility, interpreter match, call end, and CDR creation. Native mobile now has working Android/iOS client-app build lanes for MalkaVRS, MalkaVRI, and MapleVRI, production-backed auth/API/queue wiring, tenant-specific app IDs, iOS simulator install flow, Android 16 KB-compatible debug/release artifacts, and tenant visual polish. The JS/TS migration boundary is documented, shared API/WebSocket contracts now feed web/native/tests/smoke tooling, and release gates plus staging/base-URL policy are documented. TURN/coturn deployment wiring is staged behind an opt-in Compose profile. The main open risks are remaining real-browser in-room/admin UI verification, TURN relay enablement and restrictive-network smoke, Redis/state externalization, regulatory/compliance work, live Stripe/accounting configuration, physical-device mobile media/call smoke, TestFlight/Play release lanes, push/background calling, crash reporting, and final secure-storage linkage.
+> **Last updated**: May 5, 2026
+> **Overall status**: Web/backend feature depth is strong and the intended runtime line is now PostgreSQL-only. Maple VRI has passed backend, queue, admin, CDR, and real media/UDP smoke validation. Malka VRS backend/WebSocket smoke now covers in-room-style interpreter request, admin live queue visibility, interpreter match, call end, and CDR creation. Native mobile now has working Android/iOS client-app build lanes for MalkaVRS, MalkaVRI, and MapleVRI, production-backed auth/API/queue wiring, tenant-specific app IDs, iOS simulator install flow, Android 16 KB-compatible debug/release artifacts, and tenant visual polish. The JS/TS migration boundary is documented, shared API/WebSocket contracts now feed web/native/tests/smoke tooling, and release gates plus staging/base-URL policy are documented. TURN/coturn deployment is live with external allocation smoke passing. Redis is now in the Compose stack with shared queue metadata, matching locks, interpreter presence, WebSocket presence metadata, handoff token TTL storage, and Redis-backed VRS rate limits. The current VRS business assumption is a certified-partner operating model: Malka supplies the sales/platform/operator layer for or through an already FCC-certified VRS provider rather than becoming the certified provider of record on the immediate roadmap. The main open risks are remaining real-browser in-room/admin UI verification, restrictive-network TURN relay proof, Redis Pub/Sub/HA follow-through, partner requirements capture, live Stripe/accounting configuration, physical-device mobile media/call smoke, TestFlight/Play release lanes, push/background calling, crash reporting, and final secure-storage linkage.
 
 ---
 
@@ -19,8 +19,8 @@
 - Full real-browser UI verification is still required for the active-room request-interpreter button, VRI invite/guest flow, and admin moderation screens.
 - TURN/coturn fallback is enabled on production with external allocation smoke passing; remaining proof is browser ICE stats from a restrictive network showing the selected candidate pair is `relay`.
 - Admin portal filtering/moderation has been implemented and needs real-browser workflow smoke across Malka and Maple.
-- Redis/state externalization is still required before multi-server horizontal scaling.
-- FCC/VRS compliance, 911/E911, iTRS, NANP provisioning, billing immutability, and certification remain major parallel tracks.
+- Redis state externalization has started; Redis Pub/Sub and HA are still required before multi-server horizontal scaling.
+- The VRS track is now framed around certified-partner readiness rather than direct FCC provider certification. Technical VRS behavior, records, auditability, NANP/iTRS/911 support hooks, billing integrity, and privacy controls still matter because a certified partner will need them operationally.
 - VRI corporate billing/payment and interpreter payout foundations are now implemented: immutable CDR-to-invoice item linking, Stripe invoice/customer plumbing, invoice email/send path, one-click/bulk invoice sending, scheduled auto-run invoice generation/sending, credit notes, webhook replay, reconciliation dashboard, payables/payout/schedule/utilization tables, contractor invoices, payout CSV export, and admin APIs. Live Stripe production mode still needs real keys, Stripe portal configuration, and final accounting policy.
 - Mobile apps now have the main client-side parity foundation in place; physical-device smoke, release lanes, push/background call behavior, crash reporting, and store-readiness work remain before broad launch.
 
@@ -235,6 +235,22 @@
 - [x] Initial coverage for auth, queue, handoff, voicemail, billing modules
 - [x] Backend CI foundation: VRS tests, ops build, Compose config validation
 - [x] GitHub Actions pins bumped to Node 24-compatible action versions (`checkout@v6`, `setup-node@v6`, `stale@v10`)
+- [x] Runtime `console.log`/`console.error` cleanup across VRS, ops, and Twilio service code
+  - 2026-05-05: Routed remaining runtime service logs through structured loggers; service scripts/tests remain allowed to print directly.
+- [x] Standardized `LOG_LEVEL` across VRS, ops, and Twilio
+  - 2026-05-05: Added `LOG_LEVEL` defaults to env examples and production compose.
+- [x] Structured JSON logs in production and pretty local/dev logs for VRS, ops, and Twilio
+  - 2026-05-05: VRS uses Pino; ops/Twilio use lightweight service loggers with the same `LOG_LEVEL`/`NODE_ENV` behavior.
+- [x] Correlation/request ID propagation across VRS, ops, Twilio, WebSocket, and call lifecycle events
+  - 2026-05-05: HTTP services now accept/emit `X-Request-Id`/`X-Correlation-Id`; WebSocket upgrade/message paths propagate `correlationId`.
+- [x] Call lifecycle event logging for queue and phone-call paths
+  - 2026-05-05: Added structured lifecycle logs for request creation, queue join, interpreter match, room creation, call start/end, Twilio call start/end, and error variants.
+- [x] DigitalOcean monitoring integration decision
+  - 2026-05-05: Decision recorded in `docs/observability-monitoring.md`: use DigitalOcean Monitoring for Droplet-level wakeups and Prometheus/Grafana for app/media diagnostics.
+- [x] External APM decision
+  - 2026-05-05: Decision recorded in `docs/observability-monitoring.md`: use an OpenTelemetry-first, vendor-neutral path before choosing Datadog/New Relic/etc.
+- [x] Alert rules for service down, queue wait, JVB CPU, DB latency, disk, memory, and error rate
+  - 2026-05-05: Prometheus rules cover service down, queue wait/depth/capacity, JVB CPU/memory/down, DB latency/down, host disk/memory, error rate, WebSocket errors, and call quality.
 
 ### Status & Project Tracking
 - [x] `status.md` running update file
@@ -491,8 +507,11 @@ No immediate open items.
 No immediate open items.
 
 ### Desktop Client Follow-Up
+- [ ] Apple Developer ID Application certificate and notarization credentials for signed macOS installer builds
+- [ ] Windows code-signing certificate or trusted-signing pipeline credentials for signed `.exe` installer builds
 - [ ] Package/sign MalkaVRS desktop builds for macOS and Windows after the lightweight wrapper is smoke-tested
 - [ ] Upload signed installers to `/downloads/MalkaVRS-Desktop.dmg` and `/downloads/MalkaVRS-Desktop.exe`
+  - 2026-05-05: Packaging/publish scripts are wired, but this remains open until Apple Developer ID and Windows code-signing credentials are available and real signed artifacts exist.
 - [ ] Extend desktop alert bridge beyond interpreter queue requests if MalkaVRS client-side P2P/direct-call receiving becomes a desktop launch requirement
 
 ### Maple VRI Pilot Readiness & White-Label Hardening (cont.)
@@ -502,15 +521,7 @@ No immediate open items.
 ## Near-Term Feature Work
 
 ### Observability Branch (`codex/logging-observability`)
-- [ ] Replace remaining `console.log`/`console.error` with structured logger across VRS, ops, and Twilio
-- [ ] Standardize `LOG_LEVEL` across services
-- [ ] Structured JSON output in production for all services
-- [ ] Pretty logs in local/dev only
-- [ ] Correlation/request ID propagation across VRS, ops, Twilio, WebSocket, and call lifecycle events
-- [ ] Log call lifecycle events: request created, queue join, interpreter match, room created, call start, call end, errors
-- [ ] DigitalOcean monitoring integration decision
-- [ ] External APM decision: Datadog, New Relic, or OpenTelemetry-first vendor-neutral path
-- [ ] Alert rules for service down, queue wait, JVB CPU, DB latency, disk, memory, and error rate
+No immediate open items.
 
 ### Testing
 - [ ] Unit tests: queue priority, matching, state transitions
@@ -539,12 +550,18 @@ No immediate open items.
 ## Scale Preparation
 
 ### Redis & State Externalization
-- [ ] Add Redis to Docker Compose stack
-- [ ] Move WebSocket client registry out of process memory
-- [ ] Move queue state out of in-memory Maps
-- [ ] Move handoff tokens to Redis TTL keys
-- [ ] Move interpreter presence to Redis heartbeat/expiry
-- [ ] Move rate limiting to Redis-backed store
+- [x] Add Redis to Docker Compose stack
+  - 2026-05-05: Added Redis with AOF persistence and healthchecks to local/prod Compose; VRS services receive `REDIS_URL`.
+- [x] Move WebSocket client registry metadata out of process memory
+  - 2026-05-05: WebSocket socket handles remain process-local by necessity, but connection/presence metadata is mirrored to Redis TTL keys.
+- [x] Move queue state out of in-memory Maps
+  - 2026-05-05: Waiting requests, interpreter availability, and match locks are persisted to Redis with local maps retained as hot process caches.
+- [x] Move handoff tokens to Redis TTL keys
+  - 2026-05-05: Handoff tokens now write Redis TTL keys while retaining DB persistence/fallback behavior.
+- [x] Move interpreter presence to Redis heartbeat/expiry
+  - 2026-05-05: Interpreter availability is stored with Redis expiry; WebSocket heartbeat refreshes connection presence.
+- [x] Move rate limiting to Redis-backed store
+  - 2026-05-05: API/auth express-rate-limit stores and SMS OTP throttling now use Redis keys when `REDIS_URL` is configured, with local fallback if Redis is unavailable.
 - [ ] Add Redis Pub/Sub for cross-instance WebSocket broadcasting
 - [ ] Make VRS server stateless enough for multiple instances behind a load balancer
 
@@ -581,43 +598,62 @@ No immediate open items.
 - [ ] Automated failover testing
 - [ ] Cross-region object storage replication for voicemail media
 - [ ] Provision offsite backup storage and perform true base-backup/WAL restore drill into separate infrastructure
-- [ ] Recovery targets: RPO < 1 minute, RTO < 5 minutes for 911-capable system
+- [ ] Recovery targets: RPO/RTO aligned with the certified partner's emergency-capable operating requirements
 
 ---
 
-## Regulatory & Business Track
+## Partner Readiness & Business Track
 
-### FCC Provider Certification
-- [ ] File application with FCC Consumer & Governmental Affairs Bureau
-- [ ] Demonstrate technical capability: 911, 10-digit numbering, interoperability
-- [ ] Demonstrate financial/operational capability
-- [ ] Pass FCC compliance audit
-- [ ] Timeline expectation: 6-12 months from filing
+### Certified-Partner Operating Model
+- [ ] Capture certified VRS partner requirements and convert them into product, admin, billing, reporting, and integration tickets
+- [ ] Define provider-of-record boundaries in contracts and product copy before any VRS launch under a partner brand or program
+- [ ] Build partner-facing readiness packet: architecture, security posture, call lifecycle evidence, CDR model, admin controls, incident runbooks, and tenant isolation summary
+- [ ] Confirm how the certified partner wants Malka to expose reporting, audit exports, CDRs, call metadata, and support evidence
+- [ ] Confirm partner approval process for user-facing VRS copy, number identity, emergency handling, interpreter workflow, and support escalation language
 
-### Phone Number Provisioning
-- [ ] Obtain NANP number blocks through RespOrg partnership
-- [ ] Integrate with iTRS database
-- [ ] Build verified number assignment flow
-- [ ] Support number porting
-- [ ] 911/E911 integration
+### Responsibility Split
+**Partner-owned responsibilities**
+- Provider-of-record status, FCC filings, certification/recertification, regulatory legal interpretations, TRS Fund submissions, and any required carrier/numbering relationships.
+- Final policy for user eligibility, iTRS database use, NANP assignment/porting, 911/E911 routing, and legally required notices.
+- Compliance sign-off on record retention, chain-of-custody evidence, audit exports, support procedures, and permitted operational delegation.
 
-### User Eligibility & Verification
-- [ ] Self-certification flow for hearing/speech disability
-- [ ] Identity verification workflow
-- [ ] iTRS database cross-reference
-- [ ] Annual recertification
-- [ ] Immutable audit trail for eligibility events
+**Malka-owned platform responsibilities**
+- VRS-compliant call behavior as required by the partner: request/queue/match, interpreter visibility, linked hangup for interpreted sessions, CDR creation, and stale-call cleanup.
+- Tenant-aware admin controls for live queue, activity, account permissions, interpreter/captioner status, moderation, and audit exports.
+- Billing/invoicing/admin readiness for partner, customer, and internal accounting workflows, including immutable VRS/VRI separation.
+- Privacy, retention, consent, and chain-of-custody controls at the product/data layer.
+- Partner integration hooks for auth, reporting, exports, webhooks, support escalation, and any partner-owned numbering/emergency systems.
 
-### 911 Emergency Services
-- [ ] E911 location registration for each VRS user
-- [ ] Automatic 911 routing through PSAP
-- [ ] 911 priority in interpreter queue
-- [ ] Compliance with FCC 911 rules for VRS
+### VRS Numbering, Identity & Partner Integration
+- [ ] Build verified number assignment/support flow that can consume certified-partner NANP/iTRS data rather than assuming Malka owns numbering directly
+- [ ] Support number porting/status fields only through partner-approved workflows
+- [ ] Preserve registered/routable NANP number as the canonical VRS identity; handles/aliases remain app-layer shortcuts only
+- [ ] Add partner integration placeholders for iTRS/NANP lookup, eligibility status, and number lifecycle events
+- [ ] Document which number-management actions are partner-only, Malka-admin only, or self-service
+
+### User Eligibility & Verification Support
+- [ ] Product support for partner-owned eligibility workflow and identity verification status
+- [ ] Self-certification intake/status UI when required by the certified partner, with copy that identifies the partner-owned eligibility authority
+- [ ] Identity verification workflow/status fields for partner review, approval, rejection, and support escalation
+- [ ] iTRS database cross-reference integration hook or import field if the certified partner requires it
+- [ ] Annual recertification reminder/status workflow if the certified partner requires recurring eligibility review
+- [ ] Immutable audit trail for eligibility-related product events without presenting Malka as certifying provider
+- [ ] Partner-configurable eligibility notices, support escalation copy, and approval/rejection status display
+
+### Emergency Services Support Hooks
+- [ ] Product hooks for partner-owned E911 location registration status where required
+- [ ] E911 location registration capture/status UI for each VRS user where required by the certified partner
+- [ ] Partner integration hook for automatic 911/PSAP routing handoff, without implying Malka directly routes 911 as provider of record
+- [ ] 911 priority in interpreter queue when required by the certified partner's emergency workflow
+- [ ] Partner-configurable emergency notices and FCC-rule support evidence where required by partner/legal review
+- [ ] Queue/room priority path for emergency VRS handling if required by partner integration
+- [ ] Emergency-event audit trail and admin escalation flow without implying Malka directly routes 911 as provider of record
 
 ### VRS Billing
-- [ ] CDR schema finalized for TRS Fund submission
+- [ ] CDR schema finalized for certified-partner reporting/export requirements
 - [ ] Monthly CDR aggregation pipeline
-- [ ] TRS Fund submission formatting
+- [ ] TRS Fund submission-format export support as specified and submitted by the certified provider
+- [ ] Partner/TRS export formatting as specified by the certified provider
 - [ ] Reconciliation against payments/disputes
 - [ ] Per-minute rate table management
 
@@ -641,7 +677,7 @@ No immediate open items.
 - [ ] Separate VRS and VRI billing pipelines
 - [ ] Automated reconciliation anomaly checks
 - [ ] Monthly billing audit report
-- [ ] FCC audit export with chain of custody
+- [ ] Partner/regulatory audit export with chain of custody
 
 ---
 
@@ -796,10 +832,10 @@ All completed client mobile parity items have been moved to Completed Work. Rema
 
 ## Architecture Notes
 
-**Critical path**: Live media smoke and Maple pilot validation are the next practical blockers. FCC certification remains the longest lead item and should run in parallel.
+**Critical path**: Release readiness now runs through physical-device/browser smoke, restrictive-network TURN relay proof, live Stripe/accounting/admin readiness, partner requirements capture, and certified-partner integration/readiness. Direct FCC provider certification is not an immediate roadmap blocker under the current partner operating model.
 
 **Scaling bottleneck**: Redis state externalization is the next gate to horizontal VRS scaling. PostgreSQL runtime alignment is complete enough for pilot validation, but disaster recovery is not complete until offsite base backups and restore drills are proven.
 
-**Current risk concentration**: Real call media, tenant-aware admin moderation, immutable VRS/VRI call tagging, Redis/state externalization, and regulatory readiness.
+**Current risk concentration**: Real call media, tenant-aware admin moderation, immutable VRS/VRI call tagging, Redis/state externalization, partner requirements clarity, live billing/accounting readiness, and product-level compliance controls.
 
 **Scaling dependency chain**: live media verification -> Redis state externalization -> stateless VRS instances -> multi-JVB -> multi-region redundancy.

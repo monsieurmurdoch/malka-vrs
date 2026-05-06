@@ -6,8 +6,11 @@
  */
 
 import * as billingDb from '../lib/billing-db';
+import { createModuleLogger } from '../lib/logger';
 import type { BillingAuditEntry, AuditLogQueryFilters, BillingExportData } from './types';
 import type { CallType } from './config';
+
+const log = createModuleLogger('billing-audit');
 
 /**
  * Log a billing event to the audit trail.
@@ -37,7 +40,7 @@ export async function logBillingEvent(
             ]
         );
     } catch (err) {
-        console.error('[BillingAudit] Failed to log event:', action, err);
+        log.error({ err, action, entityType, entityId }, 'Failed to log billing audit event');
     }
 }
 

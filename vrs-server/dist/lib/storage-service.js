@@ -44,6 +44,8 @@ exports.configureStorageService = configureStorageService;
 exports.getStorageService = getStorageService;
 const fs = __importStar(require("fs"));
 const uuid_1 = require("uuid");
+const logger_1 = require("./logger");
+const log = (0, logger_1.createModuleLogger)('storage');
 // MinIO client — imported dynamically so the module loads even without MinIO
 // in development (tests, local dev without Docker).
 let MinioClient;
@@ -76,13 +78,13 @@ class StorageService {
             const bucketExists = await this.client.bucketExists(this.config.bucket);
             if (!bucketExists) {
                 await this.client.makeBucket(this.config.bucket, this.config.region || 'us-east-1');
-                console.log(`[Storage] Created bucket: ${this.config.bucket}`);
+                log.info({ bucket: this.config.bucket }, 'Created storage bucket');
             }
             this.initialized = true;
-            console.log(`[Storage] Initialized — endpoint: ${endpoint}, bucket: ${this.config.bucket}`);
+            log.info({ endpoint, bucket: this.config.bucket }, 'Storage initialized');
         }
         catch (err) {
-            console.error('[Storage] Initialization failed:', err);
+            log.error({ err }, 'Storage initialization failed');
             throw err;
         }
     }

@@ -16,6 +16,7 @@ const ttsService = require('../lib/tts-service');
 const state = require('../lib/state');
 const { verifyJwtToken, normalizeAuthClaims, tokenMatchesRequestedRole } = require('../lib/auth');
 const log = require('../lib/logger').module('ws');
+const lifecycle = require('../lib/call-lifecycle-logger');
 const { validatePayload } = require('../lib/validation');
 const { messageEnvelopeSchema, messageSchemas } = require('./schemas');
 
@@ -107,9 +108,18 @@ function interpreterCanHandleRequest(interpreter = {}, request = {}) {
     return serviceModes.includes(getRequestCallType(request));
 }
 
+function getWsCorrelationId(ws, data = {}) {
+    return data.correlationId || ws.currentCorrelationId || ws.correlationId || uuidv4();
+}
+
 function sendWsMessage(ws, type, data = {}) {
     if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type, data }));
+        const correlationId = getWsCorrelationId(ws, data);
+        ws.send(JSON.stringify({
+            type,
+            correlationId,
+            data: { ...data, correlationId }
+        }));
     }
 }
 
@@ -193,7 +203,13 @@ async function createBillingCdrForCall(callId, fallbackCallType = 'vrs') {
 
 function handleConnection(ws, req) {
     const clientId = uuidv4();
-    log.info({ clientId }, 'WebSocket client connected');
+    const headerCorrelationId = req.headers['x-request-id'] || req.headers['x-correlation-id'];
+    const correlationId = Array.isArray(headerCorrelationId) ? headerCorrelationId[0] : headerCorrelationId;
+
+    ws.correlationId = correlationId || uuidv4();
+    ws.currentCorrelationId = ws.correlationId;
+    ws.log = log.child({ wsClientId: clientId, correlationId: ws.correlationId });
+    ws.log.info('WebSocket client connected');
 
     ws.isAlive = true;
     ws.on('pong', () => { ws.isAlive = true; });
@@ -214,6 +230,19 @@ function handleConnection(ws, req) {
                 return;
             }
             data = envelope.data;
+            data.correlationId = data.correlationId
+                || data.requestId
+                || data.data?.correlationId
+                || data.data?.requestId
+                || ws.correlationId
+                || uuidv4();
+            ws.currentCorrelationId = data.correlationId;
+            const messageLog = log.child({
+                wsClientId: clientId,
+                correlationId: data.correlationId,
+                messageType: data.type
+            });
+            messageLog.debug('WebSocket message received');
 
             // Validate message payload against Zod schemas
             const schema = messageSchemas[data.type];
@@ -259,7 +288,7 @@ function handleConnection(ws, req) {
                     break;
 
                 case 'ping':
-                    ws.send(JSON.stringify({ type: 'pong' }));
+                    sendWsMessage(ws, 'pong', { timestamp: Date.now() });
                     break;
 
                 case 'admin_subscribe':
@@ -395,7 +424,8 @@ function handleConnection(ws, req) {
                     // further client-side work. ('ping' is handled separately
                     // above.)
                     try {
-                        ws.send(JSON.stringify({ type: 'heartbeat_ack', timestamp: Date.now() }));
+                        if (ws.clientInfo) state.refreshPresence(ws.clientInfo);
+                        sendWsMessage(ws, 'heartbeat_ack', { timestamp: Date.now() });
                     } catch (e) { /* socket closed — ignore */ }
                     break;
 
@@ -404,23 +434,38 @@ function handleConnection(ws, req) {
                     break;
             }
         } catch (error) {
-            log.error({ err: error, clientId }, 'WebSocket error');
+            lifecycle.logCallError('websocket_message_error', error, {
+                correlationId: ws.currentCorrelationId,
+                messageType: data?.type,
+                wsClientId: clientId
+            });
+            log.error({
+                err: error,
+                clientId,
+                correlationId: ws.currentCorrelationId,
+                messageType: data?.type
+            }, 'WebSocket error');
             sendWsError(ws, 'WebSocket request failed.', 'INTERNAL_ERROR');
         }
     });
 
     ws.on('close', () => {
-        log.info({ clientId }, 'WebSocket client disconnected');
+        log.info({ clientId, correlationId: ws.currentCorrelationId }, 'WebSocket client disconnected');
         if (ws.clientInfo) {
+            state.unregisterPresence(ws.clientInfo);
             handleDisconnect(ws.clientInfo);
         }
     });
 
     ws.on('error', (error) => {
-        log.error({ err: error }, 'WebSocket error');
+        lifecycle.logCallError('websocket_connection_error', error, {
+            correlationId: ws.currentCorrelationId,
+            wsClientId: clientId
+        });
+        log.error({ err: error, correlationId: ws.currentCorrelationId }, 'WebSocket error');
     });
 
-    ws.send(JSON.stringify({ type: 'connected', clientId, timestamp: Date.now() }));
+    sendWsMessage(ws, 'connected', { clientId, timestamp: Date.now() });
 }
 
 // ============================================
@@ -433,10 +478,7 @@ function handleAuth(ws, data, clientId, req) {
     const requiresSecureAuth = role === 'interpreter' || role === 'admin';
 
     if (requiresSecureAuth && !token) {
-        ws.send(JSON.stringify({
-            type: 'auth_error',
-            data: { message: `${role} authentication requires a valid token` }
-        }));
+        sendWsMessage(ws, 'auth_error', { message: `${role} authentication requires a valid token` });
         return null;
     }
 
@@ -445,10 +487,7 @@ function handleAuth(ws, data, clientId, req) {
             const claims = normalizeAuthClaims(verifyJwtToken(token));
 
             if (requiresSecureAuth && !tokenMatchesRequestedRole(role, claims.role)) {
-                ws.send(JSON.stringify({
-                    type: 'auth_error',
-                    data: { message: 'Role mismatch for authentication token' }
-                }));
+                sendWsMessage(ws, 'auth_error', { message: 'Role mismatch for authentication token' });
                 return null;
             }
 
@@ -461,7 +500,7 @@ function handleAuth(ws, data, clientId, req) {
                 ws, authenticated: true
             };
         } catch (error) {
-            ws.send(JSON.stringify({ type: 'auth_error', data: { message: 'Invalid token' } }));
+            sendWsMessage(ws, 'auth_error', { message: 'Invalid token' });
             return null;
         }
     } else {
@@ -470,12 +509,12 @@ function handleAuth(ws, data, clientId, req) {
 
     if (role === 'interpreter') {
         state.clients.interpreters.set(clientId, clientInfo);
-        clientInfo.status = 'offline';
+        clientInfo.status = 'online';
         clientInfo.currentCall = null;
 
         state.broadcastToAdmins({
             type: 'interpreter_connected',
-            data: { id: clientInfo.userId, name: clientInfo.name, status: 'offline', timestamp: Date.now() }
+            data: { id: clientInfo.userId, name: clientInfo.name, status: 'online', timestamp: Date.now() }
         });
 
         activityLogger.log('interpreter_online', { interpreterId: clientInfo.userId, interpreterName: clientInfo.name });
@@ -518,14 +557,30 @@ function handleAuth(ws, data, clientId, req) {
             });
         }
 
+    } else if (role === 'captioner') {
+        state.clients.captioners.set(clientId, clientInfo);
+        clientInfo.status = 'online';
+
+        state.broadcastToAdmins({
+            type: 'captioner_connected',
+            data: { id: clientInfo.userId, name: clientInfo.name, status: 'online', timestamp: Date.now() }
+        });
+
+        activityLogger.log('captioner_online', { captionerId: clientInfo.userId, captionerName: clientInfo.name });
+
     } else if (role === 'admin') {
         state.clients.admins.set(clientId, clientInfo);
         sendAdminDashboard(ws);
     }
 
     ws.clientInfo = clientInfo;
+    try {
+        state.registerPresence(clientInfo);
+    } catch (err) {
+        log.warn({ err, clientId }, 'WebSocket presence registration failed');
+    }
 
-    ws.send(JSON.stringify({ type: 'auth_success', role, clientId }));
+    sendWsMessage(ws, 'auth_success', { role, clientId });
     sendQueueStatus(ws);
 
     return clientInfo;
@@ -588,9 +643,11 @@ async function handleInterpreterStatus(ws, data) {
                 interpreterId: entry.userId, interpreterName: entry.name, status
             });
 
-            if (status === 'online' || status === 'available' || status === 'active') {
+            if (status === 'available' || status === 'active') {
                 queueService.interpreterAvailable(entry.userId, entry.name, entry.languages, entry.serviceModes);
                 notifyInterpreterOfPendingRequests(ws);
+            } else if (status === 'online') {
+                queueService.interpreterUnavailable(entry.userId);
             } else if (status === 'offline' || status === 'busy' || status === 'inactive') {
                 queueService.interpreterUnavailable(entry.userId);
             }
@@ -643,46 +700,50 @@ async function handlePrepareVriInvite(ws, data) {
     });
     const inviteUrl = `${getInviteBaseUrl(client)}/vri-invite.html?token=${encodeURIComponent(invite.token)}`;
 
-    ws.send(JSON.stringify({
-        type: 'vri_invite_prepared',
-        data: {
-            token: invite.token,
-            inviteUrl,
-            guestName: invite.guest_name,
-            guestEmail: invite.guest_email,
-            guestPhone: invite.guest_phone,
-            status: invite.status,
-            expiresAt: invite.expires_at
-        }
-    }));
+    sendWsMessage(ws, 'vri_invite_prepared', {
+        token: invite.token,
+        inviteUrl,
+        guestName: invite.guest_name,
+        guestEmail: invite.guest_email,
+        guestPhone: invite.guest_phone,
+        status: invite.status,
+        expiresAt: invite.expires_at
+    });
 }
 
 async function handleInterpreterRequest(ws, data) {
     const client = ws.clientInfo;
+    const correlationId = getWsCorrelationId(ws, data);
     if (!client || client.role !== 'client' || !client.authenticated) {
-        ws.send(JSON.stringify({ type: 'error', data: { message: 'Client authentication required before requesting an interpreter.' } }));
+        sendWsError(ws, 'Client authentication required before requesting an interpreter.', 'AUTH_REQUIRED');
         return;
     }
 
     const payload = data.data || {};
     const targetPhone = await resolvePhoneOrHandle(payload.targetPhone, client.userId);
     if (payload.targetPhone && !targetPhone) {
-        ws.send(JSON.stringify({
-            type: 'error',
-            data: { message: 'A valid hearing-party phone number or public VRS handle is required.' }
-        }));
+        sendWsError(ws, 'A valid hearing-party phone number or public VRS handle is required.', 'VALIDATION_ERROR');
         return;
     }
     const clientRecord = await db.getClient(client.userId).catch(() => null);
     const clientModes = normalizeServiceModes(clientRecord?.service_modes || client.serviceModes);
     const callType = inferInterpreterRequestCallType(payload, targetPhone, clientModes, client.host);
     if (!clientModes.includes(callType)) {
-        ws.send(JSON.stringify({
-            type: 'error',
-            data: { message: callType === 'vrs' ? 'This account is not enabled for VRS phone calls.' : 'This account is not enabled for VRI sessions.' }
-        }));
+        sendWsError(
+            ws,
+            callType === 'vrs' ? 'This account is not enabled for VRS phone calls.' : 'This account is not enabled for VRI sessions.',
+            'FORBIDDEN'
+        );
         return;
     }
+
+    lifecycle.logCallEvent('request_created', {
+        callType,
+        clientId: client.userId,
+        correlationId,
+        hasTargetPhone: Boolean(targetPhone),
+        language: payload.language || 'ASL'
+    });
 
     const result = await queueService.requestInterpreter({
         clientId: client.userId,
@@ -690,26 +751,30 @@ async function handleInterpreterRequest(ws, data) {
         language: payload.language || 'ASL',
         targetPhone,
         callType,
+        correlationId,
         roomName: payload.roomName || generateFriendlyRoomName(),
         inviteTokens: Array.isArray(payload.inviteTokens) ? payload.inviteTokens : []
     });
 
     if (!result.success) {
-        ws.send(JSON.stringify({ type: 'error', data: { message: result.message } }));
+        lifecycle.logCallError('request_create_error', new Error(result.message || 'Queue request failed'), {
+            callType,
+            clientId: client.userId,
+            correlationId
+        });
+        sendWsError(ws, result.message || 'Queue request failed.', 'QUEUE_REQUEST_FAILED');
         return;
     }
 
-    ws.send(JSON.stringify({
-        type: 'request_queued',
-        data: {
-            requestId: result.requestId,
-            position: result.position,
-            roomName: result.request.roomName,
-            language: result.request.language,
-            targetPhone: result.request.targetPhone || null,
-            callType
-        }
-    }));
+    sendWsMessage(ws, 'request_queued', {
+        callType,
+        correlationId,
+        language: result.request.language,
+        position: result.position,
+        requestId: result.requestId,
+        roomName: result.request.roomName,
+        targetPhone: result.request.targetPhone || null
+    });
 
     notifyAvailableInterpreters(result.request);
     state.broadcastQueueStatus(queueService);
@@ -722,23 +787,24 @@ async function handleCancelRequest(ws, data) {
     const payload = data.data || {};
     const requestId = payload.requestId;
     if (!requestId) {
-        ws.send(JSON.stringify({ type: 'error', data: { message: 'requestId is required to cancel a queue request.' } }));
+        sendWsError(ws, 'requestId is required to cancel a queue request.', 'VALIDATION_ERROR');
         return;
     }
 
     const request = queueService.getRequest(requestId);
     if (!request) {
-        ws.send(JSON.stringify({ type: 'error', data: { message: 'Queue request not found.' } }));
+        sendWsError(ws, 'Queue request not found.', 'NOT_FOUND');
         return;
     }
 
     if (String(request.clientId) !== String(client.userId)) {
-        ws.send(JSON.stringify({ type: 'error', data: { message: 'You can only cancel your own queue requests.' } }));
+        sendWsError(ws, 'You can only cancel your own queue requests.', 'FORBIDDEN');
         return;
     }
 
     const result = await queueService.cancelRequest(requestId);
-    ws.send(JSON.stringify({ type: 'request_cancelled', data: { requestId, success: result.success } }));
+    sendWsMessage(ws, 'request_cancelled', { requestId, success: result.success });
+    state.broadcastToInterpreters({ type: 'request_cancelled', data: { requestId, success: result.success } });
     state.broadcastQueueStatus(queueService);
 }
 
@@ -746,17 +812,19 @@ async function handleAcceptRequest(ws, data) {
     const interpreter = ws.clientInfo;
     const payload = data.data || {};
     const requestId = payload.requestId;
+    const correlationId = getWsCorrelationId(ws, data);
 
     if (!interpreter || interpreter.role !== 'interpreter' || !interpreter.authenticated) {
-        ws.send(JSON.stringify({ type: 'error', data: { message: 'Interpreter authentication required before accepting requests.' } }));
+        sendWsError(ws, 'Interpreter authentication required before accepting requests.', 'AUTH_REQUIRED');
         return;
     }
 
     const request = queueService.getRequest(requestId);
     if (!request) {
-        ws.send(JSON.stringify({ type: 'error', data: { message: 'Queue request not found or already assigned.' } }));
+        sendWsError(ws, 'Queue request not found or already assigned.', 'NOT_FOUND');
         return;
     }
+    request.correlationId = request.correlationId || correlationId;
 
     if (!interpreter.serviceModes) {
         const interpreterRecord = await db.getInterpreter(interpreter.userId).catch(() => null);
@@ -765,7 +833,7 @@ async function handleAcceptRequest(ws, data) {
     interpreter.languages = interpreter.languages || ['ASL'];
 
     if (!interpreterCanHandleRequest(interpreter, request)) {
-        ws.send(JSON.stringify({ type: 'error', data: { message: `This interpreter account is not enabled for ${getRequestCallType(request).toUpperCase()} requests.` } }));
+        sendWsError(ws, `This interpreter account is not enabled for ${getRequestCallType(request).toUpperCase()} requests.`, 'FORBIDDEN');
         return;
     }
 
@@ -773,7 +841,12 @@ async function handleAcceptRequest(ws, data) {
 
     const result = await queueService.assignInterpreter(requestId, interpreter.userId);
     if (!result.success) {
-        ws.send(JSON.stringify({ type: 'error', data: { message: result.message || 'Unable to accept queue request.' } }));
+        lifecycle.logCallError('interpreter_match_error', new Error(result.message || 'Unable to accept queue request'), {
+            correlationId,
+            interpreterId: interpreter.userId,
+            requestId
+        });
+        sendWsError(ws, result.message || 'Unable to accept queue request.', 'MATCH_FAILED');
         return;
     }
 
@@ -787,7 +860,8 @@ async function handleAcceptRequest(ws, data) {
         interpreterId: interpreter.userId, interpreterName: interpreter.name,
         language: request.language,
         targetPhone: request.targetPhone || null,
-        callType: request.callType || (request.targetPhone ? 'vrs' : 'vri')
+        callType: request.callType || (request.targetPhone ? 'vrs' : 'vri'),
+        correlationId: request.correlationId || correlationId
     };
 
     db.logInterpreterQueueEvent({
@@ -799,13 +873,23 @@ async function handleAcceptRequest(ws, data) {
         waitSeconds: queueWaitSeconds(request)
     }).catch(err => log.warn({ err, requestId, interpreterId: interpreter.userId }, 'Failed to record interpreter queue accept event'));
 
-    ws.send(JSON.stringify({ type: 'request_accepted', data: meetingData }));
-    ws.send(JSON.stringify({ type: 'meeting_initiated', data: meetingData }));
+    lifecycle.logCallEvent('call_start', {
+        callId: result.callId,
+        callType: meetingData.callType,
+        clientId: result.clientId,
+        correlationId: meetingData.correlationId,
+        interpreterId: interpreter.userId,
+        requestId,
+        roomName: result.roomName
+    });
+
+    sendWsMessage(ws, 'request_accepted', meetingData);
+    sendWsMessage(ws, 'meeting_initiated', meetingData);
 
     const clientSocket = state.findClientSocketByUserId(result.clientId);
     if (clientSocket) {
-        clientSocket.send(JSON.stringify({ type: 'match_found', data: meetingData }));
-        clientSocket.send(JSON.stringify({ type: 'meeting_initiated', data: meetingData }));
+        sendWsMessage(clientSocket, 'match_found', meetingData);
+        sendWsMessage(clientSocket, 'meeting_initiated', meetingData);
     }
 
     log.info({ requestId, clientId: result.clientId, interpreterId: interpreter.userId }, 'Interpreter matched to request');
@@ -875,6 +959,15 @@ function handleDisconnect(clientInfo) {
 
     } else if (role === 'admin') {
         state.clients.admins.delete(clientId);
+    } else if (role === 'captioner') {
+        state.clients.captioners.delete(clientId);
+
+        state.broadcastToAdmins({
+            type: 'captioner_disconnected',
+            data: { id: userId, name, timestamp: Date.now() }
+        });
+
+        activityLogger.log('captioner_offline', { captionerId: userId, captionerName: name });
     }
 
     state.broadcastQueueStatus(queueService);
@@ -1242,6 +1335,7 @@ async function handleP2PEnd(ws, data) {
 async function handleCallEnd(ws, data) {
     const client = ws.clientInfo;
     const payload = data.data || {};
+    const correlationId = getWsCorrelationId(ws, data);
 
     if (!client || !client.authenticated) {
         sendWsError(ws, 'Authentication required.', 'AUTH_REQUIRED');
@@ -1286,6 +1380,7 @@ async function handleCallEnd(ws, data) {
             callId,
             callType: call.call_type || 'vrs',
             clientId: call.client_id,
+            correlationId,
             durationMinutes,
             endedBy: client.userId,
             interpreterId: call.interpreter_id,
@@ -1311,8 +1406,19 @@ async function handleCallEnd(ws, data) {
         }
 
         activityLogger.log('call_ended', { callId, roomName, endedBy: client.userId, durationMinutes });
+        lifecycle.logCallEvent('call_end', {
+            callId,
+            callType: call.call_type || 'vrs',
+            clientId: call.client_id,
+            correlationId,
+            durationMinutes,
+            endedBy: client.userId,
+            interpreterId: call.interpreter_id,
+            roomName: call.room_name || roomName
+        });
         log.info({ callId, durationMinutes, endedBy: client.userId }, 'Queue call ended');
     } catch (err) {
+        lifecycle.logCallError('call_end_error', err, { callId, correlationId, endedBy: client?.userId });
         log.error({ err, callId }, 'Queue call end error');
         sendWsError(ws, 'Failed to end call.', 'INTERNAL_ERROR');
     }

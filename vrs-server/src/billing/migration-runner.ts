@@ -8,6 +8,9 @@
 import { Pool } from 'pg';
 import * as path from 'path';
 import * as fs from 'fs';
+import { createModuleLogger } from '../lib/logger';
+
+const log = createModuleLogger('billing-migrations');
 
 const MIGRATIONS_DIR = fs.existsSync(path.join(__dirname, 'migrations'))
     ? path.join(__dirname, 'migrations')
@@ -65,12 +68,12 @@ export async function runMigrations(pool: Pool): Promise<void> {
             .sort(([a], [b]) => a - b);
 
         if (pending.length === 0) {
-            console.log('[BillingDB] All migrations already applied.');
+            log.info('All billing migrations already applied');
             return;
         }
 
         for (const [version, { name, file }] of pending) {
-            console.log(`[BillingDB] Applying migration ${version}: ${name}`);
+            log.info({ version, name, file }, 'Applying billing migration');
             const sql = fs.readFileSync(file, 'utf8');
 
             const client = await pool.connect();
@@ -82,17 +85,17 @@ export async function runMigrations(pool: Pool): Promise<void> {
                     [version, name]
                 );
                 await client.query('COMMIT');
-                console.log(`[BillingDB] Migration ${version} applied successfully.`);
+                log.info({ version, name }, 'Billing migration applied successfully');
             } catch (err) {
                 await client.query('ROLLBACK');
-                console.error(`[BillingDB] Migration ${version} failed:`, err);
+                log.error({ err, version, name }, 'Billing migration failed');
                 throw err;
             } finally {
                 client.release();
             }
         }
 
-        console.log(`[BillingDB] ${pending.length} migration(s) applied.`);
+        log.info({ count: pending.length }, 'Billing migrations applied');
     } finally {
         await lockClient.query('SELECT pg_advisory_unlock($1)', [MIGRATION_LOCK_ID]);
         lockClient.release();

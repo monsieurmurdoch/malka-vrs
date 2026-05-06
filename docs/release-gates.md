@@ -42,7 +42,8 @@ absent or explicitly accepted by the release owner.
 - Interpreter queue request, accept/decline, match, room join, hangup, and CDR are smoke-tested.
 - Linked hangup policy is verified for interpreted calls, and independent hangup behavior is preserved for non-interpreted rooms.
 - Phone/SMS auth paths are verified only against staging/test Twilio numbers before production enablement.
-- User-facing VRS copy, FCC-facing assumptions, and NANP number handling have legal/compliance review status recorded.
+- User-facing VRS copy, certified-partner assumptions, and NANP number handling have partner/legal/compliance review status recorded.
+- Certified-partner operating boundaries are documented: partner-owned provider-of-record/regulatory duties versus Malka-owned platform/operator duties.
 
 **No-Go**
 - Request interpreter auto-rejects solely because no interpreter is currently online.
@@ -69,6 +70,7 @@ absent or explicitly accepted by the release owner.
 - Maple VRI pilot, Malka VRI beta, Malka VRS beta, and mobile beta gates have passed or have signed exceptions.
 - Production staging rehearsal passes with separate DB, Stripe test mode, Twilio sandbox/test path, seeded accounts, smoke commands, and rollback plan.
 - TURN/coturn fallback decision is complete and corporate-network behavior has been tested.
+- Certified-partner requirements are captured for VRS launch scope, reporting/export needs, support escalation, number/eligibility status, and emergency-handling hooks.
 - Incident/support runbooks exist for restart, stale queue, CDR integrity, voicemail playback, billing disputes, and account lockouts.
 - Data retention/privacy matrix is approved for CDRs, audit logs, voicemail media, captions/transcripts, VRI links, chat/TTS, and mobile logs.
 - Monitoring/alerting covers service down, queue wait, JVB CPU/media health, DB latency, disk, memory, and error rate.

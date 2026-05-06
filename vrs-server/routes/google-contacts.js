@@ -10,10 +10,15 @@
 const express = require('express');
 const crypto = require('crypto');
 const db = require('../database');
+const log = require('../lib/logger').module('google-contacts');
 const { verifyJwtToken, normalizeAuthClaims } = require('../lib/auth');
 const { validate, z, nameSchema, emailSchema, sanitizedStringSchema, emptyBodySchema, sanitizeStrict } = require('../lib/validation');
 
 const router = express.Router();
+
+function logRouteError(message, error, extra = {}) {
+    log.error({ err: error, ...extra }, message);
+}
 
 const CLIENT_ID = process.env.GOOGLE_CONTACTS_CLIENT_ID || '';
 const CLIENT_SECRET = process.env.GOOGLE_CONTACTS_CLIENT_SECRET || '';
@@ -181,7 +186,7 @@ router.get('/callback', async (req, res) => {
         const tokenData = await tokenResponse.json();
 
         if (tokenData.error) {
-            console.error('[Google OAuth] Token exchange failed:', tokenData.error);
+            log.warn({ error: tokenData.error }, 'Google OAuth token exchange failed');
             return res.status(400).send(`<html><body><script>window.close();</script><p>Token exchange failed.</p></body></html>`);
         }
 
@@ -196,7 +201,7 @@ router.get('/callback', async (req, res) => {
 
         res.send(`<html><body><script>window.close();</script><p>Google Contacts connected! You can close this tab.</p></body></html>`);
     } catch (error) {
-        console.error('[Google OAuth Callback] Error:', error);
+        logRouteError('Google OAuth callback failed', error);
         res.status(500).send('<html><body><script>window.close();</script><p>Internal error.</p></body></html>');
     }
 });
@@ -226,7 +231,7 @@ async function getValidToken(clientId) {
 
         const refreshData = await refreshResponse.json();
         if (refreshData.error) {
-            console.error('[Google OAuth] Refresh failed:', refreshData.error);
+            log.warn({ error: refreshData.error, clientId }, 'Google OAuth refresh failed');
             return null;
         }
 
@@ -272,7 +277,7 @@ router.post('/fetch', authenticateClient, validate(emptyBodySchema), async (req,
 
             const data = await response.json();
             if (data.error) {
-                console.error('[Google People API] Error:', data.error.message);
+                log.warn({ error: data.error.message }, 'Google People API returned an error');
                 return res.status(502).json({ error: 'Failed to fetch Google contacts', details: data.error.message });
             }
 
@@ -294,7 +299,7 @@ router.post('/fetch', authenticateClient, validate(emptyBodySchema), async (req,
 
         res.json({ contacts });
     } catch (error) {
-        console.error('[Google Contacts Fetch] Error:', error);
+        logRouteError('Google contacts fetch failed', error);
         res.status(500).json({ error: 'Failed to fetch Google contacts' });
     }
 });
@@ -309,7 +314,7 @@ router.post('/import', authenticateClient, validate(importGoogleContactsSchema),
         const result = await db.importContacts(req.user.id, contacts);
         res.json(result);
     } catch (error) {
-        console.error('[Google Contacts Import] Error:', error);
+        logRouteError('Google contacts import failed', error);
         res.status(500).json({ error: 'Failed to import Google contacts' });
     }
 });
@@ -322,7 +327,7 @@ router.delete('/disconnect', authenticateClient, async (req, res) => {
         await db.deleteGoogleOAuthToken(req.user.id);
         res.json({ success: true });
     } catch (error) {
-        console.error('[Google Disconnect] Error:', error);
+        logRouteError('Google contacts disconnect failed', error);
         res.status(500).json({ error: 'Failed to disconnect Google account' });
     }
 });

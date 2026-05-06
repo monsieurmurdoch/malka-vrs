@@ -7,6 +7,7 @@
  */
 
 import * as billingDb from '../lib/billing-db';
+import { createModuleLogger } from '../lib/logger';
 import { loadBillingConfig, type BillingStatus, type CallType } from './config';
 import { getEffectiveRate } from './rate-service';
 import { logBillingEvent } from './audit-service';
@@ -16,6 +17,8 @@ import type {
     CdrStatusTransition,
     CdrQueryFilters,
 } from './types';
+
+const log = createModuleLogger('cdr');
 
 /**
  * Create a CDR when a call ends.
@@ -106,7 +109,7 @@ export async function createCdr(input: CreateCdrInput): Promise<BillingCdr | nul
             createdAt,
         };
     } catch (err) {
-        console.error('[CDR] Failed to create CDR for call', input.callId, err);
+        log.error({ err, callId: input.callId }, 'Failed to create CDR for call');
         return null;
     }
 }

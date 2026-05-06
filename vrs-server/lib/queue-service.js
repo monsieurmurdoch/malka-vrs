@@ -11,6 +11,8 @@
 const db = require('../database');
 const { metrics } = require('./metrics');
 const log = require('./logger').module('queue');
+const lifecycle = require('./call-lifecycle-logger');
+const redis = require('./redis-client');
 
 // Queue state
 const queue = new Map(); // requestId -> request data
@@ -24,6 +26,80 @@ const matchingLocks = new Map();
 
 const SERVER_STATE_KEY_PAUSED = 'queue.paused';
 const SERVER_STATE_KEY_MATCHES = 'queue.totalMatches';
+const REDIS_QUEUE_PREFIX = process.env.REDIS_QUEUE_PREFIX || 'vrs:queue';
+const QUEUE_REQUEST_TTL_SECONDS = Number(process.env.REDIS_QUEUE_REQUEST_TTL_SECONDS || 8 * 60 * 60);
+const INTERPRETER_TTL_SECONDS = Number(process.env.REDIS_INTERPRETER_TTL_SECONDS || 2 * 60);
+const MATCH_LOCK_TTL_SECONDS = Number(process.env.REDIS_MATCH_LOCK_TTL_SECONDS || 30);
+
+function redisRequestKey(requestId) {
+    return `${REDIS_QUEUE_PREFIX}:request:${requestId}`;
+}
+
+function redisInterpreterKey(interpreterId) {
+    return `${REDIS_QUEUE_PREFIX}:interpreter:${interpreterId}`;
+}
+
+function redisMatchLockKey(requestId) {
+    return `${REDIS_QUEUE_PREFIX}:match-lock:${requestId}`;
+}
+
+function serializeDated(value) {
+    return {
+        ...value,
+        availableAt: value.availableAt instanceof Date ? value.availableAt.toISOString() : value.availableAt,
+        createdAt: value.createdAt instanceof Date ? value.createdAt.toISOString() : value.createdAt
+    };
+}
+
+function hydrateQueueRequest(value) {
+    if (!value || !value.id) return null;
+    return { ...value, createdAt: value.createdAt ? new Date(value.createdAt) : new Date() };
+}
+
+function hydrateInterpreter(value) {
+    if (!value || !value.id) return null;
+    return { ...value, availableAt: value.availableAt ? new Date(value.availableAt) : new Date() };
+}
+
+function persistQueueRequest(request) {
+    redis.setJson(redisRequestKey(request.id), serializeDated(request), { exSeconds: QUEUE_REQUEST_TTL_SECONDS })
+        .catch(err => log.warn({ err, requestId: request.id }, 'Failed to persist queue request to Redis'));
+}
+
+function removeQueueRequest(requestId) {
+    redis.del(redisRequestKey(requestId), redisMatchLockKey(requestId)).catch(() => {});
+}
+
+function persistInterpreter(interpreter) {
+    redis.setJson(redisInterpreterKey(interpreter.id), serializeDated(interpreter), { exSeconds: INTERPRETER_TTL_SECONDS })
+        .catch(err => log.warn({ err, interpreterId: interpreter.id }, 'Failed to persist interpreter availability to Redis'));
+}
+
+function removeInterpreter(interpreterId) {
+    redis.del(redisInterpreterKey(interpreterId)).catch(() => {});
+}
+
+async function acquireMatchLock(requestId) {
+    if (matchingLocks.has(requestId)) return false;
+    matchingLocks.set(requestId, true);
+
+    const redisResult = await redis.setJson(redisMatchLockKey(requestId), {
+        acquiredAt: new Date().toISOString(),
+        requestId
+    }, { exSeconds: MATCH_LOCK_TTL_SECONDS, nx: true });
+
+    if (redis.isEnabled() && redisResult !== 'OK') {
+        matchingLocks.delete(requestId);
+        return false;
+    }
+
+    return true;
+}
+
+function releaseMatchLock(requestId) {
+    matchingLocks.delete(requestId);
+    redis.del(redisMatchLockKey(requestId)).catch(() => {});
+}
 
 // ============================================
 // DATABASE RETRY HELPER
@@ -64,7 +140,7 @@ async function initialize() {
     const waitingRequests = await withRetry(() => db.getQueueRequests('waiting'));
 
     waitingRequests.forEach(request => {
-        queue.set(request.id, {
+        const hydrated = {
             id: request.id,
             requestId: request.id,
             clientId: request.client_id ?? null,
@@ -79,12 +155,34 @@ async function initialize() {
             serviceMode: request.service_mode || request.call_type || (request.target_phone ? 'vrs' : 'vri'),
             serviceModes: request.service_modes || [],
             tenantId: request.tenant_id || 'malka'
-        });
+        };
+        queue.set(request.id, hydrated);
+        persistQueueRequest(hydrated);
     });
+
+    const redisRequests = await redis.getJsonByPattern(`${REDIS_QUEUE_PREFIX}:request:*`);
+    for (const value of redisRequests) {
+        const request = hydrateQueueRequest(value);
+        if (request && !queue.has(request.id)) {
+            queue.set(request.id, request);
+        }
+    }
+
+    const redisInterpreters = await redis.getJsonByPattern(`${REDIS_QUEUE_PREFIX}:interpreter:*`);
+    for (const value of redisInterpreters) {
+        const interpreter = hydrateInterpreter(value);
+        if (interpreter) {
+            availableInterpreters.set(interpreter.id, interpreter);
+        }
+    }
 
     reorderQueue();
 
-    log.info({ count: queue.size }, 'Rehydrated waiting requests from database');
+    log.info({
+        availableInterpreters: availableInterpreters.size,
+        count: queue.size,
+        redisEnabled: redis.isEnabled()
+    }, 'Rehydrated waiting requests from database and Redis');
 
     return {
         success: true,
@@ -96,7 +194,16 @@ async function initialize() {
 // CLIENT REQUESTS
 // ============================================
 
-async function requestInterpreter({ clientId, clientName, language, roomName, targetPhone = null, callType, inviteTokens = [] }) {
+async function requestInterpreter({
+    clientId,
+    clientName,
+    language,
+    roomName,
+    targetPhone = null,
+    callType,
+    inviteTokens = [],
+    correlationId
+}) {
     if (paused) {
         return {
             success: false,
@@ -126,10 +233,21 @@ async function requestInterpreter({ clientId, clientName, language, roomName, ta
         status: 'waiting',
         createdAt: new Date(),
         callType: callType || (targetPhone ? 'vrs' : 'vri'),
+        correlationId,
         serviceMode: callType || (targetPhone ? 'vrs' : 'vri')
     };
 
     queue.set(id, request);
+    persistQueueRequest(request);
+    lifecycle.logCallEvent('queue_join', {
+        callType: request.callType,
+        clientId,
+        correlationId,
+        language,
+        position,
+        requestId: id,
+        roomName
+    });
 
     if (request.callType === 'vri' && clientId && inviteTokens.length) {
         await withRetry(() => db.attachVriInvitesToQueue({
@@ -160,7 +278,8 @@ async function cancelRequest(requestId) {
 
     if (request) {
         queue.delete(requestId);
-        matchingLocks.delete(requestId);
+        releaseMatchLock(requestId);
+        removeQueueRequest(requestId);
         await withRetry(() => db.expireVriInvitesForQueue(requestId));
         await withRetry(() => db.removeFromQueue(requestId));
         reorderQueue();
@@ -197,13 +316,16 @@ async function cancelRequestsForClient(clientId) {
 // ============================================
 
 function interpreterAvailable(interpreterId, interpreterName, languages = ['ASL'], serviceModes = ['vrs']) {
-    availableInterpreters.set(interpreterId, {
+    const interpreter = {
         id: interpreterId,
         name: interpreterName,
         languages,
         serviceModes,
         availableAt: new Date()
-    });
+    };
+
+    availableInterpreters.set(interpreterId, interpreter);
+    persistInterpreter(interpreter);
 
     log.info({ interpreterId, interpreterName, languages, serviceModes }, 'Interpreter now available');
 
@@ -212,6 +334,7 @@ function interpreterAvailable(interpreterId, interpreterName, languages = ['ASL'
 
 function interpreterUnavailable(interpreterId) {
     availableInterpreters.delete(interpreterId);
+    removeInterpreter(interpreterId);
 
     log.info({ interpreterId }, 'Interpreter now unavailable');
 
@@ -288,26 +411,24 @@ async function tryMatch() {
     // Match requests with interpreters — use per-request locking
     for (const request of waitingRequests) {
         // Skip requests already being matched
-        if (matchingLocks.has(request.id)) {
+        if (!(await acquireMatchLock(request.id))) {
             continue;
         }
 
         // Check the in-memory queue — if already gone, skip
         if (!queue.has(request.id) && !request.id) {
+            releaseMatchLock(request.id);
             continue;
         }
 
         const matched = findBestMatch(request, interpreters);
 
         if (matched) {
-            // Acquire lock before processing
-            matchingLocks.set(request.id, true);
-
             try {
                 await completeMatch(request, matched);
             } catch (error) {
                 log.error({ err: error, requestId: request.id }, 'Error completing match');
-                matchingLocks.delete(request.id);
+                releaseMatchLock(request.id);
                 continue;
             }
 
@@ -317,7 +438,10 @@ async function tryMatch() {
                 interpreters.splice(idx, 1);
             }
             availableInterpreters.delete(matched.id);
-            matchingLocks.delete(request.id);
+            removeInterpreter(matched.id);
+            releaseMatchLock(request.id);
+        } else {
+            releaseMatchLock(request.id);
         }
     }
 }
@@ -354,6 +478,7 @@ async function completeMatch(request, interpreter) {
 
     // Remove from local queue
     queue.delete(request.id);
+    removeQueueRequest(request.id);
 
     // Create call record (with retry)
     const callType = request.callType || request.call_type || localRequest?.callType || (targetPhone ? 'vrs' : 'vri');
@@ -391,6 +516,23 @@ async function completeMatch(request, interpreter) {
     // In production: this would trigger WebSocket messages to both parties
 
     log.info({ clientName, interpreterName: interpreter.name, callId, roomName }, 'Client-interpreter match completed');
+    lifecycle.logCallEvent('interpreter_match', {
+        callId,
+        callType,
+        clientId,
+        correlationId: request.correlationId,
+        interpreterId: interpreter.id,
+        language: request.language,
+        requestId: request.id,
+        waitSeconds
+    });
+    lifecycle.logCallEvent('room_created', {
+        callId,
+        callType,
+        correlationId: request.correlationId,
+        requestId: request.id,
+        roomName
+    });
 
     // Notify admins
     notifyAdmins('queue_match_complete', {
@@ -421,7 +563,7 @@ async function completeMatch(request, interpreter) {
 
 async function assignInterpreter(requestId, interpreterId) {
     // Prevent double-assignment through the manual path too
-    if (matchingLocks.has(requestId)) {
+    if (!(await acquireMatchLock(requestId))) {
         return { success: false, message: 'Request is already being processed' };
     }
 
@@ -429,20 +571,21 @@ async function assignInterpreter(requestId, interpreterId) {
     const interpreter = availableInterpreters.get(interpreterId);
 
     if (!request) {
+        releaseMatchLock(requestId);
         return { success: false, message: 'Request not found' };
     }
 
     if (!interpreter) {
+        releaseMatchLock(requestId);
         return { success: false, message: 'Interpreter not available' };
     }
-
-    matchingLocks.set(requestId, true);
 
     try {
         const result = await completeMatch(request, interpreter);
 
         // Remove interpreter from available list
         availableInterpreters.delete(interpreterId);
+        removeInterpreter(interpreterId);
 
         return result;
     } catch (error) {
@@ -450,7 +593,7 @@ async function assignInterpreter(requestId, interpreterId) {
 
         return { success: false, message: 'Failed to complete assignment' };
     } finally {
-        matchingLocks.delete(requestId);
+        releaseMatchLock(requestId);
     }
 }
 

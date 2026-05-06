@@ -12,6 +12,7 @@
     var inviteButton = null;
     var captionsButton = null;
     var lastInviteUrl = '';
+    var devicePreferenceApplied = false;
 
     function getStored(key) {
         try {
@@ -129,6 +130,65 @@
 
         try { localStorage.setItem('vrs_active_call', JSON.stringify(call)); } catch (e) {}
         try { sessionStorage.setItem('vrs_active_call', JSON.stringify(call)); } catch (e) {}
+    }
+
+    function rememberJitsiDevices(cameraId, micId) {
+        var settings = getJson('features/base/settings');
+
+        if (cameraId) {
+            settings.cameraDeviceId = cameraId;
+            settings.userSelectedCameraDeviceId = cameraId;
+            settings.userSelectedCameraDeviceLabel = settings.userSelectedCameraDeviceLabel || getStored('vrs_camera_device_label') || '';
+        }
+        if (micId) {
+            settings.micDeviceId = micId;
+            settings.userSelectedMicDeviceId = micId;
+            settings.userSelectedMicDeviceLabel = settings.userSelectedMicDeviceLabel || getStored('vrs_microphone_device_label') || '';
+        }
+
+        try { localStorage.setItem('features/base/settings', JSON.stringify(settings)); } catch (e) {}
+    }
+
+    function applySelectedDevicePreferences() {
+        if (devicePreferenceApplied || !window.APP || !APP.store || !APP.store.dispatch) {
+            return;
+        }
+
+        var cameraId = getStored('vrs_camera_device_id');
+        var micId = getStored('vrs_microphone_device_id');
+
+        if (!cameraId && !micId) {
+            devicePreferenceApplied = true;
+            return;
+        }
+
+        rememberJitsiDevices(cameraId, micId);
+
+        try {
+            var settings = {};
+
+            if (cameraId) {
+                settings.cameraDeviceId = cameraId;
+                settings.userSelectedCameraDeviceId = cameraId;
+            }
+            if (micId) {
+                settings.micDeviceId = micId;
+                settings.userSelectedMicDeviceId = micId;
+            }
+
+            if (Object.keys(settings).length) {
+                APP.store.dispatch({ type: 'SETTINGS_UPDATED', settings: settings });
+            }
+            if (cameraId) {
+                APP.store.dispatch({ type: 'SET_VIDEO_INPUT_DEVICE', deviceId: cameraId });
+            }
+            if (micId) {
+                APP.store.dispatch({ type: 'SET_AUDIO_INPUT_DEVICE', deviceId: micId });
+            }
+            devicePreferenceApplied = true;
+        } catch (e) {
+            devicePreferenceApplied = false;
+        }
     }
 
     function sendActiveCallEnd() {
@@ -367,22 +427,57 @@
         setInviteState('Creating...', true);
     }
 
+    function candidateLabel(candidate) {
+        return [
+            candidate.getAttribute('aria-label'),
+            candidate.getAttribute('title'),
+            candidate.getAttribute('data-testid'),
+            candidate.textContent
+        ].filter(Boolean).join(' ');
+    }
+
+    function isUsableCandidate(candidate) {
+        if (candidate.closest('[data-vrs-assist-panel]')) {
+            return false;
+        }
+
+        if (candidate.getAttribute('aria-disabled') === 'true' || candidate.disabled) {
+            return false;
+        }
+
+        var rect = candidate.getBoundingClientRect();
+
+        return Boolean(rect.width || rect.height);
+    }
+
     function nativeCaptionsButton() {
-        var candidates = Array.prototype.slice.call(document.querySelectorAll('button, [role="button"]'));
+        var candidates = Array.prototype.slice.call(document.querySelectorAll(
+            'button, [role="button"], [role="menuitem"], .overflow-menu-item'
+        ));
 
         return candidates.find(function(candidate) {
-            if (candidate.closest('[data-vrs-assist-panel]')) {
+            if (!isUsableCandidate(candidate)) {
                 return false;
             }
 
-            var label = [
-                candidate.getAttribute('aria-label'),
-                candidate.getAttribute('title'),
-                candidate.getAttribute('data-testid'),
-                candidate.textContent
-            ].filter(Boolean).join(' ');
+            var label = candidateLabel(candidate);
 
-            return /caption|subtitle|cc/i.test(label);
+            return /caption|subtitle|closedcaptions|transcribing|toolbar\.accessibilityLabel\.cc|toolbar\.startSubtitles/i
+                .test(label);
+        });
+    }
+
+    function moreActionsButton() {
+        var candidates = Array.prototype.slice.call(document.querySelectorAll('button, [role="button"]'));
+
+        return candidates.find(function(candidate) {
+            if (!isUsableCandidate(candidate)) {
+                return false;
+            }
+
+            var label = candidateLabel(candidate);
+
+            return /more actions|moreactions|toolbar\.accessibilityLabel\.moreActions|toolbar\.moreActions/i.test(label);
         });
     }
 
@@ -394,10 +489,32 @@
             return;
         }
 
-        setCaptionsState('Use More', true);
+        var moreButton = moreActionsButton();
+
+        if (!moreButton) {
+            setCaptionsState('Use More', true);
+            window.setTimeout(function() {
+                setCaptionsState('Captions / Language', false);
+            }, 1800);
+            return;
+        }
+
+        setCaptionsState('Opening...', true);
+        moreButton.click();
+
         window.setTimeout(function() {
-            setCaptionsState('Captions / Language', false);
-        }, 1800);
+            var overflowCaptionsButton = nativeCaptionsButton();
+
+            if (overflowCaptionsButton) {
+                overflowCaptionsButton.click();
+                setCaptionsState('Captions / Language', false);
+            } else {
+                setCaptionsState('Use More', true);
+                window.setTimeout(function() {
+                    setCaptionsState('Captions / Language', false);
+                }, 1800);
+            }
+        }, 250);
     }
 
     function ensurePanelStyles() {
@@ -515,6 +632,8 @@
     }
 
     function mountButton() {
+        applySelectedDevicePreferences();
+
         if (activeCall()) {
             connectQueue();
         }
@@ -550,6 +669,12 @@
     }
 
     var observer = new MutationObserver(mountButton);
+    var deviceTimer = window.setInterval(function() {
+        applySelectedDevicePreferences();
+        if (devicePreferenceApplied) {
+            window.clearInterval(deviceTimer);
+        }
+    }, 1000);
 
     observer.observe(document.documentElement, { childList: true, subtree: true });
     if (document.readyState === 'loading') {

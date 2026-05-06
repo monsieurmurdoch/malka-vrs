@@ -29,6 +29,9 @@ import {
     logActivity
 } from '../database';
 import { getStorageService } from './storage-service';
+import { createModuleLogger } from './logger';
+
+const log = createModuleLogger('voicemail');
 
 // ============================================
 // TYPES
@@ -144,7 +147,7 @@ async function initialize(broadcastFn?: (userId: string, message: object) => voi
             }
         }
     } catch (err) {
-        console.error('[Voicemail] Failed to rehydrate recordings:', err);
+        log.error({ err }, 'Failed to rehydrate voicemail recordings');
     }
 
     // Start periodic expiry cleanup
@@ -152,14 +155,14 @@ async function initialize(broadcastFn?: (userId: string, message: object) => voi
         try {
             const count = await expireOldMessages();
             if (count > 0) {
-                console.log(`[Voicemail] Expired ${count} old message(s)`);
+                log.info({ count }, 'Expired old voicemail messages');
             }
         } catch (err) {
-            console.error('[Voicemail] Expiry cleanup failed:', err);
+            log.error({ err }, 'Voicemail expiry cleanup failed');
         }
     }, CLEANUP_INTERVAL_MS);
 
-    console.log('[Voicemail] Service initialized');
+    log.info('Voicemail service initialized');
 }
 
 // ============================================
@@ -233,7 +236,7 @@ async function startRecording(callerId: string, calleeId: string | null, calleeP
         if (active) {
             // Recording is still active after timeout — Jibri should stop it
             // The actual completion comes via the Jibri callback
-            console.log(`[Voicemail] Recording ${messageId} reached max duration`);
+            log.warn({ messageId }, 'Voicemail recording reached max duration');
         }
     }, (maxDurationSeconds + 30) * 1000);
     timeout.unref?.();
@@ -290,7 +293,7 @@ async function deliverVoicemailNotification(
             })
         });
     } catch (err) {
-        console.error('[Voicemail] External notification delivery failed:', err);
+        log.error({ err, messageId }, 'External voicemail notification delivery failed');
     }
 }
 
@@ -486,7 +489,7 @@ async function deleteMessage(messageId: string, requesterId: string): Promise<vo
         try {
             await storage.deleteFiles(keysToDelete);
         } catch (err) {
-            console.error('[Voicemail] Failed to delete files from storage:', err);
+            log.error({ err, messageId }, 'Failed to delete voicemail files from storage');
             // Continue with DB deletion even if storage deletion fails
         }
     }
@@ -526,7 +529,7 @@ async function expireOldMessages(): Promise<number> {
             try {
                 await storage.deleteFiles(keysToDelete);
             } catch (err) {
-                console.error(`[Voicemail] Failed to delete expired files for ${m.id}:`, err);
+                log.error({ err, messageId: m.id }, 'Failed to delete expired voicemail files');
             }
         }
 
@@ -653,7 +656,7 @@ async function adminDeleteMessage(messageId: string): Promise<void> {
         try {
             await storage.deleteFiles(keysToDelete);
         } catch (err) {
-            console.error('[Voicemail] Failed to delete files:', err);
+            log.error({ err, messageId }, 'Failed to delete voicemail files');
         }
     }
 
@@ -671,7 +674,7 @@ function shutdown(): void {
         expiryInterval = null;
     }
     activeRecordings.clear();
-    console.log('[Voicemail] Service shut down');
+    log.info('Voicemail service shut down');
 }
 
 // ============================================

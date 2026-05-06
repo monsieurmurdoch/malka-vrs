@@ -8,7 +8,9 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const { randomUUID } = require('crypto');
 const { z } = require('zod');
+const logger = require('./lib/logger');
 
 // Initialize Express app
 const app = express();
@@ -39,6 +41,18 @@ app.use(cors({
 }));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use((req, res, next) => {
+    const incomingId = req.get('x-request-id') || req.get('x-correlation-id');
+    req.id = incomingId || randomUUID();
+    req.log = logger.child({
+        method: req.method,
+        path: req.path,
+        requestId: req.id
+    });
+    res.setHeader('X-Request-Id', req.id);
+    res.setHeader('X-Correlation-Id', req.id);
+    next();
+});
 app.use(standardizeErrorResponses);
 
 // Twilio configuration - YOU NEED TO SET THESE ENVIRONMENT VARIABLES
@@ -58,8 +72,7 @@ try {
         twilio = twilioSdk(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
     }
 } catch (error) {
-    console.error('⚠️  Twilio initialization failed. Please install: npm install twilio');
-    console.error('⚠️  And set your environment variables.');
+    logger.errorWithCause('Twilio initialization failed. Install twilio and set required environment variables.', error);
 }
 
 // In-memory call storage (in production, use Redis or database)
@@ -70,7 +83,22 @@ const callRateLimitStore = new Map();
  * Utility functions
  */
 function log(message) {
-    console.log(`[${new Date().toISOString()}] ${message}`);
+    logger.info(message);
+}
+
+function logCallLifecycle(req, event, fields = {}) {
+    const scopedLog = req?.log || logger.child({ requestId: req?.id || randomUUID() });
+    scopedLog.info({ event, lifecycleEvent: event, ...fields }, 'call_lifecycle');
+}
+
+function logCallLifecycleError(req, event, error, fields = {}) {
+    const scopedLog = req?.log || logger.child({ requestId: req?.id || randomUUID() });
+    scopedLog.error({
+        err: error instanceof Error ? { message: error.message, name: error.name, stack: process.env.NODE_ENV === 'production' ? undefined : error.stack } : error,
+        event,
+        lifecycleEvent: event,
+        ...fields
+    }, 'call_lifecycle_error');
 }
 
 function generateCallId() {
@@ -298,7 +326,11 @@ app.post('/api/voice/call', validateRequest(initiateCallSchema), async (req, res
         // Add +1 if it's a US number without country code
         const finalNumber = cleanNumber.match(/^\d{10}$/) ? `+1${cleanNumber}` : cleanNumber;
 
-        log(`Initiating call from ${interpreterId} to ${finalNumber}`);
+        logCallLifecycle(req, 'twilio_call_request_created', {
+            interpreterId,
+            sessionId,
+            targetPhoneLast4: finalNumber.slice(-4)
+        });
 
         // Create call with Twilio
         const call = await twilio.calls.create({
@@ -337,7 +369,12 @@ app.post('/api/voice/call', validateRequest(initiateCallSchema), async (req, res
 
         activeCalls.set(call.sid, callData);
 
-        log(`Call initiated: ${call.sid} (${interpreterId} -> ${finalNumber})`);
+        logCallLifecycle(req, 'twilio_call_start', {
+            callSid: call.sid,
+            interpreterId,
+            sessionId,
+            targetPhoneLast4: finalNumber.slice(-4)
+        });
 
         res.json({
             success: true,
@@ -347,7 +384,7 @@ app.post('/api/voice/call', validateRequest(initiateCallSchema), async (req, res
         });
 
     } catch (error) {
-        log(`Error initiating call: ${error.message}`);
+        logCallLifecycleError(req, 'twilio_call_start_error', error);
         res.status(500).json({
             error: 'Failed to initiate call',
             code: 'CALL_INITIATION_FAILED',
@@ -368,7 +405,7 @@ app.post('/api/voice/hangup', validateRequest(hangupSchema), async (req, res) =>
             });
         }
 
-        log(`Hanging up call: ${callSid}`);
+        logCallLifecycle(req, 'twilio_call_end_requested', { callSid });
 
         // Update call status to completed
         await twilio.calls(callSid).update({ status: 'completed' });
@@ -382,6 +419,11 @@ app.post('/api/voice/hangup', validateRequest(hangupSchema), async (req, res) =>
                 callData.duration = Math.floor((callData.endTime - callData.startTime) / 1000);
             }
         }
+        logCallLifecycle(req, 'twilio_call_end', {
+            callSid,
+            durationSeconds: callData?.duration || null,
+            sessionId: callData?.sessionId || null
+        });
 
         res.json({
             success: true,
@@ -389,7 +431,7 @@ app.post('/api/voice/hangup', validateRequest(hangupSchema), async (req, res) =>
         });
 
     } catch (error) {
-        log(`Error hanging up call: ${error.message}`);
+        logCallLifecycleError(req, 'twilio_call_end_error', error, { callSid: req.body?.callSid });
         res.status(500).json({
             error: 'Failed to end call',
             code: 'HANGUP_FAILED',
@@ -455,7 +497,7 @@ app.get('/api/voice/status/:callSid', async (req, res) => {
                     endTime: call.dateUpdated
                 };
             } catch (error) {
-                log(`Error fetching call from Twilio: ${error.message}`);
+                logCallLifecycleError(req, 'twilio_status_fetch_error', error, { callSid });
             }
         }
 
@@ -475,7 +517,7 @@ app.get('/api/voice/status/:callSid', async (req, res) => {
         });
 
     } catch (error) {
-        log(`Error getting call status: ${error.message}`);
+        logCallLifecycleError(req, 'twilio_status_fetch_error', error, { callSid: req.params?.callSid });
         res.status(500).json({
             error: 'Failed to get call status',
             code: 'STATUS_FETCH_FAILED',
@@ -487,7 +529,7 @@ app.get('/api/voice/status/:callSid', async (req, res) => {
 // Webhook endpoint for call status updates
 app.post('/api/voice/webhook/:sessionId?', validateRequest(twilioWebhookSchema), (req, res) => {
     if (twilio && !validateTwilioWebhook(req)) {
-        log('Rejected webhook with invalid Twilio signature');
+        logCallLifecycle(req, 'twilio_webhook_rejected', { reason: 'invalid_signature' });
         return res.status(403).json({
             error: 'Invalid Twilio webhook signature',
             code: 'INVALID_SIGNATURE'
@@ -504,7 +546,14 @@ app.post('/api/voice/webhook/:sessionId?', validateRequest(twilioWebhookSchema),
         Direction
     } = req.body;
 
-    log(`Webhook received: ${CallSid} -> ${CallStatus} (${sessionId})`);
+    logCallLifecycle(req, 'twilio_webhook_status', {
+        callSid: CallSid,
+        direction: Direction,
+        fromLast4: String(From || '').slice(-4),
+        sessionId,
+        status: CallStatus,
+        toLast4: String(To || '').slice(-4)
+    });
 
     // Update local call storage
     const callData = activeCalls.get(CallSid);
@@ -515,6 +564,12 @@ app.post('/api/voice/webhook/:sessionId?', validateRequest(twilioWebhookSchema),
         }
         if (CallStatus === 'completed' || CallStatus === 'failed' || CallStatus === 'canceled') {
             callData.endTime = new Date();
+            logCallLifecycle(req, 'twilio_call_end', {
+                callSid: CallSid,
+                durationSeconds: callData.duration || null,
+                sessionId,
+                status: CallStatus
+            });
         }
     }
 
@@ -557,33 +612,36 @@ app.use((error, req, res, next) => {
 
 // Start server
 app.listen(PORT, () => {
-    console.log('🎯 Twilio Voice Server Started');
-    console.log(`📞 Server running on port ${PORT}`);
-    console.log(`🌐 Base URL: http://localhost:${PORT}`);
-    console.log(`💾 Health check: http://localhost:${PORT}/health`);
-    console.log(`🩺 Readiness check: http://localhost:${PORT}/api/readiness`);
+    logger.info('Twilio Voice Server started', {
+        port: PORT,
+        baseUrl: `http://localhost:${PORT}`,
+        health: `http://localhost:${PORT}/health`,
+        readiness: `http://localhost:${PORT}/api/readiness`
+    });
     
     if (TWILIO_ACCOUNT_SID === DEFAULT_TWILIO_ACCOUNT_SID) {
-        console.log('');
-        console.log('⚠️  CONFIGURATION REQUIRED:');
-        console.log('   Set the following environment variables:');
-        console.log('   - TWILIO_ACCOUNT_SID=your_account_sid');
-        console.log('   - TWILIO_AUTH_TOKEN=your_auth_token'); 
-        console.log('   - TWILIO_PHONE_NUMBER=your_twilio_number');
-        console.log('   - WEBHOOK_BASE_URL=https://your-domain.com');
-        console.log('');
+        logger.warn('Twilio configuration required', {
+            requiredEnv: [
+                'TWILIO_ACCOUNT_SID',
+                'TWILIO_AUTH_TOKEN',
+                'TWILIO_PHONE_NUMBER',
+                'WEBHOOK_BASE_URL'
+            ]
+        });
     } else {
-        console.log(`✅ Twilio configured for account: ${TWILIO_ACCOUNT_SID}`);
-        console.log(`📱 Using Twilio number: ${TWILIO_PHONE_NUMBER}`);
-        console.log(`🔗 Webhook URL: ${WEBHOOK_BASE_URL}/api/voice/webhook`);
+        logger.info('Twilio configured', {
+            accountSid: TWILIO_ACCOUNT_SID,
+            phoneNumber: TWILIO_PHONE_NUMBER,
+            webhookUrl: `${WEBHOOK_BASE_URL}/api/voice/webhook`
+        });
     }
 
     const warnings = getTwilioWarnings();
     if (warnings.length) {
-        console.warn(`⚠️  Startup warnings: ${warnings.join(', ')}`);
+        logger.warn('Startup warnings', { warnings });
     }
     
-    console.log('📋 Ready to handle VRS calls for interpreters!');
+    logger.info('Ready to handle VRS calls for interpreters');
 });
 
 // Graceful shutdown

@@ -4,33 +4,50 @@ This file is the project-level running status log. The current update stays at t
 <!-- status:current:start -->
 ## Current Update
 
-- Updated: 2026-05-04
+- Updated: 2026-05-05
 - Branch: `codex/release-runbooks-audit`
-- HEAD: `00860c3`
+- HEAD: `aa65692`
 - Note: Pre-push project status sync.
 - Snapshot:
 Local changes at sync time:
+  - `M  .env.example`
+  - `M  .env.staging.example`
   - `M  ROADMAP.md`
+  - `M  captioner-profile.html`
+  - `M  client-profile.html`
+  - `A  desktop/malkavrs/README.md`
+  - `A  desktop/malkavrs/assets/icon.png`
+  - `A  desktop/malkavrs/package.json`
+  - `A  desktop/malkavrs/scripts/publish-downloads.js`
+  - `A  desktop/malkavrs/src/alert-preload.js`
+  - `A  desktop/malkavrs/src/alert.html`
+  - `A  desktop/malkavrs/src/main.js`
+  - `A  desktop/malkavrs/src/preload.js`
+  - `M  docker-compose.prod.yml`
+  - `M  docker-compose.yml`
+  - `M  docs/data-retention-privacy-matrix.md`
   - `M  docs/environment-policy.md`
-  - `M  vrs-admin-dashboard.html`
-  - `M  vrs-admin-dashboard.js`
-  - `M vrs-ops-server/dist/index.d.ts.map`
-  - `M vrs-ops-server/dist/index.js`
-  - `M vrs-ops-server/dist/index.js.map`
-  - `M  vrs-server/__tests__/billing/stripe-mock.test.ts`
-  - `M  vrs-server/lib/email-service.js`
-  - `A  vrs-server/src/billing/invoice-automation-service.ts`
-  - `A  vrs-server/src/billing/migrations/009_invoice_delivery.sql`
-  - `M  vrs-server/src/billing/routes/billing-admin.ts`
-  - `M  vrs-server/src/billing/stripe/stripe-interface.ts`
-  - `M  vrs-server/src/billing/stripe/stripe-live.ts`
-  - `M  vrs-server/src/billing/stripe/stripe-mock.ts`
-  - `M  vrs-server/src/billing/types.ts`
-  - `M  vrs-server/src/billing/vri-billing-pipeline.ts`
-  - `M  vrs-server/src/server.ts`
+  - `M  docs/incident-runbooks.md`
 
 <!-- status:current:end -->
 ## Archive
+### Archived Update - 2026-05-05T21:44:26.412Z
+
+<!-- status:current:start -->
+## Current Update
+
+- Updated: 2026-05-05
+- Branch: `codex/release-runbooks-audit`
+- HEAD: `aa65692`
+- Note: Roadmap reframed around certified-partner VRS operating model.
+- Snapshot:
+  - MalkaVRS immediate path assumes operation through or for an already FCC-certified VRS partner.
+  - Direct FCC provider-of-record certification is no longer an immediate roadmap blocker.
+  - Product/compliance-sensitive platform work remains: VRS call behavior, admin controls, billing/CDR integrity, auditability, privacy/retention, interpreter workflow readiness, and partner hooks for NANP/iTRS/911 requirements.
+  - Critical path now emphasizes release readiness, physical-device/browser smoke, live Stripe/accounting/admin readiness, TURN/media reliability, partner requirements capture, and partner integration/readiness.
+
+<!-- status:current:end -->
+
 ### Archived Update - 2026-05-04T04:47:32.729Z
 
 <!-- status:current:start -->

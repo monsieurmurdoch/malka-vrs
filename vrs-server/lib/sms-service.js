@@ -6,6 +6,7 @@
  */
 
 const log = require('./logger').module('sms');
+const redis = require('./redis-client');
 
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
@@ -33,12 +34,31 @@ function getTwilioClient() {
     }
 }
 
-// In-memory rate limiter: max 5 OTPs per phone per 15 minutes
+// Redis-backed rate limiter with local fallback: max 5 OTPs per phone per 15 minutes.
 const otpRateLimit = new Map();
 const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
 const RATE_LIMIT_MAX = 5;
+const REDIS_SMS_RATE_LIMIT_PREFIX = process.env.REDIS_SMS_RATE_LIMIT_PREFIX || 'vrs:rate-limit:sms-otp';
 
-function checkRateLimit(phoneNumber) {
+async function checkRateLimit(phoneNumber) {
+    if (redis.isEnabled()) {
+        const redisKey = `${REDIS_SMS_RATE_LIMIT_PREFIX}:${phoneNumber}`;
+
+        try {
+            const count = await redis.incr(redisKey);
+
+            if (Number.isFinite(count)) {
+                if (count === 1) {
+                    await redis.pexpire(redisKey, RATE_LIMIT_WINDOW);
+                }
+
+                return count <= RATE_LIMIT_MAX;
+            }
+        } catch (error) {
+            log.warn({ err: error, phoneNumber }, 'Redis SMS rate limit failed; using local fallback');
+        }
+    }
+
     const now = Date.now();
     const key = phoneNumber;
     let entry = otpRateLimit.get(key);
@@ -99,7 +119,7 @@ async function sendSms(to, body) {
  * @returns {{ sent: boolean, mock: boolean }}
  */
 async function sendOtp(phoneNumber, code) {
-    if (!checkRateLimit(phoneNumber)) {
+    if (!await checkRateLimit(phoneNumber)) {
         return { sent: false, mock: false, error: 'rate_limited' };
     }
 

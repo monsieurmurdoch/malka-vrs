@@ -7,7 +7,10 @@
  */
 
 import * as billingDb from '../lib/billing-db';
+import { createModuleLogger } from '../lib/logger';
 import { runDueInvoiceAutomation } from './vri-billing-pipeline';
+
+const log = createModuleLogger('invoice-automation');
 
 let timer: NodeJS.Timeout | null = null;
 let lastRunKey: string | null = null;
@@ -45,15 +48,15 @@ export function startInvoiceAutomation(): void {
                 autoSend: process.env.BILLING_AUTO_INVOICE_SEND !== 'false',
                 performedBy: 'billing-auto-run',
             });
-            console.log('[BillingAutomation] Due invoice batch complete:', {
+            log.info({
                 generated: result.generated,
                 sent: result.sent,
                 skipped: result.skipped,
                 failed: result.failed,
-            });
+            }, 'Due invoice batch complete');
         } catch (error) {
             lastRunKey = null;
-            console.error('[BillingAutomation] Due invoice batch failed:', error);
+            log.error({ err: error }, 'Due invoice batch failed');
         }
     }, 60 * 60 * 1000);
 

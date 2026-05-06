@@ -187,6 +187,8 @@ exports.pool = pool;
 const pg_1 = require("pg");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const uuid_1 = require("uuid");
+const logger_1 = require("./lib/logger");
+const log = (0, logger_1.createModuleLogger)('database');
 let pgPool = undefined;
 function normalizeServiceModes(value, fallback = ['vrs']) {
     let raw = value;
@@ -217,13 +219,13 @@ async function initialize() {
     const client = await pgPool.connect();
     try {
         const res = await client.query('SELECT NOW()');
-        console.log('[Database] Connected to PostgreSQL at', res.rows[0].now);
+        log.info({ connectedAt: res.rows[0].now }, 'Connected to PostgreSQL');
     }
     finally {
         client.release();
     }
     await createTables();
-    console.log('[Database] Tables initialized');
+    log.info('Tables initialized');
 }
 async function createTables() {
     const ddl = `

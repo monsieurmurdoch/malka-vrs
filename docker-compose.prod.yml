@@ -133,6 +133,18 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7.4-alpine
+    <<: *common
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   pgbouncer:
     build:
       context: .
@@ -168,6 +180,7 @@ services:
     environment:
       - PORT=3001
       - NODE_ENV=production
+      - LOG_LEVEL=${LOG_LEVEL:-info}
       - JITSI_DOMAIN=meet.jitsi
       - DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@pgbouncer:6432/${PGDATABASE:-malka_vrs}
       - MIGRATION_DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@postgres:5432/${PGDATABASE:-malka_vrs}
@@ -176,8 +189,11 @@ services:
       - BILLING_PG_DATABASE=${PGDATABASE:-malka_vrs}
       - BILLING_PG_USER=${PGUSER:-malka}
       - BILLING_PG_PASSWORD=${PGPASSWORD:-malka}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
     depends_on:
       pgbouncer:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       prosody:
         condition: service_started
@@ -193,6 +209,7 @@ services:
     environment:
       - PORT=3001
       - NODE_ENV=production
+      - LOG_LEVEL=${LOG_LEVEL:-info}
       - JITSI_DOMAIN=meet.jitsi
       - DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@pgbouncer:6432/${PGDATABASE:-malka_vrs}
       - MIGRATION_DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@postgres:5432/${PGDATABASE:-malka_vrs}
@@ -201,8 +218,11 @@ services:
       - BILLING_PG_DATABASE=${PGDATABASE:-malka_vrs}
       - BILLING_PG_USER=${PGUSER:-malka}
       - BILLING_PG_PASSWORD=${PGPASSWORD:-malka}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
     depends_on:
       pgbouncer:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       prosody:
         condition: service_started
@@ -216,6 +236,7 @@ services:
     environment:
       - PORT=3003
       - NODE_ENV=production
+      - LOG_LEVEL=${LOG_LEVEL:-info}
       - ENABLE_BOOTSTRAP_SUPERADMIN=false
       - OPS_DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@pgbouncer:6432/${PGDATABASE:-malka_vrs}
       - OPS_MIGRATION_DATABASE_URL=postgresql://${PGUSER:-malka}:${PGPASSWORD:-malka}@postgres:5432/${PGDATABASE:-malka_vrs}
@@ -232,6 +253,7 @@ services:
     environment:
       - TWILIO_PORT=3002
       - NODE_ENV=production
+      - LOG_LEVEL=${LOG_LEVEL:-info}
 
 networks:
   meet.jitsi:
@@ -241,3 +263,4 @@ volumes:
   prosody-data:
   pg-data:
   pg-wal-archive:
+  redis-data:

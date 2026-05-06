@@ -7,16 +7,21 @@
  */
 
 const WebSocket = require('ws');
+const redis = require('./redis-client');
+const log = require('./logger').module('state');
 
 // Connected WebSocket clients, keyed by role
 const clients = {
     interpreters: new Map(),
     clients: new Map(),
+    captioners: new Map(),
     admins: new Map()
 };
 
 // WebSocket server instance (set during startup)
 let wss = null;
+const REDIS_WS_PREFIX = process.env.REDIS_WS_PREFIX || 'vrs:ws';
+const PRESENCE_TTL_SECONDS = Number(process.env.REDIS_WS_PRESENCE_TTL_SECONDS || 90);
 
 function setWss(instance) {
     wss = instance;
@@ -24,6 +29,39 @@ function setWss(instance) {
 
 function getWss() {
     return wss;
+}
+
+function presenceKey(clientInfo) {
+    return `${REDIS_WS_PREFIX}:connection:${clientInfo.role}:${clientInfo.clientId}`;
+}
+
+function registerPresence(clientInfo) {
+    if (!clientInfo || !clientInfo.clientId || !clientInfo.role) return;
+    try {
+        Promise.resolve(redis.setJson(presenceKey(clientInfo), {
+            clientId: clientInfo.clientId,
+            connectedAt: new Date().toISOString(),
+            name: clientInfo.name || null,
+            role: clientInfo.role,
+            userId: clientInfo.userId || null
+        }, { exSeconds: PRESENCE_TTL_SECONDS })).catch(err =>
+            log.warn({ err, clientId: clientInfo.clientId }, 'Failed to persist WebSocket presence to Redis'));
+    } catch (err) {
+        log.warn({ err, clientId: clientInfo.clientId }, 'Failed to queue WebSocket presence persistence');
+    }
+}
+
+function refreshPresence(clientInfo) {
+    registerPresence(clientInfo);
+}
+
+function unregisterPresence(clientInfo) {
+    if (!clientInfo || !clientInfo.clientId || !clientInfo.role) return;
+    try {
+        Promise.resolve(redis.del(presenceKey(clientInfo))).catch(() => {});
+    } catch (err) {
+        log.warn({ err, clientId: clientInfo.clientId }, 'Failed to queue WebSocket presence removal');
+    }
 }
 
 // ============================================
@@ -115,6 +153,9 @@ module.exports = {
     clients,
     setWss,
     getWss,
+    registerPresence,
+    refreshPresence,
+    unregisterPresence,
     broadcastToAdmins,
     broadcastToInterpreters,
     broadcastToClients,

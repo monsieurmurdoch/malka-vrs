@@ -308,7 +308,7 @@
                     }
 
                     // Redirect to dashboard
-                    window.location.href = 'vrs-admin-dashboard.html';
+                    window.location.href = 'admin-dashboard.html';
                 } else {
                     const error = await response.json();
                     showError(error.error || 'Invalid username or password');
@@ -337,7 +337,7 @@
                 }
             }).then(response => {
                 if (response.ok) {
-                    window.location.href = 'vrs-admin-dashboard.html';
+                    window.location.href = 'admin-dashboard.html';
                 } else {
                     // Token invalid, remove it
                     localStorage.removeItem('vrs_admin_token');

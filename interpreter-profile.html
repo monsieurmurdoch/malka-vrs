@@ -1453,6 +1453,7 @@
 
         let ws = null;
         let wsReconnectTimer = null;
+        let requestActionTimer = null;
 
         function getWsUrl() {
             const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -1617,7 +1618,11 @@
 
         function updateMediaDevicePreference(kind, deviceId) {
             const key = kind === 'camera' ? 'vrs_camera_device_id' : 'vrs_microphone_device_id';
+            const labelKey = kind === 'camera' ? 'vrs_camera_device_label' : 'vrs_microphone_device_label';
+            const devices = kind === 'camera' ? state.mediaDevices.cameras : state.mediaDevices.microphones;
+            const selected = (devices || []).find(device => device.deviceId === deviceId);
             setPersistentItem(key, deviceId || '');
+            setPersistentItem(labelKey, selected?.label || '');
             state.mediaDevices = {
                 ...state.mediaDevices,
                 selectedCameraId: kind === 'camera' ? (deviceId || '') : state.mediaDevices.selectedCameraId,
@@ -1773,6 +1778,26 @@
             }
         }
 
+        function clearRequestActionTimer() {
+            if (requestActionTimer) {
+                clearTimeout(requestActionTimer);
+                requestActionTimer = null;
+            }
+        }
+
+        function scheduleRequestActionTimeout() {
+            clearRequestActionTimer();
+            requestActionTimer = setTimeout(() => {
+                if (state.requestActionPending !== 'accept') return;
+                state.queueNotice = 'That request expired or was cancelled before the room opened. Please rejoin the queue when ready.';
+                state.pendingRequest = null;
+                state.requestActionPending = null;
+                clearDesktopIncomingCall();
+                removeAcceptOverlay();
+                render();
+            }, 20000);
+        }
+
         function handleWsMessage(msg) {
             console.log('[WS] Received:', msg.type, msg);
             switch (msg.type) {
@@ -1786,8 +1811,8 @@
 
                 case 'status_updated': {
                     const status = (msg.status || msg.data?.status || '').toLowerCase();
-                    state.available = ['online', 'available', 'active'].includes(status);
-                    pushQueueEvent(state.available ? 'Available for matching' : 'Unavailable', `Queue status changed to ${status || 'unknown'}.`);
+                    state.available = ['available', 'active'].includes(status);
+                    pushQueueEvent(state.available ? 'Available for matching' : 'Online, not in queue', `Queue status changed to ${status || 'unknown'}.`);
                     render();
                     break;
                 }
@@ -1804,10 +1829,23 @@
                     }
                     break;
 
+                case 'request_cancelled':
+                case 'queue_request_cancelled':
+                case 'request_expired':
+                    clearRequestActionTimer();
+                    state.pendingRequest = null;
+                    state.requestActionPending = null;
+                    state.queueNotice = 'The client request is no longer active.';
+                    clearDesktopIncomingCall();
+                    removeAcceptOverlay();
+                    render();
+                    break;
+
                 case 'request_accepted':
                 case 'meeting_initiated':
                     // Server confirmed; navigate to the shared room.
                     if (msg.data && msg.data.roomName) {
+                        clearRequestActionTimer();
                         pushQueueEvent('Match accepted', `Room ${msg.data.roomName} is opening.`);
                         clearDesktopIncomingCall();
                         clearTimeout(wsReconnectTimer);
@@ -1825,6 +1863,7 @@
                 case 'error':
                 case 'auth_error':
                     if (msg.data && msg.data.message) {
+                        clearRequestActionTimer();
                         state.queueNotice = msg.data.message;
                         state.requestActionPending = null;
                         if (/not available|not found|already assigned/i.test(msg.data.message)) {
@@ -2652,7 +2691,7 @@
         window.__leaveQueue = function() {
             state.available = false;
             state.queueNotice = null;
-            wsSend({ type: 'interpreter_status', data: { status: 'inactive' } });
+            wsSend({ type: 'interpreter_status', data: { status: 'online' } });
             render();
         };
 
@@ -2720,6 +2759,7 @@
             if (!requestId) return;
             state.requestActionPending = 'accept';
             renderAcceptOverlay();
+            scheduleRequestActionTimeout();
             wsSend({
                 type: 'accept_request',
                 data: { requestId }
@@ -2734,6 +2774,7 @@
             const requestId = state.pendingRequest.requestId || state.pendingRequest.id;
             if (!requestId) return;
             state.requestActionPending = 'decline';
+            clearRequestActionTimer();
             renderAcceptOverlay();
             wsSend({
                 type: 'decline_request',

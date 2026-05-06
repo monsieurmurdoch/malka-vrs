@@ -2353,7 +2353,11 @@
 
         function updateMediaDevicePreference(kind, deviceId) {
             const key = kind === 'camera' ? 'vrs_camera_device_id' : 'vrs_microphone_device_id';
+            const labelKey = kind === 'camera' ? 'vrs_camera_device_label' : 'vrs_microphone_device_label';
+            const devices = kind === 'camera' ? state.mediaDevices.cameras : state.mediaDevices.microphones;
+            const selected = (devices || []).find(device => device.deviceId === deviceId);
             setPersistentItem(key, deviceId || '');
+            setPersistentItem(labelKey, selected?.label || '');
             state.mediaDevices = {
                 ...state.mediaDevices,
                 selectedCameraId: kind === 'camera' ? (deviceId || '') : state.mediaDevices.selectedCameraId,
@@ -2872,6 +2876,17 @@
             render();
         };
 
+        window.__copyVrsNumber = async function(number) {
+            if (!number) return;
+            try {
+                await navigator.clipboard.writeText(number);
+                state.queueStatus = { type: 'success', message: 'VRS number copied.' };
+            } catch (e) {
+                state.queueStatus = { type: 'success', message: number };
+            }
+            render();
+        };
+
         /** Cancel the current queue request. */
         window.__cancelQueueRequest = function() {
             if (!state.queueRequest || !state.queueRequest.requestId) {
@@ -3105,7 +3120,7 @@
         function renderDesktopDownloadCard() {
             return `
                 <div class="card desktop-download-card">
-                    <img class="desktop-download-icon" src="/desktop/malkavrs/assets/icon.png" alt="" aria-hidden="true">
+                    <img class="desktop-download-icon" src="/images/apple-touch-icon.png" alt="" aria-hidden="true">
                     <div>
                         <div class="desktop-download-title">MalkaVRS Desktop</div>
                         <div class="desktop-download-copy">Use the desktop client for a large flashing incoming-call alert while keeping the same web account.</div>
@@ -3311,6 +3326,26 @@
                         </div>
                     </div>
                 </details>
+            `;
+        }
+
+        function renderVrsNumberCard(profile) {
+            const primaryPhone = profile?.phoneNumbers?.find(phone => phone.is_primary) || profile?.phoneNumbers?.[0] || null;
+            const number = primaryPhone?.phone_number || primaryPhone?.phoneNumber || '';
+
+            return `
+                <div class="card vrs-number-card" aria-label="Registered VRS number">
+                    <div class="card-title">Your VRS Number</div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                        <div>
+                            <div style="font-size:24px;font-weight:900;letter-spacing:0;color:var(--text-primary);">${escapeHtml(number || 'Not assigned yet')}</div>
+                            <div style="margin-top:4px;color:var(--text-secondary);font-size:13px;">
+                                Give this number to hearing callers. To place a VRS call, enter the hearing party's number or handle below.
+                            </div>
+                        </div>
+                        ${number ? `<button class="settings-btn secondary" data-action="copy-vrs-number" data-number="${escapeHtml(number)}">Copy</button>` : ''}
+                    </div>
+                </div>
             `;
         }
 
@@ -3540,6 +3575,7 @@
                 case 'vri-invite-field': return window.__vriInviteField(element.dataset.field, element.value);
                 case 'prepare-vri-invite': return window.__prepareVriInvite();
                 case 'copy-vri-invite': return window.__copyVriInvite(Number(element.dataset.index || 0));
+                case 'copy-vrs-number': return window.__copyVrsNumber(element.dataset.number || '');
                 case 'search-contacts': return window.__searchContacts(document.getElementById('contact-search')?.value || '');
                 case 'add-handle-contact': return window.__addHandleContact();
                 case 'sync-contacts': return window.__syncContacts();
@@ -4281,7 +4317,10 @@
                         </div>
 
                         <div class="vrs-home-lower">
-                            ${renderContactsPanel()}
+                            <div class="profile-stack">
+                                ${renderVrsNumberCard(profile)}
+                                ${renderContactsPanel()}
+                            </div>
 
                             <div class="profile-stack">
                             ${(activeRooms.length > 0 || missed.length > 0) ? `

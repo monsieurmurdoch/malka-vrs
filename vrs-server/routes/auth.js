@@ -11,6 +11,7 @@ const db = require('../database');
 const activityLogger = require('../lib/activity-logger');
 const { signToken, normalizeAuthClaims, verifyJwtToken } = require('../lib/auth');
 const log = require('../lib/logger').module('auth');
+const { createRedisRateLimitStore } = require('../lib/redis-rate-limit-store');
 const { validate, emailSchema, passwordSchema, nameSchema, organizationSchema, phoneNumberSchema, emptyBodySchema, z } = require('../lib/validation');
 const smsService = require('../lib/sms-service');
 const emailService = require('../lib/email-service');
@@ -18,6 +19,7 @@ const emailService = require('../lib/email-service');
 const router = express.Router();
 
 const authLimiter = rateLimit({
+    store: createRedisRateLimitStore({ prefix: 'vrs:rate-limit:auth' }),
     windowMs: 60 * 1000,
     max: 10,
     standardHeaders: true,

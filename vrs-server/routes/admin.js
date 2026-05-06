@@ -19,20 +19,22 @@ const router = express.Router();
 
 function normalizeDashboardStatus(status) {
     const value = String(status || '').trim().toLowerCase();
-    if (value === 'available' || value === 'active' || value === 'online') return 'online';
+    if (value === 'available' || value === 'active') return 'available';
+    if (value === 'online') return 'online';
     if (value === 'in_call' || value === 'incall' || value === 'on-call' || value === 'on_call') return 'in-call';
     if (value === 'busy') return 'busy';
     return 'offline';
 }
 
 function getInterpreterPresence() {
+    const priority = { offline: 0, online: 1, available: 2, busy: 3, 'in-call': 4 };
     const presence = new Map();
     for (const interpreter of state.clients.interpreters.values()) {
         if (!interpreter.userId || !interpreter.authenticated) continue;
         const id = interpreter.userId.toString();
         const status = normalizeDashboardStatus(interpreter.status);
         const existing = presence.get(id);
-        if (!existing || existing.status === 'offline' || status === 'busy' || status === 'in-call') {
+        if (!existing || (priority[status] || 0) >= (priority[existing.status] || 0)) {
             presence.set(id, { ...interpreter, status });
         }
     }
@@ -47,6 +49,21 @@ function getClientPresence() {
         const existing = presence.get(id);
         presence.set(id, {
             ...client,
+            connections: (existing?.connections || 0) + 1
+        });
+    }
+    return presence;
+}
+
+function getCaptionerPresence() {
+    const presence = new Map();
+    for (const captioner of state.clients.captioners.values()) {
+        if (!captioner.userId || !captioner.authenticated) continue;
+        const id = captioner.userId.toString();
+        const existing = presence.get(id);
+        presence.set(id, {
+            ...captioner,
+            status: normalizeDashboardStatus(captioner.status || 'online'),
             connections: (existing?.connections || 0) + 1
         });
     }
@@ -316,7 +333,17 @@ router.delete('/interpreters/:id', authenticateAdmin, async (req, res) => {
 router.get('/captioners', authenticateAdmin, async (req, res) => {
     try {
         const captioners = await db.getAllCaptioners();
-        res.json(captioners);
+        const presence = getCaptionerPresence();
+        res.json(captioners.map(captioner => {
+            const live = presence.get(String(captioner.id));
+
+            return {
+                ...captioner,
+                connected: Boolean(live),
+                currentStatus: live?.status || 'offline',
+                connections: live?.connections || 0
+            };
+        }));
     } catch (error) {
         req.log.error({ err: error }, 'Captioners error');
         res.status(500).json({ error: 'Failed to fetch captioners', code: 'INTERNAL_ERROR' });

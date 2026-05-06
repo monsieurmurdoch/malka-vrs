@@ -4,6 +4,7 @@
 
 const express = require('express');
 const db = require('../database');
+const log = require('../lib/logger').module('contacts');
 const { verifyJwtToken, normalizeAuthClaims } = require('../lib/auth');
 const state = require('../lib/state');
 const {
@@ -19,6 +20,10 @@ const {
 } = require('../lib/validation');
 
 const router = express.Router();
+
+function logRouteError(message, error, extra = {}) {
+    log.error({ err: error, ...extra }, message);
+}
 
 const colorSchema = z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional();
 const contactHandleSchema = z.string()
@@ -128,7 +133,7 @@ router.get('/', authenticateClient, async (req, res) => {
         });
         res.json({ contacts });
     } catch (error) {
-        console.error('[Contacts List] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to fetch contacts' });
     }
 });
@@ -152,7 +157,7 @@ router.get('/sync', authenticateClient, async (req, res) => {
             serverTimestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('[Contacts Sync] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to sync contacts' });
     }
 });
@@ -178,7 +183,7 @@ router.get('/:id', authenticateClient, async (req, res) => {
 
         res.json({ contact });
     } catch (error) {
-        console.error('[Contact Detail] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to fetch contact' });
     }
 });
@@ -227,10 +232,10 @@ router.post('/', authenticateClient, validate(createContactSchema), async (req, 
                 data: { action: 'create', entityType: 'contact', entityId: contact.id }
             });
         } catch (e) {
-            console.error('[Contact Create Sync Log] Error:', e);
+            logRouteError('Contacts sync event failed', e);
         }
     } catch (error) {
-        console.error('[Contact Create] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to create contact' });
     }
 });
@@ -279,10 +284,10 @@ router.put('/:id', authenticateClient, validate(updateContactSchema), async (req
                 data: { action: 'update', entityType: 'contact', entityId: req.params.id }
             });
         } catch (e) {
-            console.error('[Contact Update Sync Log] Error:', e);
+            logRouteError('Contacts sync event failed', e);
         }
     } catch (error) {
-        console.error('[Contact Update] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to update contact' });
     }
 });
@@ -311,10 +316,10 @@ router.delete('/:id', authenticateClient, async (req, res) => {
                 data: { action: 'delete', entityType: 'contact', entityId: req.params.id }
             });
         } catch (e) {
-            console.error('[Contact Delete Sync Log] Error:', e);
+            logRouteError('Contacts sync event failed', e);
         }
     } catch (error) {
-        console.error('[Contact Delete] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to delete contact' });
     }
 });
@@ -331,7 +336,7 @@ router.get('/groups/list', authenticateClient, async (req, res) => {
         const groups = await db.getContactGroups(req.user.id);
         res.json({ groups });
     } catch (error) {
-        console.error('[Contact Groups List] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to fetch groups' });
     }
 });
@@ -354,7 +359,7 @@ router.post('/groups', authenticateClient, validate(createGroupSchema), async (r
         if (error.message?.includes('UNIQUE')) {
             return res.status(409).json({ error: 'Group already exists' });
         }
-        console.error('[Contact Group Create] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to create group' });
     }
 });
@@ -372,7 +377,7 @@ router.put('/groups/:groupId', authenticateClient, validate(updateGroupSchema), 
         }
         res.json({ success: true });
     } catch (error) {
-        console.error('[Contact Group Update] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to update group' });
     }
 });
@@ -388,7 +393,7 @@ router.delete('/groups/:groupId', authenticateClient, async (req, res) => {
         }
         res.json({ success: true });
     } catch (error) {
-        console.error('[Contact Group Delete] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to delete group' });
     }
 });
@@ -403,7 +408,7 @@ router.put('/:id/groups', authenticateClient, validate(groupAssignmentSchema), a
         await db.setContactGroups(req.user.id, req.params.id, groupIds);
         res.json({ success: true });
     } catch (error) {
-        console.error('[Contact Group Assign] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to set groups' });
     }
 });
@@ -420,7 +425,7 @@ router.get('/blocked/list', authenticateClient, async (req, res) => {
         const blocked = await db.getBlockedContacts(req.user.id);
         res.json({ blocked });
     } catch (error) {
-        console.error('[Blocked List] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to fetch blocked contacts' });
     }
 });
@@ -441,7 +446,7 @@ router.post('/blocked', authenticateClient, validate(blockContactSchema), async 
         });
         res.status(201).json({ block: result });
     } catch (error) {
-        console.error('[Block Contact] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to block contact' });
     }
 });
@@ -457,7 +462,7 @@ router.delete('/blocked/:blockId', authenticateClient, async (req, res) => {
         }
         res.json({ success: true });
     } catch (error) {
-        console.error('[Unblock Contact] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to unblock contact' });
     }
 });
@@ -474,7 +479,7 @@ router.get('/duplicates/list', authenticateClient, async (req, res) => {
         const duplicates = await db.findDuplicateContacts(req.user.id);
         res.json({ duplicates });
     } catch (error) {
-        console.error('[Find Duplicates] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to find duplicates' });
     }
 });
@@ -489,7 +494,7 @@ router.post('/merge', authenticateClient, validate(mergeContactsSchema), async (
         const merged = await db.mergeContacts(req.user.id, { primaryId, secondaryIds });
         res.json({ success: true, merged });
     } catch (error) {
-        console.error('[Merge Contacts] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to merge contacts' });
     }
 });
@@ -521,10 +526,10 @@ router.post('/import', authenticateClient, validate(importContactsSchema), async
                 data: { action: 'import', entityType: 'contact', result }
             });
         } catch (e) {
-            console.error('[Contact Import Sync Log] Error:', e);
+            logRouteError('Contacts sync event failed', e);
         }
     } catch (error) {
-        console.error('[Import Contacts] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to import contacts' });
     }
 });
@@ -555,10 +560,10 @@ router.post('/migrate-speed-dial', authenticateClient, validate(emptyBodySchema)
                 data: { action: 'import', entityType: 'contact', migrated }
             });
         } catch (e) {
-            console.error('[Speed Dial Migration Sync Log] Error:', e);
+            logRouteError('Contacts sync event failed', e);
         }
     } catch (error) {
-        console.error('[Migrate Speed Dial] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to migrate speed dial' });
     }
 });
@@ -575,7 +580,7 @@ router.get('/:id/timeline', authenticateClient, async (req, res) => {
         const timeline = await db.getContactTimeline(req.user.id, req.params.id);
         res.json({ timeline });
     } catch (error) {
-        console.error('[Contact Timeline] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to fetch timeline' });
     }
 });
@@ -588,7 +593,7 @@ router.get('/:id/notes', authenticateClient, async (req, res) => {
         const notes = await db.getContactNotes(req.params.id);
         res.json({ notes });
     } catch (error) {
-        console.error('[Contact Notes List] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to fetch notes' });
     }
 });
@@ -621,10 +626,10 @@ router.post('/:id/notes', authenticateClient, validate(noteSchema), async (req, 
                 data: { action: 'create', entityType: 'note', entityId: note.id, contactId: req.params.id }
             });
         } catch (e) {
-            console.error('[Note Create Sync Log] Error:', e);
+            logRouteError('Contacts sync event failed', e);
         }
     } catch (error) {
-        console.error('[Note Create] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to create note' });
     }
 });
@@ -653,10 +658,10 @@ router.put('/:id/notes/:noteId', authenticateClient, validate(noteSchema), async
                 data: { action: 'update', entityType: 'note', entityId: req.params.noteId, contactId: req.params.id }
             });
         } catch (e) {
-            console.error('[Note Update Sync Log] Error:', e);
+            logRouteError('Contacts sync event failed', e);
         }
     } catch (error) {
-        console.error('[Note Update] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to update note' });
     }
 });
@@ -683,10 +688,10 @@ router.delete('/:id/notes/:noteId', authenticateClient, async (req, res) => {
                 data: { action: 'delete', entityType: 'note', entityId: req.params.noteId, contactId: req.params.id }
             });
         } catch (e) {
-            console.error('[Note Delete Sync Log] Error:', e);
+            logRouteError('Contacts sync event failed', e);
         }
     } catch (error) {
-        console.error('[Note Delete] Error:', error);
+        logRouteError('Contacts route failed', error);
         res.status(500).json({ error: 'Failed to delete note' });
     }
 });

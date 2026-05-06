@@ -694,6 +694,12 @@ function handleWebSocketMessage(data) {
                 scheduleRefresh('clients', loadClients, 150);
             }
             break;
+        case 'captioner_connected':
+        case 'captioner_disconnected':
+            if (window.location.hash.includes('captioners')) {
+                scheduleRefresh('captioners', loadCaptioners, 150);
+            }
+            break;
         case 'queue_update':
         case 'queue_status':
             if (window.location.hash.includes('queue')) {
@@ -1001,6 +1007,7 @@ function formatFlow(value) {
 function getStatusClass(status) {
     const normalized = normalizeStatus(status);
     const statusClasses = {
+        online: 'status-online',
         available: 'status-available',
         assigned: 'status-assigned',
         waiting: 'status-waiting',
@@ -1018,6 +1025,7 @@ function getStatusClass(status) {
 function formatStatusLabel(status) {
     const normalized = normalizeStatus(status);
     const labels = {
+        online: 'Online',
         available: 'Available',
         assigned: 'Assigned',
         waiting: 'Waiting',
@@ -1075,7 +1083,10 @@ function deriveInterpreterStatus(interpreter, activeCallMap) {
     }
 
     const current = normalizeStatus(interpreter.currentStatus);
-    if (current === 'online' || current === 'active' || current === 'available') {
+    if (current === 'online') {
+        return 'online';
+    }
+    if (current === 'active' || current === 'available') {
         return 'available';
     }
     if (current === 'busy' || current === 'assigned' || current === 'teamed') {
@@ -1232,9 +1243,10 @@ function buildOperationsRows({ activeCalls = [], clients = [], interpreters = []
             connecting: 3,
             'in-call': 4,
             available: 5,
-            break: 6,
-            offline: 7,
-            completed: 8
+            online: 6,
+            break: 7,
+            offline: 8,
+            completed: 9
         };
         return (priority[normalizeStatus(a.status)] || 99) - (priority[normalizeStatus(b.status)] || 99)
             || String(a.name).localeCompare(String(b.name));
@@ -2245,15 +2257,21 @@ function renderCaptionersTable(captioners) {
         return;
     }
 
-    tbody.innerHTML = captioners.map(captioner => `
+    tbody.innerHTML = captioners.map(captioner => {
+        const disabled = captioner.active === false;
+        const connected = Boolean(captioner.connected);
+        const badgeClass = disabled ? 'status-offline' : connected ? 'status-online' : 'status-offline';
+        const statusLabel = disabled ? 'Disabled' : connected ? 'Online' : 'Offline';
+
+        return `
         <tr>
             <td><div style="font-weight: 500;">${captioner.name}</div></td>
             <td style="color: var(--text-secondary);">${captioner.email}</td>
             <td>${Array.isArray(captioner.languages) ? captioner.languages.join(', ') : captioner.languages}</td>
             <td>
-                <span class="status-badge ${captioner.active === false ? 'status-offline' : 'status-online'}">
+                <span class="status-badge ${badgeClass}">
                     <span class="status-dot"></span>
-                    ${captioner.active === false ? 'Disabled' : 'Active'}
+                    ${statusLabel}
                 </span>
             </td>
             <td>${formatDate(captioner.created_at)}</td>
@@ -2261,7 +2279,8 @@ function renderCaptionersTable(captioners) {
                 <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" data-action="edit-captioner" data-id="${captioner.id}">Edit</button>
             </td>
         </tr>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function showAddCaptionerModal() {

@@ -26,6 +26,7 @@ const uuid_1 = require("uuid");
 const dotenv_1 = __importDefault(require("dotenv"));
 const zod_1 = require("zod");
 const pg_1 = require("pg");
+const logger_1 = require("./logger");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 exports.app = app;
@@ -35,11 +36,12 @@ const wss = new ws_1.WebSocketServer({ server, path: '/ws' });
 exports.wss = wss;
 const PORT = process.env.PORT || 3003;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const log = logger_1.logger.child({ module: 'ops' });
 const DEFAULT_SHARED_JWT_SECRET = 'vrs-ops-shared-secret';
 const JWT_SECRET = process.env.VRS_SHARED_JWT_SECRET || process.env.JWT_SECRET || '';
 if (!JWT_SECRET) {
-    console.error('FATAL: VRS_SHARED_JWT_SECRET or JWT_SECRET environment variable is required.');
-    console.error('Set it in your .env file before starting the server.');
+    log.error('FATAL: VRS_SHARED_JWT_SECRET or JWT_SECRET environment variable is required.');
+    log.error('Set it in your .env file before starting the server.');
     process.exit(1);
 }
 const TENANT_JWT_SECRETS = {
@@ -61,8 +63,8 @@ const BOOTSTRAP_SUPERADMIN_ENABLED = process.env.ENABLE_BOOTSTRAP_SUPERADMIN !==
 const BOOTSTRAP_SUPERADMIN_USERNAME = process.env.VRS_BOOTSTRAP_SUPERADMIN_USERNAME || 'superadmin';
 const BOOTSTRAP_SUPERADMIN_PASSWORD = process.env.VRS_BOOTSTRAP_SUPERADMIN_PASSWORD || '';
 if (!BOOTSTRAP_SUPERADMIN_PASSWORD) {
-    console.error('FATAL: VRS_BOOTSTRAP_SUPERADMIN_PASSWORD environment variable is required.');
-    console.error('Set it in your .env file before starting the server.');
+    log.error('FATAL: VRS_BOOTSTRAP_SUPERADMIN_PASSWORD environment variable is required.');
+    log.error('Set it in your .env file before starting the server.');
     process.exit(1);
 }
 const BOOTSTRAP_SUPERADMIN_NAME = process.env.VRS_BOOTSTRAP_SUPERADMIN_NAME || 'Malka Superadmin';
@@ -112,20 +114,84 @@ function loadTenantConfigs() {
                 providerName: config.brand?.providerName
             };
         }
-        catch (error) {
-            console.warn(`[Ops] Failed to read tenant config ${file}:`, error instanceof Error ? error.message : error);
+            catch (error) {
+                log.warn({ file, error: error instanceof Error ? error.message : error }, 'Failed to read tenant config');
         }
         return configs;
     }, {});
 }
 const TENANT_CONFIGS = loadTenantConfigs();
+function sanitizeText(value) {
+    return value
+        .replace(/<[^>]*>/g, '')
+        .replace(/&[#\w]+;/g, '')
+        .replace(/javascript:/gi, '')
+        .replace(/on\w+\s*=/gi, '')
+        .trim();
+}
 // Middleware
 app.use((0, helmet_1.default)());
 app.use((0, cors_1.default)({
     origin: CORS_ORIGIN
 }));
 app.use(express_1.default.json());
+app.use((req, res, next) => {
+    const incomingId = req.header('x-request-id') || req.header('x-correlation-id');
+    const requestId = incomingId || (0, uuid_1.v4)();
+    req.id = requestId;
+    req.log = logger_1.logger.child({
+        method: req.method,
+        path: req.path,
+        requestId
+    });
+    res.setHeader('X-Request-Id', requestId);
+    res.setHeader('X-Correlation-Id', requestId);
+    next();
+});
+app.use(standardizeErrorResponses);
 // Validation helper
+function inferErrorCode(statusCode) {
+    if (statusCode === 400)
+        return 'BAD_REQUEST';
+    if (statusCode === 401)
+        return 'AUTH_REQUIRED';
+    if (statusCode === 403)
+        return 'FORBIDDEN';
+    if (statusCode === 404)
+        return 'NOT_FOUND';
+    if (statusCode === 409)
+        return 'CONFLICT';
+    if (statusCode === 429)
+        return 'RATE_LIMITED';
+    if (statusCode === 503)
+        return 'SERVICE_UNAVAILABLE';
+    if (statusCode >= 500)
+        return 'INTERNAL_ERROR';
+    return 'ERROR';
+}
+function standardizeErrorResponses(_req, res, next) {
+    const originalJson = res.json.bind(res);
+    res.json = (body) => {
+        if (res.statusCode >= 400) {
+            const source = body && typeof body === 'object' && !Array.isArray(body)
+                ? body
+                : {};
+            const payload = {
+                ...source,
+                error: typeof source.error === 'string' ? source.error : 'Request failed',
+                code: typeof source.code === 'string' ? source.code : inferErrorCode(res.statusCode)
+            };
+            if (IS_PRODUCTION && res.statusCode >= 500) {
+                delete payload.details;
+                payload.error = 'Internal server error';
+                payload.code = 'INTERNAL_ERROR';
+            }
+            return originalJson(payload);
+        }
+        return originalJson(body);
+    };
+    next();
+}
 function validateRequest(schema) {
     return (req, res, next) => {
         const result = schema.safeParse(req.body);
@@ -156,14 +222,14 @@ const loginSchema = zod_1.z.object({
 });
 const createCallSchema = zod_1.z.object({
     clientId: zod_1.z.string().max(100).optional(),
-    clientName: zod_1.z.string().max(100).optional(),
-    language: zod_1.z.string().max(20).optional(),
+    clientName: zod_1.z.string().max(100).transform(sanitizeText).optional(),
+    language: zod_1.z.string().max(20).transform(sanitizeText).optional(),
     roomId: zod_1.z.string().max(100).optional()
 });
 const updateCallSchema = zod_1.z.object({
     status: zod_1.z.enum(['waiting', 'active', 'ended', 'abandoned']).optional(),
     interpreterId: zod_1.z.string().max(100).optional(),
-    interpreterName: zod_1.z.string().max(100).optional()
+    interpreterName: zod_1.z.string().max(100).transform(sanitizeText).optional()
 }).refine(data => Object.keys(data).length > 0, {
     message: 'At least one field must be provided'
 });
@@ -171,13 +237,13 @@ const updateInterpreterStatusSchema = zod_1.z.object({
     status: zod_1.z.enum(['available', 'busy', 'offline', 'break']).optional()
 });
 const createAccountSchema = zod_1.z.object({
-    name: zod_1.z.string().min(1).max(100),
+    name: zod_1.z.string().min(1).max(100).transform(sanitizeText),
     email: zod_1.z.string().max(254).optional(),
     username: zod_1.z.string().max(100).optional(),
     password: zod_1.z.string().min(8).max(128),
     role: zod_1.z.enum(['admin', 'captioner', 'interpreter', 'superadmin']),
-    languages: zod_1.z.array(zod_1.z.string().max(20)).min(1).optional().default(['ASL']),
-    organization: zod_1.z.string().max(120).optional(),
+    languages: zod_1.z.array(zod_1.z.string().max(20).transform(sanitizeText)).min(1).optional().default(['ASL']),
+    organization: zod_1.z.string().max(120).transform(sanitizeText).optional(),
     permissions: zod_1.z.array(zod_1.z.string().max(80)).optional().default([]),
     profile: zod_1.z.record(zod_1.z.unknown()).optional().default({}),
     serviceModes: zod_1.z.array(zod_1.z.enum(['vrs', 'vri'])).min(1).optional().default(['vrs']),
@@ -186,9 +252,9 @@ const createAccountSchema = zod_1.z.object({
 const updateAccountSchema = zod_1.z.object({
     active: zod_1.z.boolean().optional(),
     email: zod_1.z.string().max(254).optional(),
-    languages: zod_1.z.array(zod_1.z.string().max(20)).min(1).optional(),
-    name: zod_1.z.string().min(1).max(100).optional(),
-    organization: zod_1.z.string().max(120).optional(),
+    languages: zod_1.z.array(zod_1.z.string().max(20).transform(sanitizeText)).min(1).optional(),
+    name: zod_1.z.string().min(1).max(100).transform(sanitizeText).optional(),
+    organization: zod_1.z.string().max(120).transform(sanitizeText).optional(),
     password: zod_1.z.string().min(8).max(128).optional(),
     permissions: zod_1.z.array(zod_1.z.string().max(80)).optional(),
     profile: zod_1.z.record(zod_1.z.unknown()).optional(),
@@ -232,7 +298,7 @@ function loadPersistedOpsState() {
         };
     }
     catch (error) {
-        console.error('Failed to load ops state file:', error);
+        log.error({ err: error }, 'Failed to load ops state file');
         return {
             accounts: [],
             audit: []
@@ -991,14 +1057,13 @@ async function assertBootstrapSuperadmin() {
     const bootstrapRecord = createBootstrapSuperadminRecord();
     authDirectory = [bootstrapRecord, ...authDirectory];
     await persistOpsState();
-    console.warn(`[Security] Bootstrap superadmin enabled for local ops: ${BOOTSTRAP_SUPERADMIN_USERNAME} / ${BOOTSTRAP_SUPERADMIN_PASSWORD}`);
+    log.warn({ username: BOOTSTRAP_SUPERADMIN_USERNAME }, 'Bootstrap superadmin enabled for local ops');
 }
 function auditAuth(event, details) {
-    console.log(`[AuthAudit] ${event}`, JSON.stringify({
+    log.info({
         event,
-        timestamp: new Date().toISOString(),
         ...details
-    }));
+    }, 'Auth audit event');
     recordOpsAudit(event, details);
 }
 function loadAuthDirectory() {
@@ -1011,7 +1076,7 @@ function loadAuthDirectory() {
         return Array.isArray(records) ? records.map(normalizeAccountRecord) : [];
     }
     catch (error) {
-        console.error('Invalid VRS_USER_DIRECTORY_JSON:', error);
+        log.error({ err: error }, 'Invalid VRS_USER_DIRECTORY_JSON');
         return [];
     }
 }
@@ -1021,14 +1086,14 @@ function assertSecureConfig() {
         if (IS_PRODUCTION) {
             throw new Error(message);
         }
-        console.warn(`[Security] ${message}`);
+        log.warn({ warning: message }, 'Security configuration warning');
     }
     if (!authDirectory.length && !BOOTSTRAP_SUPERADMIN_ENABLED) {
         const message = 'VRS_USER_DIRECTORY_JSON is empty. Interpreter/admin login is disabled until secure credentials are configured.';
         if (IS_PRODUCTION) {
             throw new Error(message);
         }
-        console.warn(`[Security] ${message}`);
+        log.warn({ warning: message }, 'Security configuration warning');
     }
 }
 async function initializeOpsState() {
@@ -1912,15 +1977,15 @@ app.get('/api/admin/monitoring/summary', authenticateToken, requireRole('admin',
 });
 // ==================== WebSocket ====================
 wss.on('connection', (ws) => {
-    console.log('WebSocket client connected');
+    log.info('WebSocket client connected');
     wsClients.add(ws);
     void sendInitialState(ws);
     ws.on('close', () => {
         wsClients.delete(ws);
-        console.log('WebSocket client disconnected');
+        log.info('WebSocket client disconnected');
     });
     ws.on('error', (error) => {
-        console.error('WebSocket error:', error);
+        log.error({ err: error }, 'WebSocket error');
         wsClients.delete(ws);
     });
 });
@@ -1944,7 +2009,7 @@ async function sendInitialState(ws) {
         }
     }
     catch (error) {
-        console.error('[OpsServer] Failed to send initial WebSocket state:', error);
+        log.error({ err: error }, 'Failed to send initial WebSocket state');
     }
 }
 function broadcastEvent(eventType, data) {
@@ -2003,7 +2068,7 @@ async function updateDailyStats(call) {
 }
 // ==================== Start Server ====================
 app.use((err, _req, res, _next) => {
-    console.error('[OpsServer] Error:', err);
+    log.error({ err }, 'Unhandled ops server error');
     res.status(500).json({
         error: 'Internal server error',
         code: 'INTERNAL_ERROR',
@@ -2012,17 +2077,19 @@ app.use((err, _req, res, _next) => {
 });
 initializeOpsState().then(() => {
     server.listen(PORT, () => {
-        console.log(`VRS Ops Server running on port ${PORT}`);
-        console.log(`Dashboard API: http://localhost:${PORT}/api/dashboard/live`);
-        console.log(`WebSocket: ws://localhost:${PORT}/ws`);
-        console.log(`Readiness: http://localhost:${PORT}/api/readiness`);
+        log.info({
+            port: PORT,
+            dashboardApi: `http://localhost:${PORT}/api/dashboard/live`,
+            readiness: `http://localhost:${PORT}/api/readiness`,
+            websocket: `ws://localhost:${PORT}/ws`
+        }, 'VRS Ops Server started');
         const warnings = getOpsWarnings();
         if (warnings.length) {
-            console.warn('[Ops] Startup warnings:', warnings.join(', '));
+            log.warn({ warnings }, 'Startup warnings');
         }
     });
 }).catch(error => {
-    console.error('[Ops] Failed to initialize persistent state:', error);
+    log.error({ err: error }, 'Failed to initialize persistent state');
     process.exit(1);
 });
 //# sourceMappingURL=index.js.map

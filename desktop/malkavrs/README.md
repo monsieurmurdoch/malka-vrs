@@ -32,18 +32,35 @@ npm --prefix desktop/malkavrs start
 - MalkaVRS only.
 - Interpreter incoming-request alert only.
 - No separate desktop auth or queue implementation.
-- No packaged installer yet.
+- Packaged installer path is configured; signed artifacts require Apple and
+  Windows signing credentials in the release environment.
 
 ## Client Account Download Link
 
 MalkaVRS client accounts link to `/downloads/malkavrs-desktop.html`. Once
-signed installers are produced, place them at:
+signed installers are produced, publish them at:
 
 - `/downloads/MalkaVRS-Desktop.dmg`
 - `/downloads/MalkaVRS-Desktop.exe`
 
 The account UI can stay stable while the downloadable artifacts change behind
 that page.
+
+Release commands:
+
+```sh
+npm --prefix desktop/malkavrs install
+npm --prefix desktop/malkavrs run pack:mac
+npm --prefix desktop/malkavrs run pack:win
+npm --prefix desktop/malkavrs run publish:downloads
+```
+
+Signing prerequisites:
+
+- macOS: a valid Developer ID Application certificate available to
+  `electron-builder`, plus notarization credentials when distributing outside
+  TestFlight/App Store style channels.
+- Windows: a code-signing certificate available through the release runner.
 
 ## Verification
 

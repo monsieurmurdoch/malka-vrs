@@ -27,7 +27,7 @@ Principles:
 
 ## Legal and Product Decisions Still Needed
 
-- Market-specific regulatory retention for FCC/CRTC-facing VRS data.
+- Market-specific regulatory/partner retention for VRS data operated through a certified provider or other approved market path.
 - Whether any caption/transcript persistence will exist, and what consent screen
   is required.
 - Whether AI training data can ever be derived from calls, and under what
