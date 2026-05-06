@@ -7,7 +7,7 @@
 
 import { APP_TYPE, FEATURES, type AppType, type FeatureKey } from './constants';
 import { getPersistentJson } from '../../vrs-auth/storage';
-import { NativeModules, Platform } from 'react-native';
+import Platform from '../react/Platform';
 import malkaConfig from '../../../../whitelabel/malka.json';
 import malkaStagingConfig from '../../../../whitelabel/malka-staging.json';
 import malkaVriConfig from '../../../../whitelabel/malkavri.json';
@@ -49,6 +49,12 @@ const STATIC_TENANTS: Record<string, unknown> = {
     'maple-staging': mapleStagingConfig
 };
 
+type ReactNativeModules = {
+    AppInfo?: {
+        name?: string;
+    };
+};
+
 function isRecord(value: unknown): value is UnknownRecord {
     return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
@@ -79,11 +85,11 @@ function getBuildTenantId(): string | undefined {
 }
 
 function getNativeTenantId(): string | undefined {
-    if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined' || Platform.OS === 'web') {
         return undefined;
     }
 
-    const appName = String(NativeModules?.AppInfo?.name || '').toLowerCase();
+    const appName = String(getNativeModules()?.AppInfo?.name || '').toLowerCase();
 
     if (appName.includes('maple')) {
         return 'maple';
@@ -98,6 +104,18 @@ function getNativeTenantId(): string | undefined {
     }
 
     return undefined;
+}
+
+function getNativeModules(): ReactNativeModules | undefined {
+    try {
+        const nativeRequire = (0, eval)('require') as ((moduleName: string) => {
+            NativeModules?: ReactNativeModules;
+        }) | undefined;
+
+        return nativeRequire?.('react-native')?.NativeModules;
+    } catch {
+        return undefined;
+    }
 }
 
 function flattenFeatures(features: Record<string, unknown> = {}) {
