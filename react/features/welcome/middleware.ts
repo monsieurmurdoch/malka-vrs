@@ -1,5 +1,4 @@
 import { AnyAction } from 'redux';
-import { Platform } from 'react-native';
 
 import { IStore } from '../app/types';
 import MiddlewareRegistry from '../base/redux/MiddlewareRegistry';
@@ -16,7 +15,7 @@ MiddlewareRegistry.register((store: IStore) => (next: Function) => (action: AnyA
 
     switch (action.type) {
     case REQUEST_INTERPRETER: {
-        if (Platform.OS !== 'web') {
+        if (typeof window === 'undefined') {
             break;
         }
 
