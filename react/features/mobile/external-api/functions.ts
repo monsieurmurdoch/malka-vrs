@@ -1,5 +1,4 @@
 import debounce from 'lodash/debounce';
-import { NativeModules } from 'react-native';
 
 import { IParticipant } from '../../base/participants/types';
 
@@ -18,7 +17,27 @@ import { readyToClose } from './actions';
  * @returns {void}
  */
 export function sendEvent(store: Object, name: string, data: Object) {
-    NativeModules.ExternalAPI.sendEvent(name, data);
+    getExternalAPI()?.sendEvent(name, data);
+}
+
+function getExternalAPI(): { sendEvent?: (name: string, data: Object) => void; } | undefined {
+    if (typeof window !== 'undefined') {
+        return undefined;
+    }
+
+    try {
+        const nativeRequire = (0, eval)('require') as ((moduleName: string) => {
+            NativeModules?: {
+                ExternalAPI?: {
+                    sendEvent?: (name: string, data: Object) => void;
+                };
+            };
+        }) | undefined;
+
+        return nativeRequire?.('react-native')?.NativeModules?.ExternalAPI;
+    } catch {
+        return undefined;
+    }
 }
 
 /**
