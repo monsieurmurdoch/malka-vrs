@@ -232,6 +232,7 @@ const mobileConfig = config.mobile;
 
 if (mobileConfig) {
     // --- iOS: patch Info.plist and pbxproj ---
+    const iosAppDir = path.join(PROJECT_ROOT, 'ios', 'app');
     const iosInfoPlist = path.join(PROJECT_ROOT, 'ios', 'app', 'src', 'Info.plist');
     if (fs.existsSync(iosInfoPlist)) {
         let plist = fs.readFileSync(iosInfoPlist, 'utf8');
@@ -247,9 +248,9 @@ if (mobileConfig) {
     }
 
     // Patch pbxproj bundle identifier
-    const pbxprojGlob = path.join(PROJECT_ROOT, 'ios', 'app', '*.pbxproj');
-    const pbxprojFiles = fs.readdirSync(path.join(PROJECT_ROOT, 'ios', 'app'))
-        .filter(f => f.endsWith('.pbxproj'));
+    const pbxprojFiles = fs.existsSync(iosAppDir)
+        ? fs.readdirSync(iosAppDir).filter(f => f.endsWith('.pbxproj'))
+        : [];
 
     for (const pbxFile of pbxprojFiles) {
         const pbxPath = path.join(PROJECT_ROOT, 'ios', 'app', pbxFile);
