@@ -9,8 +9,7 @@
  * Each log entry includes: timestamp, level, event, payload, sessionId, platform
  */
 
-import { Platform } from 'react-native';
-
+import Platform from '../../base/react/Platform';
 import { apiClient } from '../../shared/api-client';
 import { getPersistentJson, setPersistentItem } from '../../vrs-auth/storage';
 

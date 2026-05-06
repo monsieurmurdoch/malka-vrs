@@ -10,9 +10,8 @@
  *   const profile = await apiClient.get<UserProfile>('/api/client/profile');
  */
 
-import { Platform } from 'react-native';
-
 import type { ApiResponse } from '../../../../contracts/types';
+import Platform from '../../base/react/Platform';
 import { getWhitelabelConfig } from '../../base/whitelabel/functions';
 import { getPersistentItem, getPersistentJson } from '../../vrs-auth/storage';
 import { getSecureItem, setSecureItem } from '../../vrs-auth/secureStorage';
@@ -30,7 +29,7 @@ interface TenantConfig {
 }
 
 function getBaseUrl(): string {
-    if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined' || Platform.OS === 'web') {
         // Web: relative URL (same origin) or read from whitelabel config
         return '';
     }
